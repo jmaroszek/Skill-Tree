@@ -40,7 +40,11 @@ global.window = {
     }
 };
 const listeners = {};
-global.document = {addEventListener: (type, fn) => { listeners[type] = fn; }};
+let shownCards = false;
+global.document = {
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    getElementById: () => ({querySelector: () => (shownCards ? {} : null)}),
+};
 // Timers run only when the test says the slide has finished.
 let timers = [];
 global.setTimeout = fn => { timers.push(fn); return fn; };
@@ -101,6 +105,40 @@ slideEnd('details-goal-sidebar', 'transform', 'translateX(0px)');
 slideEnd('events-sidebar-container', 'transform', 'translateX(-350px)');
 slideEnd('details-goal-sidebar', 'opacity', 'translateX(-350px)');
 assert.deepEqual(setProps, []);
+
+// A reopen shows the last built list at once if nothing it came from has
+// changed. The rebuild still follows the slide.
+const remember = window.dash_clientside.goals.remember_list;
+const cards = [{type: 'Div', namespace: 'dash_html_components', props: {id: 'a'}}];
+const cover = {type: 'Div', namespace: 'dash_html_components',
+               props: {className: 'loading-cover'}};
+const sources = [7, 2, '', 'manual', null];
+remember(cards, ...sources);
+remember(cover, ...sources);  // the cover is never remembered
+trigger('btn-goals-toggle');
+toggle(4, 1, closed, closed, closed, 9, ...sources);
+finishSlide();
+assert.deepEqual(setProps, [['details-goal-list-container', {children: cards}],
+                            ['goals-ui-refresh-trigger', {data: 10}]]);
+setProps.length = 0;
+
+// Cards still showing (a close reversed mid-slide) are left alone.
+shownCards = true;
+toggle(5, 1, closed, closed, closed, 10, ...sources);
+finishSlide();
+assert.deepEqual(setProps, [['goals-ui-refresh-trigger', {data: 11}]]);
+setProps.length = 0;
+shownCards = false;
+
+// A change to the graph, priorities, search, sort or order waits for the
+// rebuild.
+[[8, 2, '', 'manual', null], [7, 3, '', 'manual', null], [7, 2, 'x', 'manual', null],
+ [7, 2, '', 'priority', null], [7, 2, '', 'manual', ['a']]].forEach(changed => {
+    toggle(6, 1, closed, closed, closed, 0, ...changed);
+    finishSlide();
+    assert.deepEqual(setProps, [['goals-ui-refresh-trigger', {data: 1}]]);
+    setProps.length = 0;
+});
 '''
     result = subprocess.run(
         [node, "-e", script, str(ASSET)],

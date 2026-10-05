@@ -10,6 +10,11 @@
  * The sidebar slides with `transform`, which the browser animates off the
  * main thread. The refresh waits until the slide is done, so the rebuilt
  * list doesn't land mid-slide.
+ *
+ * The last list built is remembered. If nothing it was built from has
+ * changed, a reopen slides in with it instead of the spinner. Putting it
+ * back takes a few milliseconds. The rebuild still runs after the slide, so
+ * anything the key misses is corrected then.
  */
 // NOTE: 350px must match config.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
 // transition in sidebars_layout.py.
@@ -38,6 +43,29 @@ window.dash_clientside.goals = window.dash_clientside.goals || {};
         flexDirection: "column"
     };
     var pendingRefresh = null;
+    // {key, json} of the last built list.
+    var remembered = null;
+
+    // What a built list depends on: the graph, priorities, search, sort and
+    // manual order. Selection only moves the outline, which a clientside
+    // callback redraws when the cards mount.
+    function listKey(version, refresh, search, sort, order) {
+        return JSON.stringify([version, refresh, search || '', sort || null, order || null]);
+    }
+
+    function isCover(children) {
+        return !!(children && !Array.isArray(children) && children.props
+                  && children.props.className === 'loading-cover');
+    }
+
+    window.dash_clientside.goals.remember_list = function (
+        children, version, refresh, search, sort, order
+    ) {
+        if (children && !isCover(children)) {
+            remembered = {key: listKey(version, refresh, search, sort, order),
+                          json: JSON.stringify(children)};
+        }
+    };
 
     function cancelRefresh() {
         clearTimeout(pendingRefresh);
@@ -57,7 +85,8 @@ window.dash_clientside.goals = window.dash_clientside.goals || {};
 
     window.dash_clientside.goals.toggle_sidebar = function (
         _toggleN, _closeN,
-        currentStyle, editorStyle, eventsStyle, refresh
+        currentStyle, editorStyle, eventsStyle, refresh,
+        version, detailsRefresh, search, sort, order
     ) {
         var NO = window.dash_clientside.no_update;
         var trigger = triggerId();
@@ -70,6 +99,17 @@ window.dash_clientside.goals = window.dash_clientside.goals || {};
         function doOpen() {
             style.transform = OPEN;
             cancelRefresh();
+            var key = listKey(version, detailsRefresh, search, sort, order);
+            if (remembered && remembered.key === key) {
+                var json = remembered.json;
+                // After this callback returns, so the slide starts first.
+                setTimeout(function () {
+                    var list = document.getElementById('details-goal-list-container');
+                    if (list && list.querySelector('.goal-card')) return;
+                    window.dash_clientside.set_props('details-goal-list-container',
+                                                     {children: JSON.parse(json)});
+                }, 0);
+            }
             var nextRefresh = (refresh || 0) + 1;
             pendingRefresh = setTimeout(function () {
                 pendingRefresh = null;

@@ -130,6 +130,16 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
     return cards
 
 
+# What a built Goals list depends on, besides the sidebar being open.
+GOAL_LIST_SOURCES = (
+    State("graph-version-store", "data"),
+    State("details-refresh-trigger", "data"),
+    State("details-goal-search", "value"),
+    State("details-goal-sort", "data"),
+    State("details-goal-order-store", "data"),
+)
+
+
 def register_sidebars_callbacks(app, services=None):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, drag-reorder), filters toggle, editor fast-path."""
@@ -138,7 +148,8 @@ def register_sidebars_callbacks(app, services=None):
     # server round-trip on open/close. Once the open slide finishes it bumps
     # goals-ui-refresh-trigger (NOT details-refresh-trigger) so only
     # render_goal_list re-runs — core_engine stays idle, and the rebuilt list
-    # doesn't land mid-slide.
+    # doesn't land mid-slide. The States after the refresh are what the list
+    # was built from: if none changed, a reopen shows the remembered list.
     app.clientside_callback(
         ClientsideFunction(namespace='goals', function_name='toggle_sidebar'),
         Output("details-goal-sidebar", "style"),
@@ -150,6 +161,14 @@ def register_sidebars_callbacks(app, services=None):
         State("sidebar-editor-container", "style"),
         State("events-sidebar-container", "style"),
         State("goals-ui-refresh-trigger", "data"),
+        *GOAL_LIST_SOURCES,
+        prevent_initial_call=True,
+    )
+    # Remembers each built list for the toggle above.
+    app.clientside_callback(
+        ClientsideFunction(namespace='goals', function_name='remember_list'),
+        Input("details-goal-list-container", "children"),
+        *GOAL_LIST_SOURCES,
         prevent_initial_call=True,
     )
 
@@ -178,9 +197,10 @@ def register_sidebars_callbacks(app, services=None):
     # update, so a hidden list slowed every interaction elsewhere: the Details
     # graph's opening animation stuttered behind it. assets/goals_sidebar.js
     # bumps goals-ui-refresh-trigger when a slide finishes. After an open
-    # that builds the list; after a close it swaps the list for the cover, so
-    # the next open slides in over a spinner. Nothing else builds the list
-    # while the sidebar is closed.
+    # that builds the list; after a close it swaps the list for the cover.
+    # The next open slides in over the remembered list if nothing it was
+    # built from has changed, or over a spinner if something has. Nothing
+    # else builds the list while the sidebar is closed.
     @app.callback(
         Output("details-goal-list-container", "children"),
         Input("main-tabs", "active_tab"),

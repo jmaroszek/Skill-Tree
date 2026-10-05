@@ -426,6 +426,9 @@ Everything the cover waits for adds to the wait, so startup work changed:
   close slide finishes. A prewarmed list kept hundreds of components mounted
   while hidden, and every store update re-checked them. That made every
   update dearer, on every tab.
+- The browser remembers the last list built. A reopen slides in with it if the
+  graph, priorities, search, sort and manual order are unchanged. The rebuild
+  still runs after the slide and corrects anything else.
 
 Two costs weren't Dash's. Dash loads a core-js 2 polyfill that replaces the
 browser's `trim`, `parseFloat` and `parseInt` with versions 13 to 60 times

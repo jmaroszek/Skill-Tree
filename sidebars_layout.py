@@ -591,7 +591,8 @@ def build_goals_sidebar():
             ),
 
             # The list is built once the open slide finishes and cleared once
-            # the close slide does, so the sidebar slides in over this cover.
+            # the close slide does. The first open slides in over this cover;
+            # later ones use the remembered list while it is current.
             html.Div(
                 goal_list_cover(),
                 id="details-goal-list-container",
