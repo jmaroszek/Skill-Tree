@@ -1,5 +1,6 @@
 """SQLite row persistence; the manager owns transactions and graph side effects."""
 import sqlite3
+from copy import copy
 from typing import List, Dict, Optional
 import database
 from models import Node
@@ -9,6 +10,18 @@ from resource_links import save_node_links
 class GraphRepository:
     def __init__(self, connection_factory):
         self.get_connection = connection_factory
+
+    def _from_snapshot(self, snapshot, rows):
+        """Normalize each row once per read, keeping returned nodes independent."""
+        nodes = []
+        for row in rows:
+            name = row['name']
+            if name not in snapshot.node_templates:
+                snapshot.node_templates[name] = Node(**row)
+            nodes.append(copy(snapshot.node_templates[name]))
+        # Resource links are the Node's mutable field. _with_resources gives
+        # each copy its own dict and lists; templates are never handed out.
+        return self._with_resources(nodes)
 
     def _with_resources(self, nodes):
         """Attach one batch of named links without a query per node."""
@@ -38,7 +51,7 @@ class GraphRepository:
         snapshot = database.current_snapshot()
         if snapshot is not None:
             row = snapshot.nodes.get(name)
-            return self._with_resources([Node(**row)])[0] if row is not None else None
+            return self._from_snapshot(snapshot, [row])[0] if row is not None else None
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -108,8 +121,8 @@ class GraphRepository:
         """Retrieves all nodes. Excludes dormant nodes by default."""
         snapshot = database.current_snapshot()
         if snapshot is not None:
-            return self._with_resources([Node(**row) for row in snapshot.nodes.values()
-                    if include_dormant or not row['dormant']])
+            return self._from_snapshot(snapshot, (row for row in snapshot.nodes.values()
+                    if include_dormant or not row['dormant']))
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -127,9 +140,11 @@ class GraphRepository:
         "currently being worked on", and the Now section should never
         surface one.
         """
-        if database.current_snapshot() is not None:
-            return sorted((n for n in self.get_all_nodes() if n.now > 0),
-                          key=lambda n: (n.now, n.name))
+        snapshot = database.current_snapshot()
+        if snapshot is not None:
+            nodes = self._from_snapshot(snapshot, (row for row in snapshot.nodes.values()
+                     if row['now'] > 0 and not row['dormant']))
+            return sorted(nodes, key=lambda n: (n.now, n.name))
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()

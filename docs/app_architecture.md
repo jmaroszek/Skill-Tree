@@ -282,10 +282,22 @@ settings getters query SQLite normally. Connection context managers close their
 owned connection on both success and failure; nested write leases stay open until
 the owning transaction ends.
 
+Within a snapshot, the repository normalizes each requested node row once and
+returns a fresh copy on every read. Resource-link dictionaries and lists are
+copied too, so edits and computed scoring fields cannot leak into another read.
+The Now lookup constructs only awake Now nodes, rather than the whole graph.
+
 Each manager owns one `GraphCaches` object. Community caches retain at most 32 filter/method combinations and subtree caches
 at most 128 entries per manager. Both discard entries from older graph versions.
 Scoring memoization still survives cosmetic edits. See [performance.md](performance.md)
 for the synthetic benchmark and its limits.
+
+The scoring memo retains scalar total values alongside route and required-work
+maps. Its totals distinguish every value parameter and excluded synergy partner;
+the existing scoring revision discards them when graph inputs change. Ranking
+uses the same contribution arithmetic as Explain, without allocating Explain's
+per-beneficiary attribution rows. Filters, unblocking-step selection and priority
+normalization can therefore reuse values computed earlier in the refresh.
 
 All graph-affecting event operations and field migrations participate in the same
 transaction/version protocol. Removing relationships repairs the former hard

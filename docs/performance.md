@@ -165,3 +165,42 @@ above, scaled for this machine, so 1,000 nodes add no new cost there.
 The time simulation now runs 10,000 trials over 97 open tasks in 27 ms,
 against about 1.9 s for 100 tasks in the September 7 measurement above.
 
+## Recommendation refreshes (2026-10-04)
+
+Measured in the local Windows `skill-tree` Python environment with
+`tools/perf_bench.py --nodes 1000`. Before and after used the same benchmark
+and seed, with the before source extracted from starting Git revision `dc58cfa`.
+Each figure is the median of five calls over a throwaway synthetic database:
+1,000 nodes, 1,771 edges, 25 recommendation rows plus unblocking steps.
+Each ranking measurement includes building the table components and its priority
+normalizer. The after-edit measurement also includes the value edit itself.
+
+| Server operation | Before | After | Reduction |
+|---|---:|---:|---:|
+| Home ranking after a value edit | 396 ms | 246 ms | 38% |
+| Home ranking, unchanged graph | 275 ms | 63 ms | 77% |
+
+Profiling found repeated aggregation of the same total values in unblocking-step
+selection, the recommendation ranking and priority normalization. Ranking also
+built the detailed attribution rows used by Explain, despite needing only their
+sum. It now calculates the scalar without those rows and retains that result in
+the existing versioned scoring memo. Node reads within one snapshot normalize
+each row once, then return independent copies; Now reads construct only the
+matching nodes.
+
+Exact before/after comparisons covered all six scoring profiles, full and
+filtered rankings, unrounded scores, total values and variety adjustments.
+Regression tests cover attribution parity, value-parameter and partner-exclusion
+cache keys, snapshot lifetime, caller mutation isolation and resource-link copies.
+
+The 1,000-node sandbox browser benchmark also completed startup, the first Nodes
+visit and an editor save, with all performance budgets passing. The figures in
+the table are server timings, not click-to-paint timings. Cytoscape layout and
+Dash/React rendering still contribute to what the user waits for.
+
+Validation: 2,423 source tests passed (one skipped), along with repository lint
+and diff checks. Four selected browser journeys covered graph creation and
+recommendations, Done/undo cascades, Now completion and event activation. The
+graph-creation journey initially reported `net::ERR_NO_BUFFER_SPACE` after its
+functional assertions passed; isolated reruns passed on both the starting and
+updated source. The other three journeys passed on their first run.

@@ -43,6 +43,62 @@ def test_snapshot_is_detached_and_node_objects_are_not_shared():
     assert database.current_snapshot() is None
 
 
+def test_now_snapshot_materializes_only_awake_now_nodes_and_detaches_links(monkeypatch):
+    from models import Node
+
+    m = graph(*(f'N{i}' for i in range(30)))
+    m.add_node(node('First', now=1, resource_links={'links': ['https://example.com']}))
+    m.add_node(node('Second', now=2))
+    m.add_node(node('Sleeping', now=1, dormant=1))
+    built = []
+    original = Node.__post_init__
+
+    def track(instance):
+        built.append(instance.name)
+        original(instance)
+
+    monkeypatch.setattr(Node, '__post_init__', track)
+    with database.read_snapshot():
+        now = m.get_now_nodes()
+        assert [n.name for n in now] == ['First', 'Second']
+        assert built == ['First', 'Second']
+        now[0].resource_links['links'].append('https://example.com/changed')
+        now[0].now = 9
+        fresh = m.get_now_nodes()
+        assert fresh[0].now == 1
+        assert fresh[0].resource_links == {'links': ['https://example.com']}
+        assert built == ['First', 'Second']
+
+
+def test_snapshot_normalizes_rows_once_and_keeps_templates_private(monkeypatch):
+    from models import Node
+
+    m = graph('A', 'B')
+    built = []
+    original = Node.__post_init__
+
+    def track(instance):
+        built.append(instance.name)
+        original(instance)
+
+    monkeypatch.setattr(Node, '__post_init__', track)
+    with database.read_snapshot():
+        first = m.get_all_nodes()
+        first[0].value = 99
+        first[0].total_value = 100
+        first[0].variety = {'divisor': 9}
+        second = GraphManager().get_all_nodes()
+        assert second[0] is not first[0]
+        assert second[0].value == 5
+        assert not hasattr(second[0], 'total_value')
+        assert not hasattr(second[0], 'variety')
+        assert m.get_node('A').value == 5
+        assert built == ['A', 'B']
+    with database.read_snapshot():
+        assert m.get_node('A').value == 5
+        assert built == ['A', 'B', 'A']
+
+
 def test_write_invalidates_snapshot_and_next_read_sees_new_values():
     m = graph("A")
     with database.read_snapshot():

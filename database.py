@@ -58,6 +58,9 @@ class ReadSnapshot:
                 "SELECT DISTINCT etn.node_name FROM EventTriggerNodes etn "
                 "JOIN Events e ON e.name=etn.event_name WHERE e.status='Pending'")}
         self.invalid = False
+        # The repository normalizes each requested row once, then returns
+        # detached copies. Templates live only as long as this read scope.
+        self.node_templates = {}
 
 
 def current_snapshot():

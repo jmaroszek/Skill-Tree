@@ -332,7 +332,7 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
                          value_exponent=1.0, memo=None,
                          future_work_half_credit_hours=0.0,
                          future_work_exponent=0.6, skip_done=True,
-                         flat_goals=True):
+                         flat_goals=True, *, with_attribution=True):
     """Shared scoring/Explain attribution. Synergy is a separate additive channel.
 
     With `skip_done`, Done nodes earn `start` nothing. A Done beneficiary's
@@ -342,10 +342,13 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
     Goal ranker turns both off: it counts finished prerequisites as part of a
     Goal's value, and it walks the inverted graph, where Goals are the start.
     Milestones are free hops everywhere (see _strongest_routes).
+
+    Ranking requests only the summed value. Keep its arithmetic and per-name
+    summation identical to Explain without allocating the attribution rows.
     """
     memo = {} if memo is None else memo
     if start not in all_nodes:
-        return []
+        return [] if with_attribution else 0.0
     skip = _done_names(all_nodes, memo) if skip_done else frozenset()
     channels = [(start, 1.0, False)]
     context = all_nodes[start].context
@@ -366,16 +369,21 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
             hours = _remaining_hours(name, start, all_nodes, H_out, memo) if future_work_half_credit_hours > 0 else 0.0
             discount = 1.0 / (1.0 + (hours / future_work_half_credit_hours) ** future_work_exponent) if future_work_half_credit_hours > 0 else 1.0
             iv = intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
+            amount = weight * iv * discount
+            if not with_attribution:
+                rows[name] = rows.get(name, 0.0) + amount
+                continue
             kind = 'Synergy' if synergy else via
             row = rows.setdefault(name, dict(name=name, depth=depth + int(synergy), via=kind,
                 iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
                 contribution=0.0, channel_routes={}, channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0}))
-            amount = weight * iv * discount
             row['weight'] += weight
             row['contribution'] += amount
             row['channels'][kind] += amount
             if amount > row['channel_routes'].get(kind, (-1, 0))[0]:
                 row['channel_routes'][kind] = (amount, depth + int(synergy))
+    if not with_attribution:
+        return math.fsum(rows.values())
     for row in rows.values():
         # Mixed routes retain exact channel attribution; the bar uses the largest channel.
         row['via'] = max(row['channels'], key=row['channels'].get)
@@ -396,14 +404,26 @@ def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
     """
     if node_name in visited or node_name not in all_nodes:
         return 0.0
+    # Structural maps and these scalar totals share the manager's scoring
+    # revision. Include every value parameter and the excluded partners so
+    # direct callers can also reuse a memo across parameter variants safely.
+    key = ('total_value', node_name, frozenset(visited), w_v, w_i, d_H, d_S,
+           d_Syn_pair, d_Syn_mul, cross_context_mult, value_exponent,
+           future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals)
+    if memo is not None and key in memo:
+        return memo[key]
     partners = {node_name: Syn.get(node_name, set()) - visited}
-    rows = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
+    value = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
-        future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals)
+        future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals,
+        with_attribution=False)
     done = sum(all_nodes[z].status == STATUS_DONE for z in partners[node_name]
                if z != node_name and z in all_nodes)
     kick = intrinsic_value(all_nodes[node_name], w_v, w_i, value_exponent) * d_Syn_mul * math.sqrt(done)
-    return math.fsum(row['contribution'] for row in rows) + kick
+    result = value + kick
+    if memo is not None:
+        memo[key] = result
+    return result
 
 
 def _compute_priority_score(
@@ -604,10 +624,11 @@ def score_nodes(
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
-    # — safe because GraphManager invalidates on _graph_version / hyperparam
+    # — safe because GraphManager invalidates on _scoring_version / hyperparam
     # changes, which are the only inputs outer total_value depends on.
     # Direct callers (tests) without a memo get fresh per-call state.
-    # Maps contain unique beneficiaries and required hard work, not scalar subtree sums.
+    # Maps contain unique beneficiaries and required hard work; scalar totals
+    # retain the result of aggregating those maps for each source.
     memo: dict = external_memo if external_memo is not None else {}
 
     # Pre-compute per-node boost from ranked priority goals

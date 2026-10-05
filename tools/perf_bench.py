@@ -6,9 +6,9 @@
 Builds a graph with perf_graph.py in a throwaway folder, then times:
 
 - in this process, the server's share (median of several runs): the Home
-  ranking after an edit, the Nodes canvas payload, an editor save, Done and
-  back with a cascade, the launch repair, export, a backup, and the time
-  simulation for the goal with the largest prerequisite tree;
+  ranking after an edit and on an unchanged graph, the Nodes canvas payload,
+  an editor save, Done and back with a cascade, the launch repair, export,
+  a backup, and the time simulation for the goal with the largest prerequisite tree;
 - with --browser (needs Playwright, see requirements-e2e.txt), what a person
   sees, in Chromium against a real server: its boot, the first load until the
   startup cover lifts, the first Nodes visit until the canvas is drawn, and
@@ -39,6 +39,7 @@ for folder in (ROOT, TOOLS):
 # CI's macOS runners are slower still.
 BUDGETS = {
     "Home ranking after an edit": 5.0,
+    "Home ranking, unchanged graph": 3.0,
     "Nodes canvas payload": 3.0,
     "Editor save": 3.0,
     "Done and back, with a cascade": 5.0,
@@ -104,13 +105,17 @@ def server_timings(db_path, repeats=5):
     busiest = max((n for n in nodes.values() if n.type not in ("Goal", "Milestone")),
                   key=lambda n: len(hard_in.get(n.name, [])) + len(hard_out.get(n.name, [])))
 
+    def rank():
+        ranked = next_view.get_suggestions({}, 25)
+        format_suggestions_table(ranked.rows, manager, pinned_steps=ranked.pinned_steps)
+
     def rank_after_edit():
         node = manager.get_node(busiest.name)
         node.value = 11 - node.value if 1 <= node.value <= 10 else 5
         manager.update_node(node)
-        ranked = next_view.get_suggestions({}, 25)
-        format_suggestions_table(ranked.rows, manager, pinned_steps=ranked.pinned_steps)
+        rank()
     results["Home ranking after an edit"] = _median(rank_after_edit, repeats)
+    results["Home ranking, unchanged graph"] = _median(rank, repeats)
 
     results["Nodes canvas payload"] = _median(lambda: callbacks.generate_elements(), repeats)
 
