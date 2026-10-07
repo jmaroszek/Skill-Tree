@@ -281,7 +281,6 @@ class TestComputeGoalProgress:
         assert row['share'] == pytest.approx(0.4)
 
     def test_rows_put_the_priority_badge_after_the_name(self, mgr):
-        from dash import html
         from analyze_callbacks import _render_goal_progress
         _setup_graph(mgr, [
             _make_node("Goal1", type="Goal", time_mode='inherited'),
