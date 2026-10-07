@@ -672,6 +672,27 @@ once.
 Locate reads the held payload. It decides whether a node is on a canvas from
 the held graph, and it waits for that graph to settle before pulsing.
 
+### Drawing every frame of an animation
+
+Cytoscape draws each canvas from its own `requestAnimationFrame` loop. A tick
+draws only if a redraw was requested before the tick began. The tick then
+steps the running animations, and each step requests the next redraw. On a
+tick that draws, the loop clears that request after drawing. So the next tick
+only steps, and a moving graph was drawn on every other tick.
+
+`assets/cytoscape_frame_pacing.js` keeps that request on every canvas. A
+redraw requested while a tick prepares its draw is renewed after the draw. A
+graph that stops moving stops asking, so a still canvas draws once per change
+as before.
+
+A canvas whose draws average more than half a frame keeps Cytoscape's pacing.
+Drawing a large graph twice as often could starve the rest of the page. The
+frame is measured from the ticks themselves, since it is 4 ms on a 240 Hz
+screen and 17 ms on a 60 Hz one. The Details tween draws in under 1.5 ms, so
+it draws every tick. A Settle of the 567-node sandbox graph draws in about
+25 ms at 4K, so Nodes keeps the old pacing there.
+[performance.md](performance.md) has the measurements.
+
 ## Layout requests
 
 Every canvas's `layout` prop comes from `assets/layout_requests.js`.

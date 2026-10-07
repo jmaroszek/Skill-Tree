@@ -40,3 +40,31 @@ def test_nodes_stay_where_the_opening_layout_settles(page):
     assert result["spread"] > 50
     assert result["moved"] < 1, result
     assert page.console_errors == []
+
+
+def test_the_opening_animation_draws_on_every_tick(page):
+    """Cytoscape's loop cleared the redraw its animation step asked for, so
+    the opening tween drew on every other tick. Frame pacing keeps that
+    request."""
+    _seed(page)
+    page.click("a.nav-link:has-text('Details')")
+    _idle(page)
+    result = page.evaluate("""async () => {
+        const cy = SkillTree.getCy(document.getElementById('details-mini-graph'));
+        let moving = false, ticks = 0, draws = 0;
+        cy.on('layoutstart', () => { moving = true; });
+        cy.on('step', () => { if (moving) ticks += 1; });
+        cy.on('render', () => { if (moving) draws += 1; });
+        const stopped = new Promise(resolve => cy.on('layoutstop', function onStop() {
+            if (!cy.getElementById('Goal').length || cy.nodes().length < 3) return;
+            moving = false;
+            cy.off('layoutstop', onStop);
+            resolve();
+        }));
+        SkillTree.menus.send('details-navigate-trigger-input', 'Goal|' + Date.now());
+        await stopped;
+        return {ticks, draws};
+    }""")
+    assert result["ticks"] > 20, result
+    assert result["draws"] >= 0.8 * result["ticks"], result
+    assert page.console_errors == []

@@ -36,7 +36,11 @@ def _assert_frozen(page):
                 pan: Math.hypot(cy.pan().x - freezeProbe.pan.x,
                                cy.pan().y - freezeProbe.pan.y)};
     }""")
-    assert result == {"moved": 0, "zoom": 0, "pan": 0}, result
+    # An edit's auto-refresh layout is stopped at its start, but its first
+    # animation steps still nudge nodes. Freeze snaps back anything over
+    # 0.01 px on either axis and lets smaller steps stand.
+    assert result["moved"] <= 0.01 * 2 ** 0.5, result
+    assert {"zoom": result["zoom"], "pan": result["pan"]} == {"zoom": 0, "pan": 0}, result
 
 
 def test_freeze_preserves_positions_while_editing_nodes_and_edges(page, server):

@@ -315,3 +315,35 @@ Now removal, viewport-report coalescing, immediate node events and unmount
 cleanup. Existing checks also passed for sidebar keyboard containment and
 fullscreen graph controls.
 
+
+## Drawing every animation frame (2026-10-06)
+
+Measured in the Electron window (Electron 42) on a 240 Hz 4K screen at 175%
+scaling. Each launch used a copy of the sandbox database in a throwaway
+`SKILLTREE_HOME`. Launches alternated with `cytoscape_frame_pacing.js` on and
+off. Off removes its wrappers in the page after load. Each cell is two
+launches. Draws are Cytoscape `render` events from layout start to layout
+stop. Ticks are its animation `step` events over the same span.
+
+| View | Nodes | Draw time | Draws per second, off → on | Ticks per second |
+| --- | ---: | ---: | ---: | ---: |
+| Details: Neuroscience | 3 | 0.3 ms | 120 → 239 | 239–240 |
+| Details: Video | 17 | 0.6–0.8 ms | 114 → 229 | 227–229 |
+| Details: Literature | 37 | 1.3–1.5 ms | 118 → 236 | 234–236 |
+| Nodes: Settle | 567 | 24–29 ms | 12–13 → 12–14 | 20–25 |
+
+Off, every Details tween drew on exactly half its ticks. On, it drew on every
+one. A Settle of the whole Nodes graph draws in about 25 ms, more than half of
+a 4 ms frame, so it keeps Cytoscape's pacing either way. Its tween shows about
+12 graph frames a second, because each draw is that slow at this resolution.
+
+An earlier session on the same machine gave the page only 75–90 ticks a
+second, at uneven spacing. The cause wasn't found. The fix doubles the draws
+in either case, because it acts on whatever ticks the page gets.
+
+The first open of a page load can still stall once. The first Literature open
+held one frame for about 29 ms, with the fix on or off. The main thread was
+idle for most of it. The GPU process ran 83 canvas raster jobs: Cytoscape
+drawing each new node's body and label into its texture cache. Later opens of
+the same graph reuse those textures and showed no stall. The 3- and 17-node
+views showed none on their first open with the fix on.
