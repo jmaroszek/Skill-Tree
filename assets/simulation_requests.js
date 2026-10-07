@@ -139,6 +139,8 @@
             displayed = request.sequence;
             if (inFlight !== null && result.sequence >= inFlight) inFlight = null;
             if (result.error) return [no, hidden, hidden, result.error];
+            var labels = window.SkillTree && window.SkillTree.simLabelRows;
+            if (labels) labels.watch('details-sim-chart');
             return [result.figure, result.resultsStyle, result.emptyStyle, result.caption];
         }
     };
