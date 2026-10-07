@@ -181,9 +181,14 @@ _UNIT_TITLES = {"y": "Work years", "m": "Work months", "w": "Work weeks",
                 "d": "Work days", "h": "Work hours"}
 
 # literal: Plotly shape colours -- read as computed values, not CSS.
-_PERCENTILE_LINES = (("P10", "p10", "#198754"),  # literal: Plotly
-                     ("P50", "p50", "#ffc107"),  # literal: Plotly
-                     ("P90", "p90", "#dc3545"))  # literal: Plotly
+# All three are dashed. P10 and P90 are the two ends of one range, so they
+# share a muted gray. P50 is the headline, so it is brighter. Status colours
+# would read as good and bad, and Details already uses them for Done and
+# Blocked.
+_RANGE_COLOR = "#adb5bd"  # literal: Plotly
+_PERCENTILE_LINES = (("P10", "p10", _RANGE_COLOR),
+                     ("P50", "p50", "#f8f9fa"),  # literal: Plotly
+                     ("P90", "p90", _RANGE_COLOR))
 
 
 def _chance(fraction):
@@ -237,6 +242,8 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         customdata=hover,
         hovertemplate="%{customdata}<extra></extra>",
     ))
+    # One row of labels. assets/sim_label_rows.js lifts any that would overlap
+    # once it can measure them.
     for label, key, color in _PERCENTILE_LINES:
         fig.add_vline(
             x=stats[key] / size, line_dash="dash", line_color=color, line_width=2,

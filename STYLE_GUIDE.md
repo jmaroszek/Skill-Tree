@@ -909,6 +909,14 @@ by hovering, so it turns off drag-zoom and uses `closest` hover. That hover
 answers only over a bar and adds no exact axis value. Its axis, lines and
 tooltips share one natural time unit rather than raw hours.
 
+Its P lines are all dashed. P10 and P90 are the two ends of one range, so they
+share a muted gray. P50 is the headline, so it is near-white. Don't use
+status green, yellow or red for them. They read as good and bad, and Details
+uses the same colours for Done and Blocked. The labels sit in one row above
+the plot. `assets/sim_label_rows.js` lifts a label a row only when it would
+overlap one already placed, measured after every draw. That way the rows
+follow the panel's real width.
+
 Analyze charts follow the same rule. `_graph` in `analyze_callbacks.py` turns
 drag-zoom off by default, so the cursor stays a plain arrow. Only a chart
 whose points crowd together opts back in with `zoom=True`: today, the two
