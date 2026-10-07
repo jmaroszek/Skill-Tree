@@ -57,7 +57,7 @@ jobs:
         run: node --test "electron/*.test.js"
 
   # A real server and a real browser: what a new user does in their first
-  # hour (tests/e2e). The test job above skips these, having no browser.
+  # hour (tests/e2e). The test job above leaves these out (pytest.ini).
   e2e:
     name: Browser journeys (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

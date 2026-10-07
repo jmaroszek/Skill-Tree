@@ -81,13 +81,21 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 
 ## Testing
 
+Run the tests for what you changed while you work, and the whole suite once before you commit:
+
 ```bash
-pytest
+pytest tests/test_simulation.py tests/test_simulation_service.py   # while working: the tests for what you changed
+python -m ruff check .                                              # before committing: a lint error fails CI
+pytest -n auto                                                      # before committing: the whole suite, on every core
 ```
 
-Tests use a `temp_database` fixture that monkeypatches `database.get_db_path` to a per-test `tmp_path`. Nothing writes to the sandbox or production DBs. Two scoring tests in `test_scoring_differential.py` read each one when it exists: they take a read-only snapshot into `tmp_path` and score the copy. They skip when the file is missing.
+- To find the tests for a file, search `tests/` for its name: a module's, or a JS or CSS asset's. Shared code (`models`, `database`, `graph_manager`, `config`, `scoring`, `callback_helpers`) is tested all over the suite: after changing it, run all of it.
+- `pytest --lf` reruns only what failed last time. `-n auto` needs pytest-xdist, which `requirements-dev.txt` and `environment.yml` install.
+- Don't wait on CI after pushing: it runs everything, on four platforms, on every push. Look at the last run before you push again (`gh run list --limit 3`); when it's red, fixing it comes first.
 
-The browser journeys in `tests/e2e` (a real server, driven in Chromium) skip unless Playwright is installed; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
+Tests use a `temp_database` fixture that gives each test its own copy of a new database in `tmp_path` and monkeypatches `database.get_db_path` to it. Nothing writes to the sandbox or production DBs. Two scoring tests in `test_scoring_differential.py` read each one when it exists: they take a read-only snapshot into `tmp_path` and score the copy. They skip when the file is missing.
+
+`pytest` leaves out the browser journeys in `tests/e2e` (a real server, driven in Chromium; over ten minutes in all). Run them only for a change to what happens in the browser, and then only the file for it: `pytest tests/e2e/test_keyboard.py`. They need Playwright; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
 
 ## Key patterns to follow when editing
 

@@ -4,5 +4,7 @@
 
 pytest==9.0.3
 hypothesis==6.168.1
+# Runs the suite on every CPU core: pytest -n auto.
+pytest-xdist==3.8.0
 # The linter CI runs; ruff.toml says which rules.
 ruff==0.16.9

@@ -67,15 +67,17 @@ python app.py
 ## 4. Run the tests (optional)
 
 ```bash
-pytest
+pytest -n auto
 python -m ruff check .
 ```
+
+`-n auto` runs the tests on every CPU core (pytest-xdist); plain `pytest` runs them one at a time. Name a file to run only its tests: `pytest tests/test_simulation.py`.
 
 Tests run against a temporary per-test database and never write to your sandbox or production data. Two scoring tests read a consistent copy of those databases when they exist, and skip when they don't. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
 
 The linter checks for unused imports and variables, undefined names, and shadowed imports. `ruff.toml` names its rules, and CI runs it too.
 
-The browser journeys in `tests/e2e` start a real server and drive it in Chromium, the way a new user would. They skip unless Playwright is installed:
+The browser journeys in `tests/e2e` start a real server and drive it in Chromium, the way a new user would. `pytest` leaves them out, so name the folder to run them. They need Playwright:
 
 ```bash
 pip install -r requirements-e2e.txt
