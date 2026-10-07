@@ -85,7 +85,7 @@ python -m playwright install chromium
 pytest tests/e2e
 ```
 
-Each journey gets its own server on a free port and a throwaway data folder.
+Each journey gets its own server on a free port and a throwaway data folder. They check what a workflow leaves in the database, not layout or timing, so a redesign shouldn't break them. CI runs them on Linux.
 
 ## 5. Build the desktop installers (optional)
 

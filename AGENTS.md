@@ -95,7 +95,7 @@ pytest -n auto                                                      # before com
 
 Tests use a `temp_database` fixture that gives each test its own copy of a new database in `tmp_path` and monkeypatches `database.get_db_path` to it. Nothing writes to the sandbox or production DBs. Two scoring tests in `test_scoring_differential.py` read each one when it exists: they take a read-only snapshot into `tmp_path` and score the copy. They skip when the file is missing.
 
-`pytest` leaves out the browser journeys in `tests/e2e` (a real server, driven in Chromium; over ten minutes in all). Run them only for a change to what happens in the browser, and then only the file for it: `pytest tests/e2e/test_keyboard.py`. They need Playwright; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
+`pytest` leaves out the browser journeys in `tests/e2e`: a real server, driven in Chromium, through what a new user does in their first hour. They check what ends up in the database, not layout, focus order or timing; keep any new one that way. Run them for a change to a workflow they cover: `pytest tests/e2e`. CI runs them on Linux only. They need Playwright; see [`docs/setup.md`](docs/setup.md) section 4. Each starts its own server against a throwaway `SKILLTREE_HOME`.
 
 ## Key patterns to follow when editing
 
