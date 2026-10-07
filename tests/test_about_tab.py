@@ -121,11 +121,8 @@ def _component(root, component_id):
     return None
 
 
-def test_the_toolbar_has_help_that_opens_outside_the_app():
-    help_button = _component(build_app_layout([], env="sandbox"), "btn-help")
-    assert help_button.href == about.HELP_URL
-    assert help_button.href.startswith("https://github.com/jmaroszek/Skill-Tree")
-    assert help_button.target == "_blank" and help_button.external_link is True
+def test_the_toolbar_has_no_external_help_button():
+    assert _component(build_app_layout([], env="sandbox"), "btn-help") is None
 
 
 def test_about_opens_the_third_party_notices(monkeypatch, tmp_path):

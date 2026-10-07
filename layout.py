@@ -31,7 +31,6 @@ import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select, work_time_tooltip
 from resource_links import MAX_SECTIONS
-import about
 from ui_kit import (Tooltip, cancel_action, edit_button, info_button,
                     panel_close_button, primary_action, step_button)
 
@@ -1214,12 +1213,6 @@ def build_app_layout(initial_elements, env="production"):
                         html.Span("Settings", className="visually-hidden")],
                        id="btn-settings-toggle", color="secondary", size="sm", className="ms-2"),
             Tooltip("Settings", target="btn-settings-toggle", placement="bottom"),
-            # Opens in the browser (Electron hands new windows to the system).
-            dbc.Button([html.I(className="bi bi-question-circle", **{"aria-hidden": "true"}),
-                        html.Span("Help", className="visually-hidden")],
-                       id="btn-help", href=about.HELP_URL, target="_blank", external_link=True,
-                       color="secondary", size="sm", className="ms-2"),
-            Tooltip("Help", target="btn-help", placement="bottom"),
         ], className="main-toolbar-actions d-flex align-items-center pe-3",
            style={"flex": "0 0 auto"}),
     ], id="main-toolbar", className="d-flex align-items-center",

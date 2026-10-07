@@ -243,7 +243,7 @@ def test_event_save_shortcut_and_modified_save_scope(page, server):
     })""")
     page.keyboard.press("Control+Shift+s")
     assert page.evaluate("window.saveConsumed") is False
-    page.locator("#btn-help").focus()
+    page.locator("#btn-settings-toggle").focus()
     page.keyboard.press("Control+s")
     assert page.evaluate("window.saveConsumed") is False
     assert page.console_errors == []
