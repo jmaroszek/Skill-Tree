@@ -374,7 +374,8 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
                 rows[name] = rows.get(name, 0.0) + amount
                 continue
             kind = 'Synergy' if synergy else via
-            row = rows.setdefault(name, dict(name=name, depth=depth + int(synergy), via=kind,
+            row = rows.setdefault(name, dict(name=name, type=all_nodes[name].type,
+                depth=depth + int(synergy), via=kind,
                 iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
                 contribution=0.0, channel_routes={}, channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0}))
             row['weight'] += weight

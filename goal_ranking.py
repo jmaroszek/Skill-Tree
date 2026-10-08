@@ -251,6 +251,7 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
     for_goal = math.fsum(work[t]['credit'].get(goal_name, 0.0) for t in tasks)
     contributors = [{
         'name': t,
+        'type': all_nodes_dict[t].type,
         'via': 'Hard',
         'depth': routes[t][1] if t in routes else 0,
         'iv': work[t]['own'],

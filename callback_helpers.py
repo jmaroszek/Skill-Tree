@@ -2249,14 +2249,17 @@ def _explain_summary_table(breakdown: dict, normalized):
 def _contributor_hover(row: dict) -> str:
     """Short hover text for one bar of the contributors chart.
 
-    Kept short: the name, its ratings, how the node is reached, and how much
-    of its value reaches the explained node. The bar's own label already
-    carries its share of total value.
+    Kept short: the name, its type and ratings, how the node is reached, and
+    how much of its value reaches the explained node. The bar's own label
+    already carries its share of total value.
     """
     lines = [f"<b>{_escape(row['name'])}</b>"]
+    facts = [_escape(row['type'])] if row.get('type') else []
     if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
-        lines.append(f"Value {_format_rating(row['value'])} · "
-                     f"Interest {_format_rating(row['interest'])}")
+        facts += [f"Value {_format_rating(row['value'])}",
+                  f"Interest {_format_rating(row['interest'])}"]
+    if facts:
+        lines.append(" · ".join(facts))
     via = row.get('via')
     if via != 'Self':
         steps = row.get('depth', 0)

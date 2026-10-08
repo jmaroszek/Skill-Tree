@@ -916,6 +916,16 @@ class TestContributorHover:
                'value': 5, 'interest': 5}
         assert _contributor_hover(row) == "<b>X</b><br>Value 5 · Interest 5"
 
+    def test_type_leads_the_ratings_line(self):
+        row = {'name': 'Health', 'type': 'Goal', 'via': 'Self', 'depth': 0,
+               'iv': 10.0, 'value': 9, 'interest': 10}
+        assert _contributor_hover(row) == "<b>Health</b><br>Goal · Value 9 · Interest 10"
+
+    def test_type_stands_alone_without_ratings(self):
+        row = {'name': 'M', 'type': 'Milestone', 'via': 'Hard', 'depth': 1, 'iv': 0.0}
+        assert _contributor_hover(row) == (
+            "<b>M</b><br>Milestone<br>1 step away via hard prerequisite")
+
     def test_names_are_escaped(self):
         row = {'name': 'A <b> B', 'via': 'Synergy', 'depth': 1, 'iv': 0.0}
         assert _contributor_hover(row) == (
