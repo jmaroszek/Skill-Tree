@@ -1338,6 +1338,13 @@ def _bool_icon(val):
 
 _MONO_FONT = tokens.FONT_MONO
 
+# The Next priority bar: a tinted fill with a solid edge at its end. The edge
+# marks the exact value; the tint keeps the type colours from outweighing the
+# length (solid orange read as more urgent than solid blue at the same score).
+BAR_FILL_PERCENT = 60
+# 3.5 times the 250px name column. Past this the bars add colour, not precision.
+BAR_MAX_WIDTH = 875
+
 
 def _suggestion_micro_bar(val, label):
     """One bar of the V/I/E micro-chart (6×22 track with bottom-anchored fill, native title tooltip)."""
@@ -1536,7 +1543,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             ),
             style={
                 "width": f"{bar_width_pct}%", "height": "100%",
-                "background": bar_color, "borderRadius": "3px",
+                "background": f"color-mix(in srgb, {bar_color} {BAR_FILL_PERCENT}%, transparent)",
+                "boxShadow": f"inset -3px 0 0 {bar_color}", "borderRadius": "3px",
                 "display": "flex", "alignItems": "center",
                 "justifyContent": "flex-end", "paddingRight": "10px",
             },
@@ -1585,7 +1593,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
         row_style = {
             "display": "grid",
-            "gridTemplateColumns": f"32px {name_col_width}px 1fr auto",
+            "gridTemplateColumns": f"32px {name_col_width}px minmax(240px, {BAR_MAX_WIDTH}px) auto",
             "alignItems": "center",
             "gap": "14px",
             "padding": "9px 12px",

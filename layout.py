@@ -154,14 +154,15 @@ def build_next_view():
         html.Div([
             html.Div(id="suggestions-table", children=[
                 html.P("Loading suggestions...", className="text-muted mt-3")
-            ], style={"flex": "4 1 0", "minWidth": 0}),
+            ], style={"flex": "0 1 auto", "minWidth": 0}),
         
             # Description area — populated when clicking a Now card or Next row.
             html.Div(id="next-description-area", children=[
                 html.H6("Description", className="text-muted mb-2", style=_section_title_style),
                 html.Div("Click a card or row to see its description", id="next-description-text",
-                         style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG})
-            ], style={"flex": "1 1 0", "maxWidth": "800px"}),
+                         style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
+            ], style={"flex": "1 1 0", "minWidth": "280px", "maxWidth": "480px",
+                      "paddingRight": "2.5rem", "boxSizing": "content-box"}),
         ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
     ])
 

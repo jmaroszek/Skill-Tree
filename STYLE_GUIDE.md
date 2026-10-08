@@ -105,6 +105,19 @@ frozen here. To re-derive after a major canvas-palette swap, dig those
 deltas out of the git history for this file or `config.BADGE_PALETTE`.
 Otherwise, just edit the literals to taste.
 
+**Next-tab priority bar.** The bar carries two cues: length is the priority and
+colour is the node type. The fill is the type colour at 60% over the track
+(`color-mix`), with a solid 3px edge at its end that marks the exact value.
+Solid fills made Action orange look more urgent than Learn blue at the same
+score, and a tint evens the types out. Above about 70% the tint is not
+distinguishable from solid, and at 40% or below it looks washed out. A row that
+unblocks a Now node uses the Unblocking colour the same way.
+
+The bar column is capped at 3.5 times the name column (875px against 250px).
+Past that the bar adds colour, not precision. The Description panel beside it
+is capped at 480px with a right margin, so its text never runs to the window
+edge. Both values are constants in `callback_helpers.py` and `layout.py`.
+
 **Render order** in the Details info pane:
 
 1. Status (always)
