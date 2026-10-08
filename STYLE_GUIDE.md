@@ -115,8 +115,11 @@ unblocks a Now node uses the Unblocking colour the same way.
 
 The bar column is capped at 3.5 times the name column (875px against 250px).
 Past that the bar adds colour, not precision. The Description panel beside it
-is capped at 480px with a right margin, so its text never runs to the window
-edge. Both values are constants in `callback_helpers.py` and `layout.py`.
+is capped at 420px with a right margin, so its text never runs to the window
+edge. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
+chart and the link dots sit 38px apart. The first gap is the looser one so the
+bar's end edge does not crowd the time. These are constants in
+`callback_helpers.py` and `layout.py`.
 
 **Render order** in the Details info pane:
 

@@ -1344,6 +1344,11 @@ _MONO_FONT = tokens.FONT_MONO
 BAR_FILL_PERCENT = 60
 # 3.5 times the 250px name column. Past this the bars add colour, not precision.
 BAR_MAX_WIDTH = 875
+# Space between the row's columns, then between the time, the V/I/E chart and the
+# link dots inside the last one. The first is looser so the bar's end edge does
+# not crowd the time.
+BAR_ROW_GAP = 24
+META_GAP = 38
 
 
 def _suggestion_micro_bar(val, label):
@@ -1587,7 +1592,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
-            "display": "flex", "alignItems": "center", "gap": "32px",
+            "display": "flex", "alignItems": "center", "gap": f"{META_GAP}px",
             "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XS,
         })
 
@@ -1595,7 +1600,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             "display": "grid",
             "gridTemplateColumns": f"32px {name_col_width}px minmax(240px, {BAR_MAX_WIDTH}px) auto",
             "alignItems": "center",
-            "gap": "14px",
+            "gap": f"{BAR_ROW_GAP}px",
             "padding": "9px 12px",
             "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
         }

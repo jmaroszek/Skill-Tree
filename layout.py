@@ -161,7 +161,7 @@ def build_next_view():
                 html.H6("Description", className="text-muted mb-2", style=_section_title_style),
                 html.Div("Click a card or row to see its description", id="next-description-text",
                          style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
-            ], style={"flex": "1 1 0", "minWidth": "280px", "maxWidth": "480px",
+            ], style={"flex": "1 1 0", "minWidth": "280px", "maxWidth": "420px",
                       "paddingRight": "2.5rem", "boxSizing": "content-box"}),
         ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
     ])

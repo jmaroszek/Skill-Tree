@@ -2,7 +2,8 @@
 
 import pytest
 
-from callback_helpers import BAR_FILL_PERCENT, BAR_MAX_WIDTH, format_suggestions_table
+from callback_helpers import (BAR_FILL_PERCENT, BAR_MAX_WIDTH, BAR_ROW_GAP, META_GAP,
+                              format_suggestions_table)
 from config import BADGE_PALETTE
 from graph_manager import GraphManager
 from models import Node
@@ -43,3 +44,10 @@ def test_the_bar_column_is_capped_at_three_and_a_half_name_columns(mgr):
 
     assert BAR_MAX_WIDTH == 3.5 * 250
     assert f"minmax(240px, {BAR_MAX_WIDTH}px)" in row.style["gridTemplateColumns"]
+
+
+def test_the_row_spaces_its_columns_and_its_meta_items(mgr):
+    (row,) = _rows(mgr, ("Study", "Learn", 10))
+
+    assert row.style["gap"] == f"{BAR_ROW_GAP}px"
+    assert row.children[3].style["gap"] == f"{META_GAP}px"
