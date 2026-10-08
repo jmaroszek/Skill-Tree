@@ -55,6 +55,7 @@ def register_next_callbacks(app, services=None):
         Output({'type': 'suggestion-row', 'index': ALL}, 'style'),
         Output({'type': 'now-row', 'index': ALL}, 'style'),
         Output('next-description-text', 'style'),
+        Output('next-relations', 'children'),
         Input({'type': 'suggestion-row', 'index': ALL}, 'n_clicks'),
         Input({'type': 'now-row', 'index': ALL}, 'n_clicks'),
         Input('suggestions-table', 'children'),

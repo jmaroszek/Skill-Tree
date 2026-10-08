@@ -61,3 +61,39 @@ def test_the_row_spaces_its_columns_and_its_meta_items(mgr):
 
     assert row.style["gap"] == f"{BAR_ROW_GAP}px"
     assert row.children[3].style["gap"] == f"{META_GAP}px"
+
+
+def _relations(mgr, name):
+    import json
+    from callback_helpers import _relations_lookup
+    return json.loads(_relations_lookup(mgr)(name))
+
+
+def _graph(mgr, nodes, edges):
+    for name, type_ in nodes:
+        mgr.add_node(Node(name=name, type=type_, description="", value=5, time_o=1,
+                          time_m=2, time_p=4, interest=5, difficulty=5, status="Open",
+                          context="Mind"))
+    for source, target, kind in edges:
+        mgr.add_edge(source, target, kind)
+
+
+def test_the_panel_lists_direct_dependents_and_synergy_but_nothing_further(mgr):
+    _graph(mgr, [("Base", "Learn"), ("Next", "Learn"), ("Far", "Goal"), ("Top", "Goal"),
+                 ("Twin", "Learn")],
+           [("Base", "Next", "Needs_Hard"), ("Next", "Far", "Needs_Hard"),
+            ("Base", "Top", "Needs_Soft"), ("Base", "Twin", "Helps")])
+
+    data = _relations(mgr, "Base")
+
+    assert [r[0] for r in data["supports"]] == ["Next", "Top"] or \
+        sorted(r[0] for r in data["supports"]) == ["Next", "Top"]
+    assert "serves" not in data
+    assert [r[0] for r in data["synergy"]] == ["Twin"]
+    assert dict((r[0], r[2]) for r in data["supports"]) == {"Next": "hard", "Top": "soft"}
+
+
+def test_a_node_with_no_neighbours_has_an_empty_panel(mgr):
+    _graph(mgr, [("Alone", "Learn")], [])
+
+    assert _relations(mgr, "Alone") == {}
