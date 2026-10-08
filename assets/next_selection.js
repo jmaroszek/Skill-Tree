@@ -30,7 +30,7 @@
                 children: title + '  ' + items.length,
                 style: {fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
                         color: 'var(--st-text-dim)', margin: '1.25rem 0 0.4rem',
-                        whiteSpace: 'pre'},
+                        whiteSpace: 'pre', gridColumn: '1 / -1'},
             })];
             for (const [name, color, kind, done] of items.slice(0, SHOWN)) {
                 const tag = [kind, done ? 'done' : ''].filter(Boolean).join(' · ');
@@ -43,7 +43,8 @@
                             fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
                             color: 'var(--st-text-dim)', flexShrink: 0}}),
                     ],
-                    style: {display: 'flex', justifyContent: 'space-between', gap: '12px',
+                    style: {display: 'grid', gridTemplateColumns: 'subgrid', gridColumn: '1 / -1',
+                            alignItems: 'baseline',
                             borderLeft: '3px solid ' + color, paddingLeft: '10px',
                             margin: '0 0 6px', fontSize: 'var(--st-fs-md)', lineHeight: '1.5',
                             opacity: done ? 0.7 : 1},
@@ -52,12 +53,17 @@
             if (items.length > SHOWN) {
                 children.push(el('Div', {children: '+' + (items.length - SHOWN) + ' more',
                     style: {fontSize: 'var(--st-fs-sm)', color: 'var(--st-text-dim)',
-                            paddingLeft: '13px'}}));
+                            paddingLeft: '13px', gridColumn: '1 / -1'}}));
             }
-            blocks.push(el('Div', {children: children}));
+            // One grid per section: the tags line up in a column that starts
+            // just after the longest name, not at the edge of the panel.
+            blocks.push(el('Div', {children: children, style: {
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, max-content) max-content',
+                columnGap: '100px', justifyContent: 'start'}}));
         }
         if (!blocks.length) return null;
-        return el('Div', {children: blocks, style: {maxWidth: '440px'}});
+        return el('Div', {children: blocks});
     }
     window.dash_clientside = window.dash_clientside || {};
     window.dash_clientside.skillTreeNext = {

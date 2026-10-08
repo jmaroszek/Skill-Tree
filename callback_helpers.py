@@ -1371,7 +1371,7 @@ _MONO_FONT = tokens.FONT_MONO
 # The Next priority bar: a tinted fill with a solid edge at its end. The edge
 # marks the exact value; the tint keeps the type colours from outweighing the
 # length (solid orange read as more urgent than solid blue at the same score).
-BAR_FILL_PERCENT = 60
+BAR_FILL_PERCENT = 70
 # The name column is as wide as the longest visible name, within these bounds.
 # The bar takes whatever the table has left, so a short list of names gives the
 # width to the bar and the rest of the row never moves.
