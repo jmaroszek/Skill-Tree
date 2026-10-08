@@ -11,6 +11,7 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 - **Sandbox DB (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
 - **Ports:** sandbox on 8051, production on 8050 — kept distinct so the sandbox can run alongside the user's production instance.
 - **Access token:** the server answers only requests carrying its per-launch token. Use the tab it opens, or run with `--no-browser` and use the link it prints (also in `<Data>/sandbox_skilltree.instance.json`). For throwaway data, set `SKILLTREE_HOME` to an absolute folder.
+- **Showing the sandbox to the user:** don't hand them the `?token=` link, and don't let the server open a browser tab. A browser launched from the agent's terminal hangs the user's Chrome on that link and it never finishes loading. Start the server yourself with `python app.py --sandbox --port 8051 --dev --no-browser` (from a worktree if you're in one), then tell them to run `C:\Users\jonah\Documents\Code\Terminal\Batch\skill_tree_sandbox.bat`. That opens the Electron window, which attaches to the sandbox server already running, so they see your worktree's code. A server restart issues a new token: if the window says "This link is out of date", they close it and rerun the `.bat`. To look at it yourself, use the in-app browser pane.
 
 ## Domain model
 
