@@ -12,6 +12,53 @@
         visit(children);
         return found;
     }
+    function el(type, props) {
+        return {type: type, namespace: 'dash_html_components', props: props};
+    }
+    // The selected node's neighbours, from the row's data-relations JSON.
+    const SECTIONS = [['supports', 'Supports'], ['synergy', 'Synergy']];
+    const SHOWN = 3;
+    function relations(row) {
+        if (!row) return null;
+        let data;
+        try { data = JSON.parse(row['data-relations'] || '{}'); } catch (_) { return null; }
+        const blocks = [];
+        for (const [key, title] of SECTIONS) {
+            const items = data[key] || [];
+            if (!items.length) continue;
+            const children = [el('Div', {
+                children: title + '  ' + items.length,
+                style: {fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
+                        color: 'var(--st-text-dim)', margin: '1.25rem 0 0.4rem',
+                        whiteSpace: 'pre'},
+            })];
+            for (const [name, color, kind, done] of items.slice(0, SHOWN)) {
+                const tag = [kind, done ? 'done' : ''].filter(Boolean).join(' · ');
+                children.push(el('Div', {
+                    children: [
+                        el('Span', {children: name, style: {
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            color: done ? 'var(--st-text-dim)' : 'var(--st-text-primary)'}}),
+                        el('Span', {children: tag, style: {
+                            fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
+                            color: 'var(--st-text-dim)', flexShrink: 0}}),
+                    ],
+                    style: {display: 'flex', justifyContent: 'space-between', gap: '12px',
+                            borderLeft: '3px solid ' + color, paddingLeft: '10px',
+                            margin: '0 0 6px', fontSize: 'var(--st-fs-md)', lineHeight: '1.5',
+                            opacity: done ? 0.7 : 1},
+                }));
+            }
+            if (items.length > SHOWN) {
+                children.push(el('Div', {children: '+' + (items.length - SHOWN) + ' more',
+                    style: {fontSize: 'var(--st-fs-sm)', color: 'var(--st-text-dim)',
+                            paddingLeft: '13px'}}));
+            }
+            blocks.push(el('Div', {children: children}));
+        }
+        if (!blocks.length) return null;
+        return el('Div', {children: blocks, style: {maxWidth: '440px'}});
+    }
     window.dash_clientside = window.dash_clientside || {};
     window.dash_clientside.skillTreeNext = {
         select: function (clicks, nowClicks, table, cards, selected) {
@@ -55,7 +102,8 @@
             const outputs = window.dash_clientside.callback_context.outputs_list || [];
             return [selected, description, styles(suggestions, outputs[2], false),
                 styles(now, outputs[3], true),
-                {color: row ? '#dee2e6' : '#6c757d', whiteSpace: 'pre-wrap', fontSize: '0.95rem'}];
+                {color: row ? '#dee2e6' : '#6c757d', whiteSpace: 'pre-wrap', fontSize: '0.95rem'},
+                relations(row)];
         }
     };
 }());
