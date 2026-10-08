@@ -243,7 +243,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
         assert getattr(out, field) is dash.no_update, field
 
 
-def _render(monkeypatch, trigger, active_tab, stamp=None):
+def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
     """Run core_engine for one trigger, with the Nodes tab state given."""
     import inspect
     from core_response import CoreResponse
@@ -253,6 +253,7 @@ def _render(monkeypatch, trigger, active_tab, stamp=None):
     args = _core_engine_args()
     args[names.index("active_tab")] = active_tab
     args[names.index("canvas_stamp")] = stamp
+    args[names.index("f_search")] = search
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids",
                         lambda *a: {trigger} if trigger else set())
@@ -297,3 +298,19 @@ def test_a_filter_change_sends_only_the_view(monkeypatch, trigger):
     for field in out._fields:
         if field not in ("elements", "community_options"):
             assert getattr(out, field) is dash.no_update, field
+
+
+def test_the_search_query_reaches_the_canvas_filters(monkeypatch):
+    seen = []
+    real = callbacks.build_filters
+
+    def spy(*args, **kwargs):
+        filters = real(*args, **kwargs)
+        seen.append(filters)
+        return filters
+
+    monkeypatch.setattr(callbacks, "build_filters", spy)
+    _render(monkeypatch, "filter-search-query", "tab-canvas",
+            search={"text": "skill tree", "descriptions": True})
+    assert seen[-1]["search"] == "skill tree"
+    assert seen[-1]["search_descriptions"] is True

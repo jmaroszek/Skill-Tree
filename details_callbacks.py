@@ -280,6 +280,7 @@ def register_details_callbacks(app, services=None):
         State("filter-dormant", "value"),
         State("details-hide-blocked", "value"),
         State("filter-time-min", "value"),
+        State("filter-search-query", "data"),
         # What the store already holds. Most of this callback's Inputs are
         # refresh signals, not selection changes, so the store slot below is
         # left untouched unless the selection actually moved — see the note
@@ -293,7 +294,7 @@ def register_details_callbacks(app, services=None):
                            f_context, f_subcontext, f_done,
                            f_value, f_interest, f_time, f_difficulty,
                            f_node_types, f_show_dormant, hide_blocked_val,
-                           f_time_min, current_selection):
+                           f_time_min, f_search, current_selection):
         # Dash re-fires every dependent callback when an Output is written,
         # even with an unchanged value. Writing the same node name back on a
         # refresh would look like a fresh selection: the simulation would go
@@ -431,7 +432,7 @@ def register_details_callbacks(app, services=None):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min)
+                                       f_time_min=f_time_min, f_search=f_search)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = _collect_details_subtasks(
@@ -494,6 +495,7 @@ def register_details_callbacks(app, services=None):
         Input("filter-dormant", "value"),
         Input("details-hide-blocked", "value"),
         Input("filter-time-min", "value"),
+        Input("filter-search-query", "data"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
@@ -503,7 +505,8 @@ def register_details_callbacks(app, services=None):
                                 max_depth_val, f_context, f_subcontext,
                                 f_done, f_value, f_interest, f_time,
                                 f_difficulty, f_node_types, f_show_dormant,
-                                hide_blocked_val, f_time_min, selected_node):
+                                hide_blocked_val, f_time_min, f_search,
+                                selected_node):
         # A deleted node has no table. Its refresh can land after the
         # selection clears.
         if not selected_node or not graph_manager.get_node(selected_node):
@@ -527,7 +530,7 @@ def register_details_callbacks(app, services=None):
         global_filters = build_filters(
             f_context, f_subcontext, f_done, f_value, f_interest, f_time,
             f_difficulty, f_node_types, f_show_dormant=f_show_dormant,
-            f_time_min=f_time_min)
+            f_time_min=f_time_min, f_search=f_search)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters["hide_blocked"] = True
 
@@ -576,6 +579,7 @@ def register_details_callbacks(app, services=None):
         Input("filter-dormant", "value"),
         Input("details-hide-blocked", "value"),
         Input("filter-time-min", "value"),
+        Input("filter-search-query", "data"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
@@ -585,7 +589,8 @@ def register_details_callbacks(app, services=None):
                                        f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant,
-                                       hide_blocked_val, f_time_min, selected_node):
+                                       hide_blocked_val, f_time_min, f_search,
+                                       selected_node):
         if not selected_node:
             return no_update, no_update, no_update
 
@@ -596,7 +601,7 @@ def register_details_callbacks(app, services=None):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min)
+                                       f_time_min=f_time_min, f_search=f_search)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = _collect_details_subtasks(
@@ -696,6 +701,7 @@ def register_details_callbacks(app, services=None):
         Input("filter-dormant", "value"),
         Input("details-hide-blocked", "value"),
         Input("filter-time-min", "value"),
+        Input("filter-search-query", "data"),
     )
     @database.snapshot_read
     def update_details_graph(selected_node, _refresh, _version,
@@ -703,7 +709,8 @@ def register_details_callbacks(app, services=None):
                              max_depth_val, show_cross_links_val,
                              f_node_types, f_done, f_context, f_subcontext,
                              f_value, f_interest, f_time, f_difficulty,
-                             f_show_dormant, hide_blocked_val, f_time_min):
+                             f_show_dormant, hide_blocked_val, f_time_min,
+                             f_search):
         if not selected_node:
             return []
         # select_detail_node keeps the previous view for a name that no
@@ -713,7 +720,7 @@ def register_details_callbacks(app, services=None):
         global_filters = build_filters(f_context, f_subcontext, f_done,
                                        f_value, f_interest, f_time, f_difficulty,
                                        f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min)
+                                       f_time_min=f_time_min, f_search=f_search)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         return _build_graph_elements(selected_node, include_soft_val,
@@ -767,6 +774,7 @@ def register_details_callbacks(app, services=None):
         Input("details-simulation-settled-trigger-input", "value"),
         Input("main-tabs", "active_tab"),
         Input("filter-time-min", "value"),
+        Input("filter-search-query", "data"),
         State("details-freeze-rerender-store", "data"),
     )
 
@@ -787,7 +795,7 @@ def register_details_callbacks(app, services=None):
             request.get('value'), request.get('interest'), request.get('time'),
             request.get('difficulty'), request.get('types'),
             f_time_unit=request.get('timeUnit'), f_show_dormant=request.get('dormant'),
-            f_time_min=request.get('timeMin'))
+            f_time_min=request.get('timeMin'), f_search=request.get('search'))
         if 'hide_blocked' in (request.get('hideBlocked') or []):
             filters['hide_blocked'] = True
         try:
@@ -961,6 +969,7 @@ def register_details_callbacks(app, services=None):
         Input("filter-dormant", "value"),
         Input("settings-save-status", "children"),
         Input("filter-time-min", "value"),
+        Input("filter-search-query", "data"),
         prevent_initial_call=True,
     )
     @prerendered
@@ -968,7 +977,7 @@ def register_details_callbacks(app, services=None):
     def build_empty_state_suggestions(
             _refresh, _version, f_context, f_subcontext, f_done,
             f_value, f_interest, f_time, f_time_unit, f_difficulty,
-            f_node_types, f_show_dormant, _settings, f_time_min):
+            f_node_types, f_show_dormant, _settings, f_time_min, f_search):
         # Priority Goals are explicit pins, so filters do not hide them. The
         # Explore section below is discovery-oriented and does honor the
         # active global filters.
@@ -993,7 +1002,8 @@ def register_details_callbacks(app, services=None):
         global_filters = build_filters(
             f_context, f_subcontext, f_done, f_value, f_interest, f_time,
             f_difficulty, f_node_types, f_time_unit=f_time_unit,
-            f_show_dormant=f_show_dormant, f_time_min=f_time_min)
+            f_show_dormant=f_show_dormant, f_time_min=f_time_min,
+            f_search=f_search)
         eligible_names = {
             node.name for node in graph_manager.filter_nodes(
                 all_nodes, global_filters)
@@ -1186,15 +1196,17 @@ def register_details_callbacks(app, services=None):
         Input('filter-time', 'value'),
         Input('details-max-depth', 'value'),
         Input('filter-time-min', 'value'),
+        Input('filter-search-query', 'data'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_details_filters_active(f_type, f_ctx, f_sub, f_val, f_int,
-                                      f_diff, f_time, max_depth_val, f_time_min):
+                                      f_diff, f_time, max_depth_val, f_time_min,
+                                      f_search):
         return bool(_normalize_max_depth(max_depth_val) is not None or is_filters_active(
             node_type=f_type, context=f_ctx, subcontext=f_sub,
             value=f_val, interest=f_int, difficulty=f_diff,
-            time=f_time, time_min=f_time_min))
+            time=f_time, time_min=f_time_min, search=f_search))
 
     # The count itself is read in the browser from the payload on its way to
     # Cytoscape. Reading it from the canvas's elements sent the whole graph to

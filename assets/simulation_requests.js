@@ -41,6 +41,7 @@
         'filter-interest',
         'filter-time',
         'filter-time-min',
+        'filter-search-query',
         'filter-difficulty',
         'filter-node-type',
         'filter-dormant',
@@ -69,7 +70,7 @@
         request: function (node, soft, helps, depth, context, subcontext, done,
                            value, interest, time, difficulty, types, dormant,
                            hideBlocked, timeUnit, version, settings,
-                           settledToken, activeTab, timeMin, freezeOn) {
+                           settledToken, activeTab, timeMin, search, freezeOn) {
             var activeNode = activeTab === 'tab-details' ? node : null;
             var triggered = triggeredIds();
             var layoutChanged = triggered.some(function (id) {
@@ -111,7 +112,8 @@
                 context: context, subcontext: subcontext, done: done,
                 value: value, interest: interest, time: time,
                 difficulty: difficulty, types: types, dormant: dormant,
-                hideBlocked: hideBlocked, timeUnit: timeUnit, timeMin: timeMin
+                hideBlocked: hideBlocked, timeUnit: timeUnit, timeMin: timeMin,
+                search: search
             };
         },
         // The registered callback: the chart's request, and the server's.

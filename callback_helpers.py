@@ -422,9 +422,20 @@ def build_edge_element(edge):
 
 def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None,
                   f_time=None, f_difficulty=None, f_node_types=None,
-                  f_time_unit="hours", f_show_dormant=None, f_time_min=None):
-    """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes()."""
+                  f_time_unit="hours", f_show_dormant=None, f_time_min=None,
+                  f_search=None):
+    """Build a filter dict from sidebar filter component values for use with GraphManager.filter_nodes().
+
+    `f_search` is the Search query as the filter-search-query store holds it:
+    None, or ``{"text": ..., "descriptions": bool}``.
+    """
     filters = {}
+
+    text = (f_search or {}).get('text')
+    if isinstance(text, str) and text.strip():
+        filters['search'] = text.strip()
+        if f_search.get('descriptions'):
+            filters['search_descriptions'] = True
 
     # Show-dormant gate: when the sidebar's "Show Dormant" switch is on, this
     # flag flows into filter_nodes which then keeps dormant rows in the
@@ -623,7 +634,7 @@ def select_explore_goals(ranked_goals, nodes, edges, count=5,
 def is_filters_active(*, node_type=None, context=None, subcontext=None,
                       community=None, community_method=None,
                       value=None, interest=None, difficulty=None,
-                      time=None, time_min=None):
+                      time=None, time_min=None, search=None):
     """Returns True if any sidebar filter is hiding nodes from the user.
 
     Defaults match the "Clear Filters" reset state in
@@ -638,6 +649,8 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
     extra nodes are visible on their face anyway. The indicator exists for the
     narrowing you cannot see.
     """
+    if (search or {}).get('text', '').strip():
+        return True
     if node_type:
         return True
     if context:

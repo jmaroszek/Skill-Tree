@@ -84,16 +84,18 @@ def register_next_callbacks(app, services=None):
         Input('filter-node-type', 'value'), Input('filter-dormant', 'value'),
         Input('settings-save-status', 'children'),
         Input('filter-time-min', 'value'),
+        Input('filter-search-query', 'data'),
         State('next-perf-stats', 'children'),
         prevent_initial_call=True,
     )
     @database.snapshot_read
     def populate_suggestions(_version, count, context, subcontext, done, value,
                              interest, time, time_unit, difficulty, types, dormant, _settings,
-                             time_min, perf_caption):
+                             time_min, search, perf_caption):
         filters = build_filters(context, subcontext, done, value, interest, time,
                                 difficulty, types, f_time_unit=time_unit,
-                                f_show_dormant=dormant, f_time_min=time_min)
+                                f_show_dormant=dormant, f_time_min=time_min,
+                                f_search=search)
         next_rows = get_suggestions(filters, count=count or 10)
         caption = perf_stats_text()
         return (format_suggestions_table(next_rows.rows, manager,

@@ -138,13 +138,99 @@ select::picker(select) {
     box-sizing: border-box !important;
 }
 
-/* Deliberately NOT restyled: rows, the search field and the panel chrome.
-   A dcc.Dropdown with its search box and its multi-select chips is a control
-   people use heavily and already liked; Dash's own look for it stays. The
-   sizing and width rules above are the only interventions, and they are about
-   the menu being cut off or stretching past its trigger, not about its look.
-   The native <select> picker is the one that was unstyleable, and it is the
-   one this file exists to fix. */
+/* The panel, search field and rows, from the same tokens as the context
+   picker's panel. Dash sets these with plain class selectors, so the rules
+   that have to beat them carry !important, as the sizing rules above do. */
+.dash-dropdown-content {
+    padding: 7px !important;
+    background: var(--st-menu-bg) !important;
+    color: var(--st-menu-fg) !important;
+    border: 1px solid var(--st-menu-border) !important;
+    border-radius: var(--st-radius) !important;
+    box-shadow: var(--st-shadow-panel) !important;
+    font-size: 1rem;
+}
+
+/* The search field is the picker's: a light field on the grey panel, with no
+   magnifier. */
+.dash-dropdown-search-container {
+    /* Input, then the clear button; the hidden magnifier leaves no column. */
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    align-items: center;
+    min-height: 36px;
+    margin-bottom: 5px;
+    padding: 0 !important;
+    background: var(--st-field-bg) !important;
+    border: 1px solid var(--st-menu-border) !important;
+    border-radius: var(--st-radius-sm) !important;
+}
+.dash-dropdown-search-icon {
+    display: none !important;
+}
+/* Dash outlines the search on focus, and the menu opens with it focused, so
+   every open would draw a ring. Only a keyboard arrival does, as for fields. */
+.dash-dropdown-search-container:focus-within {
+    outline: none !important;
+}
+html.keyboard-mode .dash-dropdown-search-container:focus-within {
+    border-color: var(--st-field-focus-border) !important;
+    box-shadow: var(--st-field-focus-ring);
+}
+.dash-dropdown-search {
+    width: 100%;
+    min-height: 34px;
+    padding: 6px 9px !important;
+    background: transparent !important;
+    color: var(--st-field-fg) !important;
+    font-size: 1rem !important;
+}
+.dash-dropdown-search-container .dash-dropdown-clear {
+    margin-right: 9px;
+}
+.dash-dropdown-search::placeholder {
+    color: var(--st-text-placeholder) !important;
+}
+
+/* No Select All / Deselect All. Dash shows them on every multi-select, but
+   nothing here wants every node linked or picked at once, and on the one
+   short list (Node Type) an empty selection already means all. */
+.dash-dropdown-actions {
+    display: none !important;
+}
+
+/* Rows. */
+.dash-dropdown-option {
+    align-items: center !important;
+    padding: 6px 10px !important;
+    background: transparent !important;
+    color: var(--st-menu-fg) !important;
+    border-radius: 3px;
+    box-shadow: none !important;
+}
+.dash-dropdown-option:not(:has(input[disabled])):hover,
+.dash-dropdown-option:not(:has(input[disabled])):focus-within {
+    background: var(--st-menu-row-hover) !important;
+    color: var(--st-menu-fg) !important;
+}
+.dash-dropdown-option.selected {
+    color: var(--st-menu-selected) !important;
+    font-weight: 500;
+}
+.dash-dropdown-option:has(input[disabled]) {
+    color: var(--st-text-dim) !important;
+}
+.dash-options-list-option-checkbox {
+    width: 16px;
+    height: 16px;
+    margin: 0 10px 0 0 !important;
+    accent-color: var(--st-accent) !important;
+}
+span.dash-dropdown-option {
+    padding: 10px !important;
+    color: var(--st-text-dim) !important;
+    font-size: var(--st-fs-md);
+}
 
 /* --- 2b. Native <select> (dbc.Select) -------------------------------- */
 
@@ -205,8 +291,12 @@ select::picker(select) {
            fallback positions still move it above when below truly overflows. */
         position-try-order: normal;
 
-        /* No fixed max-height. Let the UA's stretch sizing use the available
-           space on the chosen side; long lists still scroll. */
+        /* A cap, so a long list near the bottom of the window has a size that
+           can overflow below and flip above. With no cap the UA stretches the
+           list to whatever room is left, never overflows, and never flips:
+           the Community list opened as a three-row sliver at the window's
+           edge. The cap matches the Radix menu's. */
+        max-height: 320px;
         overflow-y: auto;
         /* Anchor to the trigger and match its width — the same contract the
            Radix menu gets above. */

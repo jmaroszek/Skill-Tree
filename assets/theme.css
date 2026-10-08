@@ -704,15 +704,27 @@ a:focus-visible,
 }
 
 /* Fields are light on a dark page, where DARKLY's pale focus border all but
-   vanishes. A bright border and solid ring mark the current field. */
+   vanishes. Clicking into a field draws nothing: the caret or the open menu is
+   enough, and a ring on every click is noise. Arriving by keyboard draws a
+   bright border and a solid ring, so the current field can be found at a
+   glance. `html.keyboard-mode` comes from 01_keyboard_focus.js, because a text
+   field matches :focus-visible after a click too. */
 .form-control:focus,
 .form-select:focus,
 .dash-dropdown:focus-visible,
 .context-picker-trigger:focus-visible,
 .editor-field-group:focus-within {
+    border-color: var(--st-field-border);
+    box-shadow: none;
+    outline: none;
+}
+html.keyboard-mode .form-control:focus,
+html.keyboard-mode .form-select:focus,
+html.keyboard-mode .dash-dropdown:focus-visible,
+html.keyboard-mode .context-picker-trigger:focus-visible,
+html.keyboard-mode .editor-field-group:focus-within {
     border-color: var(--st-field-focus-border);
     box-shadow: var(--st-field-focus-ring);
-    outline: none;
 }
 
 .ctx-menu-item:focus-visible {
@@ -1415,6 +1427,73 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 .editor-field-group .form-control:focus {
     border: none;
     box-shadow: none;
+}
+
+/* The filters sidebar's Search field: an .editor-field-group with glyphs that
+   depend on the field's state. An Enter hint shows while text is being typed
+   (the query applies on Enter or blur); a clear button shows whenever there is
+   text. :placeholder-shown is the "empty" test, so none of this needs a
+   callback. */
+.filter-search {
+    align-items: center;
+}
+.filter-search-enter,
+.filter-search-clear {
+    display: none;
+    color: var(--st-text-placeholder);
+    font-size: var(--st-fs-base);
+}
+.filter-search-enter {
+    padding-right: 0.4rem;
+}
+.filter-search-clear {
+    padding: 0 0.65rem 0 0.4rem;
+    border: 0;
+    background: transparent;
+    line-height: 1;
+}
+.filter-search-clear:hover {
+    color: var(--st-field-fg);
+}
+.filter-search:has(.filter-search-input:not(:placeholder-shown)) .filter-search-clear {
+    display: block;
+}
+.filter-search:focus-within:has(.filter-search-input:not(:placeholder-shown)) .filter-search-enter {
+    display: block;
+}
+
+/* A query is applied: outline the field while it is not being edited, so a
+   narrowing is never invisible. */
+.filter-search-active:not(:focus-within) {
+    border-color: var(--st-accent);
+    box-shadow: 0 0 0 2px var(--st-accent-ring);
+}
+
+/* The suggestions under the field (assets/filter_suggest.js). The look of the
+   context picker's panel, from the same tokens. */
+.filter-suggest {
+    position: fixed;
+    z-index: var(--st-z-picker-panel);
+    max-height: min(320px, calc(100vh - 16px));
+    overflow-y: auto;
+    padding: 7px;
+    background: var(--st-menu-bg);
+    color: var(--st-menu-fg);
+    border: 1px solid var(--st-menu-border);
+    border-radius: var(--st-radius);
+    box-shadow: var(--st-shadow-panel);
+}
+.filter-suggest-item {
+    display: flex;
+    align-items: center;
+    min-height: var(--st-menu-row-height);
+    padding: 6px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.filter-suggest-item:hover,
+.filter-suggest-item.is-active {
+    background: var(--st-menu-row-hover);
 }
 
 /* --- Marked sliders: hide Dash's companion number input --- */

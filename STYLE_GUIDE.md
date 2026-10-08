@@ -206,8 +206,13 @@ its vertical scrolling keeps fields above the node editor's sticky footer.
 Tooltips are hover-only: keyboard focus never opens one. `hover_label`
 descriptions reach their following fields as `aria-describedby` instead.
 Escape on an open base-select dropdown closes only the dropdown.
-Fields mark focus with `--st-field-focus-border` and `--st-field-focus-ring`;
-every other keyboard target, `.btn` ghosts included, gets the accent outline.
+Fields mark keyboard focus with `--st-field-focus-border` and
+`--st-field-focus-ring`; every other keyboard target, `.btn` ghosts included,
+gets the accent outline. Clicking into a field draws no ring at all. The ring is
+gated on `html.keyboard-mode`, which `01_keyboard_focus.js` sets on Tab and
+movement keys, clears on a pointer press, and does not set while typing. A text
+field matches `:focus-visible` after a click, so the class is the only way to
+tell the two apart.
 
 Floating menus use arrow keys, Home/End, Enter/Space, and Escape with focus
 restoration. Right/Left enters/leaves a submenu. Cards expose Alt+Enter for
@@ -557,6 +562,32 @@ Scrollbars) shows that more cards sit below.
   control renders them in `--st-text-placeholder`. The filter sidebar keeps its
   dark `All` placeholders, since there they read as a value.
 
+### Search field with suggestions (filters sidebar)
+
+The filters sidebar opens with a Search section: an `editor-field-group` shell
+holding a debounced `dbc.Input` and two state-driven glyphs, with a
+`Include descriptions` switch under it (the same switch the Status section
+uses). It filters the graph, so it applies on Enter or blur, not per
+keystroke: every filter change lays the canvas out again, and a layout per
+letter is the jank to avoid on a large graph.
+
+- The placeholder says what is searched: names and aliases, plus descriptions
+  while the switch is on.
+- Matching node names open in a panel under the field as you type
+  (`assets/filter_suggest.js`, the same panel and rows as every dropdown). Unlike
+  the node editor's Search, the field keeps free text: Enter filters by what you
+  typed, and the arrow keys plus Enter pick a suggestion, which fills the field
+  and applies it.
+- The `↵` hint shows while the field is focused with text. The `×` clear button
+  shows whenever there is text. Both are CSS (`:placeholder-shown`), not
+  callbacks.
+- An applied query outlines the field in the accent color
+  (`filter-search-active`) while it is not focused, so a narrowing is never
+  invisible.
+- The field and switch become one value, the `filter-search-query` store, which
+  is `None` without text. Consumers read the store, so flipping the switch with
+  nothing to search is not a filter change.
+
 ### Dropdowns
 
 The app has three dropdown implementations and cannot reasonably have fewer:
@@ -570,6 +601,12 @@ The app has three dropdown implementations and cannot reasonably have fewer:
 **They all open the same panel.** [`assets/dropdowns.css`](assets/dropdowns.css)
 owns every rule for all three, built from the tokens. The reference look is the
 context picker's panel — it was the one that already looked right.
+
+The `dcc.Dropdown` menu is portalled to `<body>`, so it is styled globally by
+its `.dash-dropdown-*` classes. Dash's own rules are plain class selectors, so
+the overrides carry `!important`. It drops Dash's magnifier, row dividers and
+purple search outline. It also hides Select All / Deselect All: nothing here
+wants every node linked at once, and an empty Node Type already means all.
 
 The native `<select>` popup is reachable because of `appearance: base-select`,
 which swaps OS rendering for a real, styleable `::picker(select)` while keeping
@@ -591,6 +628,10 @@ than by reading the spec:
   whichever side has more vertical room, which can open a short menu upward
   even when it fits below. `normal` tries below first and retains the UA's
   above-trigger fallback for genuine overflow.
+- Give the picker a `max-height` (320px, as the Radix menu has). With none, the
+  UA stretches the list to the room left below the trigger, so it never
+  overflows and never flips, and a trigger near the window's edge opens a
+  sliver.
 
 Do not add a new dropdown style. If a control needs a look the shared rules do
 not give it, change the shared rules.

@@ -647,6 +647,13 @@ A filter change starts the Nodes layout, and the same rules apply there.
   count itself is read in the browser from `canvas-payload-stamp`.
 - Next's scoring-time caption rides on the table's own callback, which writes
   it only when it changes.
+- The Search field and its descriptions switch reach every consumer as one
+  value, the `filter-search-query` store. A clientside callback writes it only
+  when the query changes, and writes `None` when there is no text. Flipping the
+  switch with nothing to search therefore wakes nothing. The field itself
+  applies on Enter or blur, so a graph is not laid out again for each letter.
+  The suggestions under it are drawn by `assets/filter_suggest.js` from the
+  node editor Search list's options, with no round trip.
 
 ### Hidden canvases
 

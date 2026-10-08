@@ -383,11 +383,32 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
     if 'hide_blocked' in filters and filters['hide_blocked']:
         result = [n for n in result if n.status != STATUS_BLOCKED]
 
-    if 'search' in filters and filters['search']:
-        search_val = filters['search'].lower()
-        result = [n for n in result if search_val in n.name.lower()]
+    terms = (filters.get('search') or '').lower().split()
+    if terms:
+        result = _matching_terms(manager, result, terms,
+                                 bool(filters.get('search_descriptions')))
 
     return result
+
+
+def _matching_terms(manager, nodes: List[Node], terms: List[str],
+                    with_descriptions: bool) -> List[Node]:
+    """Nodes whose text holds every term, case-insensitively.
+
+    The text is the name and the aliases (a node is known by both), plus the
+    description when `with_descriptions` is set.
+    """
+    aliases: Dict[str, List[str]] = {}
+    for alias, owner in manager.get_all_aliases().items():
+        aliases.setdefault(owner, []).append(alias)
+
+    def text(node: Node) -> str:
+        parts = [node.name, *aliases.get(node.name, ())]
+        if with_descriptions:
+            parts.append(node.description or '')
+        return '\n'.join(parts).lower()
+
+    return [n for n in nodes if all(term in text(n) for term in terms)]
 
 
 def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":

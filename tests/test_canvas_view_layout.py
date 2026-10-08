@@ -76,6 +76,49 @@ def test_filters_open_on_the_whole_graph_every_session():
     assert _by_id(content, "filter-community").value == "All"
     assert _by_id(content, "filter-context").value == []
     assert _by_id(content, "filter-subcontext").value == []
+    assert _by_id(content, "filter-text").value == ""
+    assert _by_id(content, "filter-text-scope").value == []
+    assert _by_id(content, "filter-search-query").data is None
+
+
+def test_search_leads_the_filters_sidebar_and_applies_on_enter():
+    content = build_filters_content()
+    ids = _ids(content)
+
+    assert ids.index("filter-text") < ids.index("filter-text-scope")
+    assert ids.index("filter-text-scope") < ids.index("filter-context")
+    # A layout per keystroke is the cost on a large graph; Enter or blur only.
+    assert _by_id(content, "filter-text").debounce is True
+    # The descriptions switch is the one the store's callback looks for.
+    scope = _by_id(content, "filter-text-scope")
+    assert [o["value"] for o in scope.options] == ["descriptions"]
+    assert scope.switch is True
+
+
+def test_the_editor_separates_search_from_general_like_every_other_section():
+    from sidebars_layout import build_node_editor_content
+
+    items = list(_walk(build_node_editor_content()))
+    kinds = [type(item).__name__ for item in items]
+    general = next(i for i, item in enumerate(items)
+                   if kinds[i] == "H5" and _text(item) == "General")
+    search = next(i for i, item in enumerate(items)
+                  if getattr(item, "id", None) == "search-node")
+
+    assert "Hr" in kinds[search:general]
+
+
+def test_field_focus_rings_are_for_the_keyboard_only():
+    """A click draws nothing; Tab draws the ring (html.keyboard-mode)."""
+    css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
+    quiet = css[css.index(".form-control:focus,"):]
+    quiet = quiet[:quiet.index("}")]
+    ring = css[css.index("html.keyboard-mode .form-control:focus,"):]
+    ring = ring[:ring.index("}")]
+
+    assert "box-shadow: none" in quiet
+    assert "--st-field-focus-ring" not in quiet
+    assert "--st-field-focus-ring" in ring
 
 
 def test_filter_defaults_match_the_clear_filters_reset():
@@ -91,9 +134,10 @@ def test_filter_defaults_match_the_clear_filters_reset():
         ["filter-node-type", "filter-context", "community-method",
          "filter-community", "filter-value", "filter-interest",
          "filter-difficulty", "filter-time-min", "filter-time",
-         "filter-time-unit", "filter-done", "filter-dormant"],
+         "filter-time-unit", "filter-done", "filter-dormant",
+         "filter-text", "filter-text-scope"],
         ([], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, None,
-         'hours', [], []),
+         'hours', [], [], '', []),
     ))
     for component_id, cleared in reset.items():
         assert _by_id(content, component_id).value == cleared, component_id
@@ -181,6 +225,16 @@ def test_native_picker_tries_below_before_using_overflow_fallbacks():
     picker = supports[picker_start:supports.index("}", picker_start)]
 
     assert "position-try-order: normal;" in picker
+    # With no cap the UA stretches the list to the room left below the trigger
+    # and never flips above, so a trigger near the window's edge got a sliver.
+    assert "max-height: 320px;" in picker
+
+
+def test_multi_selects_have_no_select_all():
+    css = (Path(__file__).resolve().parents[1] / "assets" / "dropdowns.css").read_text()
+    rule = css[css.index(".dash-dropdown-actions {"):]
+
+    assert "display: none !important;" in rule[:rule.index("}")]
 
 
 def test_graph_layout_sliders_use_qualitative_endpoint_labels():

@@ -96,6 +96,10 @@
     color: var(--st-field-fg);
     border-color: var(--st-menu-border);
 }
+.context-picker-search.form-control:focus,
+html.keyboard-mode .context-picker-search.form-control:focus {
+    border-color: var(--st-menu-border);
+}
 
 .context-picker-menu-row {
     width: 100%;

@@ -518,6 +518,7 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 
 | Filter | Function |
 |---|---|
+| Search | Keep only nodes whose name contains every word you type. Aliases count as part of the name. Turn on *Include descriptions* to search descriptions too. Matching node names appear as suggestions while you type; pick one, or press Enter to filter by what you typed. The search applies on Enter or when you click away, so a large graph is not laid out again for every letter. |
 | Context | Restrict the app to one or more life areas. |
 | Subcontext | Narrow those contexts to more specific domains. |
 | Node Type | Show only certain node types (e.g. learns + resources). |

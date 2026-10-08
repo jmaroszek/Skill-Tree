@@ -127,11 +127,11 @@ function request(name, triggerId, settledRoot = null, frozen = false) {
     window.dash_clientside.callback_context.triggered = triggerId ? [{
         prop_id: `${triggerId}.data`
     }] : [];
-    const args = Array(21).fill(null);
+    const args = Array(22).fill(null);
     args[0] = name;
     args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
     args[18] = 'tab-details';
-    args[20] = frozen;
+    args[21] = frozen;
     return ui.request(...args);
 }
 const waitingA = request('A', 'details-selected-node-store');
@@ -159,6 +159,8 @@ assert.deepEqual(ui.render(staleResult, latest), ['NO','NO','NO','NO']);
 const reselected = request('B', 'details-selected-node-store', 'B');
 assert.equal(reselected.node, null);
 assert.equal(request('B', 'filter-context', 'B').node, null);
+// A changed Search query re-lays the graph out like any other filter.
+assert.equal(request('B', 'filter-search-query', 'B').node, null);
 assert.equal(request('B', 'details-simulation-settled-trigger-input', 'B').node, 'B');
 
 // Every settled layout emits that signal, including the ones a graph-settings
@@ -177,7 +179,7 @@ assert(latest.sequence > old.sequence);
 // cancel. A selection's waiting request lands inside its layout animation.
 function pair(name, triggerId, settledRoot = null) {
     window.dash_clientside.callback_context.triggered = [{prop_id: `${triggerId}.data`}];
-    const args = Array(21).fill(null);
+    const args = Array(22).fill(null);
     args[0] = name;
     args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
     args[18] = 'tab-details';

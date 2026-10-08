@@ -246,7 +246,7 @@
         initial: '#events-search-input', hideWhenClosed: true,
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     register({id: 'sidebar-filters-container', triggerId: 'btn-filters-toggle', closeId: 'btn-close-filters',
-        initial: '.context-picker-trigger', hideWhenClosed: true,
+        initial: '#filter-text', hideWhenClosed: true,
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     register({id: 'details-filters-sidebar', closeId: 'btn-details-filters-close', hideWhenClosed: true,
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
@@ -269,8 +269,22 @@
             dismiss: function () { document.getElementById(canvas.fullscreenButtonId).click(); }});
     });
 
+    // `html.keyboard-mode` tells CSS how focus arrived. A text field matches
+    // :focus-visible after a click too, so a field that wants its ring for the
+    // keyboard only reads this. Typing in a field is not navigating, so only
+    // Tab and the movement keys outside one switch it on; a pointer press
+    // switches it off.
+    var NAVIGATION_KEYS = ['Tab', 'Enter', ' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft',
+        'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+    function navigating(e) {
+        if (NAVIGATION_KEYS.indexOf(e.key) === -1) return false;
+        return e.key === 'Tab' || !e.target.matches ||
+            !e.target.matches('textarea, [contenteditable], input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button])');
+    }
+
     document.addEventListener('pointerdown', function (e) {
         keyboard = false;
+        document.documentElement.classList.remove('keyboard-mode');
         layers.forEach(function (layer) {
             if (layer.root && !layer.root.contains(e.target)) layer.engaged = false;
         });
@@ -293,6 +307,7 @@
     });
     document.addEventListener('keydown', function (e) {
         keyboard = true;
+        if (navigating(e)) document.documentElement.classList.add('keyboard-mode');
         if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
         if (e.target.closest('.ctx-menu, .context-picker-panel, .context-picker-submenu') ||
                 document.querySelector('.context-picker-panel') ||

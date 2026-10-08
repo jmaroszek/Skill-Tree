@@ -104,7 +104,7 @@ _FILTER_TRIGGERS = frozenset({
     'filter-context', 'filter-subcontext', 'filter-done', 'filter-dormant',
     'filter-community', 'community-method', 'filter-value', 'filter-interest',
     'filter-time', 'filter-time-unit', 'filter-difficulty', 'filter-node-type',
-    'filter-time-min',
+    'filter-time-min', 'filter-search-query',
 })
 
 # Output slot indices within the core_engine output tuple. Kept here so the
@@ -298,12 +298,90 @@ def register_callbacks(app, services=None):
         Output('filter-time-unit', 'value'),
         Output('filter-done', 'value', allow_duplicate=True),
         Output('filter-dormant', 'value', allow_duplicate=True),
+        Output('filter-text', 'value', allow_duplicate=True),
+        Output('filter-text-scope', 'value'),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
         prevent_initial_call=True,
     )
     def clear_filters(_clear_clicks, _focus_clicks):
-        return [], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, None, 'hours', [], []
+        return ([], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, None,
+                'hours', [], [], '', [])
+
+    # The Search query every canvas filters by: the field's text and the
+    # descriptions switch, as one value. None without text, so a switch change
+    # with nothing to search is not a filter change, and an unchanged query is
+    # not rewritten. A rewrite would start a layout for the same nodes.
+    app.clientside_callback(
+        """
+        function(text, scope, current) {
+            var q = (text || '').trim();
+            var next = q ? {text: q, descriptions: (scope || []).indexOf('descriptions') !== -1} : null;
+            return JSON.stringify(next) === JSON.stringify(current || null)
+                ? window.dash_clientside.no_update : next;
+        }
+        """,
+        Output('filter-search-query', 'data'),
+        Input('filter-text', 'value'),
+        Input('filter-text-scope', 'value'),
+        State('filter-search-query', 'data'),
+        prevent_initial_call=True,
+    )
+
+    # The Search field's own clear button. It empties the field, which the
+    # canvas then answers like any other change to it.
+    app.clientside_callback(
+        """
+        function(clicks) {
+            return clicks ? '' : window.dash_clientside.no_update;
+        }
+        """,
+        Output('filter-text', 'value', allow_duplicate=True),
+        Input('btn-clear-filter-text', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+
+    # The suggestions under the Search field come from the node editor's own
+    # Search list, which holds every node's name. The script keeps the names; it
+    # draws the panel (assets/filter_suggest.js).
+    app.clientside_callback(
+        """
+        function(options) {
+            var suggest = window.SkillTree && window.SkillTree.filterSuggest;
+            if (suggest) suggest.setNames(
+                (options || []).map(function (o) { return o.value; }));
+        }
+        """,
+        Input('search-node', 'options'),
+    )
+
+    # An applied query outlines the field, so a narrowing is never invisible.
+    app.clientside_callback(
+        """
+        function(text) {
+            return 'editor-field-group filter-search'
+                + (text && text.trim() ? ' filter-search-active' : '');
+        }
+        """,
+        Output('filter-search', 'className'),
+        Input('filter-text', 'value'),
+        prevent_initial_call=True,
+    )
+
+    # The placeholder says what the field searches, and follows the switch.
+    # The opening text is in build_filters_content.
+    app.clientside_callback(
+        """
+        function(scope) {
+            return (scope || []).indexOf('descriptions') !== -1
+                ? 'Filter by names, aliases and descriptions...'
+                : 'Filter by names and aliases...';
+        }
+        """,
+        Output('filter-text', 'placeholder'),
+        Input('filter-text-scope', 'value'),
+        prevent_initial_call=True,
+    )
 
     # A minimum above the maximum matches nothing, so build_filters ignores
     # the time range then; outline both fields so that is not silent.
@@ -1454,8 +1532,10 @@ def register_callbacks(app, services=None):
          # (used by core_engine tests) stay stable. The toolbar "+" new-node
          # button; only its trigger_id matters, the value is unused.
          Input('btn-editor-new', 'n_clicks'),
-         # Also appended at the end of the Inputs: the Time range's minimum.
-         Input('filter-time-min', 'value')],
+         # Also appended at the end of the Inputs: the Time range's minimum,
+         # then the Search query.
+         Input('filter-time-min', 'value'),
+         Input('filter-search-query', 'data')],
 
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -1478,6 +1558,7 @@ def register_callbacks(app, services=None):
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      active_tab, _relayout,
                      btn_undo_done_confirm, btn_editor_new, f_time_min,
+                     f_search,
                      ed_style, original_name, goal_sidebar_style, events_sidebar_style,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
                      form):
@@ -1570,7 +1651,7 @@ def register_callbacks(app, services=None):
         _event_mgr.check_scheduled_triggers()
 
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
-                                f_time_min=f_time_min)
+                                f_time_min=f_time_min, f_search=f_search)
 
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
@@ -2162,19 +2243,21 @@ def register_callbacks(app, services=None):
         Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'),
         Input('filter-time-min', 'value'),
+        Input('filter-search-query', 'data'),
         State('canvas-filters-active-store', 'data'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_canvas_filters_active(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
-                                     f_time, f_time_unit, f_time_min, current):
+                                     f_time, f_time_unit, f_time_min, f_search,
+                                     current):
         active = is_filters_active(
             node_type=f_type, context=f_ctx, subcontext=f_sub,
             community=f_comm,
             community_method=f_comm_method, value=f_val,
             interest=f_int, difficulty=f_diff, time=f_time,
-            time_min=f_time_min)
+            time_min=f_time_min, search=f_search)
         if active == bool(current):
             return no_update, no_update
         return active, "filtered" if active else ""

@@ -42,7 +42,7 @@
     --st-field-border: #222;           /* mirrors DARKLY .form-control */
     /* Strong enough to find again at a glance after looking away. */
     --st-field-focus-border: #0d6efd;
-    --st-field-focus-ring: 0 0 0 3px rgba(61, 139, 253, 0.85);
+    --st-field-focus-ring: 0 0 0 3px var(--st-accent), 0 0 0 5px var(--st-accent-ring);
 
     --st-menu-bg: #e9ecef;             /* the context picker panel, which is
                                           the app's reference "good" menu */

@@ -131,6 +131,21 @@ class TestBuildFilters:
         result = build_filters("All", "All", ["show_done"], f_time="abc")
         assert "max_time" not in result
 
+    def test_search_filters_by_name_by_default(self):
+        result = build_filters("All", "All", ["show_done"],
+                               f_search={"text": "  Skill Tree ", "descriptions": False})
+        assert result == {"search": "Skill Tree"}
+
+    def test_search_with_descriptions(self):
+        result = build_filters("All", "All", ["show_done"],
+                               f_search={"text": "tree", "descriptions": True})
+        assert result == {"search": "tree", "search_descriptions": True}
+
+    def test_blank_search_filters_nothing(self):
+        for blank in (None, {}, {"text": "", "descriptions": True},
+                      {"text": "   ", "descriptions": True}):
+            assert build_filters("All", "All", ["show_done"], f_search=blank) == {}
+
     def test_subcontext_filter(self):
         result = build_filters("All", "Rational", ["show_done"])
         assert result == {"subcontext": ["Rational"]}
@@ -256,6 +271,14 @@ class TestIsFiltersActive:
 
     def test_max_time_zero_inactive(self):
         assert is_filters_active(time=0) is False
+
+    def test_search_text_active(self):
+        assert is_filters_active(
+            search={"text": "skill tree", "descriptions": False}) is True
+
+    def test_blank_search_inactive(self):
+        assert is_filters_active(search=None) is False
+        assert is_filters_active(search={"text": "   ", "descriptions": True}) is False
 
     def test_reveal_switches_are_not_filters(self):
         """Show Done and Show Dormant must never set the "filtered" marker.

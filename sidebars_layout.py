@@ -127,12 +127,12 @@ def build_node_editor_content():
                                id="btn-locate-node", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                style={"fontSize": tokens.FS_LG, "lineHeight": "1"}, disabled=True),
-                ], className="d-flex align-items-center mt-0 mb-1"),
+                ], className="d-flex align-items-center mt-3 mb-2"),
                 html.Div(dcc.Dropdown(
                     id="search-node",
                     options=[],  # Populated dynamically by core_engine callback
                     value=None,
-                    placeholder="Search nodes...",
+                    placeholder="Search by names and aliases...",
                     searchable=True,
                     clearable=True,
                 ), className="text-dark"),
@@ -157,7 +157,10 @@ def build_node_editor_content():
                 ], id='modal-locate-missing', size="sm", is_open=False,
                    centered=True),
 
-                html.H5("General", className="mt-3 mb-1"),
+                # More room above: the field has no control beneath it, as the
+                # filters sidebar's has, to hold the divider off.
+                html.Hr(className="mt-3 mb-2"),
+                html.H5("General", className="mt-2 mb-1"),
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
                     add_button("btn-alias-add", "Add alias"),
@@ -661,6 +664,37 @@ def build_filters_content():
             panel_close_button("btn-close-filters", "Close filters", large=True,
                                className_extra="float-end")
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
+
+        html.H5("Search", className="mt-3 mb-2"),
+        # The query applies on Enter or when the field loses focus, not per
+        # keystroke: each change to a filter lays the canvas out again, and on
+        # a large graph a layout per letter is the sluggishness to avoid. The
+        # suggestions that open as you type are drawn by
+        # assets/filter_suggest.js; the glyphs inside the field by CSS.
+        html.Div([
+            dbc.Input(id="filter-text", type="text", value="", debounce=True,
+                      placeholder="Filter by names and aliases...", autoComplete="off",
+                      className="filter-search-input"),
+            html.I(className="bi bi-arrow-return-left filter-search-enter",
+                   title="Press Enter to apply"),
+            html.Button(html.I(className="bi bi-x-lg"), id="btn-clear-filter-text",
+                        type="button", className="filter-search-clear",
+                        **{"aria-label": "Clear search"}),
+        ], id="filter-search", className="editor-field-group filter-search"),
+        # The field and the switch, as the one query every canvas filters by.
+        # Derived clientside; see the callback beside clear_filters.
+        dcc.Store(id="filter-search-query", data=None),
+        # Off by default: a search matches names and aliases. The switch is
+        # the same one the Status section uses.
+        dbc.Checklist(
+            options=[{"label": "Include descriptions", "value": "descriptions"}],
+            value=[],
+            id="filter-text-scope",
+            switch=True,
+            className="mt-2",
+        ),
+
+        html.Hr(className="my-3"),
 
         html.H5("General", className="mt-2 mb-1"),
         dbc.Label("Context", className="mt-2"),

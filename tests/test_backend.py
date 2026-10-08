@@ -1210,6 +1210,32 @@ class TestFiltering:
         assert len(result) == 1
         assert result[0].name == "Python Basics"
 
+    def test_search_needs_every_term_in_any_order(self, mgr):
+        nodes = [_make_node("Skill Tree UI"), _make_node("Skill Basics"),
+                 _make_node("Tree Surgery")]
+        result = mgr.filter_nodes(nodes, {"search": "TREE skill"})
+        assert [n.name for n in result] == ["Skill Tree UI"]
+
+    def test_search_blank_filters_nothing(self, mgr):
+        nodes = [_make_node("A"), _make_node("B")]
+        assert mgr.filter_nodes(nodes, {"search": "   "}) == nodes
+
+    def test_search_skips_descriptions_unless_asked(self, mgr):
+        nodes = [_make_node("A", description="Part of the Skill Tree app"),
+                 _make_node("Skill Tree UI", description="")]
+        by_name = mgr.filter_nodes(nodes, {"search": "skill tree"})
+        assert [n.name for n in by_name] == ["Skill Tree UI"]
+        by_text = mgr.filter_nodes(
+            nodes, {"search": "skill tree", "search_descriptions": True})
+        assert [n.name for n in by_text] == ["A", "Skill Tree UI"]
+
+    def test_search_matches_aliases(self, mgr):
+        mgr.add_node(_make_node("Cardio"))
+        mgr.add_node(_make_node("Strength"))
+        mgr.set_aliases("Cardio", ["Aerobic Base"])
+        result = mgr.filter_nodes(mgr.get_all_nodes(), {"search": "aerobic"})
+        assert [n.name for n in result] == ["Cardio"]
+
     def test_combined_filters(self, mgr):
         nodes = [
             _make_node("A", context="Mind", status="Done", value=8),
