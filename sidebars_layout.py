@@ -159,7 +159,7 @@ def build_node_editor_content():
 
                 # More room above: the field has no control beneath it, as the
                 # filters sidebar's has, to hold the divider off.
-                html.Hr(className="mt-3 mb-2"),
+                html.Hr(className="mt-3 mb-3"),
                 html.H5("General", className="mt-2 mb-1"),
                 html.Div([
                     dbc.Label("Name", className="mb-0"),
@@ -234,7 +234,7 @@ def build_node_editor_content():
                 # The wrappers carry no Bootstrap display utility: those are
                 # `!important` and would beat the inline `display: none`.
                 html.Div(id="section-done-time", children=[
-                    html.Hr(className="my-2"),
+                    html.Hr(className="my-3"),
                     hover_label("Status", "node-status-heading", _EDITOR_HINTS["status"],
                                 component=html.H5, placement="right", className="mt-2 mb-1"),
                     html.Div([
@@ -316,7 +316,7 @@ def build_node_editor_content():
                 ]),
 
                 # Numeric inputs (shared by all types)
-                html.Hr(className="my-2"),
+                html.Hr(className="my-3"),
                 html.Div([
                     html.H5("Ratings", className="mb-0"),
                     info_button("btn-ratings-info", "Ratings reference", placement="right"),
@@ -357,7 +357,7 @@ def build_node_editor_content():
                 ]),
                 # --- Section: Time Estimates ---
                 html.Div(id="section-time-estimates", children=[
-                    html.Hr(className="my-2"),
+                    html.Hr(className="my-3"),
                     time_estimates_heading("node"),
                     html.Div([
                         dbc.Checklist(
@@ -442,7 +442,7 @@ def build_node_editor_content():
                     ]),
                 ]),
 
-                html.Hr(className="my-2"),
+                html.Hr(className="my-3"),
                 hover_label("Relationships", "node-relationships-heading",
                              _EDITOR_HINTS["relationships"], component=html.H5,
                              placement="right", className="mt-2 mb-1"),
@@ -466,7 +466,7 @@ def build_node_editor_content():
 
                 dcc.Store(id='edge-resources', data=[]),
 
-                html.Hr(className="my-2"),
+                html.Hr(className="my-3"),
                 hover_label("Resources", "node-resources-heading", _EDITOR_HINTS["resources"],
                             component=html.H5, placement="right", className="mt-2 mb-1"),
 
