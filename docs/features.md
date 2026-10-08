@@ -531,6 +531,8 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
 | Clear filters | Reset all filters to their default state |
 
+When the filters leave the canvas empty, it says so and says why. Done and Dormant nodes are hidden by default, so a search for a finished node would otherwise look broken. The message counts the matching nodes those two switches are hiding and offers a *Show Done* or *Show Dormant* button for each that applies, alongside *Clear filters*.
+
 Filters last as long as the app stays open. They are never saved. Every restart opens on the whole graph, so a narrowing is always something you chose in the current sitting. If you want to steer the app toward an area for longer than that, use [Priority Goals](#setting-priority-goals) or context weights instead. Those change what gets recommended without hiding anything from you.
 
 </td>

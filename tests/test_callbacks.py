@@ -10,7 +10,8 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD
 from callbacks import generate_elements, manager
-from callback_helpers import build_filters, is_filters_active, node_options
+from callback_helpers import (build_filters, empty_canvas_detail, is_filters_active,
+                              node_options)
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
@@ -194,6 +195,29 @@ class TestBuildFilters:
         # every selected context.
         result = build_filters(["Mind"], ["Rational"], ["show_done"])
         assert result == {"context_subcontext_union": [("Mind", ["Rational"])]}
+
+
+# ============================================================================
+# empty_canvas_detail
+# ============================================================================
+
+class TestEmptyCanvasDetail:
+    @staticmethod
+    def _hidden(hidden, done, dormant):
+        return {"hidden": hidden, "done": done, "dormant": dormant}
+
+    def test_names_done_nodes(self):
+        assert empty_canvas_detail(self._hidden(1, 1, 0)) ==             "1 matching node is Done and hidden."
+        assert empty_canvas_detail(self._hidden(3, 3, 0)) ==             "3 matching nodes are Done and hidden."
+
+    def test_names_dormant_nodes(self):
+        assert empty_canvas_detail(self._hidden(2, 0, 2)) ==             "2 matching nodes are Dormant and hidden."
+
+    def test_splits_both_kinds(self):
+        assert empty_canvas_detail(self._hidden(4, 3, 2)) ==             "4 matching nodes are hidden: 3 Done, 2 Dormant."
+
+    def test_nothing_hidden_says_to_widen(self):
+        assert empty_canvas_detail(self._hidden(0, 0, 0)) ==             "Widen the filters, or clear them."
 
 
 # ============================================================================

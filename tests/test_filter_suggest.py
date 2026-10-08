@@ -40,3 +40,13 @@ assert.deepEqual(suggest.matches('node'), []);
     result = subprocess.run([node_binary, '-e', script, str(asset)],
                             capture_output=True, text=True, timeout=30)
     assert result.returncode == 0, result.stderr
+
+
+def test_choosing_a_suggestion_commits_the_field_on_enter_keyup():
+    """dbc.Input(debounce=True) listens for Enter on keyup, so a keydown applies nothing."""
+    source = (Path(__file__).resolve().parents[1] / 'assets' / 'filter_suggest.js').read_text()
+    choose = source[source.index('function choose('):]
+    choose = choose[:choose.index('\n    }\n')]
+
+    assert "new KeyboardEvent('keyup'" in choose
+    assert "'keydown'" not in choose

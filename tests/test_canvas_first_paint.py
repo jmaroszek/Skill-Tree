@@ -179,7 +179,7 @@ global.makeCy = nodes => ({
     fitted: 0,
     handlers: {},
     layouts: [],
-    nodes() { const list = this._nodes; return {length: list.length, some: fn => list.some(fn)}; },
+    nodes() { const list = this._nodes; return {length: list.length, some: fn => list.some(fn), filter: fn => list.filter(fn)}; },
     on(name, fn) { (this.handlers[name] = this.handlers[name] || []).push(fn); },
     emit(name) { (this.handlers[name] || []).forEach(fn => fn()); },
     resize() {},
@@ -524,4 +524,38 @@ attachCy(cy);
 const prop = {name: 'fcose', animate: true, randomize: false};
 cy.layout(prop).run();
 assert.deepEqual(cy.layouts[0], prop);
+''')
+
+
+def test_a_few_placed_survivors_do_not_make_a_pile_incremental():
+    """Filtered down to two nodes, then cleared: hundreds of position-less nodes
+    arrive beside the two that kept their places. Incremental from that pile
+    came out as a diagonal line, so a mostly-new graph randomizes."""
+    _run_contract(r'''
+const cy = makeCy([makeNode(40, 40)]);
+attachCy(cy);
+openTab();
+
+const survivors = [makeNode(-30, 5), makeNode(60, -20)];
+const arrivals = Array.from({length: 20}, () => makeNode(0, 0));
+cy._nodes = survivors.concat(arrivals);
+cy.layout({name: 'fcose', animate: true, randomize: false}).run();
+
+assert.equal(cy.layouts[cy.layouts.length - 1].randomize, true);
+''')
+
+
+def test_a_mostly_placed_graph_keeps_its_shape_when_a_few_nodes_arrive():
+    """Show Done adds some nodes to a graph that stays where it is."""
+    _run_contract(r'''
+const cy = makeCy([makeNode(40, 40)]);
+attachCy(cy);
+openTab();
+
+const placed = Array.from({length: 20}, (_, i) => makeNode(30 * i + 5, -12 * i - 5));
+cy._nodes = placed.concat([makeNode(0, 0), makeNode(0, 0)]);
+const prop = {name: 'fcose', animate: true, randomize: false};
+cy.layout(prop).run();
+
+assert.deepEqual(cy.layouts[cy.layouts.length - 1], prop);
 ''')

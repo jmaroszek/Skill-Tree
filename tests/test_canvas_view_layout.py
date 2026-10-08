@@ -108,6 +108,21 @@ def test_the_editor_separates_search_from_general_like_every_other_section():
     assert "Hr" in kinds[search:general]
 
 
+def test_the_nodes_canvas_has_an_empty_state_with_its_three_ways_out():
+    layout = build_app_layout([], env="sandbox")
+    ids = _ids(layout)
+    state = _by_id(layout, "canvas-empty-state")
+
+    for component_id in ("canvas-empty-detail", "btn-empty-show-done",
+                         "btn-empty-show-dormant", "btn-empty-clear"):
+        assert component_id in ids
+    assert state.className == "canvas-empty-state"
+    assert "No nodes match your filters" in _text(state)
+    # The cover stays the last child, so it still hides the message on first paint.
+    container = _by_id(layout, "canvas-container")
+    assert container.children[-1].id == "canvas-first-paint-cover"
+
+
 def test_field_focus_rings_are_for_the_keyboard_only():
     """A click draws nothing; Tab draws the ring (html.keyboard-mode)."""
     css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()

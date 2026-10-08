@@ -545,9 +545,12 @@ remove re-ran it as is, so each filter change after a Settle reshuffled the
 whole graph. `assets/layout_requests.js` now randomizes a request only on its
 first run. The re-runs are transitions.
 
-The one run that can't be a transition is the cold start, from every node
+The one run that can't be a transition is the cold start, from most nodes
 stacked at the origin. Incremental from that pile, fCoSE left 547 of 568 nodes
-within 12 px of a neighbor; a randomized seed left none. `canvas_first_paint.js`
+within 12 px of a neighbor; a randomized seed left none. "Most" is more than
+half, not all: filtering down to two nodes and clearing the filters brings back
+hundreds of new nodes beside two that kept their places, and an incremental run
+from that came out as a diagonal line. `canvas_first_paint.js`
 wraps `cy.layout` so that run randomizes, and skips its animation while the
 cover is still up, since nobody can watch it. Settle passes through untouched,
 because its graph is already laid out.
@@ -731,6 +734,11 @@ other layout requests can still reach one. `assets/canvas_fit.js` refreshes the 
 size before every layout. A layout that still finds no size owes its fit, and
 pays it when the canvas gets a size and the layout has stopped. Nothing else
 moves the viewport, so returning to a tab keeps its pan and zoom.
+
+A fit never zooms past natural size (1). Filtering down to two nodes would
+otherwise scale them to fill the canvas, about eight times their size. The same
+file pulls any fit back to 1 about the canvas's center once the layout stops,
+and `canvas_first_paint.js` does the same through `SkillTree.capFitZoom`.
 
 Details marks the selected node as the view root inside the elements payload.
 A new selection is then randomized even if Dash has not yet propagated the

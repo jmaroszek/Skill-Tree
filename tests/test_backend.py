@@ -1236,6 +1236,30 @@ class TestFiltering:
         result = mgr.filter_nodes(mgr.get_all_nodes(), {"search": "aerobic"})
         assert [n.name for n in result] == ["Cardio"]
 
+    def test_hidden_by_status_counts_what_done_and_dormant_hide(self, mgr):
+        nodes = [
+            _make_node("Open Skill"),
+            _make_node("Done Skill", status="Done"),
+            _make_node("Dormant Skill", dormant=1),
+            _make_node("Both Skill", status="Done", dormant=1),
+            _make_node("Other", status="Done"),
+        ]
+        filters = {"search": "skill", "hide_done": True}
+        hidden = mgr.hidden_by_status(nodes, filters)
+        assert hidden == {"hidden": 3, "done": 2, "dormant": 2}
+
+    def test_hidden_by_status_ignores_a_switch_that_is_already_on(self, mgr):
+        nodes = [_make_node("A", status="Done"), _make_node("B", dormant=1)]
+        hidden = mgr.hidden_by_status(
+            nodes, {"hide_done": True, "show_dormant": True})
+        assert hidden == {"hidden": 1, "done": 1, "dormant": 0}
+
+    def test_hidden_by_status_is_empty_when_the_other_filters_exclude_everything(self, mgr):
+        nodes = [_make_node("A", status="Done", context="Mind")]
+        hidden = mgr.hidden_by_status(
+            nodes, {"hide_done": True, "context": ["Body"]})
+        assert hidden == {"hidden": 0, "done": 0, "dormant": 0}
+
     def test_combined_filters(self, mgr):
         nodes = [
             _make_node("A", context="Mind", status="Done", value=8),

@@ -1111,6 +1111,9 @@ class GraphManager:
     def filter_nodes(self, nodes: List[Node], filters: Dict) -> List[Node]:
         return graph_queries.filter_nodes(self, nodes, filters)
 
+    def hidden_by_status(self, nodes: List[Node], filters: Dict) -> Dict[str, int]:
+        return graph_queries.hidden_by_status(self, nodes, filters)
+
     def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
         return graph_queries._build_nx_graph(self, allowed_names)
 

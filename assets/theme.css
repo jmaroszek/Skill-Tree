@@ -82,6 +82,43 @@
     opacity: 0.9;
 }
 
+/* Over an empty Nodes canvas: what the filters hid and the way back. Only the
+   buttons take the pointer, so the canvas under it stays usable. */
+.canvas-empty-state {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 24px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.canvas-empty-state.is-open { display: flex; }
+
+.canvas-empty-title {
+    font-size: 1.1rem;
+    color: var(--st-text-primary);
+}
+
+.canvas-empty-detail {
+    font-size: 0.9rem;
+    color: var(--st-text-soft);
+}
+
+.canvas-empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 10px;
+    pointer-events: auto;
+}
+
 /* Nodes-tab first-paint cover.
 
    The canvas mounts hidden, so its nodes are stacked at the origin until the

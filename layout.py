@@ -84,6 +84,21 @@ def create_graph_view(initial_elements):
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
+            # Shown over an empty canvas (callbacks.register_callbacks fills it
+            # in and opens it): what the filters hid, and the way back.
+            html.Div([
+                html.Div("No nodes match your filters", className="canvas-empty-title"),
+                html.Div(id="canvas-empty-detail", className="canvas-empty-detail"),
+                html.Div([
+                    dbc.Button("Show Done", id="btn-empty-show-done",
+                               color="secondary", size="sm"),
+                    dbc.Button("Show Dormant", id="btn-empty-show-dormant",
+                               color="secondary", size="sm"),
+                    dbc.Button("Clear filters", id="btn-empty-clear",
+                               color="secondary", size="sm"),
+                ], id="canvas-empty-actions", className="canvas-empty-actions"),
+            ], id="canvas-empty-state", className="canvas-empty-state",
+                role="status", **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
             # First-paint cover. This canvas mounts inside the hidden Nodes
             # tab, where Cytoscape stacks every node at the origin until its
             # layout runs and `fit` is a no-op at 0x0 — so opening the tab

@@ -27,10 +27,27 @@
 (function () {
     var SkillTree = window.SkillTree = window.SkillTree || {};
 
+    // A fit scales the graph to fill the canvas, so two nodes would fill it
+    // too and draw at many times their size. Past natural size a fit stops
+    // helping; it only magnifies. Zoom in beyond this by hand.
+    var MAX_FIT_ZOOM = 1;
+
     function hasSize(cy) {
         var container = cy.container();
         return Boolean(container && container.clientWidth && container.clientHeight);
     }
+
+    // Pull a fit that overshot back to MAX_FIT_ZOOM about the canvas's center,
+    // where the fit has just put the graph.
+    function capZoom(cy) {
+        if (typeof cy.zoom !== 'function' || !hasSize(cy) || cy.zoom() <= MAX_FIT_ZOOM) return;
+        var container = cy.container();
+        cy.zoom({
+            level: MAX_FIT_ZOOM,
+            renderedPosition: { x: container.clientWidth / 2, y: container.clientHeight / 2 }
+        });
+    }
+    SkillTree.capFitZoom = capZoom;
 
     function track(cy) {
         if (cy._skillTreeFit) return;
@@ -48,6 +65,7 @@
             unwatch();
             cy.resize();
             cy.fit(undefined, debt.padding);
+            capZoom(cy);
         }
 
         // A tab is revealed by an inline style or class on some ancestor, and
@@ -71,6 +89,33 @@
             }
         }
 
+        // An animated layout frames the graph with an animation of the viewport
+        // toward its final fit, so capping once the layout stops would show the
+        // whole zoom-in and then snap back. Cap the animation's target instead.
+        var animation = cy.animation;
+        if (typeof animation === 'function') {
+            cy.animation = function (props) {
+                var rest = Array.prototype.slice.call(arguments, 1);
+                var fit = props && props.fit;
+                var container = cy.container();
+                if (fit && fit.boundingBox && hasSize(cy) && typeof cy.getFitViewport === 'function') {
+                    var view = cy.getFitViewport(fit.boundingBox, fit.padding);
+                    if (view && view.zoom > MAX_FIT_ZOOM) {
+                        var box = fit.boundingBox;
+                        props = Object.assign({}, props, {
+                            zoom: MAX_FIT_ZOOM,
+                            pan: {
+                                x: container.clientWidth / 2 - MAX_FIT_ZOOM * (box.x1 + box.x2) / 2,
+                                y: container.clientHeight / 2 - MAX_FIT_ZOOM * (box.y1 + box.y2) / 2
+                            }
+                        });
+                        delete props.fit;
+                    }
+                }
+                return animation.apply(cy, [props].concat(rest));
+            };
+        }
+
         window.SkillTree.wrapLayout(cy, 'fit', function (next, options) {
             cy.resize();
             var run = next(options);
@@ -78,6 +123,7 @@
             if (hasSize(cy)) {
                 state.debt = null;
                 unwatch();
+                run.one('layoutstop', function () { capZoom(cy); });
                 return run;
             }
             var debt = state.debt = { padding: options.padding || 0, stopped: false };

@@ -391,6 +391,27 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
     return result
 
 
+def hidden_by_status(manager, nodes: List[Node], filters: Dict) -> Dict[str, int]:
+    """What the Done and Dormant switches are hiding from `filters`' result.
+
+    Counts the nodes that pass every other filter but are held back by one of
+    the switches: ``hidden`` in all, and how many of those are ``done`` or
+    ``dormant`` (a Done dormant node counts in both). A switch that is already
+    on hides nothing, so it counts nothing.
+    """
+    shown = {n.name for n in filter_nodes(manager, nodes, filters)}
+    revealed = filter_nodes(
+        manager, nodes, {**filters, 'show_dormant': True, 'hide_done': False})
+    hidden = [n for n in revealed if n.name not in shown]
+    return {
+        'hidden': len(hidden),
+        'done': sum(n.status == STATUS_DONE for n in hidden)
+        if filters.get('hide_done') else 0,
+        'dormant': sum(bool(n.dormant) for n in hidden)
+        if not filters.get('show_dormant') else 0,
+    }
+
+
 def _matching_terms(manager, nodes: List[Node], terms: List[str],
                     with_descriptions: bool) -> List[Node]:
     """Nodes whose text holds every term, case-insensitively.

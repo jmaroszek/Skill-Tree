@@ -59,8 +59,17 @@ global.makeCy = () => {
         calls: [],
         runs: [],
         container: () => canvas,
+        scale: 1,
         resize() { cy.calls.push('resize'); },
-        fit(eles, padding) { cy.calls.push('fit:' + padding); },
+        fit(eles, padding) { cy.calls.push('fit:' + padding); cy.scale = cy.fitScale || 1; },
+        getFitViewport() { return {zoom: cy.fitScale || 1, pan: {x: 0, y: 0}}; },
+        animation(props) { cy.animations.push(props); return {}; },
+        animations: [],
+        zoom(arg) {
+            if (arg === undefined) return cy.scale;
+            cy.scale = arg.level;
+            cy.calls.push('zoom:' + arg.level + '@' + arg.renderedPosition.x + ',' + arg.renderedPosition.y);
+        },
         layout(options) {
             cy.calls.push('layout');
             const handlers = {};
@@ -170,4 +179,68 @@ const cy = attachCy(makeCy());
 cy.layout({fit: false}).stop();
 openTab();
 assert.deepEqual(fits(cy), []);
+''')
+
+
+def test_a_fit_on_a_tiny_graph_stops_at_natural_size():
+    """Two nodes filling the canvas drew at eight times their size."""
+    _run_contract(r'''
+const cy = attachCy(makeCy());
+openTab();
+const run = cy.layout({fit: true, padding: 20});
+cy.fitScale = 8;
+cy.fit(undefined, 20);
+run.stop();
+assert.equal(cy.scale, 1);
+assert.ok(cy.calls.includes('zoom:1@600,250'), 'about the canvas center');
+''')
+
+
+def test_a_fit_already_below_natural_size_is_left_alone():
+    _run_contract(r'''
+const cy = attachCy(makeCy());
+openTab();
+const run = cy.layout({fit: true, padding: 20});
+cy.fitScale = 0.3;
+cy.fit(undefined, 20);
+run.stop();
+assert.equal(cy.scale, 0.3);
+assert.ok(!cy.calls.some(call => call.startsWith('zoom')));
+''')
+
+
+def test_a_fit_paid_on_a_revealed_tab_is_capped_too():
+    _run_contract(r'''
+const cy = attachCy(makeCy());
+cy.fitScale = 8;
+cy.layout({fit: true, padding: 20}).stop();
+openTab();
+assert.equal(cy.scale, 1);
+''')
+
+
+def test_an_animated_fit_aims_at_natural_size_not_past_it():
+    """The viewport tween used to run to the full zoom and snap back at the end."""
+    _run_contract(r'''
+const cy = attachCy(makeCy());
+openTab();
+cy.fitScale = 8;
+const box = {x1: 100, x2: 300, y1: 40, y2: 80};
+cy.animation({fit: {boundingBox: box, padding: 30}, duration: 1000});
+const sent = cy.animations[0];
+assert.equal(sent.fit, undefined);
+assert.equal(sent.zoom, 1);
+assert.deepEqual(sent.pan, {x: 600 - 200, y: 250 - 60}, 'the box stays centered');
+assert.equal(sent.duration, 1000);
+''')
+
+
+def test_an_animated_fit_within_natural_size_is_untouched():
+    _run_contract(r'''
+const cy = attachCy(makeCy());
+openTab();
+cy.fitScale = 0.4;
+const request = {fit: {boundingBox: {x1: 0, x2: 9, y1: 0, y2: 9}, padding: 30}};
+cy.animation(request);
+assert.equal(cy.animations[0], request);
 ''')

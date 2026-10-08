@@ -36,7 +36,7 @@ from node_commands import (
 )
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
-    node_options, build_filters, is_filters_active,
+    node_options, build_filters, is_filters_active, empty_canvas_detail,
     render_alias_rows, alias_rows_label, update_alias_rows,
     resource_link_values,
     resolve_active_node_id, normalize_name_for_comparison,
@@ -2275,6 +2275,76 @@ def register_callbacks(app, services=None):
         Output('canvas-node-count', 'children'),
         Input('canvas-payload-stamp', 'data'),
         Input('canvas-filters-active-store', 'data'),
+        prevent_initial_call=True,
+    )
+
+    # --- The empty canvas: why, and the way back ---
+    # An empty render over a graph that has nodes means the filters hid them
+    # all. Done and Dormant nodes are hidden by default, so a search for a
+    # finished node looks like a bug. The message counts what those two
+    # switches hide and offers the switches. With a Community selected the
+    # count would describe other communities, so it says only to widen.
+    @app.callback(
+        Output('canvas-empty-state', 'className'),
+        Output('canvas-empty-detail', 'children'),
+        Output('btn-empty-show-done', 'style'),
+        Output('btn-empty-show-dormant', 'style'),
+        Input('canvas-payload-stamp', 'data'),
+        State('filter-context', 'value'), State('filter-subcontext', 'value'),
+        State('filter-done', 'value'), State('filter-dormant', 'value'),
+        State('filter-value', 'value'), State('filter-interest', 'value'),
+        State('filter-time', 'value'), State('filter-time-unit', 'value'),
+        State('filter-difficulty', 'value'), State('filter-node-type', 'value'),
+        State('filter-time-min', 'value'), State('filter-search-query', 'data'),
+        State('filter-community', 'value'), State('community-method', 'value'),
+        prevent_initial_call=True,
+    )
+    def update_canvas_empty_state(stamp, f_context, f_subcontext, f_done,
+                                  f_show_dormant, f_value, f_interest, f_time,
+                                  f_time_unit, f_difficulty, f_node_types,
+                                  f_time_min, f_search, f_community,
+                                  community_method):
+        closed = 'canvas-empty-state', no_update, no_update, no_update
+        if (stamp or {}).get('nodes') != 0:
+            return closed
+        nodes = manager.get_all_nodes(include_dormant=True)
+        if not nodes:
+            return closed  # A graph with nothing in it is the welcome's business.
+        hidden = {'hidden': 0, 'done': 0, 'dormant': 0}
+        if (not f_community or f_community == "All") and community_method != "orphans":
+            filters = build_filters(
+                f_context, f_subcontext, f_done, f_value, f_interest, f_time,
+                f_difficulty, f_node_types, f_time_unit=f_time_unit,
+                f_show_dormant=f_show_dormant, f_time_min=f_time_min,
+                f_search=f_search)
+            hidden = manager.hidden_by_status(nodes, filters)
+        shown, away = {}, {"display": "none"}
+        return ('canvas-empty-state is-open', empty_canvas_detail(hidden),
+                shown if hidden['done'] else away,
+                shown if hidden['dormant'] else away)
+
+    # The message's buttons flip the switches it names, or press Clear Filters.
+    app.clientside_callback(
+        "function(clicks) { return clicks ? ['show_done'] : window.dash_clientside.no_update; }",
+        Output('filter-done', 'value', allow_duplicate=True),
+        Input('btn-empty-show-done', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    app.clientside_callback(
+        "function(clicks) { return clicks ? ['show_dormant'] : window.dash_clientside.no_update; }",
+        Output('filter-dormant', 'value', allow_duplicate=True),
+        Input('btn-empty-show-dormant', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    app.clientside_callback(
+        """
+        function(clicks, current) {
+            return clicks ? (current || 0) + 1 : window.dash_clientside.no_update;
+        }
+        """,
+        Output('btn-clear-filters', 'n_clicks', allow_duplicate=True),
+        Input('btn-empty-clear', 'n_clicks'),
+        State('btn-clear-filters', 'n_clicks'),
         prevent_initial_call=True,
     )
 

@@ -71,6 +71,20 @@
         });
     }
 
+    // More than half the nodes stacked at the origin: a graph that is mostly
+    // new. A few placed survivors don't change that. Filtering down to two
+    // nodes and clearing the filters brings back hundreds of position-less
+    // nodes beside those two, and an incremental layout from that pile came out
+    // as a diagonal line.
+    function mostlyUnplaced(cy) {
+        var nodes = cy.nodes();
+        var stacked = nodes.filter(function (node) {
+            var p = node.position();
+            return Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1;
+        });
+        return stacked.length * 2 > nodes.length;
+    }
+
     // toggle_tab_content (event_callbacks.py) owns this inline display, and
     // sets it on every tab switch including the first.
     function paneIsOpen() {
@@ -81,15 +95,16 @@
     function frame(cy) {
         cy.resize();
         cy.fit(null, 30);
+        if (window.SkillTree.capFitZoom) window.SkillTree.capFitZoom(cy);
         cy.center();
     }
 
     // The layout prop describes a transition, because that is what every run
     // after the first one is: a filter change adds or removes nodes, and the
     // graph should keep its shape, gliding when Animate is on. A run that starts
-    // with every node stacked at the origin is the exception. There is no shape
-    // to keep, so it has to randomize — incremental from that pile, fCoSE left
-    // 547 of 568 sandbox nodes within 12 px of a neighbor. And while the cover
+    // with most nodes stacked at the origin is the exception. There is no shape
+    // worth keeping, so it has to randomize — incremental from that pile, fCoSE
+    // left 547 of 568 sandbox nodes within 12 px of a neighbor. And while the cover
     // is still up nobody can watch it glide, so animating would only hold the
     // cover up for another second. dash-cytoscape starts every layout through
     // cy.layout(), so this is the one place that sees them all; Settle passes
@@ -98,7 +113,7 @@
         if (cy._skillTreeColdStartGuard) return;
         cy._skillTreeColdStartGuard = true;
         window.SkillTree.wrapLayout(cy, 'coldStart', function (next, options) {
-            if (options && cy.nodes().length && !looksLaidOut(cy)) {
+            if (options && cy.nodes().length && mostlyUnplaced(cy)) {
                 options = Object.assign({}, options, { randomize: true });
                 if (!done) options.animate = false;
             }

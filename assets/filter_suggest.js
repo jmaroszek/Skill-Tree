@@ -131,7 +131,8 @@
         setter.call(input, name);
         input.dispatchEvent(new Event('input', {bubbles: true}));
         close();
-        input.dispatchEvent(new KeyboardEvent('keydown', {
+        // dbc.Input(debounce=True) commits on the keyup of Enter, not the keydown.
+        input.dispatchEvent(new KeyboardEvent('keyup', {
             key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true}));
     }
 
@@ -159,6 +160,10 @@
             e.preventDefault();
             e.stopPropagation();
             choose(items[active].dataset.name);
+        } else if (e.key === 'Enter') {
+            // Enter applies the text as typed, and the panel has done its job.
+            // The key goes on to the field, which applies the value.
+            close();
         } else if (e.key === 'Escape') {
             // The sidebar's own Escape stands down while aria-expanded is set,
             // so this only closes the panel.
