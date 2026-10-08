@@ -127,7 +127,7 @@ def build_node_editor_content():
                                id="btn-locate-node", color="link",
                                className="p-0 ms-2 text-decoration-none text-muted",
                                style={"fontSize": tokens.FS_LG, "lineHeight": "1"}, disabled=True),
-                ], className="d-flex align-items-center mt-3 mb-2"),
+                ], className="d-flex align-items-center mt-3", style={"marginBottom": "0.75rem"}),
                 html.Div(dcc.Dropdown(
                     id="search-node",
                     options=[],  # Populated dynamically by core_engine callback
@@ -665,7 +665,7 @@ def build_filters_content():
                                className_extra="float-end")
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
-        html.H5("Search", className="mt-3 mb-2"),
+        html.H5("Search", className="mt-3", style={"marginBottom": "0.75rem"}),
         # The query applies on Enter or when the field loses focus, not per
         # keystroke: each change to a filter lays the canvas out again, and on
         # a large graph a layout per letter is the sluggishness to avoid. The
@@ -691,7 +691,7 @@ def build_filters_content():
             value=[],
             id="filter-text-scope",
             switch=True,
-            className="mt-2",
+            style={"marginTop": "0.75rem"},
         ),
 
         html.Hr(className="my-3"),
