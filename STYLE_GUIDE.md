@@ -105,6 +105,34 @@ frozen here. To re-derive after a major canvas-palette swap, dig those
 deltas out of the git history for this file or `config.BADGE_PALETTE`.
 Otherwise, just edit the literals to taste.
 
+**Next-tab priority bar.** The bar carries two cues: length is the priority and
+colour is the node type. The fill is the type colour at 60% over the track
+(`color-mix`), with a solid 3px edge at its end that marks the exact value.
+Solid fills made Action orange look more urgent than Learn blue at the same
+score, and a tint evens the types out. Above about 70% the tint is not
+distinguishable from solid, and at 40% or below it looks washed out. A row that
+unblocks a Now node uses the Unblocking colour the same way.
+
+The Next list is one grid, and its rows are subgrids of it, so every row shares
+the same columns. The name column is as wide as the longest visible name, between
+200px and 340px, so short names do not leave a wide empty column and a long one
+still shows. The bar takes whatever the table has left, so it absorbs any change
+in the name column and nothing else in the row moves. The table fills the room
+beside the Description panel up to 1500px; past that the bars add colour, not
+precision. The panel is 420px with a right margin, so its text never runs to
+the window edge, and 48px sits between the two. The Now cards sit 32px above the Next heading. Below about 1300px the panel
+drops under the table instead of squeezing it. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
+chart and the link dots sit 38px apart. The first gap is the looser one so the
+bar's end edge does not crowd the time. These are constants in
+`callback_helpers.py` and `layout.py`.
+
+Under the description, with no header, **Supports** lists the nodes that name
+the selected one as a hard or soft prerequisite, Goals included, and **Synergy**
+its Helps partners. Each shows at most three, best first, with a count of the
+rest. Only direct neighbours appear: the whole downstream reach belongs to
+Explain Priority, and a cut-off at some number of hops would be arbitrary.
+Each name carries a 3px left edge in its type colour.
+
 **Render order** in the Details info pane:
 
 1. Status (always)

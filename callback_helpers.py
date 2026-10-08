@@ -28,6 +28,7 @@ from config import (
 )
 import style_tokens as tokens
 from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from scoring import explain_score
 from ui_kit import add_button, restore_button
 from resource_links import get_sections
 
@@ -1351,6 +1352,25 @@ def _bool_icon(val):
 
 _MONO_FONT = tokens.FONT_MONO
 
+# The Next priority bar: a tinted fill with a solid edge at its end. The edge
+# marks the exact value; the tint keeps the type colours from outweighing the
+# length (solid orange read as more urgent than solid blue at the same score).
+BAR_FILL_PERCENT = 60
+# The name column is as wide as the longest visible name, within these bounds.
+# The bar takes whatever the table has left, so a short list of names gives the
+# width to the bar and the rest of the row never moves.
+NAME_MIN_WIDTH = 200
+NAME_MAX_WIDTH = 340
+# The rank column is 32px; the rows' 12px side padding is taken from the first
+# track when the rows share the list's grid, so the track is wider by that much.
+RANK_TRACK_WIDTH = 44
+BAR_MIN_WIDTH = 240
+# Space between the row's columns, then between the time, the V/I/E chart and the
+# link dots inside the last one. The first is looser so the bar's end edge does
+# not crowd the time.
+BAR_ROW_GAP = 24
+META_GAP = 38
+
 
 def _suggestion_micro_bar(val, label):
     """One bar of the V/I/E micro-chart (6×22 track with bottom-anchored fill, native title tooltip)."""
@@ -1372,6 +1392,76 @@ def _suggestion_micro_bar(val, label):
             "overflow": "hidden", "display": "inline-block", "cursor": "default",
         },
     )
+
+
+def _relations_lookup(manager):
+    """Return name -> JSON of what a node supports and has synergy with.
+
+    Backs the Home description panel with the node's direct neighbours only; the
+    whole downstream reach is Explain Priority's job. Each list holds [name, type
+    colour, kind, done] rows, best first, so the panel can show the top few and
+    count the rest:
+
+    - `supports`: the nodes, Goals included, that list it as a hard or soft
+      prerequisite.
+    - `synergy`: its Helps partners, in either direction.
+
+    Prerequisites are left out: a node with an unfinished one is Blocked and never
+    reaches the Home lists. Ordering uses each neighbour's contribution to the
+    node's score; neighbours that add nothing, such as Done ones, come last.
+    Scoring runs once per requested name, over one read of the graph.
+    """
+    nodes = manager.get_all_nodes()
+    by_name = {n.name: n for n in nodes}
+    edges = manager.get_edges()
+    hypers = ConfigManager.get_hyperparams()
+    hypers['context_weights'] = ConfigManager.get_context_weights()
+    priority_goals = ConfigManager.get_priority_goals()
+
+    supports, synergy = {}, {}
+    for e in edges:
+        src, tgt, typ = e['source'], e['target'], e['type']
+        if typ == EDGE_HELPS:
+            synergy.setdefault(src, set()).add(tgt)
+            synergy.setdefault(tgt, set()).add(src)
+        else:
+            kind = 'hard' if typ == EDGE_NEEDS_HARD else 'soft'
+            # A hard edge outranks a soft one on the same pair.
+            if supports.setdefault(src, {}).get(tgt) != 'hard':
+                supports[src][tgt] = kind
+
+    def row(name, kind=''):
+        node = by_name[name]
+        return [name, BADGE_PALETTE.get(node.type, ('#6c757d',))[0],  # literal: palette fallback
+                kind, node.status == STATUS_DONE]
+
+    def visible(name):
+        node = by_name.get(name)
+        return node is not None and not getattr(node, 'dormant', False)
+
+    def lookup(name):
+        node = by_name.get(name)
+        if node is None:
+            return json.dumps({})
+        weight = {}
+        if node.type != 'Goal':
+            explained = explain_score(name, nodes, edges, hypers,
+                                      priority_goals=priority_goals)
+            weight = {c['name']: c['contribution']
+                      for c in (explained or {}).get('contributors', [])}
+
+        def ranked(names):
+            return sorted(names, key=lambda n: (-weight.get(n, 0.0), n.lower()))
+
+        direct = {n: kind for n, kind in supports.get(name, {}).items()
+                  if n != name and visible(n)}
+        partners = [n for n in synergy.get(name, ()) if n != name and visible(n)]
+        buckets = {
+            'supports': [row(n, direct[n]) for n in ranked(direct)],
+            'synergy': [row(n) for n in ranked(partners)],
+        }
+        return json.dumps({k: v for k, v in buckets.items() if v})
+    return lookup
 
 
 def _suggestion_dot(on, label, fill_color):
@@ -1453,13 +1543,10 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     step_targets = {name: manager.get_node(name)
                     for name in set(pinned_steps.values())}
 
-    # Fixed name column width — long names ellipsize rather than pushing
-    # the bar/meta columns around, which keeps the list scan-friendly.
-    name_col_width = 250
-
     rows = []
     rank = 0
     resource_sections = get_sections()
+    relations = _relations_lookup(manager)
     for s in suggs:
         is_selected = (s.name == selected_node_id)
         step_target = pinned_steps.get(s.name)
@@ -1535,7 +1622,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                 "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
                 "lineHeight": "1.35",
             }),
-        ], style={"minWidth": 0, "overflow": "hidden"})
+        ], style={"minWidth": f"{NAME_MIN_WIDTH}px", "overflow": "hidden"})
 
         # Column 3 — priority bar
         bar_fill = html.Div(
@@ -1549,7 +1636,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             ),
             style={
                 "width": f"{bar_width_pct}%", "height": "100%",
-                "background": bar_color, "borderRadius": "3px",
+                "background": f"color-mix(in srgb, {bar_color} {BAR_FILL_PERCENT}%, transparent)",
+                "boxShadow": f"inset -3px 0 0 {bar_color}", "borderRadius": "3px",
                 "display": "flex", "alignItems": "center",
                 "justifyContent": "flex-end", "paddingRight": "10px",
             },
@@ -1592,15 +1680,15 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         ], style={"display": "flex", "gap": "6px", "alignItems": "center"})
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
-            "display": "flex", "alignItems": "center", "gap": "32px",
+            "display": "flex", "alignItems": "center", "gap": f"{META_GAP}px",
             "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XS,
         })
 
         row_style = {
             "display": "grid",
-            "gridTemplateColumns": f"32px {name_col_width}px 1fr auto",
+            "gridTemplateColumns": "subgrid", "gridColumn": "1 / -1",
             "alignItems": "center",
-            "gap": "14px",
+            "gap": f"{BAR_ROW_GAP}px",
             "padding": "9px 12px",
             "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
         }
@@ -1615,11 +1703,19 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             style=row_style,
             **{
                 "data-description": (s.description or "").strip(),
+                "data-relations": relations(s.name),
                 **node_menu_attributes(s),
             },  # type: ignore[reportArgumentType]
         ))
 
-    bar_list = html.Div(rows, style={"flex": "1", "minWidth": "0"})
+    # One grid for the whole list, so every row shares the same columns: the
+    # rows are subgrids of it.
+    bar_list = html.Div(rows, style={
+        "flex": "1", "minWidth": "0", "display": "grid",
+        "gridTemplateColumns": (f"{RANK_TRACK_WIDTH}px fit-content({NAME_MAX_WIDTH}px) "
+                                f"minmax({BAR_MIN_WIDTH}px, 1fr) auto"),
+        "columnGap": f"{BAR_ROW_GAP}px",
+    })
 
     return [bar_list]
 
@@ -1650,6 +1746,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     ], className="d-flex align-items-center", style={"gap": tokens.SPACE_BLOCK, "marginBottom": "0.75rem"})
 
     cards = []
+    relations = _relations_lookup(manager)
     for n in now_nodes:
         is_selected = (n.name == selected_node_id)
         eff_time = manager.get_effective_time(n.name)
@@ -1742,6 +1839,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
             **{
                 **node_menu_attributes(n),
                 "data-description": (n.description or "").strip(),
+                "data-relations": relations(n.name),
                 "data-node-name": n.name,
             },  # type: ignore[reportArgumentType]
         ))
@@ -1749,7 +1847,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     cards_row = html.Div(cards, id="now-cards-container", style={
         "display": "flex",
         "gap": "1rem",
-        "marginBottom": "1.5rem",
+        "marginBottom": "32px",
     })
 
     return [heading, cards_row]
