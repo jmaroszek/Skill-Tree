@@ -2,7 +2,8 @@
 
 import pytest
 
-from callback_helpers import (BAR_FILL_PERCENT, BAR_MAX_WIDTH, BAR_ROW_GAP, META_GAP,
+from callback_helpers import (BAR_FILL_PERCENT, BAR_MIN_WIDTH, BAR_ROW_GAP, META_GAP,
+                              NAME_MAX_WIDTH, NAME_MIN_WIDTH, RANK_TRACK_WIDTH,
                               format_suggestions_table)
 from config import BADGE_PALETTE
 from graph_manager import GraphManager
@@ -14,7 +15,7 @@ def mgr():
     return GraphManager()
 
 
-def _rows(mgr, *specs):
+def _table(mgr, *specs):
     nodes = []
     for name, type_, score in specs:
         fields = dict(name=name, type=type_, description="", value=5, time_o=1,
@@ -22,7 +23,11 @@ def _rows(mgr, *specs):
                       context="Mind")
         mgr.add_node(Node(**fields))
         nodes.append(Node(**fields, priority_score=score))
-    return format_suggestions_table(nodes, mgr)[0].children
+    return format_suggestions_table(nodes, mgr)[0]
+
+
+def _rows(mgr, *specs):
+    return _table(mgr, *specs).children
 
 
 def _bar_fill(row):
@@ -39,11 +44,16 @@ def test_a_bar_is_tinted_with_a_solid_edge_in_its_type_colour(mgr):
         assert style["boxShadow"] == f"inset -3px 0 0 {color}"
 
 
-def test_the_bar_column_is_capped_at_three_and_a_half_name_columns(mgr):
-    (row,) = _rows(mgr, ("Study", "Learn", 10))
+def test_the_rows_share_one_grid_whose_name_column_fits_its_names(mgr):
+    table = _table(mgr, ("Study", "Learn", 10), ("Practise", "Action", 8))
 
-    assert BAR_MAX_WIDTH == 3.5 * 250
-    assert f"minmax(240px, {BAR_MAX_WIDTH}px)" in row.style["gridTemplateColumns"]
+    assert table.style["display"] == "grid"
+    assert table.style["gridTemplateColumns"] == (
+        f"{RANK_TRACK_WIDTH}px fit-content({NAME_MAX_WIDTH}px) "
+        f"minmax({BAR_MIN_WIDTH}px, 1fr) auto")
+    for row in table.children:
+        assert row.style["gridTemplateColumns"] == "subgrid"
+        assert row.children[1].style["minWidth"] == f"{NAME_MIN_WIDTH}px"
 
 
 def test_the_row_spaces_its_columns_and_its_meta_items(mgr):

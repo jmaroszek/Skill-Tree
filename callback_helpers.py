@@ -1342,8 +1342,15 @@ _MONO_FONT = tokens.FONT_MONO
 # marks the exact value; the tint keeps the type colours from outweighing the
 # length (solid orange read as more urgent than solid blue at the same score).
 BAR_FILL_PERCENT = 60
-# 3.5 times the 250px name column. Past this the bars add colour, not precision.
-BAR_MAX_WIDTH = 875
+# The name column is as wide as the longest visible name, within these bounds.
+# The bar takes whatever the table has left, so a short list of names gives the
+# width to the bar and the rest of the row never moves.
+NAME_MIN_WIDTH = 200
+NAME_MAX_WIDTH = 340
+# The rank column is 32px; the rows' 12px side padding is taken from the first
+# track when the rows share the list's grid, so the track is wider by that much.
+RANK_TRACK_WIDTH = 44
+BAR_MIN_WIDTH = 240
 # Space between the row's columns, then between the time, the V/I/E chart and the
 # link dots inside the last one. The first is looser so the bar's end edge does
 # not crowd the time.
@@ -1452,10 +1459,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     step_targets = {name: manager.get_node(name)
                     for name in set(pinned_steps.values())}
 
-    # Fixed name column width — long names ellipsize rather than pushing
-    # the bar/meta columns around, which keeps the list scan-friendly.
-    name_col_width = 250
-
     rows = []
     rank = 0
     resource_sections = get_sections()
@@ -1534,7 +1537,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
                 "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
                 "lineHeight": "1.35",
             }),
-        ], style={"minWidth": 0, "overflow": "hidden"})
+        ], style={"minWidth": f"{NAME_MIN_WIDTH}px", "overflow": "hidden"})
 
         # Column 3 — priority bar
         bar_fill = html.Div(
@@ -1598,7 +1601,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
         row_style = {
             "display": "grid",
-            "gridTemplateColumns": f"32px {name_col_width}px minmax(240px, {BAR_MAX_WIDTH}px) auto",
+            "gridTemplateColumns": "subgrid", "gridColumn": "1 / -1",
             "alignItems": "center",
             "gap": f"{BAR_ROW_GAP}px",
             "padding": "9px 12px",
@@ -1619,7 +1622,14 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             },  # type: ignore[reportArgumentType]
         ))
 
-    bar_list = html.Div(rows, style={"flex": "1", "minWidth": "0"})
+    # One grid for the whole list, so every row shares the same columns: the
+    # rows are subgrids of it.
+    bar_list = html.Div(rows, style={
+        "flex": "1", "minWidth": "0", "display": "grid",
+        "gridTemplateColumns": (f"{RANK_TRACK_WIDTH}px fit-content({NAME_MAX_WIDTH}px) "
+                                f"minmax({BAR_MIN_WIDTH}px, 1fr) auto"),
+        "columnGap": f"{BAR_ROW_GAP}px",
+    })
 
     return [bar_list]
 

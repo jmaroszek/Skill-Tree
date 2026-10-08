@@ -113,10 +113,15 @@ score, and a tint evens the types out. Above about 70% the tint is not
 distinguishable from solid, and at 40% or below it looks washed out. A row that
 unblocks a Now node uses the Unblocking colour the same way.
 
-The bar column is capped at 3.5 times the name column (875px against 250px).
-Past that the bar adds colour, not precision. The Description panel beside it
-is capped at 420px with a right margin, so its text never runs to the window
-edge. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
+The Next list is one grid, and its rows are subgrids of it, so every row shares
+the same columns. The name column is as wide as the longest visible name, between
+200px and 340px, so short names do not leave a wide empty column and a long one
+still shows. The bar takes whatever the table has left, so it absorbs any change
+in the name column and nothing else in the row moves. The table fills the room
+beside the Description panel up to 1400px; past that the bars add colour, not
+precision. The panel is 420px with a right margin, so its text never runs to
+the window edge, and 64px sits between the two. Below about 1300px the panel
+drops under the table instead of squeezing it. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
 chart and the link dots sit 38px apart. The first gap is the looser one so the
 bar's end edge does not crowd the time. These are constants in
 `callback_helpers.py` and `layout.py`.

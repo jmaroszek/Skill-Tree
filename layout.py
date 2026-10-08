@@ -119,6 +119,12 @@ _RATING_TEXTAREA_STYLE = {
 
 _section_title_style = tokens.SECTION_TITLE_STYLE
 
+# The Next table fills the room beside the Description panel up to this width.
+# Its basis is the narrowest it reads well, which is also where the panel drops
+# below it.
+NEXT_TABLE_MAX_WIDTH = 1400
+NEXT_TABLE_BASIS = 780
+
 
 # --- Next View ---
 
@@ -154,16 +160,19 @@ def build_next_view():
         html.Div([
             html.Div(id="suggestions-table", children=[
                 html.P("Loading suggestions...", className="text-muted mt-3")
-            ], style={"flex": "0 1 auto", "minWidth": 0}),
+            ], style={"flex": f"1 1 {NEXT_TABLE_BASIS}px", "minWidth": 0,
+                      "maxWidth": f"{NEXT_TABLE_MAX_WIDTH}px"}),
         
             # Description area — populated when clicking a Now card or Next row.
             html.Div(id="next-description-area", children=[
                 html.H6("Description", className="text-muted mb-2", style=_section_title_style),
                 html.Div("Click a card or row to see its description", id="next-description-text",
                          style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
-            ], style={"flex": "1 1 0", "minWidth": "280px", "maxWidth": "420px",
+            ], style={"flex": "0 1 420px", "minWidth": "280px",
                       "paddingRight": "2.5rem", "boxSizing": "content-box"}),
-        ], style={"display": "flex", "alignItems": "flex-start", "gap": "4rem"}),
+        # Wraps under the table when the window is too narrow for both.
+        ], style={"display": "flex", "flexWrap": "wrap", "alignItems": "flex-start",
+                  "columnGap": "4rem", "rowGap": "2rem"}),
     ])
 
 
