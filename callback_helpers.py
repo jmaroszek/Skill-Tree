@@ -1759,7 +1759,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
     cards_row = html.Div(cards, id="now-cards-container", style={
         "display": "flex",
         "gap": "1rem",
-        "marginBottom": "1.5rem",
+        "marginBottom": "40px",
     })
 
     return [heading, cards_row]

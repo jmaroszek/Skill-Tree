@@ -120,7 +120,7 @@ still shows. The bar takes whatever the table has left, so it absorbs any change
 in the name column and nothing else in the row moves. The table fills the room
 beside the Description panel up to 1400px; past that the bars add colour, not
 precision. The panel is 420px with a right margin, so its text never runs to
-the window edge, and 64px sits between the two. Below about 1300px the panel
+the window edge, and 64px sits between the two. The Now cards sit 40px above the Next heading. Below about 1300px the panel
 drops under the table instead of squeezing it. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
 chart and the link dots sit 38px apart. The first gap is the looser one so the
 bar's end edge does not crowd the time. These are constants in
