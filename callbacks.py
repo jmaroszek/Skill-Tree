@@ -1526,7 +1526,12 @@ def register_callbacks(app, services=None):
          Input('details-refresh-trigger', 'data'),
          Input('background-click-input', 'value'),
          Input('main-tabs', 'active_tab'),
-         Input('graph-settings-relayout', 'n_clicks'),
+         # A State, like the selection above, so the argument order holds.
+         # Settle only lays out what the canvas shows. As an Input it rebuilt
+         # the whole canvas payload, and that response, its restyle and the
+         # callbacks chained to save-output landed inside the Settle's
+         # animation as stalls of up to 120 ms.
+         State('graph-settings-relayout', 'n_clicks'),
          Input('btn-undo-done-confirm', 'n_clicks'),
          # Appended at the end of the Inputs so existing positional indices
          # (used by core_engine tests) stay stable. The toolbar "+" new-node

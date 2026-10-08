@@ -15,6 +15,8 @@ import dash
 
 from callbacks import register_callbacks
 from canvases import CANVASES, client_registry, install_client_registry
+from details_callbacks import register_details_callbacks
+from event_callbacks import register_event_callbacks
 from layout import build_app_layout
 
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
@@ -103,6 +105,28 @@ def test_every_canvas_gets_a_layout_request():
         assert [i['id'] for i in spec['inputs']] == expected, canvas.key
         assert [s['id'] for s in spec['state']] == (
             [canvas.view_store_id] if canvas.view_store_id else []), canvas.key
+
+
+def test_settle_lays_out_without_a_server_round_trip():
+    """Settle lays out what the canvas shows. On Nodes it also started the core
+    engine, whose rebuilt payload, restyle and chained callbacks landed inside
+    the Settle's animation."""
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    for register in (register_callbacks, register_details_callbacks,
+                     register_event_callbacks):
+        register(app)
+    for canvas in CANVASES:
+        settle = canvas.control_id('relayout')
+        listeners = [c for c in app._callback_list
+                     if any(i['id'] == settle for i in c['inputs'])]
+        assert listeners, canvas.key
+        assert all(c.get('clientside_function') for c in listeners), (
+            canvas.key, [c['output'] for c in listeners if not c.get('clientside_function')])
+    # A State keeps the core engine's established argument order.
+    core = next(spec for spec in app.callback_map.values()
+                if getattr(spec.get('callback'), '__name__', '') == 'core_engine')
+    assert any(item['id'] == 'graph-settings-relayout' for item in core['state'])
 
 
 def test_shared_canvas_assets_name_no_canvas_of_their_own():
