@@ -608,14 +608,39 @@ def build_time_calibration_modal():
             ]),
             # Active rating form — hidden on the completion screen.
             html.Div(id="time-calibration-active", children=[
-                html.Div(id="time-calibration-reference", className="text-muted small mb-3"),
+                # V/I/E sliders — capture how the node *actually* felt now that
+                # the work is done. Stored as reflect_value/interest/difficulty
+                # (separate from the estimate columns value/interest/difficulty).
+                # Ratings come first, as in the node editor. A callback sets
+                # --est-value/-interest/-difficulty on this section's style, and
+                # theme.css draws the "estimated" tick on each slider from them.
+                html.Div(id="calibration-vie-section", children=[
+                    html.Div([
+                        html.H6("Actual ratings", className="mb-0"),
+                        info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
+                    ], className="d-flex align-items-center mb-2"),
+                    dbc.Label("Value", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-value", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Interest", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-interest", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-difficulty", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                ]),
+                html.Hr(className="my-3"),
                 # d-inline-block: the hover target is the words, not the whole
                 # row, so the tooltip opens beside them instead of off-screen.
-                html.H6("Actual work time", id="time-calibration-heading",
+                html.H6("Actual time", id="time-calibration-heading",
                         className="mb-2 d-inline-block hover-hint"),
                 Tooltip(work_time_tooltip("actual"),
                         target="time-calibration-heading", placement="bottom",
                         id="time-calibration-heading-tooltip"),
+                html.Div(id="time-calibration-reference", className="text-muted small mb-2"),
                 dbc.Row([
                     dbc.Col([
                         dbc.Label("Lower Bound"),
@@ -634,36 +659,14 @@ def build_time_calibration_modal():
                         unit_select("time-calibration-unit", value="hours"),
                     ], width=3),
                 ]),
-                # V/I/E sliders — capture how the node *actually* felt now that
-                # the work is done. Stored as reflect_value/interest/difficulty
-                # (separate from the estimate columns value/interest/difficulty).
-                html.Div(id="calibration-vie-section", children=[
-                    html.Hr(className="my-3"),
-                    html.Div([
-                        html.H6("Actual ratings", className="mb-0"),
-                        info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
-                    ], className="d-flex align-items-center mb-2"),
-                    dbc.Label("Value", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-value",
-                               marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Interest", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-interest",
-                               marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Effort", className="mt-2"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-difficulty",
-                               marks={i: str(i) for i in range(1, 11)}),
-                    # Written afterthoughts. The node's Description is the plan
-                    # made before starting; this is what the work taught.
-                    dbc.Label("Reflection notes", className="mt-3",
-                              html_for="calibration-notes"),
-                    dbc.Textarea(
-                        id="calibration-notes", rows=4,
-                        placeholder="Anything worth remembering about this project?",
-                        style={"resize": "vertical"}),
-                ]),
+                # Written afterthoughts. The node's Description is the plan
+                # made before starting; this is what the work taught.
+                dbc.Label("Reflection notes", className="mt-3",
+                          html_for="calibration-notes"),
+                dbc.Textarea(
+                    id="calibration-notes", rows=4,
+                    placeholder="Anything worth remembering about this project?",
+                    style={"resize": "vertical"}),
             ]),
             # Completion screen — shown only after the last node of a review cycle.
             html.Div(id="time-calibration-complete", style={"display": "none"},

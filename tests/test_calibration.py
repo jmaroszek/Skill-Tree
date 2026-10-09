@@ -295,12 +295,12 @@ class TestCalibrationModalText:
         node = _make_node("Estimated", time_o=0, time_m=80, time_p=0)
         _, prompt = _calibration_modal_text(node)
         assert "You estimated" in prompt
-        assert "How much work time did it actually take?" in prompt
+        assert "How long did it actually take?" in prompt
 
     def test_prompt_without_estimate_is_plain(self):
         node = _make_node("Container", type="Goal", time_mode="inherited")
         _, prompt = _calibration_modal_text(node)
-        assert prompt == "How much work time did it actually take?"
+        assert prompt == "How long did it actually take?"
 
 
 class TestCalibrationPrepopulation:
@@ -355,3 +355,12 @@ class TestPriorNodeForCompletion:
         mgr.add_node(_make_node("draft", status=STATUS_OPEN))
         node = prior_node_for_completion(mgr, "Draft", "draft")
         assert node is not None and node.status == STATUS_OPEN
+
+
+class TestCalibrationModalLayout:
+    def test_ratings_come_before_time_then_notes(self):
+        from layout import build_time_calibration_modal
+        text = repr(build_time_calibration_modal())
+        order = [text.index(marker) for marker in
+                 ("calibration-value", "time-calibration-lower", "calibration-notes")]
+        assert order == sorted(order)

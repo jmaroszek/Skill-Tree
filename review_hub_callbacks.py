@@ -541,12 +541,6 @@ def register_review_hub_callbacks(app, services=None):
         # Modal copy reuses the same helper as the queue / single flows.
         from editor_values import _calibration_modal_text, _calibration_unit_for
         title, reference = _calibration_modal_text(node)
-        estimated_ratings = _fmt_vie_tuple(node.value, node.interest,
-                                           node.difficulty)
-        if estimated_ratings != _DASH:
-            reference = [reference, html.Br(),
-                         f"Estimated ratings (V/I/E): {estimated_ratings}"]
-
         # Display unit matches the actuals' magnitude (e.g. "2.8w" instead of
         # "56h") so the Best Estimate field reads in the same friendly units
         # as the reference text above it. Falls back to the stored unit only

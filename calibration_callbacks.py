@@ -296,6 +296,36 @@ def register_calibration_callbacks(app, services=None):
             return (no_update,) * 8
         return _calibration_prepop(node)
 
+    # --- Estimated-rating ticks: tell theme.css where each slider's tick goes ---
+    # The ratings the node was given before the work. Each is written as a CSS
+    # variable on the sliders' section; a rating the node doesn't carry (an
+    # inherited container) leaves its variable off, and its slider shows no tick.
+    @app.callback(
+        Output('calibration-vie-section', 'style'),
+        Input('time-calibration-pending-store', 'data'),
+        prevent_initial_call=True,
+    )
+    def show_estimated_ratings(pending):
+        if not isinstance(pending, dict):
+            return no_update
+        mode = pending.get('mode')
+        if mode in ('single', 'edit'):
+            node_name = pending.get('node')
+        elif mode == 'review':
+            queue = pending.get('queue', [])
+            idx = pending.get('index', 0)
+            node_name = queue[idx] if 0 <= idx < len(queue) else None
+        else:
+            return no_update
+        node = manager.get_node(node_name) if node_name else None
+        if node is None:
+            return {}
+        return {f'--est-{name}': str(rating)
+                for name, rating in (('value', node.value),
+                                     ('interest', node.interest),
+                                     ('difficulty', node.difficulty))
+                if rating}
+
     # --- Calibration review button: hidden when the feature is off ---
     # Evaluated as the layout is built and on every tab switch — a tab switch
     # is the natural action after toggling the setting in Settings, and it

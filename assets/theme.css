@@ -689,6 +689,50 @@
     color: var(--st-text-primary) !important;
 }
 
+/* --- Reflection modal: the "estimated" tick on each rating slider --- */
+/* show_estimated_ratings sets --est-value / --est-interest / --est-difficulty
+   on #calibration-vie-section; a slider without its variable gets no tick and
+   no extra space. Thumb travel is the track minus one 16px thumb, so the tick
+   sits exactly over the matching mark below. */
+#calibration-vie-section[style*="--est-value"] #calibration-value,
+#calibration-vie-section[style*="--est-interest"] #calibration-interest,
+#calibration-vie-section[style*="--est-difficulty"] #calibration-difficulty {
+    margin-top: 1.25rem;
+}
+#calibration-vie-section[style*="--est-value"] #calibration-value .dash-slider-wrapper,
+#calibration-vie-section[style*="--est-interest"] #calibration-interest .dash-slider-wrapper,
+#calibration-vie-section[style*="--est-difficulty"] #calibration-difficulty .dash-slider-wrapper {
+    position: relative;
+}
+#calibration-value { --est: var(--est-value); }
+#calibration-interest { --est: var(--est-interest); }
+#calibration-difficulty { --est: var(--est-difficulty); }
+#calibration-vie-section[style*="--est-value"] #calibration-value .dash-slider-wrapper::before,
+#calibration-vie-section[style*="--est-interest"] #calibration-interest .dash-slider-wrapper::before,
+#calibration-vie-section[style*="--est-difficulty"] #calibration-difficulty .dash-slider-wrapper::before {
+    content: "";
+    position: absolute;
+    top: -12px;
+    left: calc((var(--est) - 1) / 9 * (100% - 16px) + 8px);
+    width: 2px;
+    height: 8px;
+    transform: translateX(-50%);
+    background: var(--st-text-dim);
+}
+#calibration-vie-section[style*="--est-value"] #calibration-value .dash-slider-wrapper::after,
+#calibration-vie-section[style*="--est-interest"] #calibration-interest .dash-slider-wrapper::after,
+#calibration-vie-section[style*="--est-difficulty"] #calibration-difficulty .dash-slider-wrapper::after {
+    content: "estimated";
+    position: absolute;
+    top: -26px;
+    left: calc((var(--est) - 1) / 9 * (100% - 16px) + 8px);
+    transform: translateX(-50%);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--st-text-dim);
+    white-space: nowrap;
+}
+
 /* --- Right-click Context Menu --- */
 /* Every floating menu and popover (layout.py _floating_menu), and the
    submenus inside them, share one panel look. */
