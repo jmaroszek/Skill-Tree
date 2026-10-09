@@ -293,7 +293,7 @@ def _render_bottleneck_chart(data):
         html.Span([html.I(className="gp-swatch bn-own"), "Own time"]),
         html.Span([html.I(className="gp-swatch bn-unlocks"), "Work unlocked"]),
     ], className="gp-legend")
-    return _card([html.Div([legend, html.Div(body)],
+    return _card([html.Div([html.Div(body), legend],
                            className="goal-progress bottlenecks")])
 
 
@@ -352,7 +352,7 @@ def _render_goal_progress(rows):
         html.Span([html.I(className="gp-swatch gp-earlier"), "Done earlier"]),
         html.Span([html.I(className="gp-swatch gp-recent"), f"Last {months} months"]),
     ], className="gp-legend")
-    return _card([html.Div([legend, html.Div(body)], className="goal-progress")])
+    return _card([html.Div([html.Div(body), legend], className="goal-progress")])
 
 
 def _render_estimation_accuracy(rows):
@@ -416,8 +416,7 @@ def _render_estimation_accuracy(rows):
                   className="gp-legend-item", role="button", tabIndex=0,
                   title=f"Show or hide {t}",
                   **{'data-trace': t, 'aria-pressed': 'true'})
-        for t in sorted(by_type)], className="gp-legend",
-        style={'marginTop': '6px', 'marginBottom': 0})
+        for t in sorted(by_type)], className="gp-legend")
     return _card([_graph(fig, zoom=True), legend], fill=True)
 
 
@@ -589,7 +588,7 @@ def _render_reflection_drift_chart(rows):
         html.Span([html.I(className="gp-swatch", style={'backgroundColor': c}), text])
         for c, text in ((_DRIFT_UNDER, "Overrated going in"),
                         (_DRIFT_OVER, "Underrated going in"))
-    ], className="gp-legend", style={'marginTop': '6px', 'marginBottom': 0})
+    ], className="gp-legend")
     return _card([html.Div(body, className="drift-chart hist-chart"), legend])
 
 
@@ -1156,15 +1155,16 @@ def _build_analyze_sections(al):
         dbc.Row([
             dbc.Col([
                 html.H5("Time Estimates by Node", className="mt-2 mb-1"),
-                html.P("Points above the dashed line took longer than "
-                       "estimated; points below were finished faster.",
+                html.P("Dots above the dashed line took longer than you "
+                       "estimated, and dots below took less time.",
                        className="text-muted small"),
                 html.Div(_render_estimation_accuracy(est_accuracy), className="flex-grow-1"),
             ], width=6, className="d-flex flex-column"),
             dbc.Col([
                 html.H5("Time Estimates by Context", className="mt-2 mb-1"),
-                html.P("Boxes right of the 1× line ran over estimate; left, "
-                       "came in under.", className="text-muted small"),
+                html.P("Boxes to the right of the 1× line ran over your "
+                       "estimates, and boxes to the left came in under.",
+                       className="text-muted small"),
                 html.Div(_render_context_accuracy_boxplot(est_accuracy), className="flex-grow-1"),
             ], width=6, className="d-flex flex-column"),
         ], className="g-3"),
@@ -1173,8 +1173,7 @@ def _build_analyze_sections(al):
     drift_content = [
         html.P("How your ratings change when you reflect on completed work.",
                className="text-muted small"),
-        dbc.Row(dbc.Col(_render_reflection_drift_chart(drift_rows), width=6),
-                className="g-3"),
+        _render_reflection_drift_chart(drift_rows),
     ]
 
     gran = al.get('throughput_granularity', 'quarter')
@@ -1190,10 +1189,7 @@ def _build_analyze_sections(al):
                if wider else "Narrow the dates to see earlier ones."))
     throughput_content = [
         html.P(throughput_note, className="text-muted small"),
-        dbc.Row(dbc.Col(_render_throughput_chart(throughput_rows,
-                                                 granularity=gran,
-                                                 by=color_by), width=6),
-                className="g-3"),
+        _render_throughput_chart(throughput_rows, granularity=gran, by=color_by),
     ]
 
     return (overview_content, goals_content, contexts_content, time_content,

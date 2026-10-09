@@ -558,7 +558,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px 16px;
-    margin-bottom: 6px;
+    margin-top: 6px;
     font-size: var(--st-fs-cap);
     color: var(--st-text-soft);
 }

@@ -110,10 +110,10 @@ def _plan_sections(al):
     return [
         dbc.Row([
             dbc.Col([
-                _gear_header("Goals", "btn-analyze-goals-limit",
-                             "popover-analyze-goals", "Goals shown",
-                             "setting-analyze-goals", 5, 200, al.get('goals', 15)),
-                html.Div(id="analyze-goals-content"),
+                    _gear_header("Goals", "btn-analyze-goals-limit",
+                                 "popover-analyze-goals", "Goals shown",
+                                 "setting-analyze-goals", 5, 200, al.get('goals', 15)),
+                    html.Div(id="analyze-goals-content"),
             ], width=6),
             dbc.Col([
                 _gear_header("Bottlenecks", "btn-analyze-bottlenecks-limit",
@@ -131,49 +131,56 @@ def _plan_sections(al):
 
 
 def _history_sections(al):
+    """Throughput and Rating Accuracy share the first row, each at half width;
+    Time Estimates, which fills the width, follows."""
     return [
+        dbc.Row([
+            dbc.Col([
+            _gear_header_custom(
+                "Throughput",
+                "btn-analyze-throughput-gear", "popover-analyze-throughput",
+                [
+                    dbc.Label("Granularity", className="mb-1 d-block"),
+                    dbc.Select(
+                        id="setting-analyze-throughput-granularity",
+                        options=[{'label': 'Months', 'value': 'month'},
+                                 {'label': 'Quarters', 'value': 'quarter'},
+                                 {'label': 'Years', 'value': 'year'}],
+                        value=al.get('throughput_granularity', 'quarter'),
+                        size='sm', className="mb-2",
+                        style={'width': '140px'},
+                    ),
+                    dbc.Label("Color by", className="mb-1 d-block"),
+                    dbc.Select(
+                        id="setting-analyze-throughput-color",
+                        options=[{'label': 'Context', 'value': 'context'},
+                                 {'label': 'Node type', 'value': 'type'}],
+                        value=al.get('throughput_color', 'context'),
+                        size='sm', className="mb-2",
+                        style={'width': '140px'},
+                    ),
+                    dbc.Label("Start date", className="mb-1 d-block"),
+                    dbc.Input(id="setting-analyze-throughput-start", type='date',
+                              debounce=True, size='sm',
+                              value=al.get('throughput_start') or '',
+                              style={'width': '140px', 'marginBottom': '8px'}),
+                    dbc.Label("End date", className="mb-1 d-block"),
+                    dbc.Input(id="setting-analyze-throughput-end", type='date',
+                              debounce=True, size='sm',
+                              value=al.get('throughput_end') or '',
+                              style={'width': '140px'}),
+                ],
+                popover_style={'maxWidth': '200px', 'minWidth': '180px'},
+            ),
+            html.Div(id="analyze-throughput-content"),
+            ], width=6),
+            dbc.Col([
+                # No top margin: it sits level with Throughput's gear header.
+                html.H5("Rating Accuracy", className="mb-1"),
+                html.Div(id="analyze-drift-content"),
+            ], width=6),
+        ], className="g-3"),
+        html.Hr(className="my-3"),
+
         html.Div(id="analyze-time-content"),
-        html.Hr(className="my-3"),
-
-        _plain_header("Rating Accuracy"),
-        html.Div(id="analyze-drift-content"),
-        html.Hr(className="my-3"),
-
-        _gear_header_custom(
-            "Throughput",
-            "btn-analyze-throughput-gear", "popover-analyze-throughput",
-            [
-                dbc.Label("Granularity", className="mb-1 d-block"),
-                dbc.Select(
-                    id="setting-analyze-throughput-granularity",
-                    options=[{'label': 'Months', 'value': 'month'},
-                             {'label': 'Quarters', 'value': 'quarter'},
-                             {'label': 'Years', 'value': 'year'}],
-                    value=al.get('throughput_granularity', 'quarter'),
-                    size='sm', className="mb-2",
-                    style={'width': '140px'},
-                ),
-                dbc.Label("Color by", className="mb-1 d-block"),
-                dbc.Select(
-                    id="setting-analyze-throughput-color",
-                    options=[{'label': 'Context', 'value': 'context'},
-                             {'label': 'Node type', 'value': 'type'}],
-                    value=al.get('throughput_color', 'context'),
-                    size='sm', className="mb-2",
-                    style={'width': '140px'},
-                ),
-                dbc.Label("Start date", className="mb-1 d-block"),
-                dbc.Input(id="setting-analyze-throughput-start", type='date',
-                          debounce=True, size='sm',
-                          value=al.get('throughput_start') or '',
-                          style={'width': '140px', 'marginBottom': '8px'}),
-                dbc.Label("End date", className="mb-1 d-block"),
-                dbc.Input(id="setting-analyze-throughput-end", type='date',
-                          debounce=True, size='sm',
-                          value=al.get('throughput_end') or '',
-                          style={'width': '140px'}),
-            ],
-            popover_style={'maxWidth': '200px', 'minWidth': '180px'},
-        ),
-        html.Div(id="analyze-throughput-content"),
     ]
