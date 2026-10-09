@@ -132,6 +132,35 @@
         });
     }
 
+    // A scatter's legend is HTML, so Plotly's own click-to-hide does not
+    // apply. Each entry names its trace in data-trace; a click flips that
+    // trace between shown and legend-only, as Plotly's legend does. The
+    // graph is the legend's sibling in the card. A new figure redraws both,
+    // so the two never disagree.
+    function toggleTrace(item) {
+        var card = item.closest('.gp-legend').parentElement;
+        var gd = card && card.querySelector('.js-plotly-plot');
+        if (!gd || !window.Plotly || !gd.data) return;
+        var name = item.getAttribute('data-trace');
+        var shown = item.getAttribute('aria-pressed') !== 'false';
+        var idx = [];
+        gd.data.forEach(function (t, i) { if (t.name === name) idx.push(i); });
+        if (!idx.length) return;
+        window.Plotly.restyle(gd, {visible: shown ? 'legendonly' : true}, idx);
+        item.setAttribute('aria-pressed', String(!shown));
+    }
+    document.addEventListener('click', function (e) {
+        var item = e.target.closest && e.target.closest('.gp-legend-item[data-trace]');
+        if (item) toggleTrace(item);
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var item = e.target.closest && e.target.closest('.gp-legend-item[data-trace]');
+        if (!item) return;
+        e.preventDefault();
+        toggleTrace(item);
+    });
+
     // Dash draws a graph after this script runs and can replace it, so each
     // new one is found by watching the Analyze tab. A plot is bound once.
     var bindQueued = false;

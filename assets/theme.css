@@ -565,6 +565,10 @@
 .gp-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .gp-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 2px; }
 .gp-swatch.dot { width: 10px; border-radius: 50%; }
+/* A legend entry that shows or hides its trace (assets/rating_dist.js). */
+.gp-legend-item { cursor: pointer; user-select: none; }
+.gp-legend-item:hover { color: var(--st-text-primary); }
+.gp-legend-item[aria-pressed="false"] { opacity: 0.45; }
 
 /* --- Analyze: History -------------------------------------------------------
    Rating Drift and Throughput are HTML like the Plan charts: the same type,

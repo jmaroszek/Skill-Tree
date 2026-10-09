@@ -119,7 +119,9 @@ def _base_layout(**overrides):
                     gridcolor=_GRID, zerolinecolor=_GRID, showline=False)
         given = dict(overrides.pop(name, {}))
         if 'title' in given:
-            given['title'] = dict(text=given['title'], font=dict(size=12, color=_SOFT))
+            # The x title sits a little below the tick labels, not against them.
+            given['title'] = dict(text=given['title'], font=dict(size=14, color=_SOFT),
+                                  standoff=16 if name == 'xaxis' else 8)
         layout[name] = {**axis, **given}
     layout.update(overrides)
     return layout
@@ -411,7 +413,10 @@ def _render_estimation_accuracy(rows):
     ))
     legend = html.Div([
         html.Span([html.I(className="gp-swatch dot",
-                          style={'backgroundColor': colors.get(t, '#0d6efd')}), t])
+                          style={'backgroundColor': colors.get(t, '#0d6efd')}), t],
+                  className="gp-legend-item", role="button", tabIndex=0,
+                  title=f"Show or hide {t}",
+                  **{'data-trace': t, 'aria-pressed': 'true'})
         for t in sorted(by_type)], className="gp-legend",
         style={'marginTop': '6px', 'marginBottom': 0})
     return _card([
