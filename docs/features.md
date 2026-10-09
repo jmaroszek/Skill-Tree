@@ -837,6 +837,8 @@ The reflection hub has three tabs:
 
 Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
 
+Below the ratings is a notes box. Use it for what you learned, what was hard, and why your ratings or time estimates were off. The node's Description is for the plan you made before starting. The notes are for what happened.
+
 <p align="center">
   <img src="../images/reflection-focused-node.png" width=500>
   <br>
@@ -846,6 +848,8 @@ Click **Start Reflection** to open a step-by-step walkthrough. For each project,
 ## History
 
 A log of your past reflections. The table is searchable and filterable. And it shows estimated vs actual ratings. 
+
+A small note icon beside a name means that reflection has notes. Hover it to read them. Click the pencil on any row to edit its time, ratings and notes.
 
 It starts with your newest completions first. Pick another order from the sort dropdown beside the filters. The arrow button next to it reverses the order. Hover it to see what comes first. You can also click a column header to sort by it, and click it again to reverse.
 

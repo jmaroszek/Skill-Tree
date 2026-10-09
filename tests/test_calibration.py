@@ -140,6 +140,14 @@ class TestCalibrationPersistence:
         mgr.update_node(node)
         assert mgr.get_node("Dismissable").calibration_dismissed == 1
 
+    def test_reflection_notes_round_trip(self, mgr):
+        mgr.add_node(_make_node("Noted"))
+        node = mgr.get_node("Noted")
+        assert node.reflect_notes is None
+        node.reflect_notes = "Email triage took longer than planned."
+        mgr.update_node(node)
+        assert mgr.get_node("Noted").reflect_notes == "Email triage took longer than planned."
+
 
 class TestHandleSavePreservesCalibration:
     """The editor form has no actual-time inputs, so handle_save must carry
@@ -166,6 +174,17 @@ class TestHandleSavePreservesCalibration:
         assert saved.actual_time_upper == 30.0
         assert saved.actual_time_unit == "hours"
         assert saved.calibration_dismissed == 1
+
+    def test_editor_save_preserves_reflection_notes(self, mgr):
+        node = _make_node("Reflected")
+        node.reflect_notes = "Learned to batch."
+        mgr.add_node(node)
+
+        handle_save(mgr, "Reflected", "Learn", "edited desc", 6, 1, 2, 4, 5, 5,
+                    [], "Mind", None, None,
+                    [], [], [], [], [])
+
+        assert mgr.get_node("Reflected").reflect_notes == "Learned to batch."
 
 
 # ============================================================================
@@ -296,13 +315,18 @@ class TestCalibrationPrepopulation:
             done_date="2026-02-01",
         )
 
-        lower, point, upper, unit, value, interest, difficulty = (
+        lower, point, upper, unit, value, interest, difficulty, notes = (
             _calibration_prepop(node)
         )
 
         assert (lower, point, upper) == (None, None, None)
         assert unit == _calibration_unit_for(node.time)
         assert (value, interest, difficulty) == (5, 5, 5)
+        assert notes == ""
+
+    def test_saved_notes_come_back(self):
+        node = _make_node("Rated", status=STATUS_DONE, reflect_notes="Slower than hoped.")
+        assert _calibration_prepop(node)[-1] == "Slower than hoped."
 
 
 # ============================================================================

@@ -47,7 +47,7 @@ def _calibration_unit_for(hours):
 def _calibration_prepop(node):
     """Pre-population values for the focused-review modal when it opens for
     `node`. Returns (time_lower, time_point, time_upper, time_unit, val,
-    interest, diff) — all in the modal's display semantics (time values are
+    interest, diff, notes) — all in the modal's display semantics (time values are
     in `time_unit`, NOT canonical hours; Submit converts on the way to the
     DB).
 
@@ -77,7 +77,9 @@ def _calibration_prepop(node):
     if not diff:
         diff = 5
 
-    return (time_lower, time_point, time_upper, time_unit, val, interest, diff)
+    notes = (getattr(node, 'reflect_notes', None) if node else None) or ''
+
+    return (time_lower, time_point, time_upper, time_unit, val, interest, diff, notes)
 
 
 def _friendly_time_estimates(time_o, time_m, time_p):

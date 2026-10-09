@@ -104,7 +104,10 @@ def test_links_move_into_resource_sections(upgraded_with_link_columns):
     _before, path = upgraded_with_link_columns
     links = _rows(path, "SELECT node_name, section_id, target FROM NodeResourceLinks")
     assert ("Sleep hygiene", "obsidian", "Notes/Sleep hygiene.md") in links
-    assert ("Sleep hygiene", "website", "https://example.com/sleep") in links
+    # A database born at v12 or later starts with one "links" section, not "website".
+    assert any(link in links for link in (
+        ("Sleep hygiene", "website", "https://example.com/sleep"),
+        ("Sleep hygiene", "links", "https://example.com/sleep")))
     assert ("Blackout curtains", "drive", "Shopping/curtains.pdf") in links
     columns = {row[1] for row in _rows(path, "PRAGMA table_info(Nodes)")}
     assert not columns & {"obsidian_path", "google_drive_path", "website"}
@@ -113,18 +116,34 @@ def test_links_move_into_resource_sections(upgraded_with_link_columns):
 def test_links_in_sections_stay_put(upgraded_with_sections):
     _before, path = upgraded_with_sections
     links = _rows(path, "SELECT node_name, section_id, target FROM NodeResourceLinks")
-    assert ("Sleep hygiene", "website", "https://example.com/sleep") in links
+    # A database born at v12 or later starts with one "links" section, not "website".
+    assert any(link in links for link in (
+        ("Sleep hygiene", "website", "https://example.com/sleep"),
+        ("Sleep hygiene", "links", "https://example.com/sleep")))
 
 
-def test_history_starts_recording(upgraded):
+@pytest.fixture(params=[p for p in FIXTURES if _version(p) < 12], ids=lambda p: p.stem)
+def upgraded_before_v12(request, tmp_path, monkeypatch):
+    return _upgrade(request.param, tmp_path, monkeypatch)
+
+
+def test_history_starts_recording(upgraded_before_v12):
     """v12: the ledger of nodes added and deleted, with the date its coverage
     began, and the ranking columns on Now starts."""
-    _before, path = upgraded
+    _before, path = upgraded_before_v12
     assert _rows(path, "SELECT COUNT(*) FROM NodeLedger") == {(0,)}
     marker = _rows(path, "SELECT value FROM Settings WHERE key='node_ledger_started_at'")
     assert len(marker) == 1
     columns = {row[1] for row in _rows(path, "PRAGMA table_info(NodeLifecycleEvents)")}
     assert {"rank", "ranked_of"} <= columns
+
+
+def test_reflections_get_a_notes_column(upgraded):
+    """v13: written reflection notes, empty on every node already there."""
+    _before, path = upgraded
+    columns = {row[1] for row in _rows(path, "PRAGMA table_info(Nodes)")}
+    assert "reflect_notes" in columns
+    assert _rows(path, "SELECT DISTINCT reflect_notes FROM Nodes") == {(None,)}
 
 
 def test_the_upgraded_graph_works(upgraded):

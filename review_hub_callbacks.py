@@ -238,7 +238,8 @@ def _node_has_actuals(node):
             or node.actual_time_upper is not None
             or node.reflect_value is not None
             or node.reflect_interest is not None
-            or node.reflect_difficulty is not None)
+            or node.reflect_difficulty is not None
+            or bool(node.reflect_notes))
 
 
 # These were the app's only named cell-style constants, but being
@@ -270,6 +271,14 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
         actual_ratings = _fmt_vie_tuple(node.reflect_value, node.reflect_interest,
                                         node.reflect_difficulty)
         edit_id = {'type': 'hub-history-edit', 'index': node.name}
+        notes_id = {'type': 'hub-history-notes', 'index': node.name}
+        notes_marker = ([
+            html.I(className="bi bi-card-text ms-2 text-muted hover-hint", id=notes_id,
+                   **{"aria-label": "Has reflection notes"}),
+            Tooltip(node.reflect_notes if len(node.reflect_notes) <= 300
+                    else node.reflect_notes[:300].rstrip() + "…",
+                    target=notes_id, placement="right"),
+        ] if node.reflect_notes else [])
         edit_action = html.Div([
             dbc.Button(
                 [
@@ -291,6 +300,7 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
             html.Td([
                 html.Span(node.name, id=name_id, className="review-history-name"),
                 Tooltip(node.name, target=name_id),
+                *notes_marker,
             ], className="review-history-name-cell", style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
                     style=_CELL_MUTED),
@@ -515,17 +525,18 @@ def register_review_hub_callbacks(app, services=None):
         Output('calibration-value', 'value', allow_duplicate=True),
         Output('calibration-interest', 'value', allow_duplicate=True),
         Output('calibration-difficulty', 'value', allow_duplicate=True),
+        Output('calibration-notes', 'value', allow_duplicate=True),
         Input({'type': 'hub-history-edit', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
     def open_calibration_from_history(clicks):
         trig = ctx.triggered_id
         if not trig or not any(c for c in clicks if c):
-            return (no_update,) * 12
+            return (no_update,) * 13
         node_name = trig.get('index') if isinstance(trig, dict) else None
         node = _manager.get_node(node_name) if node_name else None
         if not node:
-            return (no_update,) * 12
+            return (no_update,) * 13
 
         # Modal copy reuses the same helper as the queue / single flows.
         from editor_values import _calibration_modal_text, _calibration_unit_for
@@ -568,4 +579,4 @@ def register_review_hub_callbacks(app, services=None):
         store = {'mode': 'edit', 'node': node_name}
         return (False, True, store, title, reference,
                 time_lower, time_point, time_upper, unit,
-                int(val), int(interest), int(diff))
+                int(val), int(interest), int(diff), node.reflect_notes or '')

@@ -620,22 +620,20 @@ def build_time_calibration_modal():
                     dbc.Col([
                         dbc.Label("Lower Bound"),
                         dbc.Input(id="time-calibration-lower", type="number", min=0),
-                    ], width=4),
+                    ], width=3),
                     dbc.Col([
                         dbc.Label("Best Estimate"),
                         dbc.Input(id="time-calibration-point", type="number", min=0),
-                    ], width=4),
+                    ], width=3),
                     dbc.Col([
                         dbc.Label("Upper Bound"),
                         dbc.Input(id="time-calibration-upper", type="number", min=0),
-                    ], width=4),
-                ]),
-                dbc.Row([
+                    ], width=3),
                     dbc.Col([
-                        dbc.Label("Unit", className="mt-2"),
+                        dbc.Label("Unit"),
                         unit_select("time-calibration-unit", value="hours"),
-                    ], width=4),
-                ], className="mt-1"),
+                    ], width=3),
+                ]),
                 # V/I/E sliders — capture how the node *actually* felt now that
                 # the work is done. Stored as reflect_value/interest/difficulty
                 # (separate from the estimate columns value/interest/difficulty).
@@ -645,18 +643,27 @@ def build_time_calibration_modal():
                         html.H6("How was it actually?", className="mb-0"),
                         info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
                     ], className="d-flex align-items-center mb-2"),
-                    dbc.Label("Actual Value", className="mt-2"),
+                    dbc.Label("Value", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5,
                                id="calibration-value",
                                marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Actual Interest", className="mt-2"),
+                    dbc.Label("Interest", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5,
                                id="calibration-interest",
                                marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Actual Effort", className="mt-2"),
+                    dbc.Label("Effort", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5,
                                id="calibration-difficulty",
                                marks={i: str(i) for i in range(1, 11)}),
+                    # Written afterthoughts. The node's Description is the plan
+                    # made before starting; this is what the work taught.
+                    dbc.Label("Reflection notes", className="mt-3",
+                              html_for="calibration-notes"),
+                    dbc.Textarea(
+                        id="calibration-notes", rows=4,
+                        placeholder="What did you learn, what was hard, and why "
+                                    "were your ratings or time estimates off?",
+                        style={"resize": "vertical"}),
                 ]),
             ]),
             # Completion screen — shown only after the last node of a review cycle.

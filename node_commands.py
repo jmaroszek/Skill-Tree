@@ -68,6 +68,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         node.reflect_value = existing.reflect_value
         node.reflect_interest = existing.reflect_interest
         node.reflect_difficulty = existing.reflect_difficulty
+        node.reflect_notes = existing.reflect_notes
         manager.update_node(node)
         msg = f"Updated node '{name}'"
     else:

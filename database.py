@@ -260,7 +260,7 @@ _initialized = False
 # Bump whenever a schema change lands that an existing DB can't pick up from
 # the CREATE TABLE IF NOT EXISTS statements alone, and add the matching step
 # to _migrate().
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 def _utc_now_ts() -> int:
@@ -481,6 +481,11 @@ def _migrate(cursor, from_version: int) -> None:
             if not _has_column(cursor, "NodeLifecycleEvents", column):
                 cursor.execute(
                     f"ALTER TABLE NodeLifecycleEvents ADD COLUMN {column} INTEGER")
+
+    # --- v13: a written reflection beside the reflect ratings.
+    if from_version < 13:
+        if not _has_column(cursor, "Nodes", "reflect_notes"):
+            cursor.execute("ALTER TABLE Nodes ADD COLUMN reflect_notes TEXT")
 
 
 # The three link columns Nodes carried before v11, and the sections v10 made
@@ -717,7 +722,8 @@ def _create_tables(cursor):
             done_date TEXT,
             reflect_value INTEGER,
             reflect_interest INTEGER,
-            reflect_difficulty INTEGER
+            reflect_difficulty INTEGER,
+            reflect_notes TEXT
         )
     ''')
 

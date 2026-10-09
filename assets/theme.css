@@ -1570,6 +1570,9 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 #filter-value .dash-range-slider-input,
 #filter-interest .dash-range-slider-input,
 #filter-difficulty .dash-range-slider-input,
+#calibration-value .dash-range-slider-input,
+#calibration-interest .dash-range-slider-input,
+#calibration-difficulty .dash-range-slider-input,
 #details-max-depth .dash-range-slider-input {
     display: none;
 }

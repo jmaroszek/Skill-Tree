@@ -162,6 +162,9 @@ class Node:
     reflect_value: Optional[int] = None
     reflect_interest: Optional[int] = None
     reflect_difficulty: Optional[int] = None
+    # Free-text reflection: what was learned, what was hard, why the estimates
+    # were off. Like the reflect ratings, it survives an un-Done.
+    reflect_notes: Optional[str] = None
     priority_score: Optional[float] = None
     # Resource links by section id, in order: {"drive": ["Notes/a.gdoc"]}.
     # They live in NodeResourceLinks, not the Nodes row; GraphRepository

@@ -47,6 +47,7 @@ def register_calibration_callbacks(app, services=None):
         Output('calibration-value', 'value'),
         Output('calibration-interest', 'value'),
         Output('calibration-difficulty', 'value'),
+        Output('calibration-notes', 'value'),
         Output('time-calibration-reference', 'children', allow_duplicate=True),
         Output('calibration-review-progress', 'value', allow_duplicate=True),
         Output('calibration-review-progress', 'label', allow_duplicate=True),
@@ -64,13 +65,14 @@ def register_calibration_callbacks(app, services=None):
         State('calibration-value', 'value'),
         State('calibration-interest', 'value'),
         State('calibration-difficulty', 'value'),
+        State('calibration-notes', 'value'),
         State('time-calibration-pending-store', 'data'),
         prevent_initial_call=True,
     )
     def handle_time_calibration(_submit, _skip, _dismiss, lower, point, upper,
-                                unit, val, interest, diff, pending):
-        # cleared inputs for the next node: 4 time slots + 3 V/I/E sliders
-        reset = (None, None, None, 'hours', 5, 5, 5)
+                                unit, val, interest, diff, notes, pending):
+        # cleared inputs for the next node: 4 time slots + 3 V/I/E sliders + notes
+        reset = (None, None, None, 'hours', 5, 5, 5, '')
         trig = get_trigger_id()
         pending = pending if isinstance(pending, dict) else {}
         mode = pending.get('mode')
@@ -105,6 +107,7 @@ def register_calibration_callbacks(app, services=None):
                 node.reflect_value = int(val) if val is not None else None
                 node.reflect_interest = int(interest) if interest is not None else None
                 node.reflect_difficulty = int(diff) if diff is not None else None
+                node.reflect_notes = (notes or '').strip() or None
                 manager.update_node(node)
             elif trig == 'btn-time-calibration-dismiss':
                 node.calibration_dismissed = 1
@@ -142,7 +145,7 @@ def register_calibration_callbacks(app, services=None):
             pct = round(human / n * 100)
             next_unit = _calibration_unit_for(nxt.time) if nxt else 'hours'
             return (True, new_store, no_update,
-                    None, None, None, next_unit, 5, 5, 5,
+                    None, None, None, next_unit, 5, 5, 5, '',
                     ref, pct, f"{human} / {n}", no_update, next_title,
                     no_update, no_update)
         # Last node done — switch to the completion screen (stays open).
@@ -245,14 +248,15 @@ def register_calibration_callbacks(app, services=None):
         Output('calibration-value', 'value', allow_duplicate=True),
         Output('calibration-interest', 'value', allow_duplicate=True),
         Output('calibration-difficulty', 'value', allow_duplicate=True),
+        Output('calibration-notes', 'value', allow_duplicate=True),
         Input('modal-time-calibration', 'is_open'),
         State('time-calibration-pending-store', 'data'),
         prevent_initial_call=True,
     )
     def _calibration_modal_closed(is_open, pending):
         if is_open or pending is None:
-            return (no_update,) * 8
-        return None, None, None, None, 'hours', 5, 5, 5
+            return (no_update,) * 9
+        return None, None, None, None, 'hours', 5, 5, 5, ''
 
     # --- Calibration modal pre-population: fill inputs when the store changes
     # to point at a new node ---
@@ -270,12 +274,13 @@ def register_calibration_callbacks(app, services=None):
         Output('calibration-value', 'value', allow_duplicate=True),
         Output('calibration-interest', 'value', allow_duplicate=True),
         Output('calibration-difficulty', 'value', allow_duplicate=True),
+        Output('calibration-notes', 'value', allow_duplicate=True),
         Input('time-calibration-pending-store', 'data'),
         prevent_initial_call=True,
     )
     def pre_populate_calibration_inputs(pending):
         if not isinstance(pending, dict):
-            return (no_update,) * 7
+            return (no_update,) * 8
         mode = pending.get('mode')
         if mode == 'single':
             node_name = pending.get('node')
@@ -285,10 +290,10 @@ def register_calibration_callbacks(app, services=None):
             node_name = queue[idx] if 0 <= idx < len(queue) else None
         else:
             # 'complete' or unrecognized — don't touch the inputs.
-            return (no_update,) * 7
+            return (no_update,) * 8
         node = manager.get_node(node_name) if node_name else None
         if not node:
-            return (no_update,) * 7
+            return (no_update,) * 8
         return _calibration_prepop(node)
 
     # --- Calibration review button: hidden when the feature is off ---
