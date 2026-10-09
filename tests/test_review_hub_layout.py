@@ -8,6 +8,7 @@ from review_hub_callbacks import (
     _rating_change_magnitude,
     _sort_history_nodes,
     _visible_excluded_count,
+    _pager,
     _visible_history_count,
 )
 from review_hub_layout import build_review_hub_modal
@@ -163,3 +164,20 @@ def test_history_pager_matches_the_events_triggered_divider():
     assert more.children[0] == " · "
     assert more.children[1].children == "Show 20 more"
     assert more.children[1].className == "events-triggered-toggle"
+
+
+def test_the_pager_only_appears_when_there_is_more_to_show():
+    shown = {'display': 'flex'}, {'display': 'inline'}
+    hidden = {'display': 'none'}, {'display': 'none'}
+
+    assert _pager(20, 73, 'reflections') == ('Showing 20 of 73 reflections', *shown)
+    # Nothing left to reveal, so nothing to say: no "Showing 1 of 1".
+    assert _pager(1, 1, 'nodes') == ('', *hidden)
+    assert _pager(20, 20, 'nodes') == ('', *hidden)
+    assert _pager(73, 73, 'reflections') == ('', *hidden)
+
+
+def test_the_pager_stops_counting_past_a_hundred():
+    assert _pager(20, 100, 'reflections')[0] == 'Showing 20 of 100 reflections'
+    assert _pager(20, 101, 'reflections')[0] == 'Showing 20 of many'
+    assert _pager(100, 165, 'nodes')[0] == 'Showing 100 of many'

@@ -943,7 +943,7 @@ order in the criterion's terms, such as "Most over estimate first". The table in
 click through a counted divider. The Excluded tab uses the same 20-row batches.
 Both pagers reuse the Events list's triggered divider: small gray text between
 two rules, a plain " · " in the sentence, and a soft "Show 20 more" that
-brightens on hover. Any "N hidden · Show" line should use that divider. The
+brightens on hover. The divider only appears while there is more to reveal, so a list that fits shows no "Showing 1 of 1", and past 100 rows it says "of many" rather than a count. Any "N hidden · Show" line should use that divider. The
 modal width is shared across its tabs.
 
 ## Badges

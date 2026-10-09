@@ -42,41 +42,42 @@
         if (e.target.matches && e.target.matches('.split-handle')) describeHandle(e.target);
     });
 
-    function sizeColumns(first, second, startX, minSize) {
-        var startFirst = first.offsetWidth;
-        var total = startFirst + second.offsetWidth;
-        function fix(panel, width) {
-            // Pixel widths with flex off, so the sizes stick.
-            panel.style.flex = 'none';
-            panel.style.width = width + 'px';
-            panel.style.minWidth = '0';
-            panel.style.maxWidth = 'none';
-        }
-        return function (ev) {
-            var width = clamp(startFirst + ev.clientX - startX, minSize, total - minSize);
-            fix(first, width);
-            fix(second, total - width);
-        };
-    }
-
     // Padding and borders sit outside the space flex-grow shares out, since
     // both panels have a zero flex-basis. Taking them off first makes each
-    // panel land on exactly the height asked for.
-    function verticalChrome(panel) {
+    // panel land on exactly the size asked for.
+    function chrome(panel, sides) {
         var cs = window.getComputedStyle(panel);
-        return (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0)
-            + (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+        return sides.reduce(function (sum, side) { return sum + (parseFloat(cs[side]) || 0); }, 0);
+    }
+    function horizontalChrome(panel) {
+        return chrome(panel, ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth']);
+    }
+    function verticalChrome(panel) {
+        return chrome(panel, ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth']);
     }
 
-    function sizeRows(first, second, startY, minSize) {
-        var startFirst = first.offsetHeight;
-        var total = startFirst + second.offsetHeight;
-        var firstChrome = verticalChrome(first);
-        var secondChrome = verticalChrome(second);
-        return function (ev) {
-            var height = clamp(startFirst + ev.clientY - startY, minSize, total - minSize);
-            first.style.flex = Math.max(0, height - firstChrome) + ' 1 0';
-            second.style.flex = Math.max(0, total - height - secondChrome) + ' 1 0';
+    // Both axes share the pair's room by flex-grow, not in fixed pixels, so the
+    // split keeps its proportions when the window changes. Fixed widths left
+    // the pair at its dragged size for good: a window made larger afterwards
+    // showed dead space beside it.
+    function sizePair(first, second, rows, start, minSize) {
+        var startFirst = rows ? first.offsetHeight : first.offsetWidth;
+        var total = startFirst + (rows ? second.offsetHeight : second.offsetWidth);
+        var measure = rows ? verticalChrome : horizontalChrome;
+        var firstChrome = measure(first);
+        var secondChrome = measure(second);
+        return function (delta) {
+            var size = clamp(startFirst + delta - start, minSize, total - minSize);
+            first.style.flex = Math.max(0, size - firstChrome) + ' 1 0';
+            second.style.flex = Math.max(0, total - size - secondChrome) + ' 1 0';
+            if (!rows) {
+                // Whatever fixed width or ceiling the panel was built with.
+                [first, second].forEach(function (panel) {
+                    panel.style.width = '';
+                    panel.style.minWidth = '0';
+                    panel.style.maxWidth = 'none';
+                });
+            }
         };
     }
 
@@ -103,9 +104,9 @@
         var minSize = parseFloat(handle.getAttribute('data-min-size')) || 0;
         window.SkillTree.drag.start({
             cursor: rows ? 'ns-resize' : 'col-resize',
-            onMove: rows
-                ? sizeRows(first, second, e.clientY, minSize)
-                : sizeColumns(first, second, e.clientX, minSize),
+            onMove: (function (move) {
+                return function (ev) { move(rows ? ev.clientY : ev.clientX); };
+            })(sizePair(first, second, rows, rows ? e.clientY : e.clientX, minSize)),
             onEnd: function () { resizeCanvasesIn(handle.parentElement); describeHandle(handle); },
         });
     });
@@ -125,8 +126,7 @@
         var delta = (e.shiftKey ? 50 : 10) * (e.key === backward ? -1 : 1);
         if (e.key === 'Home') delta = -100000;
         if (e.key === 'End') delta = 100000;
-        if (rows) sizeRows(first, second, 0, min)({clientY: delta});
-        else sizeColumns(first, second, 0, min)({clientX: delta});
+        sizePair(first, second, rows, 0, min)(delta);
         resizeCanvasesIn(handle.parentElement);
         describeHandle(handle);
     });

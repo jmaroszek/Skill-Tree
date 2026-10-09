@@ -122,23 +122,29 @@ def _run(body):
     assert result.returncode == 0, result.stderr
 
 
-def test_a_column_drag_fixes_both_widths_and_keeps_the_minimum():
+def test_a_column_drag_shares_the_width_by_flex_grow():
     _run(r'''
-const left = panel(400, 0);
+const left = panel(400, 0, {paddingLeft: '24px', paddingRight: '24px'});
+left.style = {width: '698px', maxWidth: '698px', minWidth: '360px'};
 const right = panel(600, 0);
 const down = press(handle('cols', left, right, 150), 500, 0);
 assert.ok(down.prevented, 'the drag must not start a text selection');
 assert.equal(drag.cursor, 'col-resize');
 
+// The left panel's 48px of padding is outside what flex-grow shares, so it
+// comes off its share: 450 and 550 split the 1000px the pair had.
 drag.onMove({clientX: 550, clientY: 0});
-assert.deepEqual([left.style.width, right.style.width], ['450px', '550px']);
-assert.deepEqual([left.style.flex, right.style.flex], ['none', 'none']);
+assert.deepEqual([left.style.flex, right.style.flex], ['402 1 0', '550 1 0']);
+// No fixed width is left to hold the pair at its dragged size when the window
+// grows, and the build-time ceiling and floor are lifted.
+assert.equal(left.style.width, '');
 assert.equal(left.style.maxWidth, 'none');
+assert.equal(left.style.minWidth, '0');
 
 drag.onMove({clientX: -1000, clientY: 0});
-assert.deepEqual([left.style.width, right.style.width], ['150px', '850px']);
+assert.deepEqual([left.style.flex, right.style.flex], ['102 1 0', '850 1 0']);
 drag.onMove({clientX: 5000, clientY: 0});
-assert.deepEqual([left.style.width, right.style.width], ['850px', '150px']);
+assert.deepEqual([left.style.flex, right.style.flex], ['802 1 0', '150 1 0']);
 ''')
 
 
@@ -199,13 +205,13 @@ function key(key, shiftKey=false) {
     return event;
 }
 assert.ok(key('ArrowRight').prevented);
-assert.deepEqual([first.style.width, second.style.width], ['410px', '590px']);
+assert.deepEqual([first.style.flex, second.style.flex], ['410 1 0', '590 1 0']);
 key('ArrowLeft', true);
-assert.deepEqual([first.style.width, second.style.width], ['350px', '650px']);
+assert.deepEqual([first.style.flex, second.style.flex], ['350 1 0', '650 1 0']);
 key('Home');
-assert.deepEqual([first.style.width, second.style.width], ['150px', '850px']);
+assert.deepEqual([first.style.flex, second.style.flex], ['150 1 0', '850 1 0']);
 key('End');
-assert.deepEqual([first.style.width, second.style.width], ['850px', '150px']);
+assert.deepEqual([first.style.flex, second.style.flex], ['850 1 0', '150 1 0']);
 assert.equal(key('ArrowDown').prevented, false);
 assert.equal(divider.attributes['aria-valuenow'], '40');
 assert.equal(divider.attributes['aria-valuetext'], '400 pixels');

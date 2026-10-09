@@ -332,3 +332,14 @@ def test_rating_ticks_thin_out_when_the_strips_are_narrow():
     assert ".rd-ticks { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));" in css
     assert "container-type: inline-size;" in _css_rule(css, ".rating-dist")
     assert "@container (max-width: 1100px)" in css
+
+
+def test_the_dormant_table_keeps_name_readable_in_a_narrow_form():
+    """Fixed metadata columns took 432px, so a form under about 480px left
+    Name nothing. The form is the container, since the sidebar and the divider
+    take its room, not the window's."""
+    css = THEME_CSS.read_text(encoding="utf-8")
+
+    assert "container: events-form / inline-size;" in _css_rule(css, "#events-detail-panel")
+    assert "min-width: 440px;" in _css_rule(css, ".dormant-nodes-table")
+    assert "@container events-form (max-width: 600px)" in css

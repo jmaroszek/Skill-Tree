@@ -176,6 +176,22 @@ def _visible_excluded_count(trigger, current, total):
     return min(wanted, total)
 
 
+# Past this many, the pager gives up counting: "20 of 165" asks to be compared
+# against, and nobody is going to page through 165 rows.
+_PAGER_EXACT_COUNT_MAX = 100
+
+
+def _pager(limit, total, noun):
+    """The (status, pager style, show-more style) for a list showing `limit` of
+    `total`. Nothing to page through, nothing to say: the pager only appears
+    once the list is longer than what is on screen."""
+    if limit >= total:
+        return '', {'display': 'none'}, {'display': 'none'}
+    count = 'many' if total > _PAGER_EXACT_COUNT_MAX else f'{total} {noun}'
+    return (f'Showing {limit} of {count}', {'display': 'flex'},
+            {'display': 'inline'})
+
+
 # Hover text for the history columns whose heading alone is ambiguous. The time
 # columns say "work time" because a day or a week here is the productive hours
 # set in Settings, not a stretch of the calendar.
@@ -406,11 +422,8 @@ def register_review_hub_callbacks(app, services=None):
         total = len(dismissed)
         limit = _visible_excluded_count(trigger, visible_count, total)
         view, _ = build_calibration_dismissed_view(dismissed, limit=limit)
-        noun = 'node' if total == 1 else 'nodes'
-        return (view, f'Showing {limit} of {total} {noun}' if total else '',
-                {'display': 'flex'} if total else {'display': 'none'},
-                {'display': 'inline'} if limit < total else {'display': 'none'},
-                limit)
+        status, pager_style, more_style = _pager(limit, total, 'nodes')
+        return view, status, pager_style, more_style, limit
 
     # --- History tab: sortable, progressively revealed results ---
     # The dropdown, the direction button and the column headers all write the
@@ -478,12 +491,10 @@ def register_review_hub_callbacks(app, services=None):
 
         limit = _visible_history_count(ctx.triggered_id, visible_count,
                                        len(nodes))
-        noun = 'reflection' if len(nodes) == 1 else 'reflections'
-        status = f'Showing {limit} of {len(nodes)} {noun}'
-        more_style = ({'display': 'inline'} if limit < len(nodes)
-                      else {'display': 'none'})
+        status, pager_style, more_style = _pager(limit, len(nodes),
+                                                 'reflections')
         return (_build_history_table(nodes[:limit], sort), status,
-                {'display': 'flex'}, more_style, limit)
+                pager_style, more_style, limit)
 
     # --- History tab: open the focused-review modal in 'edit' mode ---
     # Triggered by clicking any row's ✎ button — pattern-matched id carries

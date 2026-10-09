@@ -68,6 +68,8 @@
     user-select: none;
     opacity: 0.9;
 }
+/* assets/next_perf_overlay.js sets this when the caption would cover content. */
+.next-perf-overlay[data-crowded] { visibility: hidden; }
 
 .canvas-stats-overlay {
     position: absolute;
@@ -1375,6 +1377,22 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     --bs-btn-hover-color: var(--st-danger);
     --bs-btn-active-bg: var(--st-danger-wash-strong);
     --bs-btn-active-color: var(--st-danger);
+}
+
+/* The Events form is what the dormant table is sized against, not the window:
+   the sidebar and the divider both take room from it. Below a roomy width the
+   fixed metadata columns slim down so Name keeps a readable share, and below
+   the table's own minimum the form scrolls sideways rather than hiding names. */
+#events-detail-panel {
+    container: events-form / inline-size;
+    overflow-x: auto;
+}
+.dormant-nodes-table { min-width: 440px; }
+@container events-form (max-width: 600px) {
+    .dormant-nodes-table th:nth-child(2) { width: 84px !important; }
+    .dormant-nodes-table th:nth-child(3) { width: 72px !important; }
+    .dormant-nodes-table th:nth-child(4) { width: 108px !important; }
+    .dormant-nodes-table th:nth-child(5) { width: 88px !important; }
 }
 
 /* The dormant table runs `table-layout: fixed` so its columns land in the
