@@ -358,9 +358,8 @@ def _render_goal_progress(rows):
 def _render_estimation_accuracy(rows):
     """Scatter of estimated vs. actual time for completed nodes, with a y=x
     reference line. Points above the line overran the estimate."""
-    title = html.H6("By Node", className="text-muted mb-1")
     if not rows:
-        return _card([title, html.P(
+        return _card([html.P(
             "No completed nodes have actual-time data yet. Mark nodes Done "
             "with Reflection enabled to populate this chart.",
             className="text-muted small")])
@@ -419,11 +418,7 @@ def _render_estimation_accuracy(rows):
                   **{'data-trace': t, 'aria-pressed': 'true'})
         for t in sorted(by_type)], className="gp-legend",
         style={'marginTop': '6px', 'marginBottom': 0})
-    return _card([
-        title,
-        _graph(fig, zoom=True),
-        legend,
-    ], fill=True)
+    return _card([_graph(fig, zoom=True), legend], fill=True)
 
 
 _CTX_ACCURACY_MIN_N = 3  # min completed nodes for a context to get a box
@@ -441,9 +436,8 @@ def _render_context_accuracy_boxplot(rows):
             by_ctx[r['context']].append(r)
     qualifying = {c: v for c, v in by_ctx.items()
                   if len(v) >= _CTX_ACCURACY_MIN_N}
-    title = html.H6("By Context", className="text-muted mb-1")
     if not qualifying:
-        return _card([title, html.P(
+        return _card([html.P(
             f"Not enough completed nodes per context yet — a context needs "
             f"at least {_CTX_ACCURACY_MIN_N} with captured actual time.",
             className="text-muted small")])
@@ -524,7 +518,7 @@ def _render_context_accuracy_boxplot(rows):
 
     # No footnote for contexts below the minimum: it made this card taller
     # than the scatter beside it.
-    return _card([title, _graph(fig, zoom=True)], fill=True)
+    return _card(_graph(fig, zoom=True), fill=True)
 
 
 _DRIFT_UNDER = '#c0392b'  # overrated going in: the reflection came in lower
@@ -541,9 +535,8 @@ def _render_reflection_drift_chart(rows):
 
     HTML rather than Plotly, like Goals: each context's name sits on its
     bars' line and the tooltip is the one the Plan charts use."""
-    title = html.H6("Rating Drift by Context", className="text-muted mb-1")
     if not rows:
-        return _card([title, html.P(
+        return _card([html.P(
             f"Not enough reflected nodes per context yet — a context "
             f"needs at least {_REFLECTION_MIN_N} re-rated nodes.",
             className="text-muted small")])
@@ -592,7 +585,12 @@ def _render_reflection_drift_chart(rows):
         ], className="gp-row dr-row"))
     body.append(html.Div([html.Div()] + [_axis() for _ in metric_keys],
                          className="gp-row dr-row dr-foot"))
-    return _card([title, html.Div(body, className="drift-chart hist-chart")])
+    legend = html.Div([
+        html.Span([html.I(className="gp-swatch", style={'backgroundColor': c}), text])
+        for c, text in ((_DRIFT_UNDER, "Overrated going in"),
+                        (_DRIFT_OVER, "Underrated going in"))
+    ], className="gp-legend", style={'marginTop': '6px', 'marginBottom': 0})
+    return _card([html.Div(body, className="drift-chart hist-chart"), legend])
 
 
 # The most bars the half-width Throughput chart draws. A long history at
@@ -614,12 +612,8 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
     A long run of buckets turns the labels on their side so they never
     overlap."""
     fmt = ConfigManager.format_time_friendly
-    title_word = {'month': 'Month', 'quarter': 'Quarter',
-                  'year': 'Year'}.get(granularity, 'Quarter')
-    title = html.H6(f"Work Time Completed by {title_word}",
-                    className="text-muted mb-1")
     if not quarter_rows or all(not r['segments'] for r in quarter_rows):
-        return _card([title, html.P(
+        return _card([html.P(
             "No nodes with a completion date yet. Mark nodes Done to "
             "populate this chart.", className="text-muted small")])
 
@@ -701,7 +695,7 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
         html.Div([html.Span(r['label']) for r in quarter_rows],
                  className="tp-x"),
     ], className="tp-body" + rotated)
-    children = [title]
+    children = []
     if by == 'type':
         children.append(html.Div([
             html.Span([html.I(className="gp-swatch", style={'backgroundColor': color[k]}), k])
@@ -1149,30 +1143,35 @@ def _build_analyze_sections(al):
     ]
 
     contexts_content = [
-        html.P("Where your active time is allocated, and how you rated it.",
+        html.P("Where your time is allocated, and how you rated it.",
                className="text-muted small"),
         # Full width: three ten-cell strips and a Work left bar per row.
         dbc.Row(dbc.Col(_render_rating_distribution(rating_dist), width=12),
                 className="g-3"),
     ]
 
+    # The two charts head their own columns, so the section has no header of
+    # its own. Each column's card stretches to the taller one.
     time_content = [
-        html.P(
-            "On the By Node scatter, points above the dashed line took "
-            "longer than estimated; points below were finished faster. "
-            "On the By Context box plots, boxes right of the 1× line ran "
-            "over estimate; left, came in under.",
-            className="text-muted small"),
         dbc.Row([
-            dbc.Col(_render_estimation_accuracy(est_accuracy), width=6),
-            dbc.Col(_render_context_accuracy_boxplot(est_accuracy), width=6),
+            dbc.Col([
+                html.H5("Time Estimates by Node", className="mt-2 mb-1"),
+                html.P("Points above the dashed line took longer than "
+                       "estimated; points below were finished faster.",
+                       className="text-muted small"),
+                html.Div(_render_estimation_accuracy(est_accuracy), className="flex-grow-1"),
+            ], width=6, className="d-flex flex-column"),
+            dbc.Col([
+                html.H5("Time Estimates by Context", className="mt-2 mb-1"),
+                html.P("Boxes right of the 1× line ran over estimate; left, "
+                       "came in under.", className="text-muted small"),
+                html.Div(_render_context_accuracy_boxplot(est_accuracy), className="flex-grow-1"),
+            ], width=6, className="d-flex flex-column"),
         ], className="g-3"),
     ]
 
     drift_content = [
-        html.P("How your Value, Interest, and Effort ratings changed when you "
-               "reflected on finished work. Red bars mean you overrated the "
-               "work going in; blue bars mean you underrated it.",
+        html.P("How your ratings change when you reflect on completed work.",
                className="text-muted small"),
         dbc.Row(dbc.Col(_render_reflection_drift_chart(drift_rows), width=6),
                 className="g-3"),
@@ -1181,10 +1180,7 @@ def _build_analyze_sections(al):
     gran = al.get('throughput_granularity', 'quarter')
     gran_label = {'month': 'month', 'quarter': 'quarter',
                   'year': 'year'}[gran]
-    stacked = "node type" if color_by == 'type' else "context"
-    throughput_note = (f"Hours of completed work per calendar {gran_label}, "
-                       f"stacked by {stacked}. Hover a segment for the node "
-                       "list.")
+    throughput_note = "Hours of completed work per time period."
     if len(throughput_rows) > _THROUGHPUT_MAX_BARS:
         throughput_rows = throughput_rows[-_THROUGHPUT_MAX_BARS:]
         wider = {'month': 'quarters', 'quarter': 'years'}.get(gran)

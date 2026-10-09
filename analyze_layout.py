@@ -132,7 +132,6 @@ def _plan_sections(al):
 
 def _history_sections(al):
     return [
-        _plain_header("Time Estimation Accuracy"),
         html.Div(id="analyze-time-content"),
         html.Hr(className="my-3"),
 
