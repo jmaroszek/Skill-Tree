@@ -558,7 +558,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px 16px;
-    margin-top: 6px;
+    margin-top: 14px;
     font-size: var(--st-fs-cap);
     color: var(--st-text-soft);
 }
@@ -578,6 +578,14 @@
     font-size: var(--st-fs-cap);
     font-variant-numeric: tabular-nums;
 }
+
+/* A chart that must never be taller than the one beside it. The wrapper adds
+   nothing to its column's height (contain: size), so the row is as tall as the
+   neighbour, and the wrapper takes what is left under the header. Its card
+   shrinks to its content, and scrolls once there is more than fits. */
+.hist-fit { flex: 1 1 0; min-height: 0; contain: size; display: flex; flex-direction: column; }
+.hist-fit > * { flex: none; }
+.hist-fit > :last-child { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 
 /* Rating Drift: a name, then three diverging tracks on one shared scale.
    A bar left of the centre line is red (overrated going in), right is blue. */

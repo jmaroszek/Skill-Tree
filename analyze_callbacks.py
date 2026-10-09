@@ -127,12 +127,12 @@ def _base_layout(**overrides):
     return layout
 
 
-def _card(children, fill=False):
+def _card(children, fill=False, class_name=None):
     """Wrap a visual in the standard Analyze card — a subtly raised panel
     with a soft border and rounded corners, matching the overview tiles.
     ``fill`` stretches it to its column's height, so two cards side by side
     end level however tall their contents are."""
-    return html.Div(children, style={
+    return html.Div(children, className=class_name, style={
         "backgroundColor": _BG,
         "borderRadius": "6px",
         "padding": "12px 16px",
@@ -589,7 +589,9 @@ def _render_reflection_drift_chart(rows):
         for c, text in ((_DRIFT_UNDER, "Overrated going in"),
                         (_DRIFT_OVER, "Underrated going in"))
     ], className="gp-legend")
-    return _card([html.Div(body, className="drift-chart hist-chart"), legend])
+    # In a .hist-fit wrapper: it scrolls, with a fade, once taller than Throughput.
+    return _card([html.Div(body, className="drift-chart hist-chart"), legend],
+                 class_name="scroll-fade-bottom")
 
 
 # The most bars the half-width Throughput chart draws. A long history at
@@ -694,12 +696,11 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
         html.Div([html.Span(r['label']) for r in quarter_rows],
                  className="tp-x"),
     ], className="tp-body" + rotated)
-    children = []
+    children = [html.Div(plot, className="throughput-chart hist-chart")]
     if by == 'type':
         children.append(html.Div([
             html.Span([html.I(className="gp-swatch", style={'backgroundColor': color[k]}), k])
             for k in keys], className="gp-legend"))
-    children.append(html.Div(plot, className="throughput-chart hist-chart"))
     return _card(children)
 
 

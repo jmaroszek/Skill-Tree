@@ -177,8 +177,9 @@ def _history_sections(al):
             dbc.Col([
                 # No top margin: it sits level with Throughput's gear header.
                 html.H5("Rating Accuracy", className="mb-1"),
-                html.Div(id="analyze-drift-content"),
-            ], width=6),
+                # Its height comes from Throughput beside it; see .hist-fit.
+                html.Div(id="analyze-drift-content", className="hist-fit"),
+            ], width=6, className="d-flex flex-column"),
         ], className="g-3"),
         html.Hr(className="my-3"),
 
