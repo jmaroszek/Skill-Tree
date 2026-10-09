@@ -2,8 +2,7 @@
 import pytest
 
 pytest.importorskip("playwright.sync_api")
-from test_journeys import _idle  # noqa: E402
-from test_keyboard import _seed  # noqa: E402
+from test_journeys import _idle, _seed  # noqa: E402
 
 _WATCH_LAYOUT = """() => {
     const cy = SkillTree.getCy(document.getElementById('cytoscape-graph'));
