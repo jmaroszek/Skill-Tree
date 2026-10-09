@@ -125,13 +125,16 @@ def _base_layout(**overrides):
     return layout
 
 
-def _card(children):
+def _card(children, fill=False):
     """Wrap a visual in the standard Analyze card — a subtly raised panel
-    with a soft border and rounded corners, matching the overview tiles."""
+    with a soft border and rounded corners, matching the overview tiles.
+    ``fill`` stretches it to its column's height, so two cards side by side
+    end level however tall their contents are."""
     return html.Div(children, style={
         "backgroundColor": _BG,
         "borderRadius": "6px",
         "padding": "12px 16px",
+        **({"height": "100%"} if fill else {}),
     })
 
 
@@ -409,12 +412,13 @@ def _render_estimation_accuracy(rows):
     legend = html.Div([
         html.Span([html.I(className="gp-swatch dot",
                           style={'backgroundColor': colors.get(t, '#0d6efd')}), t])
-        for t in sorted(by_type)], className="gp-legend")
+        for t in sorted(by_type)], className="gp-legend",
+        style={'marginTop': '6px', 'marginBottom': 0})
     return _card([
         title,
-        legend,
         _graph(fig, zoom=True),
-    ])
+        legend,
+    ], fill=True)
 
 
 _CTX_ACCURACY_MIN_N = 3  # min completed nodes for a context to get a box
@@ -515,7 +519,7 @@ def _render_context_accuracy_boxplot(rows):
 
     # No footnote for contexts below the minimum: it made this card taller
     # than the scatter beside it.
-    return _card([title, _graph(fig, zoom=True)])
+    return _card([title, _graph(fig, zoom=True)], fill=True)
 
 
 _DRIFT_UNDER = '#c0392b'  # overrated going in: the reflection came in lower
@@ -594,15 +598,16 @@ _THROUGHPUT_MAX_BARS = 24
 
 def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
     """Stacked vertical bars of hours completed per calendar bucket
-    (month/quarter/year), segmented by context or by node type, under a
-    dashed step line for capacity. Contexts get no legend: their name and a
-    top-N list of completed nodes (with hours) come up on hover. Node types
-    have one, in the badge colors, since there are only a few.
+    (month/quarter/year), segmented by context or by node type. Contexts get
+    no legend: their name and a top-N list of completed nodes (with hours)
+    come up on hover. Node types have one, in the badge colors, since there
+    are only a few.
 
     HTML rather than Plotly, like the Plan charts, with the same tooltip.
-    Each bucket is a slot of equal width, so the capacity line, drawn inside
-    the slot, runs edge to edge and steps at the boundaries. A long run of
-    buckets turns the labels on their side so they never overlap."""
+    There is no capacity line: a part-way month's prorated capacity made it
+    drop sharply at the end. The tooltip still gives the share of capacity.
+    A long run of buckets turns the labels on their side so they never
+    overlap."""
     fmt = ConfigManager.format_time_friendly
     title_word = {'month': 'Month', 'quarter': 'Quarter',
                   'year': 'Year'}.get(granularity, 'Quarter')
@@ -656,8 +661,7 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
         lines.append(_against_capacity(r))
         return '\n'.join(lines)
 
-    top = max(max(r['total_hours'] for r in quarter_rows),
-              max(r['capacity'] for r in quarter_rows))
+    top = max(r['total_hours'] for r in quarter_rows)
     tickvals, ticktext = _friendly_xticks(top)
     ymax = max(top, max(tickvals)) or 1
 
@@ -674,15 +678,10 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
                     'height': f"{100 * seg['hours'] / r['total_hours']:.3f}%",
                     'backgroundColor': color[key],
                 }, **{'data-tip': _tooltip(r, key, seg)}))
-        slot = [html.Div(segments, className="tp-col",
-                         style={'height': _pct(r['total_hours'])})]
-        if r['capacity']:
-            slot.append(html.Div(className="tp-cap",
-                                 style={'bottom': _pct(r['capacity'])}))
-        slots.append(html.Div(slot, className="tp-slot"))
+        slots.append(html.Div(html.Div(segments, className="tp-col",
+                                       style={'height': _pct(r['total_hours'])}),
+                              className="tp-slot"))
 
-    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
-    last_cap = quarter_rows[-1]['capacity']
     # Labels about 7 characters wide fit a slot while ten or so share the
     # chart; past that they stand on end.
     longest = max(len(r['label']) for r in quarter_rows)
@@ -693,9 +692,6 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
         html.Div([html.Div(className="tp-grid", style={'bottom': _pct(v)})
                   for v in tickvals if v > 0]
                  + [html.Div(slots, className="tp-slots")], className="tp-plot"),
-        html.Div(html.Div([html.Div("Capacity"), html.Div(f"{per_week:g}h a week")],
-                          className="tp-capnote", style={'bottom': _pct(last_cap)}),
-                 className="tp-side"),
         html.Div(),
         html.Div([html.Span(r['label']) for r in quarter_rows],
                  className="tp-x"),
@@ -1180,12 +1176,10 @@ def _build_analyze_sections(al):
     gran = al.get('throughput_granularity', 'quarter')
     gran_label = {'month': 'month', 'quarter': 'quarter',
                   'year': 'year'}[gran]
-    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
     stacked = "node type" if color_by == 'type' else "context"
     throughput_note = (f"Hours of completed work per calendar {gran_label}, "
                        f"stacked by {stacked}. Hover a segment for the node "
-                       f"list. The dashed line is your capacity, {per_week:g} "
-                       "hours a week.")
+                       "list.")
     if len(throughput_rows) > _THROUGHPUT_MAX_BARS:
         throughput_rows = throughput_rows[-_THROUGHPUT_MAX_BARS:]
         wider = {'month': 'quarters', 'quarter': 'years'}.get(gran)

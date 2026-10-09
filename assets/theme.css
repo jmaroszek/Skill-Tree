@@ -606,16 +606,15 @@
 .dr-axis { position: relative; height: 1.1em; color: var(--st-text-soft); }
 .dr-axis > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 
-/* Throughput: stacked columns, one equal slot per bucket. The capacity line
-   sits inside the slot, so it runs edge to edge and steps between slots. */
-.throughput-chart { --tp-h: 280px; --tp-cap: #adb5bd; }
+/* Throughput: stacked columns, one equal slot per bucket. */
+.throughput-chart { --tp-h: 280px; }
 .tp-body {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) 5rem;
+    grid-template-columns: auto minmax(0, 1fr);
     column-gap: 8px;
     padding-top: 10px;
 }
-.tp-y, .tp-plot, .tp-side { position: relative; height: var(--tp-h); }
+.tp-y, .tp-plot { position: relative; height: var(--tp-h); }
 .tp-y { width: 2.6rem; }
 .tp-y > span {
     position: absolute;
@@ -640,21 +639,6 @@
 .tp-seg { flex: none; min-height: 1px; opacity: 0.9; }
 .tp-seg + .tp-seg { box-shadow: 0 1px 0 var(--st-bg-canvas); }
 .tp-seg:last-child { border-radius: 2px 2px 0 0; }
-.tp-cap {
-    position: absolute;
-    left: 0;
-    right: 0;
-    border-top: 1.5px dashed var(--tp-cap);
-    pointer-events: none;
-}
-.tp-capnote {
-    position: absolute;
-    left: 0;
-    transform: translateY(50%);
-    line-height: 1.25;
-    color: var(--tp-cap);
-    font-size: var(--st-fs-sm);
-}
 .tp-x { display: flex; margin-top: 6px; color: var(--st-text-soft); }
 .tp-x > span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tp-rotated .tp-x > span {

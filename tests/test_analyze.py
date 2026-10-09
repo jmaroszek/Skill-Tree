@@ -889,7 +889,7 @@ class TestThroughputCapacity:
                                    today=date(2026, 1, 31))
         assert [s['key'] for s in rows[0]['segments']] == ['Learn', 'Resource', 'Action']
 
-    def test_chart_draws_a_capacity_line_in_each_slot(self):
+    def test_chart_is_html_with_no_capacity_line(self):
         from dash import dcc
         from analyze_callbacks import _render_throughput_chart
 
@@ -901,12 +901,9 @@ class TestThroughputCapacity:
         card = _render_throughput_chart(rows, granularity='month')
         parts = list(_walk(card))
         assert not any(isinstance(p, dcc.Graph) for p in parts)   # HTML, not Plotly
-        slots = [p for p in parts if getattr(p, 'className', None) == 'tp-slot']
-        assert len(slots) == 2
-        # Both lines share one scale, so their heights keep the days' ratio.
-        caps = [float(next(c for c in s.children if c.className == 'tp-cap')
-                      .style['bottom'].rstrip('%')) for s in slots]
-        assert caps[0] / caps[1] == pytest.approx(31 / 14, rel=1e-3)
+        assert len([p for p in parts if getattr(p, 'className', None) == 'tp-slot']) == 2
+        # A part-way month's prorated capacity dropped sharply, so none is drawn.
+        assert not any('tp-cap' in str(c) for c in _classes(card))
         assert 'gp-legend' not in _classes(card)   # contexts name themselves on hover
         by_type = _render_throughput_chart(
             _compute_throughput(nodes, granularity='month', by='type',
