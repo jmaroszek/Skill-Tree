@@ -372,6 +372,7 @@
 
 .rating-dist {
     --rd-heat: #6da7ec;
+    container-type: inline-size;
     position: relative;
     font-size: var(--st-fs-cap);
     font-variant-numeric: tabular-nums;
@@ -401,7 +402,14 @@
 /* Interest and Effort start a step further out, so each mean sits with its
    own strip rather than against the next one. */
 .rd-later { margin-left: 1.5rem; }
-.rd-ticks { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; text-align: center; }
+.rd-ticks { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 2px; text-align: center; }
+/* Below this width a strip's cells are narrower than a two-digit label, so
+   only the ends and the middle are numbered. */
+@container (max-width: 1100px) {
+    .rd-ticks span:not(:nth-child(1), :nth-child(5), :nth-child(10)) { visibility: hidden; }
+    .rd-ticks span:nth-child(1) { justify-self: start; }
+    .rd-ticks span:nth-child(10) { justify-self: end; }
+}
 
 .rd-label { display: flex; align-items: center; gap: 4px; min-width: 0; white-space: nowrap; }
 .rd-name { overflow: hidden; text-overflow: ellipsis; }

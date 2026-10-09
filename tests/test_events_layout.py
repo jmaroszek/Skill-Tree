@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 from events_layout import (
+    build_events_tab_content,
     DORMANT_COL_WIDTHS,
     build_dormant_nodes_table,
     build_event_card,
@@ -297,3 +298,37 @@ def test_event_card_description_keeps_full_text_and_clamps_to_three_lines():
     assert "-webkit-box-orient: vertical;" in rule
     assert "-webkit-line-clamp: 3;" in rule
     assert "overflow: hidden;" in rule
+
+
+def _walk_components(component):
+    yield component
+    children = getattr(component, "children", None)
+    if isinstance(children, (list, tuple)):
+        for child in children:
+            yield from _walk_components(child)
+    elif children is not None and not isinstance(children, (str, int, float)):
+        yield from _walk_components(children)
+
+
+def test_event_form_shrinks_when_the_window_is_narrow():
+    """The app's smallest window is 900px wide and the sidebar takes 350 of it,
+    so a fixed 698px form ran off the right edge. It may only shrink as far as
+    the drag handle's minimum, and the graph beside it must clip."""
+    by_id = {getattr(c, "id", None): c for c in _walk_components(build_events_tab_content())}
+    form = by_id["events-detail-panel"].style
+    graph = by_id["events-detail-graph-container"].style
+
+    assert form["flex"] == "0 1 698px"
+    assert form["minWidth"] == "360px"
+    assert graph["overflow"] == "hidden"
+
+
+def test_rating_ticks_thin_out_when_the_strips_are_narrow():
+    """Ten two-digit labels don't fit above strips of a few pixels a cell, so
+    below a width only the ends and the middle are numbered. The tick grid must
+    be allowed to shrink below its text, or it outgrows the strip beneath it."""
+    css = THEME_CSS.read_text(encoding="utf-8")
+
+    assert ".rd-ticks { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr));" in css
+    assert "container-type: inline-size;" in _css_rule(css, ".rating-dist")
+    assert "@container (max-width: 1100px)" in css

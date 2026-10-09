@@ -322,7 +322,10 @@ def build_events_tab_content():
             ], style={"maxWidth": "650px"}),
         ]),
     ], id="events-detail-panel", style={
-        "flex": "0 0 698px",
+        # Shrinks, down to the drag handle's minimum, when the sidebar leaves
+        # less than 698px: a fixed basis ran the form off the window's edge.
+        "flex": "0 1 698px",
+        "minWidth": "360px",
         "maxWidth": "698px",
         "padding": "0 24px",
         "overflowY": "auto",
@@ -378,6 +381,9 @@ def build_events_tab_content():
     ], id="events-detail-graph-container", style={
         "flex": "1 1 0",
         "minWidth": "0",
+        # The form leaves the graph no room in a narrow window; its overlay
+        # buttons would otherwise spill over the form.
+        "overflow": "hidden",
         "display": "flex",
         "flexDirection": "column",
     })

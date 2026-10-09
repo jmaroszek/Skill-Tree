@@ -462,6 +462,10 @@ command and disappears once the node is awake.
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
+### Window size
+
+The desktop window opens maximized and cannot be dragged smaller than `900 x 600` (`minWidth` and `minHeight` in `electron/main.js`). Every tab must read cleanly at that size, and at the sizes laptops and desktops ship with: 1280 x 720, 1366 x 768, 1536 x 864, 1920 x 1080 and 2560 x 1440. Check a layout change at 900 x 600 first, since that is where a fixed width runs out of room. A panel beside a 350px sidebar has 550px there. Give it a shrinkable basis (`flex: 0 1 ...`) rather than a fixed one, and clip anything that has been squeezed to nothing. The phone and tablet widths are not supported.
+
 All sidebars slide with `transform: translateX(...)` and `willChange: transform`.
 The left panels translate left when closed; Filters stays anchored at `right: 0`
 and translates right by its own width. The browser can run the slide off the
