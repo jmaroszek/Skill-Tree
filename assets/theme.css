@@ -907,7 +907,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 
 /* The rule after the active events: "2 triggered events hidden · Show".
-   The Reflection modal's "Showing 20 of 73 · Show 20 more" pagers share it. */
+   The Reflection modal's "Showing 20 of 73 · show 20 more" pagers share it. */
 .events-triggered-divider {
     display: flex;
     align-items: center;

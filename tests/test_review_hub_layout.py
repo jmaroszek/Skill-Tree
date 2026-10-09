@@ -162,7 +162,7 @@ def test_history_pager_matches_the_events_triggered_divider():
     status, more = sentence.children
     assert status.id == "hub-history-page-status"
     assert more.children[0] == " · "
-    assert more.children[1].children == "Show 20 more"
+    assert more.children[1].children == "show 20 more"
     assert more.children[1].className == "events-triggered-toggle"
 
 

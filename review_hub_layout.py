@@ -66,7 +66,7 @@ def history_sort_direction_icon(direction):
 
 
 def _build_pager(prefix):
-    """ "Showing 20 of 73 reflections · Show 20 more" between two rules.
+    """ "Showing 20 of 73 reflections · show 20 more" between two rules.
 
     Styled as the Events list's triggered divider: small gray text, the dot as
     plain text in the sentence, and a soft action that brightens on hover.
@@ -77,7 +77,7 @@ def _build_pager(prefix):
             html.Span(id=f"{prefix}-page-status"),
             html.Span([
                 " · ",
-                html.Button("Show 20 more", id=f"{prefix}-show-more",
+                html.Button("show 20 more", id=f"{prefix}-show-more",
                             type="button", className="events-triggered-toggle"),
             ], id=f"{prefix}-more-wrap"),
         ]),
