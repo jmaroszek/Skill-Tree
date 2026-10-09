@@ -6,6 +6,7 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 
 ## Must-know rules
 
+- **Use the `skill-tree` conda env, not base.** Base lacks pytest-xdist and Playwright, so `pytest -n auto` and the browser scripts fail there. Activate it (`conda activate skill-tree`) or call its interpreter directly: `C:\Users\jonah\anaconda3\envs\skill-tree\python.exe`. A non-interactive shell often can't activate, so the direct path is the reliable one.
 - **Always launch the app in sandbox mode**: `python app.py --sandbox --port 8051` (add `--dev` for hot reload). Never run `python app.py` (production) unless the user explicitly asks.
 - **Production DB (`%LOCALAPPDATA%\Skill Tree\Data\skilltree.db`)** — reads and writes are allowed when the user is asking for graph review or programmatic node/edge changes against their real data. Do **not** use it as a scratchpad: no exploratory writes, no test fixtures, no app launches against it. When in doubt about whether a write is "graph editing the user asked for" vs "experimentation", confirm first.
 - **Sandbox DB (`%LOCALAPPDATA%\Skill Tree\Data\sandbox_skilltree.db`)** is the target for any app-launch testing or experimentation.
