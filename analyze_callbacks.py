@@ -25,7 +25,6 @@ from datetime import date
 from dash import html, dcc, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 from collections import defaultdict
 import database
 import ui_kit
@@ -68,18 +67,21 @@ def _get_limits():
 
 # Plotly reads computed values, not CSS variables, so these chart-only
 # constants stay literal. Keep them equal to the matching tokens in
-# assets/tokens.css (--st-bg-canvas, --st-bg-raised, --st-border-panel).
+# assets/tokens.css (--st-bg-canvas, --st-bg-raised).
 _BG = '#1a1d21'
 _CARD_BG = '#2b3035'
-_BORDER = '#495057'
 _TEXT = '#dee2e6'  # --st-text-primary
-# The capacity line on Throughput: --st-text-soft, dashed like the 1x guides.
-_CAPACITY_LINE = '#adb5bd'
+_SOFT = '#adb5bd'  # --st-text-soft: tick labels and axis titles
+_GRID = '#2b3035'  # --st-bg-raised: gridlines, a step above the canvas
+# Lato is loaded by assets/vendor/lato; Plotly's default stack would not use it.
+_FONT = "Lato, -apple-system, 'Segoe UI', sans-serif"
 _CHART_CFG = {"displayModeBar": False}
 
 
 def _graph(fig, zoom=False):
-    """A Graph that re-measures its width when the Analyze tab opens.
+    """A Graph that re-measures its width when the Analyze tab opens. Its
+    hover text is shown by assets/rating_dist.js in the Plan charts' tooltip:
+    each mark's ``customdata`` is the text, first line in bold.
 
     The tab usually renders while hidden, where Plotly falls back to a 700 px
     width, and a non-responsive graph keeps it. A responsive one sizes itself
@@ -95,24 +97,30 @@ def _graph(fig, zoom=False):
         fig.update_xaxes(fixedrange=True)
         fig.update_yaxes(fixedrange=True)
     extra = {'style': {'height': f'{fig.layout.height}px'}} if fig.layout.height else {}
-    return dcc.Graph(figure=fig, config=_CHART_CFG, responsive=True, **extra)
+    return dcc.Graph(figure=fig, config=_CHART_CFG, responsive=True,
+                     className="analyze-plot", **extra)
 
 
 def _base_layout(**overrides):
-    """Return a Plotly layout dict with consistent dark theme styling."""
+    """Return a Plotly layout dict that sits beside the HTML charts: the
+    app's font, soft tick labels and no axis lines. The legend is HTML, and
+    hover boxes are off (``hoverinfo='none'`` on each trace, which still fires
+    the events assets/rating_dist.js shows the shared tooltip on)."""
     layout = dict(
         template="plotly_dark",
         paper_bgcolor=_BG,
         plot_bgcolor=_BG,
         margin=dict(l=10, r=10, t=10, b=10),
         showlegend=False,
-        font=dict(size=12),
-        # Plotly fills each hover box with its mark's colour by default, so a
-        # Goal-yellow bar got a mustard box. One raised dark box, matching the
-        # app's other tooltips, reads the same on every chart.
-        hoverlabel=dict(bgcolor=_CARD_BG, bordercolor=_BORDER,
-                        font=dict(color=_TEXT, size=12), align='left'),
+        font=dict(family=_FONT, size=12, color=_TEXT),
     )
+    for name in ('xaxis', 'yaxis'):
+        axis = dict(tickfont=dict(size=12, color=_SOFT), automargin=True,
+                    gridcolor=_GRID, zerolinecolor=_GRID, showline=False)
+        given = dict(overrides.pop(name, {}))
+        if 'title' in given:
+            given['title'] = dict(text=given['title'], font=dict(size=12, color=_SOFT))
+        layout[name] = {**axis, **given}
     layout.update(overrides)
     return layout
 
@@ -375,9 +383,9 @@ def _render_estimation_accuracy(rows):
         for r in trows:
             ratio = r['actual'] / r['estimate']
             hover.append(
-                f"<b>{r['name']}</b><br>"
-                f"Estimated: {fmt(r['estimate'])}<br>"
-                f"Actual: {fmt(r['actual'])}<br>"
+                f"{r['name']}\n"
+                f"Estimated: {fmt(r['estimate'])}\n"
+                f"Actual: {fmt(r['actual'])}\n"
                 f"{ratio:.1f}\u00d7 estimate"
             )
         fig.add_trace(go.Scatter(
@@ -386,22 +394,25 @@ def _render_estimation_accuracy(rows):
             mode='markers', name=ntype,
             marker=dict(size=9, color=colors.get(ntype, '#0d6efd'),
                         line=dict(width=1, color=_BG)),
-            hovertext=hover, hoverinfo='text',
+            customdata=hover, hoverinfo='none',
         ))
 
     tickvals, ticktext = _log_time_ticks(lo, hi)
     axis = dict(type='log', range=[math.log10(lo), math.log10(hi)],
-                tickvals=tickvals, ticktext=ticktext,
-                gridcolor='#343a40', automargin=True)
+                tickvals=tickvals, ticktext=ticktext)
     fig.update_layout(**_base_layout(
-        height=420, showlegend=True,
+        height=420,
         margin=dict(l=50, r=20, t=10, b=45),
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
         xaxis=dict(title="Estimated work time", **axis),
         yaxis=dict(title="Actual work time", **axis),
     ))
+    legend = html.Div([
+        html.Span([html.I(className="gp-swatch dot",
+                          style={'backgroundColor': colors.get(t, '#0d6efd')}), t])
+        for t in sorted(by_type)], className="gp-legend")
     return _card([
         title,
+        legend,
         _graph(fig, zoom=True),
     ])
 
@@ -457,9 +468,9 @@ def _render_context_accuracy_boxplot(rows):
             marker=dict(color='#dee2e6', size=7, opacity=0.9,
                         line=dict(color=_BG, width=1)),
             line=dict(color=line_c, width=1.5), fillcolor=fill_c,
-            hoveron='points', customdata=[r['name'] for r in context_rows],
-            hovertemplate=('<b>%{customdata}</b><br>'
-                           '%{x:.2f}× estimate<extra></extra>'),
+            hoveron='points', hoverinfo='none',
+            customdata=[f"{r['name']}\n{_ratio(r):.2f}× estimate"
+                        for r in context_rows],
         ))
 
     all_ratios = [_ratio(r) for _, context_rows in ordered for r in context_rows]
@@ -497,8 +508,8 @@ def _render_context_accuracy_boxplot(rows):
         margin=dict(l=10, r=20, t=10, b=40),
         xaxis=dict(type='log', title="Actual ÷ Estimated",
                    tickvals=ticks, ticktext=[f"{t:g}×" for t in ticks],
-                   range=xrange, gridcolor='#343a40', automargin=True),
-        yaxis=dict(automargin=True),
+                   range=xrange),
+        yaxis=dict(tickfont=dict(size=12, color=_TEXT)),
     ))
     fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
 
@@ -517,7 +528,10 @@ def _render_reflection_drift_chart(rows):
     the user overrated the work going in; right of zero (blue), underrated.
     Length carries the size, which a colour cell near zero could not.
     Only contexts with at least ``_REFLECTION_MIN_N`` reflected nodes get a
-    row, most-reflected first, with the count in the label."""
+    row, most-reflected first, with the count after the name.
+
+    HTML rather than Plotly, like Goals: each context's name sits on its
+    bars' line and the tooltip is the one the Plan charts use."""
     title = html.H6("Rating Drift by Context", className="text-muted mb-1")
     if not rows:
         return _card([title, html.P(
@@ -527,54 +541,49 @@ def _render_reflection_drift_chart(rows):
 
     metric_keys = [('d_value', 'Value'), ('d_interest', 'Interest'),
                    ('d_difficulty', 'Effort')]
-    contexts = [r['context'] for r in rows]
-    labels = [f"{_trunc(r['context'])} ({r['count']})" for r in rows]
 
     drift_vals = [r[a] for r in rows for a, _ in metric_keys if r[a] is not None]
     rng = max(1, math.ceil(max((abs(v) for v in drift_vals), default=1)))
+    # Each track runs a little past +-rng, so the longest bar stops short of
+    # the end. ``unit`` is a rating point as a percent of the track.
+    unit = 100 / (2.3 * rng)
+    tick_at = 50 - rng * unit
 
-    fig = make_subplots(rows=1, cols=3, shared_yaxes=True,
-                        horizontal_spacing=0.14,
-                        subplot_titles=[label for _, label in metric_keys])
-    for col, (attr, label) in enumerate(metric_keys, start=1):
-        xs, colors, hovers = [], [], []
-        for r in rows:
-            v = r[attr]
-            n = r['count']
-            nodes_txt = f"{n} reflected node{'s' if n != 1 else ''}"
-            if v is None:
-                xs.append(0)
-                colors.append(_DRIFT_UNDER)
-                hovers.append(f"<b>{r['context']}</b><br>{label}: no data")
-                continue
-            xs.append(v)
-            colors.append(_DRIFT_UNDER if v < 0 else _DRIFT_OVER)
+    def _cell(r, attr, label):
+        v = r[attr]
+        n = r['count']
+        if v is None:
+            tip = f"{r['context']}\n{label}: no data"
+            bar = []
+        else:
             sign = '+' if v > 0 else ''
-            hovers.append(f"<b>{r['context']}</b><br>"
-                          f"{label} drift: {sign}{v}<br>{nodes_txt}")
-        fig.add_trace(go.Bar(
-            y=contexts, x=xs, orientation='h', marker_color=colors,
-            opacity=0.9, hovertext=hovers, hoverinfo='text',
-        ), row=1, col=col)
-        fig.update_xaxes(
-            range=[-rng * 1.15, rng * 1.15], tickmode='array',
-            tickvals=[-rng, 0, rng],
-            ticktext=[f'−{rng}', '0', f'+{rng}'],
-            zeroline=True, zerolinecolor='#6c757d', zerolinewidth=1,
-            showline=True, linecolor='#6c757d', linewidth=1, mirror=True,
-            row=1, col=col)
+            tip = (f"{r['context']}\n{label} drift: {sign}{v}\n"
+                   f"{n} reflected node{'s' if n != 1 else ''}")
+            bar = [html.Div(className="dr-bar " + ("under" if v < 0 else "over"),
+                            style={'width': f"{abs(v) * unit:.2f}%"})] if v else []
+        return html.Div(html.Div(bar + [html.Div(className="dr-zero")],
+                                 className="dr-track"),
+                        className="dr-cell", **{'data-tip': tip})
 
-    fig.update_layout(**_base_layout(
-        height=max(180, len(contexts) * 30 + 90),
-        margin=dict(l=10, r=20, t=28, b=30),
-        bargap=0.3,
-    ))
-    # Plotly draws category rows bottom-up: reverse so most-reflected leads.
-    fig.update_yaxes(automargin=True, ticklabelstandoff=8,
-                     categoryorder='array', categoryarray=contexts[::-1],
-                     tickmode='array', tickvals=contexts, ticktext=labels)
-    fig.update_annotations(font=dict(size=12, color=_TEXT))
-    return _card([title, _graph(fig)])
+    def _axis():
+        return html.Div([
+            html.Span(text, style={'left': f"{left:.2f}%"})
+            for text, left in ((f"−{rng}", tick_at), ("0", 50), (f"+{rng}", 100 - tick_at))
+        ], className="dr-axis")
+
+    body = [html.Div([html.Div()] + [html.Div(label, className="dr-title")
+                                     for _, label in metric_keys],
+                     className="gp-row dr-row dr-head")]
+    for r in rows:
+        body.append(html.Div([
+            html.Div([html.Span(r['context'], className="gp-name-text", title=r['context']),
+                      html.Span(f"({r['count']})", className="dr-n")],
+                     className="gp-name"),
+            *[_cell(r, attr, label) for attr, label in metric_keys],
+        ], className="gp-row dr-row"))
+    body.append(html.Div([html.Div()] + [_axis() for _ in metric_keys],
+                         className="gp-row dr-row dr-foot"))
+    return _card([title, html.Div(body, className="drift-chart hist-chart")])
 
 
 # The most bars the half-width Throughput chart draws. A long history at
@@ -584,15 +593,16 @@ _THROUGHPUT_MAX_BARS = 24
 
 
 def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
-    """Stacked vertical bar of hours completed per calendar bucket
+    """Stacked vertical bars of hours completed per calendar bucket
     (month/quarter/year), segmented by context or by node type, under a
     dashed step line for capacity. Contexts get no legend: their name and a
     top-N list of completed nodes (with hours) come up on hover. Node types
     have one, in the badge colors, since there are only a few.
 
-    The x axis is numeric, with the bucket labels as ticks, so the capacity
-    steps can run edge to edge of each bar's slot rather than stopping at
-    its centre."""
+    HTML rather than Plotly, like the Plan charts, with the same tooltip.
+    Each bucket is a slot of equal width, so the capacity line, drawn inside
+    the slot, runs edge to edge and steps at the boundaries. A long run of
+    buckets turns the labels on their side so they never overlap."""
     fmt = ConfigManager.format_time_friendly
     title_word = {'month': 'Month', 'quarter': 'Quarter',
                   'year': 'Year'}.get(granularity, 'Quarter')
@@ -624,9 +634,6 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
             for i, c in enumerate(keys)
         }
 
-    labels = [r['label'] for r in quarter_rows]
-    xs = list(range(len(quarter_rows)))
-
     def _against_capacity(r):
         cap = r['capacity']
         if not cap:
@@ -637,68 +644,69 @@ def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
     def _tooltip(r, key, seg):
         n_nodes = len(seg['nodes'])
         lines = [
-            f"<b>{r['label']} · {key}</b>",
+            f"{r['label']} · {key}",
             f"{fmt(seg['hours'])} across {n_nodes} node"
             f"{'s' if n_nodes != 1 else ''}",
         ]
         for name, h in seg['nodes'][:5]:
             nm = name if len(name) <= 30 else name[:29] + '…'
-            lines.append(f"  • {nm} ({fmt(h)})")
+            lines.append(f"• {nm} ({fmt(h)})")
         if n_nodes > 5:
-            lines.append(f"  … and {n_nodes - 5} more")
+            lines.append(f"… and {n_nodes - 5} more")
         lines.append(_against_capacity(r))
-        return '<br>'.join(lines)
-
-    fig = go.Figure()
-    for key in keys:
-        ys, hovers = [], []
-        for r in quarter_rows:
-            seg = next((s for s in r['segments'] if s['key'] == key), None)
-            if seg and seg['hours'] > 0:
-                ys.append(seg['hours'])
-                hovers.append(_tooltip(r, key, seg))
-            else:
-                ys.append(0)
-                hovers.append('')
-        fig.add_trace(go.Bar(
-            x=xs, y=ys, name=key,
-            marker_color=color[key], marker_line=dict(color=_BG, width=1),
-            opacity=0.9, hovertext=hovers, hoverinfo='text',
-        ))
-
-    # Capacity steps: flat across each bucket's slot, stepping at the edges.
-    step_x, step_y = [], []
-    for x, r in zip(xs, quarter_rows):
-        step_x += [x - 0.5, x + 0.5]
-        step_y += [r['capacity'], r['capacity']]
-    fig.add_trace(go.Scatter(
-        x=step_x, y=step_y, mode='lines', name="Capacity",
-        line=dict(color=_CAPACITY_LINE, dash='dash', width=1.5),
-        hoverinfo='skip', showlegend=False,
-    ))
-    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
-    fig.add_annotation(
-        x=xs[-1] + 0.5, y=quarter_rows[-1]['capacity'], xref='x', yref='y',
-        text=f"Capacity<br>{per_week:g}h a week", showarrow=False,
-        xanchor='left', yanchor='middle', align='left',
-        font=dict(size=11, color=_CAPACITY_LINE))
+        return '\n'.join(lines)
 
     top = max(max(r['total_hours'] for r in quarter_rows),
               max(r['capacity'] for r in quarter_rows))
     tickvals, ticktext = _friendly_xticks(top)
-    fig.update_layout(**_base_layout(
-        barmode='stack', height=360 + (24 if by == 'type' else 0),
-        margin=dict(l=10, r=80, t=10, b=40),
-        showlegend=by == 'type',
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0,
-                    traceorder='normal'),
-        xaxis=dict(automargin=True, tickmode='array', tickvals=xs,
-                   ticktext=labels, range=[-0.5, len(xs) - 0.5],
-                   showgrid=False, zeroline=False),
-        yaxis=dict(tickmode='array', tickvals=tickvals, ticktext=ticktext,
-                   automargin=True, title="Work time"),
-    ))
-    return _card([title, _graph(fig)])
+    ymax = max(top, max(tickvals)) or 1
+
+    def _pct(hours):
+        return f"{100 * hours / ymax:.3f}%"
+
+    slots = []
+    for r in quarter_rows:
+        segments = []
+        for key in keys:
+            seg = next((s for s in r['segments'] if s['key'] == key), None)
+            if seg and seg['hours'] > 0:
+                segments.append(html.Div(className="tp-seg", style={
+                    'height': f"{100 * seg['hours'] / r['total_hours']:.3f}%",
+                    'backgroundColor': color[key],
+                }, **{'data-tip': _tooltip(r, key, seg)}))
+        slot = [html.Div(segments, className="tp-col",
+                         style={'height': _pct(r['total_hours'])})]
+        if r['capacity']:
+            slot.append(html.Div(className="tp-cap",
+                                 style={'bottom': _pct(r['capacity'])}))
+        slots.append(html.Div(slot, className="tp-slot"))
+
+    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
+    last_cap = quarter_rows[-1]['capacity']
+    # Labels about 7 characters wide fit a slot while ten or so share the
+    # chart; past that they stand on end.
+    longest = max(len(r['label']) for r in quarter_rows)
+    rotated = " tp-rotated" if len(quarter_rows) * longest > 72 else ""
+    plot = html.Div([
+        html.Div([html.Span(text, style={'bottom': _pct(v)})
+                  for v, text in zip(tickvals, ticktext)], className="tp-y"),
+        html.Div([html.Div(className="tp-grid", style={'bottom': _pct(v)})
+                  for v in tickvals if v > 0]
+                 + [html.Div(slots, className="tp-slots")], className="tp-plot"),
+        html.Div(html.Div([html.Div("Capacity"), html.Div(f"{per_week:g}h a week")],
+                          className="tp-capnote", style={'bottom': _pct(last_cap)}),
+                 className="tp-side"),
+        html.Div(),
+        html.Div([html.Span(r['label']) for r in quarter_rows],
+                 className="tp-x"),
+    ], className="tp-body" + rotated)
+    children = [title]
+    if by == 'type':
+        children.append(html.Div([
+            html.Span([html.I(className="gp-swatch", style={'backgroundColor': color[k]}), k])
+            for k in keys], className="gp-legend"))
+    children.append(html.Div(plot, className="throughput-chart hist-chart"))
+    return _card(children)
 
 
 # Categorical palette for the Throughput chart's context segments. Tuned to

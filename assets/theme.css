@@ -564,6 +564,105 @@
 }
 .gp-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .gp-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 2px; }
+.gp-swatch.dot { width: 10px; border-radius: 50%; }
+
+/* --- Analyze: History -------------------------------------------------------
+   Rating Drift and Throughput are HTML like the Plan charts: the same type,
+   tracks, row hover and tooltip (assets/rating_dist.js). The scatter and box
+   plot stay Plotly, which hovers through that tooltip too. */
+.drift-chart, .throughput-chart {
+    font-size: var(--st-fs-cap);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Rating Drift: a name, then three diverging tracks on one shared scale.
+   A bar left of the centre line is red (overrated going in), right is blue. */
+.drift-chart {
+    --dr-under: #c0392b;
+    --dr-over: #2185d0;
+}
+.dr-row { grid-template-columns: minmax(7rem, 0.9fr) repeat(3, minmax(4rem, 1fr)); }
+.dr-head:hover, .dr-foot:hover { background-color: transparent; }
+.dr-title { text-align: center; color: var(--st-text-soft); }
+.dr-n { flex: none; color: var(--st-text-soft); }
+.dr-cell { padding-block: 4px; }
+.dr-track {
+    position: relative;
+    height: 10px;
+    border-radius: 3px;
+    background-color: var(--st-bg-raised);
+}
+.dr-bar { position: absolute; top: 0; bottom: 0; opacity: 0.9; }
+.dr-bar.under { right: 50%; background-color: var(--dr-under); border-radius: 3px 0 0 3px; }
+.dr-bar.over { left: 50%; background-color: var(--dr-over); border-radius: 0 3px 3px 0; }
+.dr-zero {
+    position: absolute;
+    left: 50%;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background-color: #6c757d;
+}
+.dr-axis { position: relative; height: 1.1em; color: var(--st-text-soft); }
+.dr-axis > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+
+/* Throughput: stacked columns, one equal slot per bucket. The capacity line
+   sits inside the slot, so it runs edge to edge and steps between slots. */
+.throughput-chart { --tp-h: 280px; --tp-cap: #adb5bd; }
+.tp-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 5rem;
+    column-gap: 8px;
+    padding-top: 10px;
+}
+.tp-y, .tp-plot, .tp-side { position: relative; height: var(--tp-h); }
+.tp-y { width: 2.6rem; }
+.tp-y > span {
+    position: absolute;
+    right: 0;
+    transform: translateY(50%);
+    line-height: 1;
+    color: var(--st-text-soft);
+    white-space: nowrap;
+}
+.tp-grid { position: absolute; left: 0; right: 0; height: 1px; background-color: var(--st-bg-raised); }
+.tp-slots { position: absolute; inset: 0; display: flex; }
+.tp-slot {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+}
+.tp-slot:hover { background-color: var(--st-bg-panel); }
+.tp-col { width: 80%; display: flex; flex-direction: column-reverse; }
+.tp-seg { flex: none; min-height: 1px; opacity: 0.9; }
+.tp-seg + .tp-seg { box-shadow: 0 1px 0 var(--st-bg-canvas); }
+.tp-seg:last-child { border-radius: 2px 2px 0 0; }
+.tp-cap {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1.5px dashed var(--tp-cap);
+    pointer-events: none;
+}
+.tp-capnote {
+    position: absolute;
+    left: 0;
+    transform: translateY(50%);
+    line-height: 1.25;
+    color: var(--tp-cap);
+    font-size: var(--st-fs-sm);
+}
+.tp-x { display: flex; margin-top: 6px; color: var(--st-text-soft); }
+.tp-x > span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-rotated .tp-x > span {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    height: 4.5rem;
+    text-overflow: clip;
+}
 
 /* The one floating tooltip assets/rating_dist_tooltip.js moves between
    cells. Same surface as the node hover tooltip. */

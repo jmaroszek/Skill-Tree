@@ -2,7 +2,9 @@
  * Behaviour for the Analyze tab's Ratings by Context grid: its hover
  * tooltip, the Expand all / Collapse all buttons in its corner, and the
  * toggle for the dashed guide at the mean of all nodes. The Goals rows'
- * bars share the tooltip.
+ * bars share the tooltip, and so do the History charts: their HTML marks
+ * carry data-tip, and the two Plotly ones (the estimation scatter and box
+ * plot) pass each point's text as customdata, shown here on plotly_hover.
  *
  * The grid holds about 1,500 cells, so one delegated listener moves a single
  * floating box between them rather than giving each cell its own tooltip.
@@ -58,11 +60,14 @@
     }
 
     var current = null;
+    var plotShown = false;   // a Plotly point's tooltip is up
     document.addEventListener('pointermove', function (e) {
         var cell = e.target.closest && e.target.closest(
-            '.rating-dist .rd-cell, .rating-dist .rd-mean, .rating-dist .rd-work, .goal-progress .gp-bar');
+            '.rating-dist .rd-cell, .rating-dist .rd-mean, .rating-dist .rd-work, '
+            + '.goal-progress .gp-bar, .hist-chart [data-tip]');
         if (!cell) {
             if (current) { tip.hidden = true; current = null; }
+            if (plotShown) position(e.clientX, e.clientY);
             return;
         }
         ensureTip();
@@ -101,6 +106,65 @@
 
     // A tab switch or scroll can pull the grid out from under a still cursor.
     document.addEventListener('scroll', function () {
-        if (tip && current) { tip.hidden = true; current = null; }
+        if (tip && (current || plotShown)) {
+            tip.hidden = true; current = null; plotShown = false;
+        }
     }, true);
+
+    // Plotly charts. Their traces use hoverinfo 'none', which draws no box
+    // but still fires these events. The box is placed by the pointermove
+    // handler above once it is up, so it follows the cursor like the rest.
+    function bindPlot(gd) {
+        gd.on('plotly_hover', function (d) {
+            var pt = d.points && d.points[0];
+            var text = pt && (pt.customdata || pt.text || pt.hovertext);
+            if (!text) return;
+            ensureTip();
+            fill(String(text), false);
+            tip.hidden = false;
+            current = null;
+            plotShown = true;
+            position(d.event.clientX, d.event.clientY);
+        });
+        gd.on('plotly_unhover', function () {
+            if (tip) tip.hidden = true;
+            plotShown = false;
+        });
+    }
+
+    // Dash draws a graph after this script runs and can replace it, so each
+    // new one is found by watching the Analyze tab. A plot is bound once.
+    var bindQueued = false;
+    function bindPlots() {
+        bindQueued = false;
+        document.querySelectorAll('.analyze-plot .js-plotly-plot').forEach(function (gd) {
+            if (gd._stTip || typeof gd.on !== 'function') return;
+            gd._stTip = true;
+            bindPlot(gd);
+        });
+    }
+    function watchAnalyze(pane) {
+        new MutationObserver(function () {
+            if (bindQueued) return;
+            bindQueued = true;
+            requestAnimationFrame(bindPlots);
+        }).observe(pane, {childList: true, subtree: true});
+        bindPlots();
+    }
+    function waitForAnalyze() {
+        var pane = document.getElementById('analyze-tab-content');
+        if (pane) { watchAnalyze(pane); return; }
+        var waiter = new MutationObserver(function () {
+            var mounted = document.getElementById('analyze-tab-content');
+            if (!mounted) return;
+            waiter.disconnect();
+            watchAnalyze(mounted);
+        });
+        waiter.observe(document.documentElement, {childList: true, subtree: true});
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForAnalyze, {once: true});
+    } else {
+        waitForAnalyze();
+    }
 })();

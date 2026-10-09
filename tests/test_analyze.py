@@ -889,21 +889,67 @@ class TestThroughputCapacity:
                                    today=date(2026, 1, 31))
         assert [s['key'] for s in rows[0]['segments']] == ['Learn', 'Resource', 'Action']
 
-    def test_chart_draws_a_capacity_step_across_each_slot(self):
+    def test_chart_draws_a_capacity_line_in_each_slot(self):
+        from dash import dcc
         from analyze_callbacks import _render_throughput_chart
+
+        def _classes(card):
+            return [getattr(p, 'className', None) for p in _walk(card)]
+
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
         rows = _compute_throughput(nodes, granularity='month', today=date(2026, 2, 14))
-        fig = _figure(_render_throughput_chart(rows, granularity='month'))
-        line = next(t for t in fig.data if t.type == 'scatter')
-        assert list(line.x) == [-0.5, 0.5, 0.5, 1.5]
-        assert list(line.y) == [pytest.approx(31 * self._per_day())] * 2 + [
-            pytest.approx(14 * self._per_day())] * 2
-        assert not fig.layout.showlegend   # contexts name themselves on hover
-        fig = _figure(_render_throughput_chart(
+        card = _render_throughput_chart(rows, granularity='month')
+        parts = list(_walk(card))
+        assert not any(isinstance(p, dcc.Graph) for p in parts)   # HTML, not Plotly
+        slots = [p for p in parts if getattr(p, 'className', None) == 'tp-slot']
+        assert len(slots) == 2
+        # Both lines share one scale, so their heights keep the days' ratio.
+        caps = [float(next(c for c in s.children if c.className == 'tp-cap')
+                      .style['bottom'].rstrip('%')) for s in slots]
+        assert caps[0] / caps[1] == pytest.approx(31 / 14, rel=1e-3)
+        assert 'gp-legend' not in _classes(card)   # contexts name themselves on hover
+        by_type = _render_throughput_chart(
             _compute_throughput(nodes, granularity='month', by='type',
                                 today=date(2026, 2, 14)),
-            granularity='month', by='type'))
-        assert fig.layout.showlegend
+            granularity='month', by='type')
+        assert 'gp-legend' in _classes(by_type)
+
+    def test_a_segment_carries_its_tooltip_text(self):
+        from analyze_callbacks import _render_throughput_chart
+        nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
+        rows = _compute_throughput(nodes, granularity='month', today=date(2026, 1, 31))
+        seg = next(p for p in _walk(_render_throughput_chart(rows, granularity='month'))
+                   if getattr(p, 'className', None) == 'tp-seg')
+        lines = getattr(seg, 'data-tip').splitlines()
+        assert lines[0] == "Jan 2026 · Mind"
+        assert lines[2] == "• A (" + ConfigManager.format_time_friendly(rows[0]['total_hours']) + ")"
+
+
+class TestReflectionDriftChart:
+    """Rating Drift is HTML: one bar per context and rating, left of the
+    centre line when the work was overrated going in."""
+
+    @staticmethod
+    def _chart(reflect):
+        from analyze_callbacks import _render_reflection_drift_chart
+        nodes = [_make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
+                 for n, v in zip("ABCD", reflect)]
+        return list(_walk(_render_reflection_drift_chart(_compute_reflection_drift(nodes))))
+
+    def test_a_rise_in_rating_draws_a_blue_bar_right_of_centre(self):
+        from dash import dcc
+        parts = self._chart((8, 7, 6, 7))
+        assert not any(isinstance(p, dcc.Graph) for p in parts)
+        bars = [p for p in parts if str(getattr(p, 'className', '')).startswith('dr-bar')]
+        assert [b.className for b in bars] == ['dr-bar over']   # Interest, Effort: no data
+        cell = next(p for p in parts if getattr(p, 'className', None) == 'dr-cell')
+        assert getattr(cell, 'data-tip').splitlines() == [
+            "Mind", "Value drift: +2.0", "4 reflected nodes"]
+
+    def test_a_fall_in_rating_draws_a_red_bar_left_of_centre(self):
+        parts = self._chart((3, 4, 4, 3))
+        bars = [p for p in parts if str(getattr(p, 'className', '')).startswith('dr-bar')]
+        assert [b.className for b in bars] == ['dr-bar under']
 
 
 class TestReflectionDriftStatusGate:
