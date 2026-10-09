@@ -640,7 +640,7 @@ def build_time_calibration_modal():
                 html.Div(id="calibration-vie-section", children=[
                     html.Hr(className="my-3"),
                     html.Div([
-                        html.H6("How was it actually?", className="mb-0"),
+                        html.H6("Actual ratings", className="mb-0"),
                         info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
                     ], className="d-flex align-items-center mb-2"),
                     dbc.Label("Value", className="mt-2"),
@@ -661,8 +661,7 @@ def build_time_calibration_modal():
                               html_for="calibration-notes"),
                     dbc.Textarea(
                         id="calibration-notes", rows=4,
-                        placeholder="What did you learn, what was hard, and why "
-                                    "were your ratings or time estimates off?",
+                        placeholder="Anything worth remembering about this project?",
                         style={"resize": "vertical"}),
                 ]),
             ]),

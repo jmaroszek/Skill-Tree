@@ -390,7 +390,7 @@ DEFAULT_RATINGS_DEFINITIONS = [
 ]
 
 # Retrospective counterpart to DEFAULT_RATINGS_DEFINITIONS, used only by the
-# Reflection modal ("How was it actually?"). Same 1-10 ladder and anchor words
+# Reflection modal ("Actual ratings"). Same 1-10 ladder and anchor words
 # so reflect_* values stay comparable to the estimate columns (Analyze diffs
 # them), but each clause is reworded from "what do I anticipate?" to "what
 # actually happened?" — e.g. Interest asks what I actually chose and traded
