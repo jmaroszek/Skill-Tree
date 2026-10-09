@@ -565,7 +565,7 @@ def build_triggered_divider(count: int, shown: bool):
             triggered_divider_text(count, shown),
             " · ",
             html.Button(
-                "Hide" if shown else "Show",
+                "Hide" if shown else "show",
                 id={"type": "events-triggered-toggle", "index": "list"},
                 type="button",
                 className="events-triggered-toggle",

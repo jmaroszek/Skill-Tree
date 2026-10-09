@@ -140,7 +140,7 @@ def _card_names(children):
 def test_triggered_events_hide_behind_a_counted_divider(render):
     children = render()
     assert _card_names(children) == ["Alpha"]
-    assert "2 finished events hidden · Show" in _text(children)
+    assert "2 finished events hidden · show" in _text(children)
 
 
 def test_showing_triggered_events_lists_them_under_the_divider(render):
@@ -155,7 +155,7 @@ def test_showing_triggered_events_lists_them_under_the_divider(render):
 def test_hidden_count_only_counts_search_matches(render):
     children = render(search="garden")
     assert _card_names(children) == ["Alpha"]
-    assert "1 finished event hidden · Show" in _text(children)
+    assert "1 finished event hidden · show" in _text(children)
 
 
 def test_divider_stays_when_search_matches_only_triggered_events(render):
@@ -163,7 +163,7 @@ def test_divider_stays_when_search_matches_only_triggered_events(render):
     assert _card_names(children) == []
     text = _text(children)
     assert "No matching events." in text
-    assert "1 finished event hidden · Show" in text
+    assert "1 finished event hidden · show" in text
 
 
 def test_no_divider_without_triggered_events(render):

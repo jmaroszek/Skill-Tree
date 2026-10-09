@@ -773,7 +773,7 @@ over a sort dropdown.
 - The choice lives in a local-storage `dcc.Store`, so it survives a reload.
 - Keep filters out of the toolbar. A filter that hides part of a list goes
   at the end of that list as a divider that counts what it hides:
-  `2 triggered events hidden · Show`. Once shown, the divider reads
+  `2 triggered events hidden · show`. Once shown, the divider reads
   `2 triggered events · Hide` and heads the revealed cards. The count follows
   the search. `Show`/`Hide` is a lighter-gray text button with no underline.
 
@@ -943,7 +943,7 @@ order in the criterion's terms, such as "Most over estimate first". The table in
 click through a counted divider. The Excluded tab uses the same 20-row batches.
 Both pagers reuse the Events list's triggered divider: small gray text between
 two rules, a plain " · " in the sentence, and a soft "Show 20 more" that
-brightens on hover. The divider only appears while there is more to reveal, so a list that fits shows no "Showing 1 of 1", and past 100 rows it says "of many" rather than a count. Any "N hidden · Show" line should use that divider. The
+brightens on hover. The divider only appears while there is more to reveal, so a list that fits shows no "Showing 1 of 1", and past 100 rows it says "of many" rather than a count. Any "N hidden · show" line should use that divider. The
 modal width is shared across its tabs.
 
 ## Badges
