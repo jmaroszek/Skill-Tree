@@ -2,7 +2,7 @@
 import pytest
 
 pytest.importorskip("playwright.sync_api")
-from test_journeys import _idle, _seed  # noqa: E402
+from test_journeys import _close_editor, _idle, _new_node, _welcome  # noqa: E402
 
 _WATCH_LAYOUT = """() => {
     const cy = SkillTree.getCy(document.getElementById('cytoscape-graph'));
@@ -15,6 +15,16 @@ _WATCH_LAYOUT = """() => {
         if (watch.start !== null && watch.stop === null) watch.stop = performance.now();
     });
 }"""
+
+
+def _seed(page):
+    """A few linked nodes, enough for the canvas to lay out."""
+    _welcome(page)
+    _new_node(page, "Alpha", "Learn")
+    _new_node(page, "Beta", "Learn")
+    _new_node(page, "Goal", "Goal", needs_hard=["Alpha", "Beta"])
+    _close_editor(page)
+    _idle(page)
 
 
 def _open_nodes(page):
