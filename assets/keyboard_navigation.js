@@ -347,6 +347,8 @@
                 } else if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && node) {
                     e.preventDefault(); cursor = node.id();
                     if (!e.shiftKey) cy.$('node:selected').unselect();
+                    // Shift+Enter adds to the selection, as a held click does.
+                    ST.additiveTap = e.shiftKey;
                     node.select(); node.emit('tap');
                     cy.nodes('.keyboard-current').removeClass('keyboard-current');
                     node.addClass('keyboard-current');

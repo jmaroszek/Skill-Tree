@@ -56,6 +56,9 @@
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
+        var bridgeItem = document.getElementById('ctx-menu-bridge');
+        var bridgeDivider = document.getElementById('ctx-menu-bridge-divider');
+        var edgeMenu = document.getElementById('edge-context-menu');
         // Keep the leading Bootstrap icons in place when a contextual action
         // changes its label (including multi-select forms).
         var toggleNowLabel = toggleNowItem && toggleNowItem.querySelector('.ctx-menu-label');
@@ -107,6 +110,20 @@
             return _currentTargetNodes().map(function (node) { return node.id; });
         }
 
+        // The order a canvas's nodes were picked in, newest last. Cytoscape
+        // keeps no such order, and a bridge starts at the node picked first.
+        var ORDER_KEY = 'skillTreeSelectionOrder';
+
+        function _pickedInOrder(cy) {
+            var selected = [];
+            cy.$('node:selected').forEach(function (node) { selected.push(node.id()); });
+            var order = cy.scratch(ORDER_KEY) || [];
+            // Nodes picked some other way, such as a box selection, came first.
+            var known = order.filter(function (id) { return selected.indexOf(id) >= 0; });
+            var unknown = selected.filter(function (id) { return known.indexOf(id) < 0; });
+            return unknown.concat(known);
+        }
+
         function showMenu(x, y, nodeData) {
             _currentNodeData = nodeData;
 
@@ -137,6 +154,11 @@
             // A priority is one Goal's rank, so it has no bulk form. The
             // section goes with its divider, leaving every other node's menu
             // exactly as it is.
+            // A bridge goes between exactly two nodes, so it is offered only
+            // when the menu acts on two. A row or card is always one node.
+            var showBridge = !!_menuCy && targets.length === 2;
+            if (bridgeItem) bridgeItem.style.display = showBridge ? '' : 'none';
+            if (bridgeDivider) bridgeDivider.style.display = showBridge ? '' : 'none';
             var showPriority = targetCount === 1 && nodeData.type === 'Goal';
             priorityItem.style.display = showPriority ? '' : 'none';
             if (priorityDivider) priorityDivider.style.display = showPriority ? '' : 'none';
@@ -244,46 +266,44 @@
         // bulk-mode actions work on the Details and Events tabs too.
         var _menuCy = null;
 
-        // Adds Ctrl/Cmd+click additive multi-select to a Cytoscape instance.
-        // Default tap behavior (selectionType='single') unselects others when
-        // tapping a node. We capture the prior selection in `tapstart` if a
-        // modifier is held, then restore those nodes in `tap` after Cytoscape
-        // has done its single-select. Toggling: if the clicked node was already
-        // selected, we deselect it on the second click.
-        function enableCtrlClickMultiSelect(cy) {
-            var prevSelection = null;
-            var clickedId = null;
+        // Records the order nodes are picked in. Cytoscape does the picking
+        // itself: a click selects one node, and a click with Ctrl, Cmd or
+        // Shift held adds or removes one, after the `tap` handlers have run.
+        // Toggling here as well undid its toggle, so a held click could never
+        // drop a node.
+        function trackSelectionOrder(cy) {
+            var additive = false;
             var wasSelected = false;
             cy.on('tapstart', 'node', function (evt) {
                 var oe = evt.originalEvent;
-                if (oe && (oe.ctrlKey || oe.metaKey)) {
-                    prevSelection = cy.$('node:selected').map(function (n) { return n.id(); });
-                    clickedId = evt.target.id();
-                    wasSelected = evt.target.selected();
-                } else {
-                    prevSelection = null;
-                }
+                additive = !!(oe && (oe.ctrlKey || oe.metaKey || oe.shiftKey));
+                wasSelected = evt.target.selected();
+                // A canvas that moves on a click (Details) leaves a held one
+                // alone, so it only changes the selection.
+                window.SkillTree.additiveTap = additive;
             });
             cy.on('tap', 'node', function (evt) {
-                if (prevSelection === null) return;
-                var prev = prevSelection;
-                var cid = clickedId;
-                var wasSel = wasSelected;
-                prevSelection = null;
-                // Re-select the previously-selected nodes that Cytoscape's
-                // default single-select just cleared.
-                prev.forEach(function (id) {
-                    if (id !== cid) cy.getElementById(id).select();
-                });
-                // Toggle: if the clicked node was already selected pre-tap, deselect it.
-                if (wasSel) evt.target.unselect();
+                var id = evt.target.id();
+                if (!evt.originalEvent) {
+                    // Enter on a focused node (keyboard_navigation.js) selects
+                    // it before tapping and never takes one away.
+                    additive = !!window.SkillTree.additiveTap;
+                    wasSelected = false;
+                }
+                if (!additive) {
+                    cy.scratch(ORDER_KEY, [id]);
+                    return;
+                }
+                var order = (cy.scratch(ORDER_KEY) || []).filter(function (other) { return other !== id; });
+                if (!wasSelected) order.push(id);
+                cy.scratch(ORDER_KEY, order);
             });
         }
 
         function bindCyEvents(cy) {
             _mainCy = cy;
 
-            enableCtrlClickMultiSelect(cy);
+            trackSelectionOrder(cy);
 
             // --- Right-click context menu on nodes ---
             cy.on('cxttap', 'node', function (evt) {
@@ -308,6 +328,8 @@
                 _menuCy = cy;
                 showMenu(pos.clientX, pos.clientY, nodeData);
             });
+
+            cy.on('cxttap', 'edge', showEdgeMenu);
 
             // Click on background hides context menu and clears selection
             cy.on('tap', function (evt) {
@@ -430,6 +452,69 @@
             }
         });
 
+        // --- Bridge ---
+        // Two nodes selected: Start is the one picked first. The dialog
+        // reorders them if a link already runs between the two.
+        menus.onItem('ctx-menu-bridge', function () {
+            if (!_menuCy) return;
+            var ids = _pickedInOrder(_menuCy);
+            if (ids.length !== 2) return;
+            _setHiddenInput('bridge-open-input', JSON.stringify(ids));
+        });
+
+        // --- Link menu ---
+        // A link offers to take a node in the middle of it, to change its
+        // type or direction, or to go. A Synergy has neither a strength nor a
+        // direction, so it offers only the first and the last. Insert keeps
+        // a Synergy where it is; the new node joins both ends.
+        var _currentEdgeData = null;
+        var edgeTypeItem = document.getElementById('ctx-menu-edge-type');
+        var edgeTypeLabel = edgeTypeItem && edgeTypeItem.querySelector('.ctx-menu-label');
+        var edgeTypeIcon = edgeTypeItem && edgeTypeItem.querySelector('.ctx-menu-icon');
+        var edgeReverseItem = document.getElementById('ctx-menu-edge-reverse');
+        var edgeChangeDivider = document.getElementById('ctx-menu-edge-change-divider');
+
+        function showEdgeMenu(evt) {
+            var data = evt.target.data();
+            if (!edgeMenu) return;
+            evt.originalEvent.preventDefault();
+            if (window.SkillTree && window.SkillTree.tooltip) {
+                window.SkillTree.tooltip.hide();
+            }
+            _currentEdgeData = data;
+            var directional = data.type === 'Needs_Hard' || data.type === 'Needs_Soft';
+            [edgeTypeItem, edgeReverseItem, edgeChangeDivider].forEach(function (el) {
+                if (el) el.style.display = directional ? '' : 'none';
+            });
+            // A step down to Soft or up to Hard: what changes is the link's
+            // strength, which is true whatever else feeds the node.
+            var toSoft = data.type === 'Needs_Hard';
+            if (edgeTypeLabel) edgeTypeLabel.textContent = toSoft ? 'Make Soft' : 'Make Hard';
+            if (edgeTypeIcon) {
+                edgeTypeIcon.className = 'bi bi-' + (toSoft ? 'arrow-down-circle' : 'arrow-up-circle') +
+                    ' ctx-menu-icon';
+            }
+            menus.open(edgeMenu, evt.originalEvent.clientX, evt.originalEvent.clientY);
+        }
+
+        function sendLinkAction(action) {
+            if (!_currentEdgeData) return;
+            _setHiddenInput('link-action-input', JSON.stringify([action,
+                _currentEdgeData.source, _currentEdgeData.target, _currentEdgeData.type]));
+        }
+
+        menus.onItem('ctx-menu-edge-bridge', function () {
+            if (!_currentEdgeData) return;
+            _setHiddenInput('bridge-open-input', JSON.stringify(
+                [_currentEdgeData.source, _currentEdgeData.target, _currentEdgeData.type]));
+        });
+        menus.onItem('ctx-menu-edge-type', function () {
+            if (!_currentEdgeData) return;
+            sendLinkAction(_currentEdgeData.type === 'Needs_Hard' ? 'soft' : 'hard');
+        });
+        menus.onItem('ctx-menu-edge-reverse', function () { sendLinkAction('reverse'); });
+        menus.onItem('ctx-menu-edge-remove', function () { sendLinkAction('remove'); });
+
         function bindMiniGraphMenu(selector, sourceName, selectOnRightClick) {
             // Attach contextmenu-prevent on the wrapper once — wrapper DOM
             // persists across cy replacement.
@@ -441,7 +526,7 @@
             wrapper.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
             function bind(cy) {
-                enableCtrlClickMultiSelect(cy);
+                trackSelectionOrder(cy);
 
                 cy.on('cxttap', 'node', function (evt) {
                     evt.originalEvent.preventDefault();
@@ -458,6 +543,7 @@
                     _menuCy = cy;
                     showMenu(pos.clientX, pos.clientY, nodeData);
                 });
+                cy.on('cxttap', 'edge', showEdgeMenu);
                 cy.on('tap', function (evt) {
                     if (evt.target === cy) hideMenu();
                 });

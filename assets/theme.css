@@ -1853,6 +1853,17 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     justify-content: center;
 }
 
+/* Swaps a pair, such as the bridge dialog's Start and End: a stepper in the
+   body text color rather than the dim one, sized to sit beside two lines of
+   text. */
+.btn.step-btn.swap-btn {
+    --bs-btn-color: var(--st-text-primary);
+    --bs-btn-hover-color: var(--st-text-strong);
+    width: 32px;
+    height: 32px;
+    font-size: var(--st-fs-lg);
+}
+
 /* The pencil that opens an editor. Same ghost treatment as the row-action
    pencils in Details subtasks, Reflection history and Events dormant nodes,
    which .details-subtask-edit-btn / .review-history-edit-btn already carry. */

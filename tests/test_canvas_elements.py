@@ -148,6 +148,21 @@ _STYLES = CanvasNodeStyles(colors=dict(DEFAULT_NODE_COLORS), shapes={},
                            trigger_names=frozenset())
 
 
+def test_no_canvas_lets_a_link_be_selected(canvases):
+    """A click on a link selected it, which cleared the node selection."""
+    for key, elements in canvases.items():
+        edges = [e for e in elements if 'source' in e['data']]
+        assert edges, key
+        assert all(e['selectable'] is False for e in edges), key
+
+
+def test_the_nodes_canvas_can_leave_the_selection_alone(canvases):
+    from callbacks import KEEP_SELECTION
+    kept = generate_elements(filters={'show_dormant': True}, active_node_id=KEEP_SELECTION)
+    nodes = [e for e in kept if 'source' not in e['data']]
+    assert nodes and all('selected' not in e for e in nodes)
+
+
 def test_status_beats_type_in_the_fill():
     """Now has no say in the fill — it is drawn as the pulsing border."""
     assert (node_fill_color(_node('Finished', status='Done'), _STYLES.colors)
@@ -192,3 +207,17 @@ def test_elements_carry_every_field_their_readers_use():
     read = set(re.findall(r"\b(?:nodeData|_currentNodeData|node)\.([a-z_]+)\b", menu))
     read -= {'id', 'push', 'data'}  # node.data() is Cytoscape's accessor
     assert read and read <= carried, read - carried
+
+
+def test_every_laid_out_canvas_redraws_when_the_graph_changes():
+    """A node saved anywhere, such as a bridge linked to an event's node, has
+    to reach Details and Events without reopening them."""
+    from details_callbacks import register_details_callbacks
+    app = _app(register_event_callbacks, register_details_callbacks)
+    for canvas in CANVASES:
+        if not canvas.lays_out_elements:
+            continue
+        specs = [spec for key, spec in app.callback_map.items()
+                 if f"{canvas.pending_store_id}.data" in key]
+        assert any({'id': 'graph-version-store', 'property': 'data'} in spec['inputs']
+                   for spec in specs), canvas.key

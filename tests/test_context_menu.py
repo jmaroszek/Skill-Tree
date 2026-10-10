@@ -115,6 +115,8 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-toggle-now",
         "ctx-menu-add-to-event",
         "ctx-menu-toggle-done",
+        "ctx-menu-bridge-divider",
+        "ctx-menu-bridge",
         "ctx-menu-links-divider",
         "ctx-menu-resource-0",
         "ctx-menu-resource-1",
@@ -283,3 +285,16 @@ def test_bulk_now_action_sets_mixed_selection_then_clears_all():
     assert manager.get_node("Not Now").now == 0
 
 
+
+
+def test_link_menu_offers_insert_change_and_remove():
+    menu = _find(_layout(), "edge-context-menu")
+    assert _child_ids(menu) == [
+        "ctx-menu-edge-bridge",
+        "ctx-menu-edge-change-divider",
+        "ctx-menu-edge-type",
+        "ctx-menu-edge-reverse",
+        "ctx-menu-edge-remove",
+    ]
+    assert "bi-share" in _find(menu, "ctx-menu-edge-bridge").children[0].className
+    assert "ctx-menu-item-danger" in _find(menu, "ctx-menu-edge-remove").className

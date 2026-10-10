@@ -68,3 +68,19 @@ def parse_edge_key(key):
             and all(isinstance(part, str) for part in parts)):
         return tuple(parts)
     return None
+
+
+def bridge_request(value):
+    """The ``(first, second, edge_type)`` a bridge request names, or None.
+
+    The node menu sends the two selected nodes as a JSON list of names. The
+    edge menu sends the edge's source, target and type. ``edge_type`` is None
+    for the node menu. Names are free text, so they are read from the JSON,
+    never split on a separator.
+    """
+    listed = names(value)
+    if len(listed) == 2:
+        return listed[0], listed[1], None
+    if len(listed) == 3:
+        return listed[0], listed[1], listed[2]
+    return None

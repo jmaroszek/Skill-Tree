@@ -375,7 +375,7 @@ In short, the cascade proceeds only as far as it needs to.
 
 ## Done is Final
 
-Once a node is Done, the cascade will never silently flip it back to Open. A Done node moves only when the user un-completes a hard prereq that was itself Done. Even then it goes to Blocked, not Open, and the app warns before the change.
+Once a node is Done, the cascade will never silently flip it back to Open. A Done node moves only when one of its hard prereqs stops being Done. That happens when the user un-completes a prereq, or gives the node a new hard prereq that isn't Done (in the node editor, or from the link menu). Either way it goes to Blocked, not Open, and the app warns before the change.
 
 ## Startup Safety Net
 

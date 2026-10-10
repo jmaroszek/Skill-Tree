@@ -215,6 +215,14 @@ def step_button(button_id, icon, tooltip, **kwargs):
                         tooltip=tooltip, **kwargs)
 
 
+def swap_button(button_id, tooltip, **kwargs):
+    """Reverses a pair, such as the bridge dialog's Start and End. The only
+    control beside the pair, so it is drawn in body text where a stepper is
+    dim."""
+    return _icon_button(button_id, "arrow-down-up", tooltip, "step-btn swap-btn",
+                        tooltip=tooltip, **kwargs)
+
+
 def disclosure_all_button(button_id, expand, **kwargs):
     """Expand all or Collapse all for a list of folding rows, such as the
     Analyze tab's Ratings by Context. Same quiet ghost as the stepper, so a

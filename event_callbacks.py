@@ -1382,13 +1382,17 @@ def register_event_callbacks(app, services=None):
     # nodes and the links between them.
     # Outputs to events-elements-pending-store; freeze bypass applied by a
     # clientside callback in callbacks.py.
+    # Any change to the graph can change the neighbors, such as a new node
+    # linked to one in the event, so a graph change redraws it as on Details.
+    # The refresh trigger covers the roster, which the graph doesn't hold.
     @app.callback(
         Output("events-elements-pending-store", "data"),
         Input("selected-event-store", "data"),
         Input("events-refresh-trigger", "data"),
         Input("events-outside-nodes", "value"),
+        Input("graph-version-store", "data"),
     )
-    def render_event_graph(selected_event, _refresh, show_outside=True):
+    def render_event_graph(selected_event, _refresh, show_outside=True, _graph_version=None):
         if not selected_event:
             return []
 

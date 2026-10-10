@@ -96,9 +96,17 @@ def _collect_details_subtasks(node_name, include_soft, include_synergies,
     return subtask_nodes, graph_manager.get_edges()
 
 
+class NothingLeft(Exception):
+    """The node has no unfinished work to simulate. The message says why."""
+
+
 def _run_simulation(node_name, include_soft_val, include_synergies_val,
                     global_filters=None, max_depth=None, should_cancel=None):
-    """Shared helper: run the Monte Carlo simulation and return (figure, style, style)."""
+    """Shared helper: run the Monte Carlo simulation and return (figure, style, style).
+
+    Raises NothingLeft when the node and everything it needs are Done: a
+    chart of zero hours says nothing a sentence can't.
+    """
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_helps = bool(include_synergies_val and "include" in include_synergies_val)
     with database.read_snapshot():
@@ -131,9 +139,17 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         requested_trials = ConfigManager.get_monte_carlo_trials()
         time_settings = ConfigManager.get_time_settings()
 
+    # A Done node is finished, whatever is still open before it.
+    if nodes_dict[node_name].status == STATUS_DONE:
+        raise NothingLeft(f"'{node_name}' is Done, so there is no time left to estimate.")
     result = simulation_service.summarize(
         node_name, nodes_dict, sim_edges, include_soft, include_helps,
         requested_trials, should_cancel=should_cancel)
+    # Zero hours with only the node itself unfinished: a container that takes
+    # its time from work that is all Done.
+    if result['chain_size'] <= 1 and result['stats']['max'] == 0:
+        raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no time "
+                          "left to estimate.")
 
     return (
         simulation_figure(result, time_settings, requested_trials),
@@ -736,7 +752,10 @@ def register_details_callbacks(app, services=None):
     app.clientside_callback(
         """
         function(tapData, activeTab) {
-            if (activeTab !== 'tab-details' || !tapData || tapData.id == null) {
+            // A click with Ctrl, Cmd or Shift held picks nodes (context_menu.js);
+            // moving the view would drop the ones already picked.
+            if (activeTab !== 'tab-details' || !tapData || tapData.id == null
+                    || (window.SkillTree && window.SkillTree.additiveTap)) {
                 return window.dash_clientside.no_update;
             }
             return tapData.id;
@@ -811,6 +830,8 @@ def register_details_callbacks(app, services=None):
                     'emptyStyle': empty_style, 'caption': ''}
         except SimulationCancelled:
             return no_update
+        except NothingLeft as notice:
+            return {**identity, 'notice': str(notice)}
         except Exception:
             logging.getLogger(__name__).exception("Time simulation failed")
             return {**identity, 'error': 'Could not calculate this estimate.'}

@@ -2,7 +2,8 @@
 import bridge_payloads
 import database
 from config import ConfigManager
-from models import STATUS_DONE, STATUS_OPEN
+from models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT,
+                    STATUS_DONE, STATUS_OPEN)
 from resource_links import save_node_links
 
 @database.atomic
@@ -133,6 +134,204 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
         # Add to Now on wake replaces Now while the node sleeps.
         node.now = 0
         manager.update_node(node)
+
+
+# The relationships a bridge can give its two ends, by the name the bridge
+# dialog's dropdown uses.
+BRIDGE_KINDS = {'hard': EDGE_NEEDS_HARD, 'soft': EDGE_NEEDS_SOFT,
+                'synergy': EDGE_HELPS}
+
+
+def plan_bridge(manager, start, end, kind):
+    """What a new node bridging ``start`` and ``end`` would do to the graph.
+
+    Returns ``{'problem': str | None, 'replaces': [source, target, type] | None}``.
+    A problem names why the bridge can't be made, in words for the dialog.
+    ``replaces`` is the direct prerequisite link the bridge stands in for: the
+    bridge takes its place, so the node that saves it removes that link. A
+    synergy bridge replaces nothing, since a synergy doesn't pass work along
+    the way a prerequisite does.
+    """
+    if kind not in BRIDGE_KINDS:
+        return {'problem': "Pick a relationship.", 'replaces': None}
+    if start == end:
+        return {'problem': "A bridge needs two different nodes.", 'replaces': None}
+    for name in (start, end):
+        if manager.get_node(name) is None:
+            return {'problem': f"'{name}' no longer exists.", 'replaces': None}
+    if kind == 'synergy':
+        return {'problem': None, 'replaces': None}
+
+    leads_to = {}
+    direct = None
+    for edge in manager.get_edges():
+        if edge['type'] not in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            continue
+        leads_to.setdefault(edge['source'], []).append(edge['target'])
+        if edge['source'] == start and edge['target'] == end:
+            direct = [start, end, edge['type']]
+
+    # The bridge would put start before end. If end already leads to start,
+    # by any route, that closes a circle.
+    seen, queue = set(), [end]
+    while queue:
+        current = queue.pop()
+        if current == start:
+            return {'problem': (f"'{end}' already leads to '{start}', so this order "
+                                "would create a circular dependency: each would wait "
+                                "on the other, and neither could ever be completed. "
+                                "Swap Start and End."),
+                    'replaces': None}
+        if current in seen:
+            continue
+        seen.add(current)
+        queue.extend(leads_to.get(current, ()))
+    return {'problem': None, 'replaces': direct}
+
+
+def bridge_form(start, end, kind):
+    """The editor's relationship fields for a new node bridging two nodes.
+
+    Keyed like the editor's snapshot: a prerequisite bridge needs ``start`` and
+    supports ``end``, and a synergy bridge helps both.
+    """
+    fields = {'e_needs_h': [], 'e_needs_s': [], 'e_supp_h': [], 'e_supp_s': [],
+              'e_helps': []}
+    if kind == 'hard':
+        fields.update(e_needs_h=[start], e_supp_h=[end])
+    elif kind == 'soft':
+        fields.update(e_needs_s=[start], e_supp_s=[end])
+    elif kind == 'synergy':
+        fields.update(e_helps=[start, end])
+    return fields
+
+
+def finish_bridge(manager, name, pending):
+    """Remove the link a saved bridge node replaces. Returns what was removed.
+
+    ``pending`` is the plan the editor was opened with. It applies only when
+    the node saved now really sits between the two ends, so a form whose
+    relationships were edited away from the bridge leaves the old link alone.
+    Runs inside the save's transaction. Returns ``(source, target)`` of the
+    removed link, or None when nothing was removed.
+    """
+    replaces = (pending or {}).get('replaces')
+    if not (isinstance(replaces, (list, tuple)) and len(replaces) == 3):
+        return None
+    source, target, edge_type = replaces
+    prerequisites = (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+    edges = {(e['source'], e['target'], e['type']) for e in manager.get_edges()}
+    if (source, target, edge_type) not in edges:
+        return None
+    follows_start = any((source, name, kind) in edges for kind in prerequisites)
+    leads_to_end = any((name, target, kind) in edges for kind in prerequisites)
+    if not (follows_start and leads_to_end):
+        return None
+    manager.remove_edge(source, target, edge_type)
+    return source, target
+
+
+# --- Link menu -------------------------------------------------------------
+# Right-clicking a link offers to change it in place. ``kind`` names what to
+# do: make it Hard or Soft, reverse it, or remove it.
+
+LINK_ACTIONS = ('hard', 'soft', 'reverse', 'remove')
+
+
+def _has_edge(manager, source, target, edge_type):
+    for edge in manager.get_edges():
+        if edge['type'] != edge_type:
+            continue
+        if (edge['source'], edge['target']) == (source, target):
+            return True
+        # A synergy has no direction, so either order names it.
+        if edge_type == EDGE_HELPS and (edge['source'], edge['target']) == (target, source):
+            return True
+    return False
+
+
+@database.atomic
+def change_link(manager, source, target, edge_type, action):
+    """Apply a link menu action and return the status message.
+
+    Raises ValueError when the link is gone or the change is refused. Every
+    step runs in one transaction, so a refused change leaves the link as it
+    was. The status cascade follows the edges, so a Hard link made Soft
+    unblocks its target and a Soft link made Hard can block it.
+    """
+    if action not in LINK_ACTIONS:
+        raise ValueError(f"Unknown link action '{action}'.")
+    if not _has_edge(manager, source, target, edge_type):
+        raise ValueError(f"The link from '{source}' to '{target}' no longer exists.")
+    if action == 'remove':
+        manager.remove_edge(source, target, edge_type)
+        if edge_type == EDGE_HELPS:
+            return f"Removed the Synergy between '{source}' and '{target}'"
+        return f"Removed the link from '{source}' to '{target}'"
+    if edge_type == EDGE_HELPS:
+        raise ValueError("A Synergy has no direction or strength to change. "
+                         "Use the node editor to turn it into a Hard or Soft link.")
+
+    manager.remove_edge(source, target, edge_type)
+    if action == 'reverse':
+        try:
+            manager.add_edge(target, source, edge_type)
+        except ValueError:
+            # The direct link is gone at this point, so a circle means
+            # another route already runs the original way.
+            raise ValueError(
+                "Reversing this link would create a circular dependency. "
+                f"'{source}' already leads to '{target}' through other nodes, "
+                "so each would wait on the other and neither could ever be "
+                "completed.") from None
+        return f"Reversed the link: '{target}' now leads to '{source}'"
+    new_type = EDGE_NEEDS_HARD if action == 'hard' else EDGE_NEEDS_SOFT
+    manager.add_edge(source, target, new_type)
+    word = 'Hard' if new_type == EDGE_NEEDS_HARD else 'Soft'
+    return f"Made the link from '{source}' to '{target}' {word}"
+
+
+class _DryRun(Exception):
+    """Rolls back a change that was made only to see what it does."""
+
+
+class ReopensDoneNodes(Exception):
+    """A change would reopen Done nodes and waits for the user to confirm.
+
+    Raised inside the change's transaction, so nothing is saved."""
+
+    def __init__(self, names):
+        super().__init__(f"Reopens {len(names)} Done node(s)")
+        self.names = names
+
+
+def done_names(manager):
+    """Every Done node's name, as the current transaction sees it."""
+    with manager.get_connection() as conn:
+        return {name for (name,) in conn.execute(
+            "SELECT name FROM Nodes WHERE status=?", (STATUS_DONE,))}
+
+
+def link_change_reopens(manager, source, target, edge_type, action):
+    """The Done nodes a link menu action would reopen, sorted by name.
+
+    A Done node keeps its status only while every Hard prerequisite is Done,
+    so a change that gives one an unfinished Hard prerequisite reopens it, and
+    the Done nodes after it. The change runs for real and is rolled back,
+    which covers every case the status cascade does (a second unfinished
+    prerequisite, a Goal, which keeps its status). Raises ValueError, as
+    change_link does, when the change is refused.
+    """
+    before = done_names(manager)
+    reopened = []
+    try:
+        with database.transaction():
+            change_link(manager, source, target, edge_type, action)
+            reopened = sorted(before - done_names(manager))
+            raise _DryRun
+    except _DryRun:
+        pass
+    return reopened
 
 
 def conflicting_node_name(manager, name, original_name=None):

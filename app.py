@@ -159,6 +159,8 @@ def create_app(settings=None, services=None):
     from canvases import install_client_registry
     from prerender import prerender_layout, prerendered_specs
     from callbacks import register_callbacks
+    from bridge_callbacks import register_bridge_callbacks
+    from link_menu_callbacks import register_link_menu_callbacks
     from calibration_callbacks import register_calibration_callbacks
     from resource_link_callbacks import register_resource_link_callbacks
     from event_callbacks import register_event_callbacks
@@ -203,7 +205,8 @@ def create_app(settings=None, services=None):
                      register_settings_callbacks, register_review_hub_callbacks,
                      register_analyze_callbacks, register_sidebars_callbacks,
                      register_data_callbacks, register_about_callbacks,
-                     register_onboarding_callbacks):
+                     register_onboarding_callbacks, register_bridge_callbacks,
+                     register_link_menu_callbacks):
         register(app, services)
     register_context_picker_callbacks(app)
     register_list_toolbar_callbacks(app)

@@ -382,6 +382,7 @@ the icon, a visually-hidden label, and a tooltip carrying the shared delay:
 | `edit_button` | `pencil` | Open an editor for the thing beside it |
 | `nav_button` | `arrow-left` / `-right` | Back / forward |
 | `step_button` | `dash-lg` / `plus-lg` | A −/+ stepper beside a count |
+| `swap_button` | `arrow-down-up` | Reverse a pair, such as a bridge's Start and End; larger, in `--st-text-primary` |
 
 A `+` means *add a field*; a chevron means *disclose existing content*. Do not
 substitute one for the other, and do not stack a disclosure chevron beside a

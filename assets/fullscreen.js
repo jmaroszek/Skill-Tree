@@ -84,15 +84,17 @@
 
             var lastX = e.clientX;
             var lastY = e.clientY;
-            cyWrapper.style.cursor = 'grabbing';
             e.preventDefault();
 
             window.SkillTree.drag.start({
                 // Cursor is scoped to cyWrapper, not body; don't override body cursor.
+                // It changes only once the pointer moves: a right-click that
+                // stays put opens a menu (an edge's, or the canvas's), not a pan.
                 userSelect: false,
                 onMove: function (ev) {
                     var c = getCy();
                     if (!c) return;
+                    cyWrapper.style.cursor = 'grabbing';
                     var dx = ev.clientX - lastX;
                     var dy = ev.clientY - lastY;
                     lastX = ev.clientX;

@@ -141,6 +141,8 @@
             displayed = request.sequence;
             if (inFlight !== null && result.sequence >= inFlight) inFlight = null;
             if (result.error) return [no, hidden, hidden, result.error];
+            // Nothing left to do: the sentence alone, no chart of zero hours.
+            if (result.notice) return [no, hidden, hidden, result.notice];
             var labels = window.SkillTree && window.SkillTree.simLabelRows;
             if (labels) labels.watch('details-sim-chart');
             return [result.figure, result.resultsStyle, result.emptyStyle, result.caption];

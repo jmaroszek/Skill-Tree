@@ -247,6 +247,8 @@ There are three types of relationships in Skill Tree.
 
 In the editor, directional edges (hard and soft needs) are split into a **Needs** section and a **Supports** section. Both add the same kind of edge — they just describe it from opposite ends. **Needs** points *inward*: it lists the prerequisites that unlock the node you're editing. **Supports** points *outward*: it lists the nodes that this one unlocks. The split means you can always build an edge from whichever node you happen to be on, without opening the other one (which is annoying). **Helps** stands apart, because a synergy points both ways and has no end to choose from.
 
+A Done node stays Done only while all of its Hard prerequisites are. If a save would give a Done node a Hard prerequisite that isn't Done yet, it would reopen that node and the Done nodes after it. So the editor lists them and asks first. **Save** goes ahead, and **Cancel** leaves the form as it is, unsaved.
+
 <p align="center">
     <img src="../images/node-editor-relationships.png" width=400>
     <br>
@@ -359,12 +361,48 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
 | Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
+| Create Bridge… | Only with exactly two nodes selected. Opens the [bridge](#bridges) dialog. |
 | Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Delete… | Deletes the node (with confirmation). |
 
 </td>
   </tr>
 </table>
+
+### Bridges
+A bridge puts a new node between two nodes you already have. It is the quick way to add a missing step.
+
+Select two nodes (Ctrl-click the second), right-click one of them and choose **Create Bridge…**. A dialog asks which node comes first and how the new node relates to them. **Start** is the node you picked first. The swap button reverses the order. If a Hard or Soft link already runs between the two, the dialog opens in that link's order and type.
+
+| Relationship | The new node is |
+|---|---|
+| Hard | A step between them. Start must be done first, and the new node must be done before End. |
+| Soft | The same order, but the links are helpful rather than required. |
+| Synergy | A synergy partner of both nodes. Order doesn't matter, so there is no swap. |
+
+Create opens the [Node Editor](#node-editor) on a new node with those relationships filled in. Name it, set its type and context, and save as usual.
+
+If Start already led to End, the new node takes the place of that link. The old link is removed when you save the node, not before, so closing the editor without saving leaves your graph as it was. The dialog says when this will happen. A synergy bridge replaces nothing.
+
+If End is Done, a Hard bridge gives it a prerequisite that isn't Done yet, which reopens it. Saving the new node then asks first, as any save that would reopen Done nodes does.
+
+The dialog won't let you create a circular dependency, where each node waits on the other and neither can ever be completed. If End already leads to Start, Create is disabled until you swap them.
+
+You can also right-click a link on any canvas and choose **Insert Node Here…**. It opens the same dialog, in that link's order and type. On a Synergy link the dialog opens as Synergy, and the link stays.
+
+### Link Menu
+Right-click a link on any canvas to change it in place.
+
+| Option | What it does |
+|---|---|
+| Insert Node Here… | Opens the [bridge](#bridges) dialog for this link. |
+| Make Soft / Make Hard | Switches a prerequisite between Hard and Soft. Making a link Hard blocks the node it leads to until the first is Done. Making it Soft lifts that block. |
+| Reverse Direction | Swaps which node leads to which. It is refused if the first node already leads to the second through other nodes. That would be a circular dependency: each would wait on the other, and neither could ever be completed. |
+| Remove Link | Removes the link. It asks nothing first, since a link is quick to add back. |
+
+A Done node stays Done only while all of its Hard prerequisites are. So making a link Hard, or reversing one, can reopen Done nodes: the one the link now leads to, and the Done nodes after it. When it would, a dialog lists them and asks first. Changing the link back doesn't mark them Done again.
+
+A Synergy has no direction and no strength, so its menu offers only Insert Node Here and Remove Link. To turn a Synergy into a prerequisite, use the [Node Editor](#node-editor).
 
 ## Explain
 
@@ -456,8 +494,8 @@ All gestures below work on every tab with a network visualization (Nodes, Detail
 | Gesture | Effect |
 |---|---|
 | Hover | Tooltip with key stats; varies by node type. |
-| Left-click | Select the node. A while halo appears around selected nodes. If the node editor is open, it loads with this node's data. |
-| Ctrl + left-click | Multi-select. Enables bulk move, delete, and Done toggling. |
+| Left-click | Select the node. A white halo appears around selected nodes. If the node editor is open, it loads with this node's data. |
+| Ctrl + left-click | Add the node to the selection, or take it out. Shift works too. On Details it doesn't move the view. Enables bulk move, delete, Done toggling and [bridges](#bridges). |
 | Drag | Reposition on the canvas. |
 | Right-click | Open the [Context Menu](#context-menu). The quickest way to load this node into the editor. |
 | Delete / Backspace | Remove the selected node(s) with a confirmation prompt. |

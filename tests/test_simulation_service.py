@@ -278,3 +278,21 @@ def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
     assert fig.layout.hovermode == 'closest'
     assert fig.layout.dragmode is False
     assert fig.layout.xaxis.fixedrange and fig.layout.yaxis.fixedrange
+
+
+def test_details_says_so_when_nothing_is_left_to_estimate():
+    """A chart of zero hours told the user nothing; a sentence does."""
+    import pytest
+    import details_callbacks
+    manager = details_callbacks.graph_manager
+    manager.add_node(node('Finished', status='Done'))
+    manager.add_node(node('Goal', type='Goal', time_mode='inherited'))
+    manager.add_edge('Finished', 'Goal', 'Needs_Hard')
+    # Open work before a Done node doesn't make it unfinished.
+    manager.add_node(node('Optional'))
+    manager.add_edge('Optional', 'Finished', 'Needs_Soft')
+
+    with pytest.raises(details_callbacks.NothingLeft, match="'Finished' is Done"):
+        details_callbacks._run_simulation('Finished', ['include'], [])
+    with pytest.raises(details_callbacks.NothingLeft, match="Everything 'Goal' needs is Done"):
+        details_callbacks._run_simulation('Goal', ['include'], [])

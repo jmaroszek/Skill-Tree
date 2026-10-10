@@ -33,12 +33,13 @@ import bridge_payloads
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
     prior_node_for_completion, apply_dormancy, conflicting_node_name,
+    plan_bridge, bridge_form, finish_bridge, done_names, ReopensDoneNodes,
 )
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active, empty_canvas_detail,
     render_alias_rows, alias_rows_label, update_alias_rows,
-    resource_link_values,
+    resource_link_values, reopen_body,
     resolve_active_node_id, normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
@@ -214,10 +215,20 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
 
 
 
+# What generate_elements takes as ``active_node_id`` to leave every node's
+# selection as the canvas has it. dash-cytoscape changes a node's selection
+# only when its ``selected`` differs from the previous render's, so a node
+# without one is left alone.
+KEEP_SELECTION = object()
+
+
 @database.snapshot_read
 def generate_elements(filters=None, active_node_id=None, community_names=None,
                       graph=None, events=None):
     """Convert nodes and edges from the database into Cytoscape elements.
+
+    ``active_node_id`` names the one node to select, None selects none, and
+    KEEP_SELECTION leaves the selection to the canvas.
 
     `graph`/`events` default to the module-level managers so standalone callers
     (and tests) can call this with no wiring. `register_callbacks` binds the
@@ -239,10 +250,13 @@ def generate_elements(filters=None, active_node_id=None, community_names=None,
     valid_names = {n.name for n in filtered_nodes}
     styles = canvas_node_styles(events)
 
+    def _selected(node):
+        if active_node_id is KEEP_SELECTION:
+            return None
+        return node.name == active_node_id if active_node_id else False
+
     elements = [
-        build_node_element(
-            node, styles,
-            selected=node.name == active_node_id if active_node_id else False)
+        build_node_element(node, styles, selected=_selected(node))
         for node in filtered_nodes
     ]
     elements.extend(
@@ -565,7 +579,10 @@ def register_callbacks(app, services=None):
          Output('node-habit-intensity-m', 'value'),
          Output('node-habit-intensity-p', 'value'),
          Output('node-habit-intensity-unit', 'value'),
-         Output('node-habit-days', 'value')],
+         Output('node-habit-days', 'value'),
+         # The bridge this editor was opened for, if any. Every load of the
+         # editor replaces it, so a bridge never outlives its form.
+         Output('bridge-pending-store', 'data')],
         [Input('cytoscape-graph', 'tapNodeData'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks'),
@@ -576,12 +593,15 @@ def register_callbacks(app, services=None):
          Input('btn-editor-new', 'n_clicks'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
-         Input('details-add-choice-input', 'value')],
+         Input('details-add-choice-input', 'value'),
+         Input('btn-bridge-create', 'n_clicks')],
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('pending-navigation-store', 'data'),
          State('editor-pristine-snapshot', 'data'),
          State('details-selected-node-store', 'data'),
+         State('bridge-modal-store', 'data'),
+         State('bridge-type', 'value'),
          EDITOR_FORM],
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
@@ -591,9 +611,9 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
-                        details_edit_trigger_val, details_add_choice,
+                        details_edit_trigger_val, details_add_choice, bridge_clicks,
                         ed_style, original_name, pending_nav, pristine_snapshot,
-                        details_selected_node, form):
+                        details_selected_node, bridge_ends, bridge_kind, form):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
 
         `form` is what the editor holds now (callback_helpers.EDITOR_FORM),
@@ -633,28 +653,55 @@ def register_callbacks(app, services=None):
             0, 0, 0,  # node-habit-intensity o/m/p
             'min_per_session',  # node-habit-intensity-unit
             list(ALL_WEEKDAYS),  # node-habit-days
+            None,  # bridge-pending-store
         ]
+
+        def _untouched():
+            """Every output left as it is, but for the relationship options,
+            which are always refreshed. The one place the output count is
+            written for early returns."""
+            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
 
         def _has_unsaved_changes():
             return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
+
+        def _bridge_form_out():
+            """def_out for a new node between the bridge dialog's two nodes,
+            with the relationships filled in. None when the bridge no longer
+            holds, such as a node deleted since the dialog opened."""
+            ends = bridge_ends or {}
+            start, end = ends.get('start'), ends.get('end')
+            plan = plan_bridge(manager, start, end, bridge_kind)
+            if plan['problem']:
+                return None
+            fields = bridge_form(start, end, bridge_kind)
+            out = list(def_out)
+            for key, slot in (('e_needs_h', 13), ('e_needs_s', 14), ('e_supp_h', 15),
+                              ('e_supp_s', 16), ('e_helps', 17)):
+                out[slot] = fields[key]
+            out[27] = None  # clear the search bar
+            out[33] = {**NEW_NODE_SNAPSHOT, **fields}  # editor-pristine-snapshot
+            out[43] = {'start': start, 'end': end, 'kind': bridge_kind,
+                       'replaces': plan['replaces']}
+            return out
 
         if trigger_id == 'btn-add':
             # Toolbar toggle: open/close is handled by core_engine + the
             # clientside fast-path. Leave the form untouched so reopening shows
             # the last-loaded node (matches the Goals/Events toggles).
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+            return _untouched()
 
         if trigger_id in ('btn-new-node', 'btn-editor-new',
                           'details-add-choice-input'):
             if trigger_id == 'details-add-choice-input':
                 if not (details_add_choice or '').startswith('new|') or not details_selected_node:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                    return _untouched()
                 if manager.get_node(details_selected_node) is None:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                    return _untouched()
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
                 # Show unsaved modal; store 'new-node' as pending action
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                no_change = _untouched()
                 no_change[31] = (f'__new_subtask__|{details_selected_node}'
                                  if trigger_id == 'details-add-choice-input'
                                  else '__new_node__')
@@ -672,12 +719,23 @@ def register_callbacks(app, services=None):
                                'e_supp_h': [details_selected_node]}
             return def_out
 
+        if trigger_id == 'btn-bridge-create':
+            if not bridge_clicks:
+                return _untouched()
+            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+            if editor_open and _has_unsaved_changes():
+                no_change = _untouched()
+                no_change[31] = '__bridge__'  # pending-navigation-store
+                no_change[32] = True          # modal-unsaved-changes
+                return no_change
+            return _bridge_form_out() or _untouched()
+
         if trigger_id == 'background-click-input':
             # Intercept background click when the editor is open with unsaved
             # changes — show the save/discard modal instead of silently clobbering.
             editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
             if editor_open and _has_unsaved_changes():
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                no_change = _untouched()
                 no_change[31] = '__background__'  # pending-navigation-store sentinel
                 no_change[32] = True              # modal-unsaved-changes
                 return no_change
@@ -696,6 +754,8 @@ def register_callbacks(app, services=None):
         # Handle unsaved-discard / unsaved-save with pending navigation
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
             if pending_nav:
+                if pending_nav == '__bridge__':
+                    return _bridge_form_out() or def_out
                 if pending_nav in ('__new_node__', '__background__') or pending_nav.startswith('__new_subtask__|'):
                     # Discard/save done — reset form. __new_node__ leaves the editor
                     # open on a blank form; __background__ closes it (core_engine).
@@ -724,7 +784,7 @@ def register_callbacks(app, services=None):
             tapped_id = data.get('id')
             if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
                 # Store the pending target and show unsaved modal instead of populating
-                no_change = [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                no_change = _untouched()
                 no_change[31] = tapped_id  # pending-navigation-store
                 no_change[32] = True       # modal-unsaved-changes
                 return no_change
@@ -741,7 +801,7 @@ def register_callbacks(app, services=None):
                     data = node.to_dict()
                     data['id'] = name
                 else:
-                    return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                    return _untouched()
         elif trigger_id == 'search-node':
             if not search_val:
                 # User cleared the search bar — reset form to defaults
@@ -760,7 +820,7 @@ def register_callbacks(app, services=None):
                 data = node.to_dict()
                 data['id'] = name
             else:
-                return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+                return _untouched()
         elif data:
             name = data.get('id')
             # Always read fresh data from DB on tap (Cytoscape data may be stale)
@@ -771,7 +831,7 @@ def register_callbacks(app, services=None):
                     data['id'] = name
 
         if not name or not data:
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*20
+            return _untouched()
 
         edges = manager.get_edges()
 
@@ -854,6 +914,7 @@ def register_callbacks(app, services=None):
             habit_p_val,
             habit_unit_val,
             habit_days_val,
+            None,  # bridge-pending-store
         ]
 
     # --- Post-save sync of original_name / name ---
@@ -1494,7 +1555,10 @@ def register_callbacks(app, services=None):
          Output('time-calibration-title', 'children', allow_duplicate=True),
          Output('editor-save-result-store', 'data'),
          Output('node-status-done', 'value', allow_duplicate=True),
-         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+         Output('modal-editor-reopen-confirm', 'is_open', allow_duplicate=True),
+         Output('editor-reopen-confirm-body', 'children'),
+         Output('editor-reopen-pending-store', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1540,7 +1604,9 @@ def register_callbacks(app, services=None):
          # Also appended at the end of the Inputs: the Time range's minimum,
          # then the Search query.
          Input('filter-time-min', 'value'),
-         Input('filter-search-query', 'data')],
+         Input('filter-search-query', 'data'),
+         # Then the confirmation of a save that reopens Done nodes.
+         Input('btn-editor-reopen-confirm', 'n_clicks')],
 
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
@@ -1550,6 +1616,8 @@ def register_callbacks(app, services=None):
          State('editor-pristine-snapshot', 'data'),
          State('pending-undo-done-store', 'data'),
          State('canvas-payload-stamp', 'data'),
+         State('bridge-pending-store', 'data'),
+         State('editor-reopen-pending-store', 'data'),
          EDITOR_FORM],
         prevent_initial_call='initial_duplicate'
     )
@@ -1563,10 +1631,10 @@ def register_callbacks(app, services=None):
                      edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      active_tab, _relayout,
                      btn_undo_done_confirm, btn_editor_new, f_time_min,
-                     f_search,
+                     f_search, btn_editor_reopen_confirm,
                      ed_style, original_name, goal_sidebar_style, events_sidebar_style,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
-                     form):
+                     bridge_pending, editor_reopen_pending, form):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
@@ -1625,6 +1693,15 @@ def register_callbacks(app, services=None):
             return _core_engine_noop_tuple()
 
         all_triggered_ids = get_all_triggered_ids()
+
+        # A save that would reopen Done nodes was held for the user to
+        # confirm. Their yes finishes it as the Save button they pressed.
+        reopen_confirmed = False
+        if trigger_id == 'btn-editor-reopen-confirm':
+            via = (editor_reopen_pending or {}).get('via')
+            if not btn_editor_reopen_confirm or via not in _EDITOR_SAVE_TRIGGERS:
+                return _core_engine_noop_tuple()
+            trigger_id, all_triggered_ids, reopen_confirmed = via, {via}, True
 
         # Editor-UI-only short-circuit: when the only thing that fired is a
         # pure editor UI trigger (e.g. context-menu Edit, close button, goals
@@ -1723,6 +1800,7 @@ def register_callbacks(app, services=None):
                 status_done = []
             try:
                 with database.transaction():
+                    _done_before = done_names(manager)
                     _prior_for_completion = prior_node_for_completion(
                         manager, name, original_name)
                     _was_done = bool(_prior_for_completion
@@ -1786,6 +1864,15 @@ def register_callbacks(app, services=None):
                                       habit_intensity_unit=habit_int_unit or 'min_per_session',
                                       habit_days=habit_days)
 
+                    # A bridge replaces the link it was made across. Only
+                    # the save that creates the node does it: once the node
+                    # exists, its relationships are the user's to edit.
+                    if bridge_pending and not original_name:
+                        replaced = finish_bridge(manager, name, bridge_pending)
+                        if replaced:
+                            msg += (f", replacing the link from '{replaced[0]}' "
+                                    f"to '{replaced[1]}'")
+
                     # Save aliases
                     clean_aliases = [a for a in (alias_values or []) if a and a.strip()]
                     manager.set_aliases(name, clean_aliases)
@@ -1807,6 +1894,18 @@ def register_callbacks(app, services=None):
                             _saved.status = STATUS_OPEN
                             manager.update_node(_saved)
 
+                    # A new Hard prerequisite that isn't Done reopens the
+                    # Done node it leads to, and the Done nodes after it. The
+                    # user is asked first; raising rolls the save back. The
+                    # node the user un-marked is reopening by their own hand.
+                    if original_name and original_name in _done_before:
+                        _done_before = (_done_before - {original_name}) | {name}
+                    _reopened = _done_before - done_names(manager)
+                    if reopening:
+                        _reopened.discard(name)
+                    if _reopened and not reopen_confirmed:
+                        raise ReopensDoneNodes(sorted(_reopened))
+
                     # Priority rank is deliberately NOT written here. The
                     # Goals sidebar owns it, because ranking is a judgement
                     # about the whole list rather than about one node, and it
@@ -1816,6 +1915,12 @@ def register_callbacks(app, services=None):
                 # Reached only when the transaction committed.
                 save_result = {"name": name, "via": trigger_id,
                                "ts": int(time.time() * 1000)}
+            except ReopensDoneNodes as e:
+                return tuple(CoreResponse(
+                    editor_style=_editor_kept_open(next_ed_style),
+                    goal_style=next_goal_style, events_style=next_events_sidebar_style,
+                    reopen_open=True, reopen_body=reopen_body(e.names),
+                    reopen_pending={'via': trigger_id}))
             except (ValueError, TypeError) as e:
                 msg = f"Error: {e}"
                 return _core_engine_save_error_tuple(
@@ -1942,9 +2047,18 @@ def register_callbacks(app, services=None):
         # Every mutation above has committed, so the view is all reads. One
         # snapshot serves them: naming the community filter's options alone
         # used to open a connection per node, about 0.3 s per render.
+        # The canvas keeps the nodes the user picked. A render picks for them
+        # only when it was asked to show one node: a search, a save, or
+        # entering focus, which clears it.
+        if trigger_id in _EDITOR_SAVE_TRIGGERS:
+            canvas_selection = name
+        elif trigger_id == 'search-node' or (trigger_id == 'focus-goal-store' and focus_goal):
+            canvas_selection = active_node_id
+        else:
+            canvas_selection = KEEP_SELECTION
         with database.read_snapshot():
             view = build_canvas_view(
-                manager, render_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
+                manager, render_elements, trigger_id, canvas_selection, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how
@@ -2143,6 +2257,27 @@ def register_callbacks(app, services=None):
             ])
             return True, body, candidates, elements_out, save_msg_out
         return False, "", [], elements_out, save_msg_out
+
+    # Either answer closes the reopen confirmation. The core engine reads the
+    # held Save from the store on a yes, so only a no clears it.
+    app.clientside_callback(
+        """
+        function(confirm, cancel) {
+            var NO = window.dash_clientside.no_update;
+            var ctx = window.dash_clientside.callback_context;
+            var cancelled = (ctx.triggered || []).some(function (t) {
+                return t.prop_id.indexOf('btn-editor-reopen-cancel') === 0;
+            });
+            if (!confirm && !cancel) return [NO, NO];
+            return [false, cancelled ? null : NO];
+        }
+        """,
+        Output('modal-editor-reopen-confirm', 'is_open', allow_duplicate=True),
+        Output('editor-reopen-pending-store', 'data', allow_duplicate=True),
+        Input('btn-editor-reopen-confirm', 'n_clicks'),
+        Input('btn-editor-reopen-cancel', 'n_clicks'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),

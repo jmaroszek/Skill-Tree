@@ -33,7 +33,7 @@ def _populate_editor_fn():
     return cb
 
 
-POPULATE_EDITOR_NUM_OUTPUTS = 43
+POPULATE_EDITOR_NUM_OUTPUTS = 44
 
 
 def _call_with_trigger(monkeypatch, trigger_id, **values):
@@ -167,18 +167,16 @@ def test_populate_editor_loads_a_dormant_node_found_by_search(monkeypatch):
     assert result[33]["dormancy"]["dormant"] is True
 
 
-def test_populate_editor_all_return_paths_use_22_not_21(monkeypatch):
-    """Static guard: every early-return filler in populate_editor must carry
-    22 trailing no_updates, not 21.
-
-    The schema is 18 + 5 + 22 = 45 outputs (the +22 includes node-value-mode
-    plus 8 habit-mode fields, incl. the weekday picker). A leftover *21 means
-    someone added an Output without bumping the early-return filler arrays."""
+def test_populate_editor_writes_its_early_return_filler_once(monkeypatch):
+    """Static guard: the filler every early return uses is written in one
+    place (``_untouched``), so adding an Output means changing one line, not a
+    dozen literals that must all agree. The arity tests above check each path
+    returns one value per Output."""
     from pathlib import Path
     src = (Path(__file__).parent.parent / "callbacks.py").read_text(encoding="utf-8")
     marker_start = src.index("def populate_editor(")
     marker_end = src.index("\n    # --- Type-adaptive field visibility ---", marker_start)
     body = src[marker_start:marker_end]
-    assert "[dash.no_update]*21" not in body and "[dash.no_update] * 21" not in body, (
-        "populate_editor contains a return path with 21 trailing no_updates; should be 22 to match the 45-output schema"
+    assert body.count("* 18 + [options]") == 1, (
+        "populate_editor writes a no_update filler outside _untouched()"
     )

@@ -35,3 +35,8 @@ class CoreResponse(NamedTuple):
     # changed status outside the editor (callback_helpers.follow_done_status).
     editor_done: object = no_update
     editor_snapshot: object = no_update
+    # A save that would reopen Done nodes waits: the confirmation, what it
+    # says, and which Save button to finish with once the user agrees.
+    reopen_open: object = no_update
+    reopen_body: object = no_update
+    reopen_pending: object = no_update

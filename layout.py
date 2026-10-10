@@ -25,6 +25,7 @@ from settings_layout import build_settings_modal
 from review_hub_layout import build_review_hub_modal
 from analyze_layout import build_analyze_tab_content
 from sidebars_layout import build_all_sidebars
+from bridge_layout import build_bridge_modal
 from context_picker import build_context_picker_support
 from list_toolbar import SORT_MENUS, sort_menu_items
 import style_tokens as tokens
@@ -576,6 +577,35 @@ def build_undo_done_confirm_modal():
     ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
 
 
+# Confirmation for a link menu change that would reopen Done nodes: making a
+# link Hard, or reversing one, can give a Done node a Hard prerequisite that
+# isn't Done. link_menu_callbacks fills the body and holds the request until
+# the user answers.
+def build_link_reopen_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
+        dbc.ModalBody(id="link-reopen-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-link-reopen-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Change Link", id="btn-link-reopen-confirm", color="warning", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-link-reopen-confirm", size="sm", is_open=False, centered=True)
+
+
+# The same question for a node editor save: a new Hard prerequisite that isn't
+# Done reopens the Done node it leads to. core_engine holds the save, and its
+# Save button runs it again once the user agrees.
+def build_editor_reopen_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
+        dbc.ModalBody(id="editor-reopen-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-editor-reopen-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Save", id="btn-editor-reopen-confirm", color="warning", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-editor-reopen-confirm", size="sm", is_open=False, centered=True)
+
+
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
 # Milestone becomes Done. Offers a one-click "Mark Done" without forcing it —
 # matches the user's preference that container completion remain explicit.
@@ -1119,9 +1149,10 @@ def build_app_layout(initial_elements, env="production"):
 
     # --- Node context menu: every canvas, Next rows, Now cards, goal cards ---
     # Grouped by intent: Edit; inspection; Set Priority; workflow state;
-    # external links; Delete on its own. context_menu.js relabels the toggles
-    # for the node and hides the sections that don't apply: links that aren't
-    # set, and Set Priority for anything but a single Goal. So a Goal's menu is
+    # Create Bridge; external links; Delete on its own. context_menu.js
+    # relabels the toggles for the node and hides the sections that don't
+    # apply: links that aren't set, Set Priority for anything but a single
+    # Goal, and Create Bridge for anything but two nodes. So a Goal's menu is
     # every other node's menu plus one section.
     context_menu = _floating_menu("node-context-menu", [
         _menu_item("Edit", "ctx-menu-edit", icon="pencil"),
@@ -1146,6 +1177,9 @@ def build_app_layout(initial_elements, env="production"):
         _menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
         _menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
         _menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
+        # Shown, with its divider, only when the menu acts on two nodes.
+        _menu_divider("ctx-menu-bridge-divider"),
+        _menu_item("Create Bridge…", "ctx-menu-bridge", icon="share"),
         _menu_divider("ctx-menu-links-divider"),
         # One slot per possible Resource section; context_menu.js names each
         # after its section and shows only those the node has a link in.
@@ -1153,6 +1187,19 @@ def build_app_layout(initial_elements, env="production"):
           for i in range(MAX_SECTIONS)],
         _menu_divider(),
         _menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
+    ])
+
+    # --- Edge context menu: a link on any canvas ---
+    # context_menu.js relabels the type toggle and its arrow (Make Soft on a
+    # Hard link, Make Hard on a Soft one) and hides it and Reverse on a Synergy, which has
+    # neither a strength nor a direction to change.
+    edge_context_menu = _floating_menu("edge-context-menu", [
+        _menu_item("Insert Node Here…", "ctx-menu-edge-bridge", icon="share"),
+        _menu_divider("ctx-menu-edge-change-divider"),
+        _menu_item("Make Soft", "ctx-menu-edge-type", icon="arrow-down-circle"),
+        _menu_item("Reverse Direction", "ctx-menu-edge-reverse", icon="arrow-left-right"),
+        _menu_divider(),
+        _menu_item("Remove Link", "ctx-menu-edge-remove", danger=True, icon="trash3"),
     ])
 
     # --- Goal sidebar: rank popover (click a priority goal's rank badge) ---
@@ -1341,6 +1388,7 @@ def build_app_layout(initial_elements, env="production"):
         edit_trigger,
         toggle_trigger,
         context_menu,
+        edge_context_menu,
         goal_rank_popover,
         event_context_menu,
         dormant_add_menu,
@@ -1353,6 +1401,22 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Input(id='group-delete-request-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='group-delete-pending-store', data=None),
         dcc.Input(id='edit-trigger-input', type='text', value='', style={'display': 'none'}),
+        # Written by context_menu.js with the two nodes of a bridge (or the
+        # edge to insert a node into). bridge_callbacks opens the dialog.
+        dcc.Input(id='bridge-open-input', type='text', value='', style={'display': 'none'}),
+        # Written by the link menu: an action and the link it applies to.
+        # link_menu_callbacks applies it.
+        dcc.Input(id='link-action-input', type='text', value='', style={'display': 'none'}),
+        # A link menu request waiting on the reopen confirmation.
+        dcc.Store(id='link-action-pending-store', data=None),
+        # The Save button a save that reopens Done nodes waits to finish with.
+        dcc.Store(id='editor-reopen-pending-store', data=None),
+        # The dialog's Start and End.
+        dcc.Store(id='bridge-modal-store', data=None),
+        # The bridge the editor was opened with. populate_editor writes it,
+        # and the save that creates the bridge node reads it to remove the
+        # link the bridge replaces. Anything that loads the editor clears it.
+        dcc.Store(id='bridge-pending-store', data=None),
         dcc.Input(id='toggle-done-trigger-input', type='text', value='', style={'display': 'none'}),
         # Written by dispatch_now_toggle after a direct DB flip of the
         # `now` flag — feeds core_engine so the canvas re-renders to show
@@ -1414,8 +1478,11 @@ def build_app_layout(initial_elements, env="production"):
         build_app_error_modal(),
         build_welcome_modal(),
         build_unsaved_changes_modal(),
+        build_bridge_modal(),
         build_delete_confirm_modal(),
         build_undo_done_confirm_modal(),
+        build_link_reopen_confirm_modal(),
+        build_editor_reopen_confirm_modal(),
         build_add_to_event_modal(),
         build_auto_done_suggestion_modal(),
         build_time_calibration_modal(),
