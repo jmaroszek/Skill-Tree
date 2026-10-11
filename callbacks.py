@@ -43,7 +43,7 @@ from callback_helpers import (
     resolve_active_node_id, normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
-    follow_done_status,
+    follow_done_status, resolve_done_intent,
     compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
@@ -294,6 +294,37 @@ def register_callbacks(app, services=None):
         if manager._graph_version != current:
             return manager._graph_version
         return dash.no_update
+
+    # --- Editor follows status changed elsewhere ---
+    # Any mutation can change the open node's Done or Now from outside the
+    # editor: the "Mark Done?" suggestion, an event putting it to sleep, a
+    # cascade. Its switches follow, unless the user has flipped Done and not
+    # saved. Only the snapshot's status key is patched, so a newer snapshot
+    # written by a save in flight is never replaced by this older copy.
+    @app.callback(
+        Output('node-status-done', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+        Output('node-now', 'value', allow_duplicate=True),
+        Input('graph-version-store', 'data'),
+        State('node-original-name', 'data'),
+        State('node-status-done', 'value'),
+        State('editor-pristine-snapshot', 'data'),
+        State('node-now', 'value'),
+        prevent_initial_call=True,
+    )
+    def sync_editor_status(_version, name, switch, snapshot, now_switch):
+        if not name or not isinstance(snapshot, dict) or snapshot.get('name') != name:
+            return (no_update,) * 3
+        node = manager.get_node(name)
+        if node is None:
+            return (no_update,) * 3
+        done, followed = follow_done_status(node, switch, snapshot)
+        snapshot_out = no_update
+        if followed is not no_update:
+            snapshot_out = dash.Patch()
+            snapshot_out['status_done'] = followed['status_done']
+        now = ["now"] if node.now else []
+        return done, snapshot_out, (now if now != (now_switch or []) else no_update)
 
     # --- Clear Filters ---
     # Note: filter-subcontext.value is reset clientside (see below). The prop is
@@ -961,6 +992,8 @@ def register_callbacks(app, services=None):
         linted_aliases = manager.get_aliases(linted) or ['']
         snapshot = snapshot_from_form_state(editor_form_values_from(form), linted,
                                             linted_aliases)
+        if 'status_done' in save_result:
+            snapshot['status_done'] = save_result['status_done']
         # Rewrite node-original-name only when the save changed it (a rename
         # or a new node). Everything keyed off it reloads from the database,
         # and on a save that failed that reload would throw away what the
@@ -1795,14 +1828,16 @@ def register_callbacks(app, services=None):
                 return _core_engine_save_error_tuple(
                     msg, _editor_kept_open(next_ed_style), next_goal_style,
                     next_events_sidebar_style)
-            # Done is hidden while Dormant is on; a sleeping node isn't finished.
-            if (dormancy or {}).get('dormant'):
-                status_done = []
             try:
                 with database.transaction():
                     _done_before = done_names(manager)
                     _prior_for_completion = prior_node_for_completion(
                         manager, name, original_name)
+                    status_done = resolve_done_intent(
+                        _prior_for_completion, status_done, pristine_snapshot)
+                    sleeping = bool((dormancy or {}).get('dormant'))
+                    if sleeping:
+                        status_done = []
                     _was_done = bool(_prior_for_completion
                                      and _prior_for_completion.status == STATUS_DONE)
                     # Track if this save marks the node Done. Only count a true
@@ -1817,7 +1852,7 @@ def register_callbacks(app, services=None):
                     # keeps it Done; below, once its relationships are saved,
                     # it is either reopened or the user is asked.
                     reopening = _was_done and STATUS_DONE not in (status_done or [])
-                    if reopening:
+                    if reopening and not sleeping:
                         status_done = [STATUS_DONE]
 
                     multiplier = ConfigManager.get_time_multiplier(time_unit)
@@ -1849,6 +1884,12 @@ def register_callbacks(app, services=None):
                     value_mode = resolve_value_mode(n_type, value_mode_val)
                     _prior = manager.get_node(name)
                     was_dormant = bool(_prior and _prior.dormant)
+                    # Wake before applying completion intent. Both still
+                    # belong to this save and roll back together on refusal.
+                    from event_manager import EventManager
+                    if was_dormant and not sleeping:
+                        EventManager().detach_node_from_all_events(name)
+                        was_dormant = False
                     msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
                                       interest, diff, status_done, context, subctx,
                                       resource_link_values(link_values, link_ids),
@@ -1879,7 +1920,6 @@ def register_callbacks(app, services=None):
 
                     # Dormant switch and Event section. A refusal raises
                     # ValueError and rolls the whole save back.
-                    from event_manager import EventManager
                     apply_dormancy(manager, EventManager(), name,
                                    dormancy_for_save(dormancy), was_dormant)
 
@@ -1913,7 +1953,13 @@ def register_callbacks(app, services=None):
                     # to rewrite the ranking from the editor's hidden select on
                     # every Goal save.
                 # Reached only when the transaction committed.
+                # The status the save committed, which can differ from the
+                # switch: an untouched switch follows a completion made
+                # elsewhere, and sleeping or a pending undo changes it.
+                _committed = manager.get_node(name)
                 save_result = {"name": name, "via": trigger_id,
+                               "status_done": ([STATUS_DONE] if _committed.status == STATUS_DONE
+                                               else []),
                                "ts": int(time.time() * 1000)}
             except ReopensDoneNodes as e:
                 return tuple(CoreResponse(
@@ -2072,7 +2118,7 @@ def register_callbacks(app, services=None):
         tc_title = no_update
         if completion_check_node and ConfigManager.get_time_calibration_enabled():
             _tc_node = manager.get_node(completion_check_node)
-            if _tc_node is not None:
+            if _tc_node is not None and _tc_node.status == STATUS_DONE and not _tc_node.dormant:
                 tc_modal_open = True
                 tc_title, tc_reference = _calibration_modal_text(_tc_node)
                 tc_pending = {'mode': 'single', 'node': completion_check_node}
@@ -2108,6 +2154,9 @@ def register_callbacks(app, services=None):
         if trigger_id in _STATUS_CHANGING_TRIGGERS and original_name:
             editor_done, editor_snapshot = follow_done_status(
                 manager.get_node(original_name), status_done, pristine_snapshot)
+        if (isinstance(save_result, dict)
+                and save_result['status_done'] != (form.get('status_done') or [])):
+            editor_done = save_result['status_done']
 
         # The undo-Done modal: the node menu's toggles open it earlier (a
         # return short-circuit in their branch), an editor save that
@@ -2190,7 +2239,7 @@ def register_callbacks(app, services=None):
     )
     def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates,
                                active_tab, canvas_stamp):
-        from models import STATUS_DONE, STATUS_BLOCKED
+        from models import STATUS_DONE
         trig = get_trigger_id()
         candidates = list(current_candidates or [])
         elements_out = no_update
@@ -2204,18 +2253,18 @@ def register_callbacks(app, services=None):
             elif node.status == STATUS_DONE:
                 # Already Done via another path — silently skip.
                 pass
-            elif node.status == STATUS_BLOCKED:
+            elif not manager.is_auto_done_ready(target):
                 # Prereqs no longer all Done (e.g. a sibling un-done) —
                 # don't force; let the user re-decide later.
                 save_msg_out = (
                     f"'{target}' is no longer eligible — "
-                    "a prereq was un-done."
+                    "its state or prerequisites changed."
                 )
             else:
                 try:
-                    node.status = STATUS_DONE
-                    manager.update_node(node)
-                    save_msg_out = f"Marked '{target}' as Done"
+                    accepted = manager.complete_suggested_node(target)
+                    save_msg_out = (f"Marked '{target}' as Done" if accepted
+                                    else f"'{target}' is no longer eligible")
                     elements_out = (render_elements()
                                     if canvas_wanted(active_tab, canvas_stamp)
                                     else CANVAS_DEFERRED)
@@ -2238,6 +2287,8 @@ def register_callbacks(app, services=None):
         for c in new_candidates:
             if c not in candidates:
                 candidates.append(c)
+
+        candidates = [c for c in candidates if manager.is_auto_done_ready(c)]
 
         if candidates:
             first = candidates[0]
@@ -2981,6 +3032,8 @@ def register_callbacks(app, services=None):
         node = manager.get_node(node_name)
         if not node:
             return no_update, no_update
+        if toggle_val and (node.dormant or node.status == STATUS_DONE):
+            return f"ineligible|{int(_time.time() * 1000)}", no_update
         wants_now = bool(toggle_val and "now" in toggle_val)
         is_now = bool(node.now)
         if wants_now == is_now:
@@ -3027,6 +3080,8 @@ def register_callbacks(app, services=None):
         nodes = [n for n in (manager.get_node(name) for name in names) if n]
         if not nodes:
             return no_update, no_update
+        nodes = [node for node in nodes if node.now > 0 or (
+            not node.dormant and node.status != STATUS_DONE)]
         wants_now = any(node.now <= 0 for node in nodes)
 
         # Track count locally so a bulk set-Now stops at the cap. Pull

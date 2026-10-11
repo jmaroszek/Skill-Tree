@@ -70,14 +70,23 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         node.reflect_interest = existing.reflect_interest
         node.reflect_difficulty = existing.reflect_difficulty
         node.reflect_notes = existing.reflect_notes
-        manager.update_node(node)
         msg = f"Updated node '{name}'"
     else:
+        # The row must exist before its edges can. Completion happens only
+        # after those edges are present, so a refused completion rolls back
+        # without recording a transient Done/reopened pair.
+        node.status = STATUS_OPEN
         manager.add_node(node)
         msg = f"Added node '{name}'"
     if resource_links is not None:
         save_node_links(name, resource_links)
-    manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s, e_helps)
+    # Edges first, then the node's own fields: Done is checked against the
+    # prerequisites the save leaves, not the ones it is removing.
+    settle_states = manager.sync_edges(name, e_needs_h, e_needs_s, e_supp_h, e_supp_s,
+                                       e_helps, defer_states=True)
+    node.status = target_status
+    manager.update_node(node)
+    settle_states()
     return msg
 
 
@@ -128,12 +137,8 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
         else:
             events.set_node_delay(event, name, delay_days)
         events.set_now_on_trigger(event, name, now)
-
-    node = manager.get_node(name)
-    if node.now:
-        # Add to Now on wake replaces Now while the node sleeps.
-        node.now = 0
-        manager.update_node(node)
+    # Now needs no clearing here: putting a node to sleep takes it off Now
+    # (GraphManager._normalize_activity), and "Add to Now" on wake replaces it.
 
 
 # The relationships a bridge can give its two ends, by the name the bridge

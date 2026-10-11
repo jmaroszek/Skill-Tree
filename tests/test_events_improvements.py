@@ -329,10 +329,14 @@ class TestChainedCompletionFailure:
     """
 
     def _chain(self, em, mgr):
-        mgr.add_node(_node("Finished", status="Done"))
+        mgr.add_node(_node("Finished"))
         mgr.add_node(_node("Reward"))
         em.add_event(Event(name="Wake", description=""))
         em.add_node_to_event("Wake", "Finished", delay_days=0)
+        # Exercise recovery of a legacy sleeping completion, not a newly
+        # allowed transition.
+        with database.get_connection() as conn:
+            conn.execute("UPDATE Nodes SET status='Done' WHERE name='Finished'")
         em.add_event(Event(name="OnFinished", description="",
                            trigger_nodes=["Finished"]))
         em.add_node_to_event("OnFinished", "Reward", delay_days=0)

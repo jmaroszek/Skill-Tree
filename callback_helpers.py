@@ -1104,6 +1104,19 @@ def build_editor_snapshot(manager, node_name):
     }
 
 
+def resolve_done_intent(node, switch, snapshot):
+    """An untouched editor switch follows the latest stored completion.
+
+    Save must do this too: a graph refresh may still be in flight when the
+    user saves unrelated fields. A deliberate unsaved flip keeps its intent.
+    """
+    if (node is not None and isinstance(snapshot, dict)
+            and snapshot.get('name') == node.name and 'status_done' in snapshot
+            and (switch or []) == (snapshot['status_done'] or [])):
+        return [STATUS_DONE] if node.status == STATUS_DONE else []
+    return switch
+
+
 def follow_done_status(node, switch, snapshot):
     """(switch, snapshot) for an editor showing ``node`` after its status may
     have changed outside the editor: the node menu's Toggle Done, the undo-Done

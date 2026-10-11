@@ -11,6 +11,7 @@ import pytest
 import callbacks
 from callback_helpers import NEW_EVENT_OPTION
 from editor_forms import call
+from event_manager import EventManager
 from graph_manager import GraphManager
 from models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 
@@ -137,8 +138,12 @@ def test_putting_it_to_sleep_asks_too(monkeypatch, manager):
                      dormancy={"dormant": True, "event": NEW_EVENT_OPTION,
                                "event_name": "Later On"})
 
-    assert response.undo_open is True
-    assert manager.get_node("Basics").dormant
+    # Sleeping and reopening are one save. Cancel must leave neither half
+    # committed, rather than leaving a Done node asleep behind the dialog.
+    assert response.reopen_open is True
+    assert not manager.get_node("Basics").dormant
+    assert manager.get_node("Basics").status == STATUS_DONE
+    assert EventManager().get_event("Later On") is None
     assert _statuses(manager)["Advanced"] == STATUS_DONE
 
 

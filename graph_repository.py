@@ -199,7 +199,13 @@ class GraphRepository:
                     INSERT INTO Nodes (name, type, description, value, time_o, time_m, time_p, interest, difficulty, context, subcontext, status, dormant, time_mode, value_mode, habit_duration, habit_duration_unit, habit_intensity_o, habit_intensity_m, habit_intensity_p, habit_intensity_unit, habit_days, actual_time_lower, actual_time_upper, actual_time_point, actual_time_unit, calibration_dismissed, "now", start_date, done_date, reflect_value, reflect_interest, reflect_difficulty, reflect_notes)
                     VALUES (:name, :type, :description, :value, :time_o, :time_m, :time_p, :interest, :difficulty, :context, :subcontext, :status, :dormant, :time_mode, :value_mode, :habit_duration, :habit_duration_unit, :habit_intensity_o, :habit_intensity_m, :habit_intensity_p, :habit_intensity_unit, :habit_days, :actual_time_lower, :actual_time_upper, :actual_time_point, :actual_time_unit, :calibration_dismissed, :now, :start_date, :done_date, :reflect_value, :reflect_interest, :reflect_difficulty, :reflect_notes)
                 ''', data)
-                record_ledger(cursor, node, 'created', clock())
+                occurred_at = clock()
+                record_ledger(cursor, node, 'created', occurred_at)
+                if node.status == 'Done':
+                    cursor.execute(
+                        "INSERT INTO NodeLifecycleEvents "
+                        "(node_name, event_type, occurred_at, source) "
+                        "VALUES (?, 'completed', ?, 'live')", (node.name, occurred_at))
                 conn.commit()
             except sqlite3.IntegrityError as exc:
                 raise ValueError(f"Node with name '{node.name}' already exists.") from exc

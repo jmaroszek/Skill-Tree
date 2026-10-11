@@ -358,9 +358,9 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | View Details | Jumps to the Details tab pre-loaded with this node. |
 | Explain Priority | Opens the priority-score breakdown. |
 | Set Priority | Goals only. Makes the goal Priority 1, 2 or 3, or clears its priority. |
-| Add to Now / Remove from Now | Moves the node into or out of your current-work list. |
+| Add to Now / Remove from Now | Moves the node into or out of your current-work list. Done and dormant nodes can't join it, so the item is hidden for them. |
 | Add to Event… | Puts the node, or every selected node, to sleep under an event. |
-| Mark Done / Reopen | Marks the node complete, or reopens it if already Done. |
+| Mark Done / Reopen | Marks the node complete, or reopens it if already Done. A dormant node has to wake first, so the item is hidden for it. |
 | Create Bridge… | Only with exactly two nodes selected. Opens the [bridge](#bridges) dialog. |
 | Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Delete… | Deletes the node (with confirmation). |
@@ -849,6 +849,8 @@ If you are not ready to release something, move it to another event first. That 
 ### Delays
 
 A delay is how you stage a release without splitting it into two events. Give a node two weeks and it waits two weeks after the event fires; give another three months and it waits three months. Everything measures from the one moment the event fired.
+
+For a date event, that moment is its date. If the app was closed that day, the event fires the next time you open it, but its delays still count from the date. A node whose wake date has already passed wakes straight away.
 
 Before the event fires you set a delay as an offset, because there is no date yet. Afterwards the editor shows you the wake date itself, since that is the thing that now exists. If two groups of work genuinely become relevant at different real-world moments, they are probably two events rather than one event with delays.
 

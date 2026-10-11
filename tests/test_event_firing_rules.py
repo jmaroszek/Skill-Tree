@@ -95,8 +95,11 @@ def test_the_trigger_button_on_a_fired_event_says_so_and_announces_nothing():
 def test_a_node_that_wakes_done_stays_off_now():
     events = EventManager()
     events.add_event(Event(name="Spring"))
-    events.create_dormant_node(_node("Planted", status=STATUS_DONE), "Spring",
+    events.create_dormant_node(_node("Planted"), "Spring",
                                now_on_trigger=True)
+    # A legacy combination, now refused by every state writer.
+    with database.get_connection() as conn:
+        conn.execute("UPDATE Nodes SET status='Done' WHERE name='Planted'")
     events.create_dormant_node(_node("Weeding"), "Spring", now_on_trigger=True)
 
     result = events.trigger_event_manually("Spring")

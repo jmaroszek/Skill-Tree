@@ -331,7 +331,10 @@ class TestEventActivation:
         # Create active node that depends on a dormant prerequisite
         mgr.add_node(_make_node("ActiveNode", status="Open"))
         em.add_event(Event(name="E1"))
-        em.create_dormant_node(_make_node("Prereq", status="Done"), "E1", delay_days=0)
+        em.create_dormant_node(_make_node("Prereq"), "E1", delay_days=0)
+        # Imported legacy state; new mutations cannot complete sleeping work.
+        with database.get_connection() as conn:
+            conn.execute("UPDATE Nodes SET status='Done' WHERE name='Prereq'")
 
         # Add hard prerequisite edge: Prereq -> ActiveNode
         mgr.add_edge("Prereq", "ActiveNode", EDGE_NEEDS_HARD)
@@ -448,6 +451,7 @@ class TestScheduledTriggers:
         with patch("event_manager.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            mock_date.fromisoformat.side_effect = date.fromisoformat
             triggered = em.check_scheduled_triggers()
 
         assert "Due" in triggered
@@ -463,6 +467,7 @@ class TestScheduledTriggers:
         with patch("event_manager.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            mock_date.fromisoformat.side_effect = date.fromisoformat
             triggered = em.check_scheduled_triggers()
 
         assert "Past" in triggered

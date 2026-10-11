@@ -316,6 +316,11 @@ class EventManager:
         event; `move_node_to_event` re-homes it. A node its event has already
         woken keeps that row, so it can never go back to sleep.
         """
+        from graph_manager import GraphManager
+        gm = GraphManager()
+        node = gm.get_node(node_name)
+        if node is not None and node.status == STATUS_DONE:
+            raise ValueError(f"Reopen '{node_name}' before putting it to sleep.")
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT status FROM Events WHERE name=?", (event_name,))
@@ -344,6 +349,11 @@ class EventManager:
                 (event_name, node_name, delay_days,
                  1 if now_on_trigger else 0)
             )
+            # Sleeping ends current work through the same lifecycle writer
+            # as the editor. A later wake can only pin via now_on_trigger.
+            if node is not None:
+                node.dormant = 1
+                gm.update_node(node)
             self._sync_dormant_flag(cursor, node_name)
             conn.commit()
         self._graph_changed(scoring=True)
@@ -689,6 +699,11 @@ class EventManager:
         Firing is latched (see models.Event): an event that isn't Pending
         does nothing and every list comes back empty. A second firing would
         otherwise re-date each delayed node still waiting, pushing it later.
+
+        Delays count from the event's occurrence: its date when that has
+        passed, so a firing processed late (the app was closed on the day)
+        wakes each node when it was due, and today otherwise. A node already
+        past its wake date wakes now.
         """
         from graph_manager import GraphManager
         gm = GraphManager()
@@ -700,10 +715,12 @@ class EventManager:
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            status = cursor.execute(
-                "SELECT status FROM Events WHERE name=?", (event_name,)).fetchone()
-            if status is None or status[0] != 'Pending':
+            row = cursor.execute(
+                "SELECT status, trigger_date FROM Events WHERE name=?",
+                (event_name,)).fetchone()
+            if row is None or row[0] != 'Pending':
                 return result
+            occurrence = min(date.fromisoformat(row[1]), today) if row[1] else today
 
             # Mark event as triggered
             cursor.execute(
@@ -721,6 +738,7 @@ class EventManager:
             rows = cursor.fetchall()
 
             for node_name, delay_days, now_on_trigger, dormant in rows:
+                wake_date = occurrence + timedelta(days=delay_days)
                 if not dormant:
                     # Close its row out, but with no future date, or the
                     # delayed sweep would later "wake" an already-live node
@@ -731,22 +749,21 @@ class EventManager:
                         (today.isoformat(), event_name, node_name)
                     )
                     result['already_awake'].append(node_name)
-                elif delay_days == 0:
+                elif wake_date <= today:
                     cursor.execute(
                         "UPDATE EventNodes SET activated=1, activation_date=? "
                         "WHERE event_name=? AND node_name=?",
-                        (today.isoformat(), event_name, node_name)
+                        (wake_date.isoformat(), event_name, node_name)
                     )
                     self._sync_dormant_flag(cursor, node_name)
                     result['activated'].append(node_name)
                     if now_on_trigger:
                         result['now_intent'].append(node_name)
                 else:
-                    activation_date = today + timedelta(days=delay_days)
                     cursor.execute(
                         "UPDATE EventNodes SET activation_date=? "
                         "WHERE event_name=? AND node_name=?",
-                        (activation_date.isoformat(), event_name, node_name)
+                        (wake_date.isoformat(), event_name, node_name)
                     )
                     result['scheduled'].append(node_name)
                     # Deliberately not now_intent. The node is still dormant

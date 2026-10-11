@@ -178,8 +178,29 @@ class GraphManager:
                 f"'{node.name}' must have a context: choose the area of life "
                 "it belongs to."
             )
+        self._normalize_activity(node)
+        if node.status == STATUS_DONE and node.done_date is None:
+            node.done_date = date.today().isoformat()
         self._repository.insert_node(node, _utc_now_ts)
         self._bump_version()
+
+    @staticmethod
+    def _normalize_activity(node, prior=None):
+        """Hold the rules between sleeping, finished and current work for
+        every writer: the editor, the node menu, events and suggestions.
+
+        A node can't be Dormant and Done at once: a sleeping node isn't
+        finished, and its completion would fire the events watching it. A
+        Dormant or Done node isn't current work, so it leaves Now. Blocked
+        nodes and Goals may stay on Now; there they stand for the steps that
+        unblock them.
+        """
+        if node.dormant and node.status == STATUS_DONE:
+            if prior is not None and prior.status == STATUS_DONE:
+                raise ValueError(f"Reopen '{node.name}' before putting it to sleep.")
+            raise ValueError(f"Wake '{node.name}' before marking it Done.")
+        if node.dormant or node.status == STATUS_DONE:
+            node.now = 0
 
     @database.atomic
     def update_node(self, node: Node):
@@ -190,6 +211,7 @@ class GraphManager:
                 "it belongs to."
             )
         prior = self.get_node(node.name)
+        self._normalize_activity(node, prior)
         # Completion is judged against the node as it was before this whole
         # transaction. A compound save can write the node again after marking
         # it Done, and that later write sees it Done already.
@@ -300,31 +322,48 @@ class GraphManager:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT n.name, n.type, n.status, n.time_mode FROM Edges e "
+                "SELECT n.name FROM Edges e "
                 "JOIN Nodes n ON e.target = n.name "
                 "WHERE e.source=? AND e.type='Needs_Hard'",
                 (just_done_name,),
             )
             dependents = cursor.fetchall()
-            for dep_name, dep_type, dep_status, dep_time_mode in dependents:
-                if dep_type not in ('Goal', 'Milestone') and dep_time_mode != 'inherited':
-                    continue
-                if dep_status == STATUS_DONE:
-                    continue
-                # Verify ALL of dep's hard prereqs are Done.
-                cursor.execute(
-                    "SELECT n.status FROM Edges e "
-                    "JOIN Nodes n ON e.source = n.name "
-                    "WHERE e.target=? AND e.type='Needs_Hard'",
-                    (dep_name,),
-                )
-                prereqs = cursor.fetchall()
-                if not prereqs:
-                    continue  # No prereqs = "all done" is vacuously true; skip
-                if any(s != STATUS_DONE for (s,) in prereqs):
+            for (dep_name,) in dependents:
+                if not self.is_auto_done_ready(dep_name):
                     continue
                 if dep_name not in GraphManager._auto_done_candidates:
                     GraphManager._auto_done_candidates.append(dep_name)
+
+    @database.consistent_read
+    def is_auto_done_ready(self, name: str) -> bool:
+        """Whether "Mark Done?" may be offered for ``name`` right now.
+
+        A container (Goal, Milestone or inherited-time node) that isn't Done
+        or asleep, with at least one hard prerequisite and every one of them
+        Done. Checked when a suggestion is queued, shown and accepted, since
+        the graph can change in between and Goals never auto-block. Marking a
+        Goal Done by judgment doesn't go through here.
+        """
+        node = self.get_node(name)
+        if (node is None or node.dormant or node.status == STATUS_DONE
+                or (node.type not in ('Goal', 'Milestone')
+                    and node.time_mode != 'inherited')):
+            return False
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT n.status FROM Edges e JOIN Nodes n ON n.name=e.source "
+                "WHERE e.target=? AND e.type=?", (name, EDGE_NEEDS_HARD)).fetchall()
+        return bool(rows) and all(status == STATUS_DONE for (status,) in rows)
+
+    @database.atomic
+    def complete_suggested_node(self, name: str) -> bool:
+        """Revalidate and accept a suggestion in the same write transaction."""
+        if not self.is_auto_done_ready(name):
+            return False
+        node = self.get_node(name)
+        node.status = STATUS_DONE
+        self.update_node(node)
+        return True
 
     @database.consistent_read
     def pop_auto_done_candidates(self) -> List[str]:
@@ -614,7 +653,8 @@ class GraphManager:
         return self._repository.get_edges()
 
     @database.atomic
-    def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list):
+    def sync_edges(self, node_name: str, needs_hard: list, needs_soft: list, supports_hard: list, supports_soft: list, helps: list,
+                   *, defer_states=False):
         needs_hard = needs_hard or []
         needs_soft = needs_soft or []
         supports_hard = supports_hard or []
@@ -705,13 +745,21 @@ class GraphManager:
                 self._bump_version()
 
         # Recalculate state for the saved node and all nodes affected by its edges
-        self._update_node_state(node_name)
-        for trgt in set(supports_hard) | set(previous_dependents):
-            self._update_node_state(trgt)
-        for trgt in supports_soft:
-            self._update_node_state(trgt)
-        for src in needs_hard:
-            self._update_dependent_nodes_state(src)
+        def settle():
+            self._update_node_state(node_name)
+            for trgt in set(supports_hard) | set(previous_dependents):
+                self._update_node_state(trgt)
+            for trgt in supports_soft:
+                self._update_node_state(trgt)
+            for src in needs_hard:
+                self._update_dependent_nodes_state(src)
+
+        # The editor's save writes the node's own fields after its edges, so
+        # completion is judged against the final graph. It settles states
+        # itself, once that write is in.
+        if defer_states:
+            return settle
+        settle()
 
     # --- Integrity and State ---
 

@@ -129,14 +129,25 @@
 
             var targets = _currentTargetNodes();
             var targetCount = targets.length || 1;
-            var allNow = targets.length > 0 && targets.every(function (node) {
+            // Done and sleeping nodes can't join Now (graph_manager's
+            // _normalize_activity), so they sit out of the Now action, and
+            // a sleeping node can't be marked Done. Rows and cards carry no
+            // dormant flag; sleeping nodes never appear there.
+            var asleep = function (node) { return Number(node.dormant) > 0; };
+            var nowTargets = targets.filter(function (node) {
+                return Number(node.now) > 0 || (node.status !== 'Done' && !asleep(node));
+            });
+            var nowCount = nowTargets.length;
+            var allNow = nowCount > 0 && nowTargets.every(function (node) {
                 return Number(node.now) > 0;
             });
             var allDone = targets.length > 0 && targets.every(function (node) {
                 return node.status === 'Done';
             });
-            toggleNowLabel.textContent = targetCount > 1
-                ? (allNow ? 'Remove ' + targetCount + ' from Now' : 'Add ' + targetCount + ' to Now')
+            toggleNowItem.style.display = nowCount > 0 ? '' : 'none';
+            toggleDoneItem.style.display = targets.length > 0 && targets.every(asleep) ? 'none' : '';
+            toggleNowLabel.textContent = nowCount > 1
+                ? (allNow ? 'Remove ' + nowCount + ' from Now' : 'Add ' + nowCount + ' to Now')
                 : (allNow ? 'Remove from Now' : 'Add to Now');
             toggleDoneItem.querySelector('.ctx-menu-icon').className =
                 'bi bi-' + (allDone ? 'arrow-counterclockwise' : 'check-circle') + ' ctx-menu-icon';
