@@ -1,13 +1,12 @@
-"""Tests for the v2 normalized time term and the hyperparameter migration.
+"""Tests for the v2 normalized time term and the stored scoring settings.
 
 The v1 cost term was ``w_t * t**beta``, which entangled two separate concerns:
 beta set the curvature of the time penalty *and* silently scaled its
 magnitude, because ``t**beta`` shrinks as beta falls. v2 divides by a fixed
 reference first, so beta is curvature only and w_t is the sole magnitude knob.
 
-These tests pin the three properties that make the change safe: the reference
-is a constant, the reparameterization is exact, and an existing stored bundle
-keeps the cost curve it already had.
+These tests pin that the reference is a constant and the reparameterization
+is exact, and that the stored settings follow the profile the code defines.
 """
 
 import json
@@ -92,49 +91,47 @@ class TestReparameterizationIsExact:
 # Hyperparameter migration (v1 -> v2)
 # ============================================================================
 
-class TestHyperparamMigration:
-    def test_v1_bundle_is_rescaled(self):
-        hp = ConfigManager._migrate_hyperparams(
-            {**DEFAULT_HYPERPARAMS, "w_t": 1.0, "beta": 0.85})
-        assert hp["w_t"] == pytest.approx(TIME_REF_HOURS ** 0.85)
-        assert hp["_schema"] == HYPERPARAMS_SCHEMA_VERSION
+class TestStoredSettings:
+    def test_a_snapshot_from_an_older_save_is_ignored(self):
+        """Settings used to store a copy of its profile. That copy held back
+        every later retune, so the profile as the code defines it wins."""
+        ConfigManager._set_db_value("HP_PROFILE", "Glider")
+        for stamp in (None, 4):
+            row = {"w_t": 1.0, "beta": 0.85, "w_e": 2.5}
+            if stamp:
+                row["_schema"] = stamp
+            ConfigManager._set_db_value("HYPERPARAMS", json.dumps(row))
+            assert ConfigManager.get_hyperparams() == PROFILES["Glider"]
 
-    def test_migration_is_idempotent(self):
-        once = ConfigManager._migrate_hyperparams(
-            {**DEFAULT_HYPERPARAMS, "w_t": 1.0, "beta": 0.85})
-        twice = ConfigManager._migrate_hyperparams(dict(once))
-        assert twice["w_t"] == pytest.approx(once["w_t"])
-
-    def test_v2_bundle_is_untouched(self):
-        hp = {**DEFAULT_HYPERPARAMS, "w_t": 6.0, "beta": 0.60,
-              "_schema": HYPERPARAMS_SCHEMA_VERSION}
-        assert ConfigManager._migrate_hyperparams(dict(hp))["w_t"] == 6.0
-
-    def test_migration_uses_the_bundles_own_beta(self):
-        """Each profile had its own beta, so the conversion factor differs."""
-        hp = ConfigManager._migrate_hyperparams(
-            {**DEFAULT_HYPERPARAMS, "w_t": 4.0, "beta": 0.95})
-        assert hp["w_t"] == pytest.approx(4.0 * (TIME_REF_HOURS ** 0.95))
-
-    def test_stored_v1_row_is_migrated_on_read(self):
+    def test_a_retune_reaches_an_install_that_saved_settings(self, monkeypatch):
+        ConfigManager._set_db_value("HP_PROFILE", "Sage")
         ConfigManager._set_db_value(
-            "HYPERPARAMS", json.dumps({"w_t": 1.0, "beta": 0.85, "w_e": 2.5}))
-        hp = ConfigManager.get_hyperparams()
-        assert hp["w_t"] == pytest.approx(TIME_REF_HOURS ** 0.85)
-        assert hp["w_e"] == 2.5
+            "HYPERPARAMS", json.dumps({**DEFAULT_HYPERPARAMS, "_schema": 4}))
+        monkeypatch.setitem(PROFILES["Sage"], "d_H", 0.7)
+        assert ConfigManager.get_hyperparams()["d_H"] == 0.7
 
-    def test_set_hyperparams_stamps_the_schema_version(self):
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS})
+    def test_an_old_profile_name_reads_as_its_new_one(self):
+        ConfigManager._set_db_value("HP_PROFILE", "Sprinter")
+        assert ConfigManager.get_hyperparams() == PROFILES["Glider"]
+
+    def test_set_hyperparams_overrides_the_profile(self):
+        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
         raw = json.loads(ConfigManager._get_db_value("HYPERPARAMS"))
         assert raw["_schema"] == HYPERPARAMS_SCHEMA_VERSION
-        # And a round trip does not rescale an already-current bundle.
-        assert ConfigManager.get_hyperparams()["w_t"] == DEFAULT_HYPERPARAMS["w_t"]
+        hp = ConfigManager.get_hyperparams()
+        assert hp["w_t"] == 9.0 and "_schema" not in hp
 
-    def test_absent_row_returns_defaults_unscaled(self):
-        assert ConfigManager.get_hyperparams()["w_t"] == DEFAULT_HYPERPARAMS["w_t"]
+    def test_clear_hyperparams_leaves_the_profile(self):
+        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
+        ConfigManager.clear_hyperparams()
+        assert ConfigManager._get_db_value("HYPERPARAMS") is None
+        assert ConfigManager.get_hyperparams() == DEFAULT_HYPERPARAMS
 
-    def test_migrated_bundle_preserves_the_v1_ranking(self):
-        """The migration must not re-sort an existing user's Next list."""
+    def test_absent_row_returns_the_default_profile(self):
+        assert ConfigManager.get_hyperparams() == DEFAULT_HYPERPARAMS
+
+    def test_the_rescaled_w_t_reproduces_the_v1_curve(self):
+        """The v2 time term with w_t * TIME_REF_HOURS**beta is the v1 term."""
         nodes = [
             _node("Short", value=4, interest=4, difficulty=3,
                   time_o=3, time_m=3, time_p=3),
@@ -143,19 +140,15 @@ class TestHyperparamMigration:
             _node("Long", value=9, interest=8, difficulty=6,
                   time_o=200, time_m=200, time_p=200),
         ]
-        v1 = {**DEFAULT_HYPERPARAMS, "w_v": 1.0, "w_i": 1.0,
-              "w_e": 2.5, "w_t": 1.0, "beta": 0.85, "alpha": 0.0,
-              # This test pins the w_t rescaling, so hold the value shape
-              # linear; value_exponent is exercised separately. Suggestion
-              # variety is off for the same reason: all three nodes share a
-              # context, and the repetition discount would land on the
-              # expected ROI figures below.
+        hp = {**DEFAULT_HYPERPARAMS, "w_v": 1.0, "w_i": 1.0,
+              "w_e": 2.5, "w_t": TIME_REF_HOURS ** 0.85, "beta": 0.85,
+              # Linear value and no variety premium, so the expected ROI
+              # figures below are the plain v1 formula.
               "value_exponent": 1.0,
               "suggestion_context_premium": 0.0,
               "suggestion_subcontext_premium": 0.0}
-        migrated = ConfigManager._migrate_hyperparams(dict(v1))
 
-        ranked = score_nodes([n for n in nodes], list(nodes), [], migrated)
+        ranked = score_nodes([n for n in nodes], list(nodes), [], hp)
         got = {n.name: n.priority_score for n in ranked}
 
         for n in nodes:

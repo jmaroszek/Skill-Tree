@@ -122,3 +122,19 @@ def test_goal_ranking_counts_a_deep_task_like_a_direct_one():
     g = HP['value_exponent']
     iv = lambda v: HP['w_v'] * v ** g + HP['w_i'] * v ** g
     assert comp['tv'] == pytest.approx(iv(8) + iv(6) + 2 * D_H * iv(1))
+
+
+def test_a_done_sub_goal_passes_the_parent_credit_to_the_work_left_under_it():
+    """A sub-Goal can be marked Done with tasks still open under it. The Goal
+    ranker counts those tasks as the parent's work, so they earn the parent,
+    at one step: the finished sub-Goal is no longer a step on the way."""
+    nodes = [node('A'), goal('Sub', status='Done'), goal('Top', value=9, interest=9)]
+    edges = [edge('A', 'Sub'), edge('Sub', 'Top')]
+    r = rows('A', nodes, edges)
+    assert 'Sub' not in r
+    assert r['Top']['weight'] == pytest.approx(D_H)
+
+    contributors = explain_score('A', nodes, edges, HP)['contributors']
+    focus = focus_route_data('A', contributors, 3, nodes, edges, HP)
+    assert set(focus['subtree']) == {'A', 'Sub', 'Top'}
+    assert {('A', 'Sub', 'Needs_Hard'), ('Sub', 'Top', 'Needs_Hard')} <= set(focus['edge_rank'])

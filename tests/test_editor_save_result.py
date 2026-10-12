@@ -104,3 +104,15 @@ def test_the_editor_adopts_only_a_name_that_was_saved(manager):
 
     original, name, _aliases, snapshot = run({"name": "Sleep", "via": "btn-save", "ts": 2})
     assert original == "Sleep" and name == "Sleep" and snapshot
+
+
+def test_the_new_baseline_is_the_form_that_was_saved(manager):
+    """The sync runs after the save's whole response. Something typed in the
+    meantime must still count as unsaved, so the baseline is the saved form,
+    not the form as it is when the sync runs."""
+    from editor_forms import editor_form
+    sync = _registered()["sync_original_name_after_save"]
+    saved = editor_form(name="Sleep", desc="as saved")
+    result = {"name": "Sleep", "via": "btn-save", "form": saved, "ts": 3}
+    *_, snapshot = call(sync, save_result=result, name="Sleep", desc="typed since")
+    assert snapshot["desc"] == "as saved"

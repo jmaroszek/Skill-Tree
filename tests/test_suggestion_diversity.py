@@ -177,20 +177,15 @@ def test_an_actionable_now_node_pins_nothing(monkeypatch):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize('profile', list(PROFILES) + ['Custom'])
-def test_migration_uses_named_profile_without_writing(profile):
+def test_the_named_profile_decides_without_writing(profile):
     raw = json.dumps(dict(_schema=3, alpha=.8, alpha_goal=.42, w_t=6,
                           future_work_half_credit_hours=444, future_work_exponent=.7))
     ConfigManager._set_db_value('HYPERPARAMS', raw)
     ConfigManager._set_db_value('HP_PROFILE', profile)
     hp = ConfigManager.get_hyperparams()
     assert 'alpha' not in hp
-    expected = PROFILES.get(profile, PROFILES['Sage'])
-    for key in ('suggestion_context_premium', 'suggestion_subcontext_premium'):
-        assert hp[key] == expected[key]
-    assert (hp['alpha_goal'], hp['w_t'], hp['future_work_half_credit_hours'], hp['future_work_exponent']) == (.42, 6, 444, .7)
+    assert hp == PROFILES.get(profile, PROFILES['Sage'])
     assert ConfigManager._get_db_value('HYPERPARAMS') == raw
-    ConfigManager.set_hyperparams(hp)
-    assert ConfigManager.get_hyperparams() == hp
 
 
 @pytest.mark.parametrize('old,new', [('Curious','Explorer'), ('Sprinter','Glider'), ('Industrious','Pragmatist')])

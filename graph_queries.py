@@ -409,13 +409,19 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
             else:
                 result = [n for n in result if n.subcontext == sub]
 
+    # A node that inherits its ratings has none of its own: the stored ones
+    # only wait for a switch back to manual, and every screen shows it as
+    # Inherited. So a rating filter lets it through rather than judge it on
+    # numbers no one can see.
     for key in ('value', 'interest', 'difficulty'):
         if f'min_{key}' in filters:
             low = int(filters[f'min_{key}'])
-            result = [n for n in result if getattr(n, key) >= low]
+            result = [n for n in result
+                      if n.value_mode == 'inherited' or getattr(n, key) >= low]
         if f'max_{key}' in filters:
             high = int(filters[f'max_{key}'])
-            result = [n for n in result if getattr(n, key) <= high]
+            result = [n for n in result
+                      if n.value_mode == 'inherited' or getattr(n, key) <= high]
 
     if 'min_time' in filters or 'max_time' in filters:
         # A container's hours are the ones it inherits, the figure Details

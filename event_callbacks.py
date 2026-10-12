@@ -19,7 +19,7 @@ from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
 from callback_helpers import (build_node_element, build_edge_element,
                               canvas_node_styles, build_dormancy_snapshot,
-                              NEW_EVENT_OPTION, merge_manual_order)
+                              _norm_dormancy, NEW_EVENT_OPTION, merge_manual_order)
 import style_tokens as tokens
 
 event_manager = EventManager()
@@ -922,14 +922,35 @@ def register_event_callbacks(app, services=None):
         Output("editor-dormant-preset", "data", allow_duplicate=True),
         Input("node-original-name", "data"),
         Input("events-refresh-trigger", "data"),
+        Input("editor-save-result-store", "data"),
         State("editor-dormant-preset", "data"),
         State("editor-pristine-snapshot", "data"),
+        State("node-dormancy-form", "data"),
         prevent_initial_call=True,
     )
-    def populate_node_dormancy(node_name, _refresh, preset, snapshot):
+    def populate_node_dormancy(node_name, _refresh, save_result, preset, snapshot, form):
         node = graph_manager.get_node(node_name) if node_name else None
         dormancy = build_dormancy_snapshot(node, event_manager)
         consumed = no_update
+        trigger = ctx.triggered_id
+
+        if trigger == "editor-save-result-store":
+            # Only a save that found the node woken from under the editor
+            # (node_commands.woke_during_edit) leaves the section stale. The
+            # post-save sync already set the baseline to awake.
+            if not (isinstance(save_result, dict) and save_result.get("woke")):
+                return (no_update,) * 12
+            snapshot = None
+        elif trigger == "events-refresh-trigger":
+            # Any event change lands here. Unsaved edits to this section stay
+            # as the user left them: only the baseline moves to what is
+            # stored, so the unsaved-changes check still sees them.
+            loaded = snapshot.get("dormancy") if isinstance(snapshot, dict) else None
+            if (isinstance(snapshot, dict) and isinstance(form, dict)
+                    and _norm_dormancy(form) != _norm_dormancy(loaded)):
+                return ((no_update,) + (_event_options((form or {}).get("event")),)
+                        + (no_update,) * 8
+                        + ({**snapshot, "dormancy": dormancy}, no_update))
 
         # The Events tab's "+" opens a blank editor with Dormant already on
         # and the event chosen. The preset is used once, by the next blank
@@ -1377,20 +1398,26 @@ def register_event_callbacks(app, services=None):
         return (False, build_dormant_nodes_table(event_nodes, event),
                 f"delete-{node_name}-{int(time.time())}")
 
-    # --- App-load Announcement Modal ---
+    # --- Events Triggered announcement ---
+    # Shown at launch, and whenever an event fires or a delayed node wakes
+    # while the app is open: the clock, a save that completes a trigger node,
+    # or the Trigger button. Each of those changes the graph or bumps the
+    # events refresh. It used to be checked once, at launch only.
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
         Output("event-announcements-body", "children"),
+        Output("event-announcements-shown", "data", allow_duplicate=True),
         Input("app-load-interval", "n_intervals"),
+        Input("events-refresh-trigger", "data"),
+        Input("graph-version-store", "data"),
+        State("event-announcements-shown", "data"),
         prevent_initial_call=True,
     )
-    def show_event_announcements_on_load(n_intervals):
-        if not n_intervals:
-            return no_update, no_update
+    def show_event_announcements(_loaded, _refresh, _version, shown):
         entries = ConfigManager.get_pending_event_notifications()
-        if entries:
-            return True, _render_announcements(entries)
-        return False, no_update
+        if not entries or entries == shown:
+            return no_update, no_update, no_update
+        return True, _render_announcements(entries), entries
 
     @app.callback(
         Output("modal-event-announcements", "is_open", allow_duplicate=True),
@@ -1398,10 +1425,22 @@ def register_event_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def dismiss_event_announcements(n_clicks):
-        if not n_clicks:
+        return False if n_clicks else no_update
+
+    # However the announcement closes (Dismiss, the X, a click outside), the
+    # notifications it showed are done with. Only those: one queued while it
+    # was open is still unread, and opens the next announcement.
+    @app.callback(
+        Output("event-announcements-shown", "data", allow_duplicate=True),
+        Input("modal-event-announcements", "is_open"),
+        State("event-announcements-shown", "data"),
+        prevent_initial_call=True,
+    )
+    def forget_shown_announcements(is_open, shown):
+        if is_open or not shown:
             return no_update
-        ConfigManager.clear_pending_announcements_only()
-        return False
+        ConfigManager.remove_pending_event_notifications(shown)
+        return None
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
     # The Nodes outside event switch drops the neighbors, leaving the event's own

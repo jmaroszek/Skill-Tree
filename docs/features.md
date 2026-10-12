@@ -978,7 +978,7 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 **Rating Drift by Context** does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one panel for each of the three. Each bar shows the average change between your original rating and your reflection. A red bar left of zero means you overrated the work going in. A blue bar right of zero means you underrated it. All three panels share one scale, so bar lengths compare directly.
 
-A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has.
+A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has. Milestones and nodes that inherit their ratings are left out. Their ratings don't count toward a score, so there is nothing to drift from.
 
 <p align="center">
   <img src="../images/analyze-reflection-drift.png" width=600>

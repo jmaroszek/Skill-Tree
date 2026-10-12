@@ -987,6 +987,19 @@ class TestReflectionDriftStatusGate:
                                           value=5, reflect_value=6)]
         assert all(r["context"] != "Body" for r in _compute_reflection_drift(reverted))
 
+    def test_nodes_without_their_own_ratings_are_left_out(self):
+        """A Milestone's or an inheriting header's stored ratings don't score,
+        so a reflection on one has nothing real to drift from."""
+        rated = [_make_node(n, status="Done", context="Mind", value=5, reflect_value=7)
+                 for n in "ABCD"]
+        milestone = _make_node("M", type="Milestone", status="Done", context="Mind",
+                               value=5, reflect_value=1)
+        header = _make_node("H", status="Done", context="Mind", value=5,
+                            reflect_value=1, value_mode="inherited")
+        mind = next(r for r in _compute_reflection_drift(rated + [milestone, header])
+                    if r["context"] == "Mind")
+        assert (mind["count"], mind["d_value"]) == (4, 2.0)
+
 
 
 class TestAnalyzeRefreshGate:

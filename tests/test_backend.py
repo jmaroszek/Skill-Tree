@@ -1165,6 +1165,15 @@ class TestFiltering:
         assert len(result) == 1
         assert result[0].name == "B"
 
+    def test_a_rating_filter_lets_through_a_node_without_its_own_ratings(self, mgr):
+        """Its stored ratings only wait for a switch back to manual, and every
+        screen shows it as Inherited, so a filter doesn't judge it on them."""
+        header = _make_node("Header", value=2, interest=2, difficulty=9)
+        header.value_mode = "inherited"
+        nodes = [header, _make_node("Low", value=2)]
+        assert [n.name for n in mgr.filter_nodes(nodes, {"min_value": 5})] == ["Header"]
+        assert [n.name for n in mgr.filter_nodes(nodes, {"max_difficulty": 3})] == ["Header"]
+
     def test_filter_by_max_value(self, mgr):
         nodes = [_make_node("A", value=3), _make_node("B", value=8)]
         result = mgr.filter_nodes(nodes, {"max_value": 3})

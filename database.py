@@ -181,6 +181,21 @@ def atomic(func):
     return wrapped
 
 
+def serialized(func):
+    """Hold the write lock across a check and the writes it guards.
+
+    Each write is its own transaction, so a caller that reads (how many nodes
+    are on Now, say) and then writes could interleave with another request
+    doing the same, and both would pass the check. Writes inside still take
+    the lock again, which an RLock allows.
+    """
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with state_lock:
+            return func(*args, **kwargs)
+    return wrapped
+
+
 def on_commit(callback, key=None):
     """Run ``callback`` once the outer transaction commits, or now outside one.
 

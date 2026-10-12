@@ -466,11 +466,15 @@ DEFAULT_SHOW_SCORING_PERF = False
 
 DEFAULT_TIME_CALIBRATION_ENABLED = True
 
-# Hyperparameter bundle schema version. v2 normalized the time term to
-# `w_t * (t / TIME_REF_HOURS)**beta`, which rescales `w_t` by a factor of
-# `TIME_REF_HOURS**beta`. `ConfigManager.get_hyperparams` converts any stored
-# v1 bundle on read, so an existing install keeps the cost curve it had.
-HYPERPARAMS_SCHEMA_VERSION = 4
+# Stamp on a HYPERPARAMS row written by set_hyperparams. Settings stores only
+# the profile's name, so the scoring settings follow the profile as the code
+# defines it. Rows stamped lower are snapshots an older Settings save took of
+# its profile, and are ignored: they would hold back every later retune.
+HYPERPARAMS_SCHEMA_VERSION = 5
+
+# Old profile names, and the profile each became.
+PROFILE_ALIASES = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
+                   'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider'}
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
@@ -607,8 +611,8 @@ class ConfigManager:
                 return
             cursor.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)", (key, value))
             conn.commit()
-        if key in {"HYPERPARAMS", "CONTEXT_WEIGHTS", "TIME_SETTINGS", "PRIORITY_GOALS",
-                   "NODE_COLORS", "NODE_SHAPES"}:
+        if key in {"HYPERPARAMS", "HP_PROFILE", "CONTEXT_WEIGHTS", "TIME_SETTINGS",
+                   "PRIORITY_GOALS", "NODE_COLORS", "NODE_SHAPES"}:
             from graph_manager import GraphManager
             GraphManager()._bump_version(scoring=False)
 
@@ -709,70 +713,46 @@ class ConfigManager:
 
     @classmethod
     def get_hyperparams(cls):
-        val = cls._get_db_value("HYPERPARAMS")
-        if not val:
-            return dict(DEFAULT_HYPERPARAMS)
-        stored = json.loads(val)
-        # Merge with defaults so any key added in a newer version (e.g.
-        # `alpha_goal`) is filled in for users whose stored bundle predates it.
-        merged = dict(DEFAULT_HYPERPARAMS)
-        merged.update(stored)
-        if stored.get('_schema', 1) < 4:
-            name = cls._get_db_value("HP_PROFILE")
-            name = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
-                    'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider'}.get(name, name)
-            profile = PROFILES.get(name, DEFAULT_HYPERPARAMS)
-            for key in ('suggestion_context_premium', 'suggestion_subcontext_premium'):
-                merged[key] = stored.get(key, profile[key])
-        merged.pop('alpha', None)
-        if stored.get('_schema', 1) < 2:
-            # Resolve missing legacy cost fields before merging new defaults.
-            for key, old_default in dict(value_exponent=1.0, w_e=2.5, w_t=1.0, beta=0.85).items():
-                merged[key] = stored.get(key, old_default)
-        return cls._migrate_hyperparams(merged)
+        """The scoring settings: the chosen profile, as the code defines it now.
 
-    @staticmethod
-    def _migrate_hyperparams(hp: dict) -> dict:
-        """Bring a stored bundle up to HYPERPARAMS_SCHEMA_VERSION.
-
-        v4 replaces task density with hierarchical suggestion premiums.
-        v3 changes cascade and Goal scope, and adds future-work settings.
-        Legacy rating exponents and the v2 task cost curve remain intact.
-        The Goal curve was intentionally retuned in v2; one shared coefficient
-        cannot preserve both old curves with different reference scales.
-
-        v1 -> v2: the time term changed from `w_t * t**beta` to
-        `w_t * (t / TIME_REF_HOURS)**beta`, so a v1 `w_t` becomes
-        `w_t * TIME_REF_HOURS**beta` on the new scale. Multiplying through
-        keeps an existing install on exactly the cost curve it already had,
-        rather than silently reinterpreting w_t=1.0 as a 40x weaker time term.
-
-        Pure: converts in memory on every read. The upgraded `_schema` stamp is
-        only persisted when settings are next saved (see set_hyperparams), so
-        this stays correct whether or not the row has been rewritten yet.
+        Settings stores only the profile's name, so a retune reaches every
+        install. A bundle written with set_hyperparams overrides it. A row
+        from before is a snapshot an older Settings save took of its profile,
+        and is ignored (see HYPERPARAMS_SCHEMA_VERSION).
         """
-        from scoring import TIME_REF_HOURS
-        if hp.get('_schema', 1) >= HYPERPARAMS_SCHEMA_VERSION:
-            return hp
-        out = dict(hp)
-        out.pop('alpha', None)
-        out.setdefault('suggestion_context_premium', 5.0)
-        out.setdefault('suggestion_subcontext_premium', 15.0)
-        if hp.get('_schema', 1) < 2:
-            beta = out.get('beta', 0.85)
-            out['w_t'] = out.get('w_t', 1.0) * (TIME_REF_HOURS ** beta)
-            out.setdefault('value_exponent', 1.0)
-        out.setdefault('future_work_half_credit_hours', 1300.0)
-        out.setdefault('future_work_exponent', 0.6)
-        out['_schema'] = HYPERPARAMS_SCHEMA_VERSION
-        return out
+        name = cls._get_db_value("HP_PROFILE")
+        merged = dict(DEFAULT_HYPERPARAMS)
+        merged.update(PROFILES.get(PROFILE_ALIASES.get(name, name), DEFAULT_HYPERPARAMS))
+        val = cls._get_db_value("HYPERPARAMS")
+        if val:
+            stored = json.loads(val)
+            if stored.get('_schema', 1) >= HYPERPARAMS_SCHEMA_VERSION:
+                merged.update(stored)
+        merged.pop('_schema', None)
+        merged.pop('alpha', None)
+        return merged
 
     @classmethod
     def set_hyperparams(cls, params: dict):
+        """Override the profile's scoring settings, for tests and tools.
+        Settings never calls this: it stores the profile's name only."""
         stamped = dict(params)
         stamped.pop('alpha', None)
         stamped['_schema'] = HYPERPARAMS_SCHEMA_VERSION
         cls._set_db_value("HYPERPARAMS", json.dumps(stamped))
+
+    @classmethod
+    @database.atomic
+    def clear_hyperparams(cls):
+        """Drop any stored scoring settings, so the profile alone decides."""
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM Settings WHERE key='HYPERPARAMS'")
+            removed = cursor.rowcount
+            conn.commit()
+        if removed:
+            from graph_manager import GraphManager
+            GraphManager()._bump_version(scoring=False)
 
     @classmethod
     def get_graph_layout_defaults(cls):
@@ -1070,18 +1050,9 @@ class ConfigManager:
         #   Default     → Sage                   (2026-05)
         #   Curious     → Explorer               (2026-05)
         #   Sprinter    → Glider                 (2026-05)
-        if val == "Industrious" or val == "Pragmatic":
-            cls._set_db_value("HP_PROFILE", "Pragmatist")
-            return "Pragmatist"
-        if val == "Default":
-            cls._set_db_value("HP_PROFILE", "Sage")
-            return "Sage"
-        if val == "Curious":
-            cls._set_db_value("HP_PROFILE", "Explorer")
-            return "Explorer"
-        if val == "Sprinter":
-            cls._set_db_value("HP_PROFILE", "Glider")
-            return "Glider"
+        if val in PROFILE_ALIASES:
+            cls._set_db_value("HP_PROFILE", PROFILE_ALIASES[val])
+            return PROFILE_ALIASES[val]
         return val
 
     @classmethod
@@ -1162,7 +1133,7 @@ class ConfigManager:
         if name in order:
             cls.set_goal_order([g for g in order if g != name])
 
-    # --- Pending Event Notifications (shown on next app load) ---
+    # --- Pending Event Notifications (the Events Triggered announcement) ---
 
     @classmethod
     def get_pending_event_notifications(cls) -> list:
@@ -1184,15 +1155,14 @@ class ConfigManager:
         cls._set_db_value("PENDING_EVENT_NOTIFICATIONS", json.dumps(entries))
 
     @classmethod
-    def clear_pending_announcements_only(cls):
-        """Remove every informational pending notification.
-
-        Kept as its own name rather than folded into clear_pending_event_
-        notifications: it used to spare the override-conflict entries, which
-        needed the user's answer before they could be dropped. Nothing outlives
-        an announcement now, but the dismiss path still reads better this way.
-        """
-        cls.set_pending_event_notifications([])
+    @database.atomic
+    def remove_pending_event_notifications(cls, shown: list):
+        """Drop the notifications the announcement showed, and only those.
+        One queued while it was open waits for the next announcement."""
+        entries = cls.get_pending_event_notifications()
+        remaining = [entry for entry in entries if entry not in (shown or [])]
+        if len(remaining) != len(entries):
+            cls.set_pending_event_notifications(remaining)
 
     @classmethod
     def ensure_action_type(cls):

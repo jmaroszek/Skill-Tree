@@ -1120,6 +1120,24 @@ def _norm_dormancy(dormancy):
     return True, event, event_name, when, bool(d.get('now'))
 
 
+def woke_during_edit(events, name, dormancy, pristine_snapshot):
+    """The event `name` woke from while its editor was open, or None.
+
+    Every save runs the date sweeps first, so a node can wake between loading
+    the editor and saving it. The form still says Dormant, and saving that
+    asked to put an awake node back to sleep: refused, and the whole save
+    with it. When the user left the Dormant section as it loaded and the node
+    has since woken from that event, the wake stands and the rest saves.
+    """
+    loaded = pristine_snapshot.get('dormancy') if isinstance(pristine_snapshot, dict) else None
+    if (not (dormancy or {}).get('dormant') or not (loaded or {}).get('dormant')
+            or _norm_dormancy(dormancy) != _norm_dormancy(loaded)
+            or pristine_snapshot.get('name') != name):
+        return None
+    event = loaded.get('event')
+    return event if event and events.woke_from(name) == event else None
+
+
 def dormancy_for_save(dormancy):
     """The node-dormancy-form dict in the shape node_commands.apply_dormancy
     takes: the delay in days, and the new-event choice resolved to its name."""

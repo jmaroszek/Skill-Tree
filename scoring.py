@@ -110,9 +110,8 @@ def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
     intrinsic value nor own-effort cost.
 
     Time enters as `w_t * (t / TIME_REF_HOURS)**beta`. Note the scale change
-    from the pre-normalization form: a stored `w_t` from an older bundle must
-    be multiplied by `TIME_REF_HOURS**beta` to mean the same thing
-    (ConfigManager.get_hyperparams handles that migration).
+    from the pre-normalization form: a `w_t` from that form must be
+    multiplied by `TIME_REF_HOURS**beta` to mean the same thing.
     """
     t = time_override if time_override is not None else node.time
     e = effort_override if effort_override is not None else node.difficulty
@@ -208,9 +207,13 @@ def _goals_above(H_out, all_nodes, memo, skip):
     """For each node, the nearest Goals it leads to along Hard edges alone.
 
     A walk stops at the first Goal on each path, so a task under a sub-Goal
-    lists the sub-Goal, not the Goals above it. Routes also stop at skipped
-    nodes, as they do in _strongest_routes. Returns (nearest, order): the map,
-    and every Goal in an order where a sub-Goal comes before its parents.
+    lists the sub-Goal, not the Goals above it. Routes stop at skipped nodes,
+    as they do in _strongest_routes, except at a skipped (Done) Goal: the walk
+    goes on past it. A sub-Goal can be marked Done with work still unfinished
+    under it, and the Goal ranker still counts that work toward the Goals
+    above, so the parent credits it. Returns (nearest,
+    order): the map, and every Goal in an order where a sub-Goal comes before
+    its parents.
     """
     key = ('goals_above', skip)
     if key in memo:
@@ -224,9 +227,12 @@ def _goals_above(H_out, all_nodes, memo, skip):
         above[name] = frozenset()  # cycle guard; the Hard graph is a DAG
         found = set()
         for target in H_out.get(name, []):
-            if target in skip or target not in all_nodes:
+            if target not in all_nodes:
                 continue
-            if all_nodes[target].type == 'Goal':
+            is_goal = all_nodes[target].type == 'Goal'
+            if target in skip and not is_goal:
+                continue
+            if is_goal and target not in skip:
                 found.add(target)
             else:
                 found |= visit(target)
@@ -252,6 +258,27 @@ def _goals_above(H_out, all_nodes, memo, skip):
     return memo[key]
 
 
+def _passed_path(start, goal, H_out, passable):
+    """A Hard path from `start` to `goal` whose inner nodes are all
+    `passable`: the way _goals_above reached `goal` past Done Goals."""
+    previous = {start: None}
+    queue = deque([start])
+    while queue:
+        name = queue.popleft()
+        for target in H_out.get(name, []):
+            if target in previous:
+                continue
+            if target == goal or target in passable:
+                previous[target] = name
+                if target == goal:
+                    path = [goal]
+                    while previous[path[-1]] is not None:
+                        path.append(previous[path[-1]])
+                    return path[::-1]
+                queue.append(target)
+    return [start, goal]
+
+
 def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
                      skip=frozenset(), flat_goals=True):
     """The routes scoring credits: strongest routes, with Milestones free and,
@@ -268,7 +295,9 @@ def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
     d_H further on: d_H for the sub-Goal, d_H**2 for its parent, and so on.
     Nesting Goals deeper therefore adds less each level instead of a full
     share. Entries keep the step of the ordinary strongest route to the Goal,
-    so Focus draws a real path.
+    so Focus draws a real path. A Goal reached only past Done nodes (see
+    _goals_above) has no such route. Its step leads back through them, and
+    memo[('passed', ...)] holds the steps into those Done Goals for Focus.
     """
     free = _milestone_names(all_nodes, memo)
     routes = _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip, free)
@@ -279,10 +308,19 @@ def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
         return memo[key]
     nearest, goal_order = _goals_above(H_out, all_nodes, memo, skip)
     credited = dict(routes)
+    passed = {}
+    done_goals = {name for name in skip if all_nodes[name].type == 'Goal'}
 
-    def offer(goal, weight, depth, via):
-        old = credited[goal]
-        candidate = (weight * d_H, depth + 1, via, old[3])
+    def offer(goal, weight, depth, via, member):
+        old = credited.get(goal)
+        if goal in routes:
+            step = routes[goal][3]
+        else:
+            path = _passed_path(member, goal, H_out, done_goals)
+            for before, inner in zip(path, path[1:-1]):
+                passed.setdefault(inner, (before, 'Hard'))
+            step = (path[-2], 'Hard')
+        candidate = (weight * d_H, depth + 1, via, step)
         if _better_route(candidate, old):
             credited[goal] = candidate
 
@@ -290,13 +328,14 @@ def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
         if all_nodes[member].type == 'Goal' and member != start:
             continue  # Goals pass credit upward below, once their own is final
         for goal in nearest.get(member, ()):
-            offer(goal, weight, depth, 'Hard' if member == start else via)
+            offer(goal, weight, depth, 'Hard' if member == start else via, member)
     for goal in goal_order:
         if goal in credited and goal != start:
             weight, depth, via, _ = credited[goal]
             for parent in nearest.get(goal, ()):
-                offer(parent, weight, depth, via)
+                offer(parent, weight, depth, via, goal)
     memo[key] = credited
+    memo[('passed',) + key[1:]] = passed
     return credited
 
 
@@ -1086,12 +1125,17 @@ def focus_route_data(
     helps_edge = {frozenset((e['source'], e['target'])): (e['source'], e['target'], EDGE_HELPS)
                   for e in edges if e['type'] == EDGE_HELPS}
 
-    def route_steps(routes, target):
-        """The route to `target` as [(node, edge into it)], seed excluded."""
+    def route_steps(routes, target, seed):
+        """The route to `target` as [(node, edge into it)], seed excluded.
+        Done nodes a Goal's credit passed have their steps in `passed`."""
+        passed = memo.get(('passed', seed, d_H, d_S, skip), {}) if flat_goals else {}
         steps = []
         cur = target
-        while routes[cur][3] is not None:
-            parent, kind = routes[cur][3]
+        while True:
+            step = routes[cur][3] if cur in routes else passed.get(cur)
+            if step is None:
+                break
+            parent, kind = step
             steps.append((cur, (parent, cur, hop_type[kind])))
             cur = parent
         return steps[::-1]
@@ -1118,10 +1162,11 @@ def focus_route_data(
             if best is None:
                 return None
             _, partner, routes = best
-            return [(partner, helps_edge[frozenset((source, partner))])] + route_steps(routes, name)
+            return ([(partner, helps_edge[frozenset((source, partner))])]
+                    + route_steps(routes, name, partner))
         routes = _credited_routes(source, all_nodes_dict, H_out, S_out, d_H, d_S,
                                   memo, skip, flat_goals)
-        return route_steps(routes, name) if name in routes else None
+        return route_steps(routes, name, source) if name in routes else None
 
     node_rank: Dict[str, int] = {source: 1}
     edge_rank: Dict[Tuple[str, str, str], int] = {}

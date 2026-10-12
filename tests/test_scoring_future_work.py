@@ -6,7 +6,7 @@ import random
 import networkx as nx
 import pytest
 
-from config import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
+from config import ConfigManager, DEFAULT_HYPERPARAMS, PROFILES
 from models import Node
 from scoring import explain_score, score_nodes
 
@@ -109,24 +109,15 @@ def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
     assert actual['tv'] == pytest.approx(iv + hp['d_H']*iv)
 
 
-@pytest.mark.parametrize('schema,exponent', [(1,1.0),(2,2.0),(3,2.0)])
-def test_migration_preserves_rating_generation_and_does_not_rescale_v2(schema, exponent):
-    stored = dict(_schema=schema,w_t=6,beta=.6)
-    ConfigManager._set_db_value('HYPERPARAMS',json.dumps(stored))
+@pytest.mark.parametrize('schema', [1, 2, 3, 4])
+def test_an_older_stored_bundle_gives_way_to_the_profile(schema):
+    stored = dict(_schema=schema, w_t=6, beta=.6, value_exponent=1.0,
+                  future_work_half_credit_hours=444)
+    ConfigManager._set_db_value('HYPERPARAMS', json.dumps(stored))
     hp = ConfigManager.get_hyperparams()
-    assert hp['value_exponent'] == exponent
-    assert hp['w_t'] == pytest.approx(6*40**.6 if schema==1 else 6)
+    assert hp == DEFAULT_HYPERPARAMS
     ConfigManager.set_hyperparams(hp)
     assert ConfigManager.get_hyperparams() == hp
-
-
-def test_partial_v1_bundle_uses_legacy_cost_defaults():
-    ConfigManager._set_db_value('HYPERPARAMS', json.dumps({'w_v': 2}))
-    hp = ConfigManager.get_hyperparams()
-    assert hp['w_e'] == 2.5
-    assert hp['beta'] == .85
-    assert hp['w_t'] == pytest.approx(40**.85)
-    assert hp['value_exponent'] == 1
 
 
 def test_cached_required_work_updates_after_remote_prerequisite_edit():
@@ -186,10 +177,9 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
     args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100)
     assert save(**args)[0] == 'Settings saved'
     assert ConfigManager.get_hp_profile() == 'Explorer'
-    assert ConfigManager.get_hyperparams() == {
-        **PROFILES['Explorer'],
-        '_schema': HYPERPARAMS_SCHEMA_VERSION,
-    }
+    # Only the name is stored, so a later retune of Explorer reaches this install.
+    assert ConfigManager._get_db_value('HYPERPARAMS') is None
+    assert ConfigManager.get_hyperparams() == PROFILES['Explorer']
     assert ConfigManager.get_time_settings() == {
         'hours_per_week': 25,
         'hours_per_month': 100,

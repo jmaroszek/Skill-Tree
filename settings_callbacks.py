@@ -757,7 +757,6 @@ def register_settings_callbacks(app, services=None):
                 if context_sort_mode_val:
                     ConfigManager.set_context_sort_mode(context_sort_mode_val)
                 profile_name = hp_profile if hp_profile in PROFILES else "Sage"
-                new_hp = dict(PROFILES[profile_name])
 
                 # Keep simulation policy values that are no longer exposed in the
                 # modal while updating the two user-supplied capacity values.
@@ -788,8 +787,13 @@ def register_settings_callbacks(app, services=None):
                     ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
                 errors = context_rules.validate_rows(rows)
                 if errors:
-                    return ("Contexts need a fix before saving — see the note "
-                            "under the rows."), dash.no_update, False, 0, dash.no_update
+                    # The settings written above are kept (see the perf-toggle
+                    # note), so say which, rather than imply nothing saved.
+                    return ("Contexts need a fix — see the note under the rows. "
+                            "Graph Statistics, Reflection, Maximum Now Nodes, "
+                            "Dropdown Order and the backup folder were saved. "
+                            "The rest saves once the contexts are fixed."
+                            ), dash.no_update, False, 0, dash.no_update
 
                 old_contexts = ConfigManager.get_contexts()
                 old_subcontexts = ConfigManager.get_subcontexts()
@@ -854,7 +858,6 @@ def register_settings_callbacks(app, services=None):
                                 pending_colors[cid["index"]] = cval
 
                     pending = {
-                        'hp': new_hp,
                         'hp_profile': profile_name,
                         'ts': new_ts,
                         'ted': new_ted,
@@ -882,7 +885,7 @@ def register_settings_callbacks(app, services=None):
                 manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
 
                 ConfigManager.set_hp_profile(profile_name)
-                ConfigManager.set_hyperparams(new_hp)
+                ConfigManager.clear_hyperparams()
                 ConfigManager.set_time_settings(new_ts)
                 ConfigManager.set_time_estimate_defaults(new_ted)
                 save_sections(sections)
@@ -986,7 +989,7 @@ def register_settings_callbacks(app, services=None):
 
                     ConfigManager.set_hp_profile(
                         pending_state.get('hp_profile', 'Sage'))
-                    ConfigManager.set_hyperparams(pending_state['hp'])
+                    ConfigManager.clear_hyperparams()
                     if 'ts' in pending_state:
                         ConfigManager.set_time_settings(pending_state['ts'])
                     if 'ted' in pending_state:

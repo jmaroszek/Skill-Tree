@@ -101,6 +101,11 @@ class EventManager:
             if not node_name or node_name in seen:
                 continue
             seen.add(node_name)
+            # The picker is built once, so a node deleted since can still be
+            # chosen. Without this the foreign key refused it as a raw error.
+            if cursor.execute("SELECT 1 FROM Nodes WHERE name=?", (node_name,)).fetchone() is None:
+                raise ValueError(f"There is no node named '{node_name}' any more. "
+                                 "Pick another trigger node.")
             cursor.execute(
                 "INSERT OR IGNORE INTO EventTriggerNodes (event_name, node_name) VALUES (?, ?)",
                 (event_name, node_name),
@@ -215,6 +220,11 @@ class EventManager:
             self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            # Deleted from another window, the update would change no row
+            # and the page would still say Saved.
+            if cursor.execute("SELECT 1 FROM Events WHERE name=?", (old_name,)).fetchone() is None:
+                raise ValueError(f"There is no event named '{old_name}' any more, "
+                                 "so nothing was saved.")
             if event.trigger_nodes:
                 placeholders = ",".join("?" * len(event.trigger_nodes))
                 asleep = cursor.execute(
@@ -354,14 +364,18 @@ class EventManager:
         from graph_manager import GraphManager
         gm = GraphManager()
         node = gm.get_node(node_name)
-        if node is not None and node.status == STATUS_DONE:
+        if node is None:
+            raise ValueError(f"There is no node named '{node_name}' any more.")
+        if node.status == STATUS_DONE:
             raise ValueError(f"Reopen '{node_name}' before putting it to sleep.")
         delay_days = self._checked_delay(delay_days)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT status FROM Events WHERE name=?", (event_name,))
             row = cursor.fetchone()
-            if row and row[0] == "Triggered":
+            if row is None:
+                raise ValueError(f"There is no event named '{event_name}' any more.")
+            if row[0] == "Triggered":
                 raise ValueError(
                     f"'{event_name}' has already been triggered, so a node "
                     "added to it would never wake."
@@ -388,9 +402,8 @@ class EventManager:
             )
             # Sleeping ends current work through the same lifecycle writer
             # as the editor. A later wake can only pin via now_on_trigger.
-            if node is not None:
-                node.dormant = 1
-                gm.update_node(node)
+            node.dormant = 1
+            gm.update_node(node)
             self._sync_dormant_flag(cursor, node_name)
             conn.commit()
         self._graph_changed(scoring=True)
@@ -575,6 +588,13 @@ class EventManager:
                 counts.setdefault(name, {'total': 0, 'activated': 0})
         return counts
 
+    @staticmethod
+    def _check_still_in(cursor, event_name, node_name):
+        """After an UPDATE of one EventNodes row: refuse when there was none,
+        rather than report a change that went nowhere."""
+        if cursor.rowcount == 0:
+            raise ValueError(f"'{node_name}' isn't in '{event_name}' any more.")
+
     @database.atomic
     def set_node_delay(self, event_name: str, node_name: str, delay_days: int):
         delay_days = self._checked_delay(delay_days)
@@ -584,6 +604,7 @@ class EventManager:
                 "UPDATE EventNodes SET delay_days=? WHERE event_name=? AND node_name=?",
                 (delay_days, event_name, node_name)
             )
+            self._check_still_in(cursor, event_name, node_name)
             conn.commit()
         self._graph_changed(scoring=False)
 
@@ -596,6 +617,7 @@ class EventManager:
                 "UPDATE EventNodes SET now_on_trigger=? WHERE event_name=? AND node_name=?",
                 (1 if now_on_trigger else 0, event_name, node_name)
             )
+            self._check_still_in(cursor, event_name, node_name)
             conn.commit()
         self._graph_changed(scoring=False)
 
@@ -711,6 +733,14 @@ class EventManager:
             cursor = conn.cursor()
             cursor.execute("SELECT node_name FROM EventNodes")
             return {row[0] for row in cursor.fetchall()}
+
+    def woke_from(self, node_name: str) -> Optional[str]:
+        """The event that woke the node, while it still holds the row; or None."""
+        with self.get_connection() as conn:
+            row = conn.execute(
+                "SELECT event_name FROM EventNodes WHERE node_name=? AND activated=1",
+                (node_name,)).fetchone()
+        return row[0] if row else None
 
     def get_node_membership(self, node_name: str) -> Optional[Dict]:
         """The node's event row while it is still waiting, or None.
@@ -951,7 +981,9 @@ class EventManager:
         callback no longer reaches into `_apply_now_intent` on its own.
 
         `pin_all_now` is the confirm modal's switch: pin every node this
-        firing woke, not only the ones flagged "Add to Now" in advance.
+        firing woke, not only the ones flagged "Add to Now" in advance. When
+        Now hasn't room for them all, the flagged ones go first, then the rest
+        in recommendation order (see _pin_all_order).
 
         Returns `trigger_event`'s result plus 'now_pinned' and 'now_skipped'.
         Raises ValueError when the event is gone or has already fired, as it
@@ -965,8 +997,8 @@ class EventManager:
         if event.status != "Pending":
             raise ValueError(f"'{event_name}' had already been triggered, so nothing changed.")
         result = self.trigger_event(event_name)
-        candidates = (sorted(result['activated']) if pin_all_now
-                      else result['now_intent'])
+        candidates = (self._pin_all_order(result['activated'], result['now_intent'])
+                      if pin_all_now else result['now_intent'])
         now_pinned, now_skipped = self._apply_now_intent(candidates)
         result['now_pinned'] = now_pinned
         result['now_skipped'] = now_skipped
@@ -1179,6 +1211,31 @@ class EventManager:
                 "WHERE e.status='Pending' ORDER BY e.name")]
         return [name for name in names if self.fire_if_condition_met(name)]
 
+    @staticmethod
+    def _pin_all_order(activated: List[str], flagged: List[str]) -> List[str]:
+        """Every woken node, in the order Now takes them while it has room:
+        the ones flagged "Add to Now" first, then the rest as the
+        recommendations rank them. Alphabetical order chose arbitrarily, and
+        passed over the nodes the user had flagged."""
+        from config import ConfigManager
+        from graph_manager import GraphManager
+        first = [name for name in flagged if name in activated]
+        rest = sorted(set(activated) - set(first))
+        if len(rest) > 1:
+            gm = GraphManager()
+            try:
+                scored = gm.calculate_priority_scores(
+                    [n for n in gm.get_all_nodes() if not n.now],
+                    priority_goals=ConfigManager.get_priority_goals())
+            except Exception:
+                logger.exception("Couldn't rank the woken nodes; pinning them by name")
+                scored = []
+            place = {n.name: i for i, n in enumerate(scored)
+                     if getattr(n, 'priority_score', -1) >= 0}
+            rest.sort(key=lambda name: (place.get(name, len(place)), name))
+        return first + rest
+
+    @database.serialized  # the cap check and the writes, as one step
     def _apply_now_intent(self, intent_nodes: List[str]) -> Tuple[List[str], List[str]]:
         """Move the nodes an event just woke onto the Now list.
 

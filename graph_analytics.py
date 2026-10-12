@@ -199,10 +199,14 @@ def _compute_reflection_drift(nodes):
 
     Only currently-Done nodes count. reflect_* columns persist when a node is
     un-marked Done (so re-completing restores the reflection), so without this
-    gate a reverted node would keep skewing the drift chart."""
+    gate a reverted node would keep skewing the drift chart. Milestones and
+    nodes in inherited ratings mode are left out, as in
+    _compute_rating_distribution: their stored ratings are placeholders, so a
+    reflection has nothing real to drift from."""
     by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
     for n in nodes:
-        if n.status != STATUS_DONE:
+        if (n.status != STATUS_DONE or n.type == 'Milestone'
+                or n.value_mode == 'inherited'):
             continue
         if (n.reflect_value is None
                 and n.reflect_interest is None

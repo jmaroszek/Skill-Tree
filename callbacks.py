@@ -43,6 +43,7 @@ from callback_helpers import (
     resolve_active_node_id, normalize_name_for_comparison,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
+    NEW_NODE_DORMANCY, woke_during_edit,
     follow_done_status, resolve_done_intent,
     RELATIONSHIP_FIELDS, stored_relationships, follow_relationships,
     resolve_relationship_intent,
@@ -1074,8 +1075,11 @@ def register_callbacks(app, services=None):
         linted = save_result.get('name')
         if not linted or manager.get_node(linted) is None:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-        # Build the post-save snapshot directly from what the form holds, not
-        # from a DB round-trip. A DB-derived snapshot (via build_editor_snapshot)
+        # Build the post-save snapshot from the form as it was saved, which
+        # core_engine hands over, not from a DB round-trip. Not from the form
+        # as it is now either: this runs after the save's whole response, and
+        # anything typed meanwhile would join the baseline and never count as
+        # unsaved. A DB-derived snapshot (via build_editor_snapshot)
         # re-applies display transforms — most notably _friendly_time_estimates,
         # which picks its unit from max DB-hours and can diverge from the unit
         # the user had selected. Snapshotting the form State guarantees the
@@ -1084,8 +1088,8 @@ def register_callbacks(app, services=None):
         # overridden by their linted versions — the two values the save
         # pipeline legitimately rewrites in the form).
         linted_aliases = manager.get_aliases(linted) or ['']
-        snapshot = snapshot_from_form_state(editor_form_values_from(form), linted,
-                                            linted_aliases)
+        snapshot = snapshot_from_form_state(
+            editor_form_values_from(save_result.get('form', form)), linted, linted_aliases)
         if 'status_done' in save_result:
             snapshot['status_done'] = save_result['status_done']
         # Rewrite node-original-name only when the save changed it (a rename
@@ -1917,6 +1921,12 @@ def register_callbacks(app, services=None):
                         manager, name, original_name)
                     status_done = resolve_done_intent(
                         _prior_for_completion, status_done, pristine_snapshot)
+                    from event_manager import EventManager
+                    woke_from = woke_during_edit(
+                        EventManager(), (original_name or name).strip(), dormancy,
+                        pristine_snapshot)
+                    if woke_from:
+                        dormancy = None  # the wake stands; see woke_during_edit
                     sleeping = bool((dormancy or {}).get('dormant'))
                     if sleeping:
                         status_done = []
@@ -2025,6 +2035,9 @@ def register_callbacks(app, services=None):
                     # ValueError and rolls the whole save back.
                     apply_dormancy(manager, EventManager(), name,
                                    dormancy_for_save(dormancy), was_dormant)
+                    if woke_from:
+                        msg += (f". It woke from '{woke_from}' while you were "
+                                "editing, so it stays awake")
 
                     # Still Done unless a new unfinished prerequisite has
                     # already re-blocked it.
@@ -2060,10 +2073,18 @@ def register_callbacks(app, services=None):
                 # switch: an untouched switch follows a completion made
                 # elsewhere, and sleeping or a pending undo changes it.
                 _committed = manager.get_node(name)
+                # `form` is the form as it was saved: the new baseline for the
+                # unsaved-changes check (sync_original_name_after_save).
                 save_result = {"name": name, "via": trigger_id,
                                "status_done": ([STATUS_DONE] if _committed.status == STATUS_DONE
                                                else []),
+                               "form": form,
                                "ts": int(time.time() * 1000)}
+                if woke_from:
+                    # The node is awake, whatever the form said: that is the
+                    # baseline, and populate_node_dormancy redraws the section.
+                    save_result["form"] = {**form, "dormancy": dict(NEW_NODE_DORMANCY)}
+                    save_result["woke"] = woke_from
             except ReopensDoneNodes as e:
                 return tuple(CoreResponse(
                     editor_style=_editor_kept_open(next_ed_style),
@@ -3164,6 +3185,7 @@ def register_callbacks(app, services=None):
         State("node-original-name", "data"),
         prevent_initial_call=True,
     )
+    @database.serialized  # the cap check and the write, as one step
     def dispatch_now_toggle(toggle_val, node_name):
         import time as _time
         if not node_name:
@@ -3215,6 +3237,7 @@ def register_callbacks(app, services=None):
         Input("toggle-now-trigger-input", "value"),
         prevent_initial_call=True,
     )
+    @database.serialized  # the cap check and the writes, as one step
     def handle_now_trigger(trigger_data):
         import time as _time
         if not trigger_data:

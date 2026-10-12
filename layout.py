@@ -1494,11 +1494,14 @@ def build_app_layout(initial_elements, env="production"):
         build_ratings_editor_modal(),
         build_reflection_ratings_editor_modal(),
         dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Events Triggered Since Last Launch")),
+            dbc.ModalHeader(dbc.ModalTitle("Events Triggered")),
             dbc.ModalBody(id="event-announcements-body"),
             dbc.ModalFooter(dbc.Button("Dismiss", id="btn-event-announcements-dismiss",
                                        color="primary")),
         ], id="modal-event-announcements", is_open=False, centered=True, size="lg"),
+        # The notifications the announcement is showing, so closing it drops
+        # those and not one queued meanwhile.
+        dcc.Store(id="event-announcements-shown", data=None),
         build_settings_modal(),
         dcc.Interval(id='app-load-interval', interval=500, n_intervals=0, max_intervals=1),
 
