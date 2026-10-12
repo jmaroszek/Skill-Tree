@@ -8,6 +8,7 @@ running and the next page load shows the restored graph.
 """
 import json
 import logging
+import math
 import sqlite3
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -111,6 +112,108 @@ def _is_date_or_blank(value) -> bool:
     return True
 
 
+# Node columns that hold numbers. The required ones can't be null.
+_NODE_NUMBERS = ("value", "time_o", "time_m", "time_p", "interest", "difficulty",
+                 "dormant", "habit_duration", "habit_intensity_o",
+                 "habit_intensity_m", "habit_intensity_p", "calibration_dismissed",
+                 "now")
+_NODE_OPTIONAL_NUMBERS = ("actual_time_lower", "actual_time_point",
+                          "actual_time_upper", "reflect_value", "reflect_interest",
+                          "reflect_difficulty")
+_NODE_TEXT = ("description", "habit_duration_unit", "habit_intensity_unit", "habit_days")
+_NODE_OPTIONAL_TEXT = ("context", "subcontext", "actual_time_unit", "reflect_notes")
+_MODES = {"time_mode": ("manual", "inherited", "habit"),
+          "value_mode": ("manual", "inherited")}
+
+# Settings stored as JSON, and the kind of value each must parse to. Their
+# getters parse them without a fallback, so a value of the wrong kind would
+# break the screens that read it.
+_JSON_SETTINGS = {
+    "NODE_TYPES": list, "CONTEXT_WEIGHTS": dict, "CONTEXTS": list,
+    "NODE_COLORS": dict, "NODE_SHAPES": dict, "HYPERPARAMS": dict,
+    "GRAPH_LAYOUT_DEFAULTS": dict, "DETAILS_GRAPH_LAYOUT_DEFAULTS": dict,
+    "EVENTS_GRAPH_LAYOUT_DEFAULTS": dict, "ANALYZE_LIMITS": dict,
+    "RATINGS_DEFINITIONS": list, "REFLECTION_RATINGS_DEFINITIONS": list,
+    "TIME_SETTINGS": dict, "TIME_ESTIMATE_DEFAULTS": dict, "GOAL_ORDER": list,
+    "EVENT_ORDER": list, "PRIORITY_GOALS": list, "PENDING_EVENT_NOTIFICATIONS": list,
+}
+
+
+def _is_number(value) -> bool:
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value))
+
+
+def _check_values(tables) -> None:
+    """Refuse rows whose values have the wrong kind: a rating that's text, a
+    flag that's a list, a JSON setting that doesn't parse. SQLite stores
+    whatever it's given, so such an import committed and then left a graph
+    or settings the app couldn't read."""
+    from config import SUPPORTED_NODE_TYPES
+    from event_manager import MAX_DELAY_DAYS
+
+    for row in tables.get("Nodes", []):
+        name = _shown(row.get("name"))
+        if row.get("type") not in SUPPORTED_NODE_TYPES:
+            raise _refuse(f"The node {name} has an unknown type, {_shown(row.get('type'))}.")
+        for column in _NODE_NUMBERS + _NODE_OPTIONAL_NUMBERS:
+            if column not in row:
+                continue
+            value = row[column]
+            if value is None and column in _NODE_OPTIONAL_NUMBERS:
+                continue
+            if not _is_number(value):
+                raise _refuse(f"The node {name} has a {column} that isn't a number, "
+                              f"{_shown(value)}.")
+        for column in _NODE_TEXT + _NODE_OPTIONAL_TEXT:
+            value = row.get(column)
+            if value is None and (column in _NODE_OPTIONAL_TEXT or column not in row):
+                continue
+            if not isinstance(value, str):
+                raise _refuse(f"The node {name} has a {column} that isn't text, "
+                              f"{_shown(value)}.")
+        for column, allowed in _MODES.items():
+            if column in row and row[column] not in allowed:
+                raise _refuse(f"The node {name} has an unknown {column}, "
+                              f"{_shown(row[column])}.")
+
+    for row in tables.get("Events", []):
+        name = _shown(row.get("name"))
+        if row.get("status", "Pending") not in ("Pending", "Triggered"):
+            raise _refuse(f"The event {name} has an unknown status, "
+                          f"{_shown(row.get('status'))}.")
+        if not _is_date_or_blank(row.get("trigger_date")):
+            raise _refuse(f"The event {name} has a date that isn't one, "
+                          f"{_shown(row.get('trigger_date'))}.")
+    for row in tables.get("EventNodes", []):
+        node = _shown(row.get("node_name"))
+        delay = row.get("delay_days", 0)
+        if not (_is_number(delay) and delay == int(delay) and 0 <= delay <= MAX_DELAY_DAYS):
+            raise _refuse(f"The node {node} waits a delay that isn't a whole number "
+                          f"of days up to 100 years, {_shown(delay)}.")
+        if not _is_date_or_blank(row.get("activation_date")):
+            raise _refuse(f"The node {node} has a wake date that isn't a date, "
+                          f"{_shown(row.get('activation_date'))}.")
+        for column in ("activated", "now_on_trigger"):
+            if column in row and row[column] not in (0, 1):
+                raise _refuse(f"The node {node} has a {column} that isn't 0 or 1, "
+                              f"{_shown(row[column])}.")
+
+    for row in tables.get("Settings", []):
+        key, value = row.get("key"), row.get("value")
+        if not isinstance(key, str) or not (value is None or isinstance(value, str)):
+            raise _refuse(f"The setting {_shown(key)} isn't stored as text.")
+        kind = _JSON_SETTINGS.get(key)
+        if kind is None or not value:
+            continue
+        try:
+            parsed = json.loads(value)
+        except ValueError:
+            parsed = None
+        if not isinstance(parsed, kind):
+            raise _refuse(f"The setting {_shown(key)} is damaged.")
+
+
 def _validated_graph(tables) -> dict:
     """The tables, checked against the rules the editor enforces on every save.
 
@@ -118,7 +221,7 @@ def _validated_graph(tables) -> dict:
     load a graph the app could never have built: a name that can't travel
     through menus and the canvas, a date that isn't one, prerequisites that
     loop, or one pair related as two kinds of prerequisite. Such a graph is
-    refused whole.
+    refused whole, and so is a value of the wrong kind (_check_values).
 
     A Helps row whose ends are the wrong way round is put in order instead,
     since a rename in the exporting app can leave one that way. Returns a
@@ -165,6 +268,7 @@ def _validated_graph(tables) -> dict:
                 raise _refuse(f"{_shown(first)} and {_shown(second)} are linked by "
                               "more than one prerequisite. Only one prerequisite "
                               "is allowed between two nodes.")
+    _check_values(tables)
     looped = graph_rules.cyclic_nodes(
         (source, target) for source, target, _kind in prerequisite_pairs.values())
     if looped:
@@ -271,7 +375,9 @@ def restore_backup(path) -> None:
         raise TransferRefused("That backup was made by a newer version of Skill Tree.")
     try:
         # Nothing is restored unless the current graph was backed up first.
-        backup.create_backup("before-restore")
+        # The oldest before-restore copy, if it's the one chosen, must outlive
+        # that backup's pruning.
+        backup.create_backup("before-restore", keep=(path,))
         with database.state_lock:
             _copy_into_live_database(path)
             # The restored copy may predate the current schema.
@@ -321,14 +427,16 @@ def _after_replacing_the_graph():
     """Nothing in memory may describe the graph that was just replaced.
 
     The new graph never went through a startup either, so the startup safety
-    nets run on it: statuses from prerequisites, dormant flags from events
-    that already woke their nodes, priority ranks held by non-Goals, and
-    events whose trigger nodes are already complete.
+    nets run on it: Synergy links stored back to front, statuses from
+    prerequisites, dormant flags from events that already woke their nodes,
+    priority ranks held by non-Goals or finished Goals, and events whose
+    trigger nodes are already complete.
     """
     from event_manager import EventManager
     from graph_manager import GraphManager
     manager = GraphManager()
     manager.pop_auto_done_candidates()
+    manager.canonicalize_helps_edges()
     manager.recompute_all_statuses()
     events = EventManager()
     events.reconcile_dormant_flags()

@@ -8,6 +8,8 @@ hangs off the Now list instead.
 
 import pytest
 
+import database
+
 from callback_helpers import format_suggestions_table
 from config import ConfigManager
 from graph_manager import GraphManager
@@ -70,7 +72,9 @@ def test_a_target_whose_subtree_is_entirely_blocked_earns_nothing(mgr):
     _chain(mgr, "Far", "Near")
     mgr.add_node(_node("Deep"))
     mgr.add_edge("Deep", "Near", EDGE_NEEDS_HARD)
-    mgr.update_node(_node("Deep", status="Blocked"))
+    # Blocked behind the save's back: a save re-derives it to Open.
+    with database.transaction() as conn:
+        conn.execute("UPDATE Nodes SET status='Blocked' WHERE name='Deep'")
     assert mgr.get_node("Near").status == "Blocked"
     assert _names(mgr.get_unblocking_steps(["Far"])) == []
 

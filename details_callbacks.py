@@ -185,7 +185,7 @@ def register_details_callbacks(app, services=None):
     # one more request queued behind every selection while the graph waited.
     app.clientside_callback(
         """
-        function(selected, backClicks, fwdClicks, history, navIndex) {
+        function(selected, backClicks, fwdClicks, options, history, navIndex) {
             var context = window.dash_clientside.callback_context;
             var trigger = context && context.triggered_id;
             history = (history || []).slice();
@@ -205,6 +205,20 @@ def register_details_callbacks(app, services=None):
                     history.push(selected);
                     navIndex = 0;
                 }
+            } else if (trigger === 'details-node-select') {
+                // The node list changed. Drop the nodes deleted or renamed
+                // since, so Back and Forward never land on a dead entry, and
+                // merge the neighbors that leaves side by side.
+                var alive = {};
+                (options || []).forEach(function (o) { alive[o.value] = true; });
+                var kept = [], keptIndex = -1;
+                history.forEach(function (name, i) {
+                    if (!alive[name]) return;
+                    if (kept[kept.length - 1] !== name) kept.push(name);
+                    if (i <= navIndex) keptIndex = kept.length - 1;
+                });
+                history = kept;
+                navIndex = keptIndex;
             }
             return [history, navIndex, navIndex <= 0, navIndex >= history.length - 1];
         }
@@ -216,6 +230,7 @@ def register_details_callbacks(app, services=None):
         Input("details-selected-node-store", "data"),
         Input("btn-details-nav-back", "n_clicks"),
         Input("btn-details-nav-forward", "n_clicks"),
+        Input("details-node-select", "options"),
         State("details-nav-history", "data"),
         State("details-nav-index", "data"),
         prevent_initial_call=True,
@@ -989,6 +1004,7 @@ def register_details_callbacks(app, services=None):
             node_type=f_node_types, context=f_context,
             subcontext=f_subcontext, value=f_value, interest=f_interest,
             difficulty=f_difficulty, time=f_time, time_min=f_time_min,
+            search=f_search,
         )
         return build_details_suggestions(
             goal_rows, explore_rows, filters_active=filters_active)
@@ -1315,6 +1331,14 @@ def register_details_callbacks(app, services=None):
         hypers['context_weights'] = ConfigManager.get_context_weights()
         node = next((n for n in all_nodes if n.name == node_name), None)
         is_goal = node is not None and node.type == 'Goal'
+        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
+        # A sleeping node can be selected in Details, but it isn't scored.
+        if node is None and graph_manager.get_node(node_name) is not None:
+            return (node_name, "Dormant: not ranked",
+                    html.Div("This node is asleep. It is scored once its event "
+                             "wakes it.", className="text-muted",
+                             style={"padding": "16px"}),
+                    [], count_out, node_name)
 
         normalized = None
         if is_goal:
@@ -1398,9 +1422,8 @@ def register_details_callbacks(app, services=None):
             contributor = nodes_by_name.get(c['name'])
             if contributor is not None:
                 c['value'], c['interest'] = contributor.value, contributor.interest
-        # Reset count to default only when the modal opens — not when the
-        # user selects a different node while it's already open.
-        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
+        # count_out resets to the default only when the modal opens, not when
+        # the user selects a different node while it's already open.
         return (title, subtitle, build_explain_summary(breakdown, normalized),
                 contributors, count_out, node_name)
 

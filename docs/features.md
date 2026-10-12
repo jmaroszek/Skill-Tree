@@ -808,6 +808,8 @@ A few details worth knowing. Firing is one-way: once an event fires, un-completi
 
 Saving an event checks the condition too. Dropping the last unfinished node from an All event fires it on the spot, and so does switching to Any when one node is Done. A new event can't watch a node that is already Done. It would fire as soon as you saved it, before you could put anything in it.
 
+A node can't sleep in an event it triggers. It would have to wake before it could be finished, and it can't wake until the event fires. A delay can be up to 100 years.
+
 ## The Events Tab
 The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.
 

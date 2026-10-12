@@ -434,7 +434,9 @@ def build_edge_element(edge):
     source, target, edge_type = edge['source'], edge['target'], edge['type']
     return {
         'data': {
-            'id': f"{source}_{target}_{edge_type}",
+            # Joined with underscores, "A_B" to "C" and "A" to "B_C" shared an
+            # id, and Cytoscape drew only one of the two edges.
+            'id': bridge_payloads.edge_key(source, target, edge_type),
             'source': source,
             'target': target,
             'type': edge_type,
@@ -545,10 +547,12 @@ def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None
     if low is not None or high is not None:
         try:
             multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
+            # Rounded as Node.time is, so a node sitting on a bound in another
+            # unit stays in.
             if low is not None:
-                filters['min_time'] = low * multiplier
+                filters['min_time'] = round(low * multiplier, 2)
             if high is not None:
-                filters['max_time'] = high * multiplier
+                filters['max_time'] = round(high * multiplier, 2)
         except (ValueError, TypeError) as e:
             logger.warning("Invalid time filter (%r-%r, unit=%r): %s",
                            f_time_min, f_time, f_time_unit, e)
@@ -835,6 +839,33 @@ def sync_time_fields(triggered, hpd, hpw, hpm, hpy):
     return none
 
 
+def actual_bracket_hours(entered, multiplier, stored=(None, None, None)):
+    """The lower, best and upper actual times a reflection submits, in hours.
+
+    ``entered`` is the three fields as typed, in the unit ``multiplier``
+    converts to hours. A blank, zero or negative field is no data. The rest
+    are put in order, so a bracket typed back to front still reads lower,
+    best, upper. A field still showing its ``stored`` value, as the form
+    rounds it, keeps the stored hours: a Submit with no changes used to
+    rewrite every actual time with its rounded copy.
+    """
+    hours = []
+    for value, before in zip(entered, stored):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            hours.append(None)
+            continue
+        if not math.isfinite(value) or value <= 0:
+            hours.append(None)
+        elif before is not None and round(before / multiplier, 2) == value:
+            hours.append(before)
+        else:
+            hours.append(value * multiplier)
+    ordered = iter(sorted(h for h in hours if h is not None))
+    return tuple(None if h is None else next(ordered) for h in hours)
+
+
 def capacity_hours(hpw, hpm, stored):
     """The hours per week and per month to save from the Settings fields.
 
@@ -859,6 +890,40 @@ def capacity_hours(hpw, hpm, stored):
     if month is None:
         month = week * 4.0
     return {'hours_per_week': week, 'hours_per_month': month}
+
+
+def time_estimate_problem(time_o, time_m, time_p):
+    """Why a lower / expected / upper bracket can't be saved, or None.
+
+    The supported patterns mirror `expected_time_estimate` in models.py:
+    Expected only, Lower + Upper, or all three, in order. The editor disables
+    Save while this says something, and every save path checks it too: the
+    unsaved-changes dialog's Save, and habit mode, went around the button.
+    """
+    o, m, p = float(time_o or 0), float(time_m or 0), float(time_p or 0)
+    pattern = (o > 0, m > 0, p > 0)
+    if pattern == (False, False, False):
+        return "Enter at least an Expected estimate, or both Lower and Upper."
+    problems = {
+        (True, False, False): "Lower alone is not enough — also enter Upper, "
+                              "or use Expected instead.",
+        (False, False, True): "Upper alone is not enough — also enter Lower, "
+                              "or use Expected instead.",
+        (True, True, False): "Lower + Expected is not a valid pair — also "
+                             "enter Upper, or drop Lower.",
+        (False, True, True): "Expected + Upper is not a valid pair — also "
+                             "enter Lower, or drop Upper.",
+    }
+    if pattern in problems:
+        return problems[pattern]
+    errors = []
+    if pattern[0] and pattern[1] and o > m:
+        errors.append("Lower must be ≤ Expected")
+    if pattern[1] and pattern[2] and m > p:
+        errors.append("Expected must be ≤ Upper")
+    if pattern[0] and pattern[2] and o > p:
+        errors.append("Lower must be ≤ Upper")
+    return "; ".join(errors) or None
 
 
 def compute_habit_time_omp(duration, duration_unit,

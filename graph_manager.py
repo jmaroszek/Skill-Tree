@@ -7,9 +7,11 @@ detection, filtering, and priority scoring — and owns the invalidation
 counters that let the higher-level callback caches know when to rebuild.
 """
 
+import contextlib
+import contextvars
 import sqlite3
 import time
-from collections import deque
+from collections import defaultdict, deque
 from datetime import date
 import database
 import graph_queries
@@ -37,6 +39,9 @@ if TYPE_CHECKING:
 # context peers, and get_priority_normalizer takes its max over non-Now nodes.
 # Only membership matters, not rank -- reorder_now_nodes writes the rank in raw
 # SQL and correctly stays scoring=False.
+# The ranking a run of Now starts shares (see GraphManager.ranking_batch).
+_rank_batch: contextvars.ContextVar = contextvars.ContextVar("rank_batch", default=None)
+
 _SCORING_RELEVANT_FIELDS = frozenset({
     'type', 'value', 'interest', 'difficulty',
     'time_o', 'time_m', 'time_p', 'time_mode',
@@ -213,6 +218,10 @@ class GraphManager:
             )
         prior = self.get_node(node.name)
         self._normalize_activity(node, prior)
+        # Goals have no Blocked state. A Blocked node turned into a Goal kept
+        # it, and the cascade, which leaves Goals alone, never cleared it.
+        if node.type == "Goal" and node.status == STATUS_BLOCKED:
+            node.status = STATUS_OPEN
         # Completion is judged against the node as it was before this whole
         # transaction. A compound save can write the node again after marking
         # it Done, and that later write sees it Done already.
@@ -273,6 +282,11 @@ class GraphManager:
                 node.type != "Goal"
                 or (node.status == STATUS_DONE and prior.status != STATUS_DONE)):
             ConfigManager.drop_priority_goal(node.name)
+        # The node's own Blocked or Open follows its prerequisites, whatever
+        # the form said: a Goal turned into an Action kept Open with
+        # unfinished prerequisites until the next launch repaired it.
+        if node.type != "Goal" and node.status != STATUS_DONE:
+            self._update_node_state(node.name)
         self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
@@ -458,6 +472,31 @@ class GraphManager:
         self._bump_version()
 
     @database.atomic
+    def canonicalize_helps_edges(self) -> int:
+        """Store every Synergy the way round add_edge does, and return how
+        many rows changed. Older builds left some back to front, and add_edge
+        then stored the same pair a second time."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                "SELECT source, target FROM Edges WHERE type=?", (EDGE_HELPS,)).fetchall()
+            stored = set(rows)
+            fixed = 0
+            for source, target in rows:
+                canonical = self._canonicalize_edge(source, target, EDGE_HELPS)
+                if canonical == (source, target):
+                    continue
+                conn.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?",
+                             (source, target, EDGE_HELPS))
+                if canonical not in stored:
+                    conn.execute("INSERT INTO Edges (source, target, type) VALUES (?, ?, ?)",
+                                 (*canonical, EDGE_HELPS))
+                    stored.add(canonical)
+                fixed += 1
+        if fixed:
+            self._bump_version()
+        return fixed
+
+    @database.atomic
     def prune_priority_goals(self) -> List[str]:
         """Take the priority ranks of names that aren't unfinished Goals,
         and return those names. A save drops a rank when its Goal changes
@@ -504,19 +543,50 @@ class GraphManager:
 
         Recorded when a node enters Now, to tell later whether picks follow
         the recommendations. It is a side record, so a scoring failure
-        records nothing rather than blocking the save."""
-        try:
-            scored = self.calculate_priority_scores(
-                [n for n in self.get_all_nodes() if not n.now],
-                priority_goals=ConfigManager.get_priority_goals())
-        except Exception:
-            import logging
-            logging.getLogger(__name__).exception(
-                "Couldn't rank %s as it entered Now", node_name)
-            return None, None
-        ranked = [n.name for n in scored if getattr(n, 'priority_score', -1) >= 0]
+        records nothing rather than blocking the save. Inside ranking_batch
+        the whole run shares one ranking."""
+        batch = _rank_batch.get()
+        if batch is not None and batch["ranked"] is not None:
+            ranked = batch["ranked"]
+        else:
+            try:
+                scored = self.calculate_priority_scores(
+                    [n for n in self.get_all_nodes() if not n.now],
+                    priority_goals=ConfigManager.get_priority_goals())
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Couldn't rank %s as it entered Now", node_name)
+                return None, None
+            ranked = [n.name for n in scored if getattr(n, 'priority_score', -1) >= 0]
+            if batch is not None:
+                batch["ranked"] = ranked
+        if batch is not None:
+            # The nodes this run already moved have left the pool.
+            ranked = [name for name in ranked if name not in batch["moved"]]
+            batch["moved"].add(node_name)
         rank = ranked.index(node_name) + 1 if node_name in ranked else None
         return rank, len(ranked)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def ranking_batch():
+        """Rank once for a run of nodes entering Now together.
+
+        Each start records the node's place in the recommendations, and that
+        scored the whole graph, so a bulk Add to Now, or an event waking
+        several nodes onto Now, scored it once per node. In a batch the first
+        start scores, and each later one reads the same ranking without the
+        nodes moved before it. The rank is a side record, so a snapshot is
+        close enough."""
+        if _rank_batch.get() is not None:
+            yield
+            return
+        token = _rank_batch.set({"ranked": None, "moved": set()})
+        try:
+            yield
+        finally:
+            _rank_batch.reset(token)
 
     def get_aliases(self, node_name: str) -> list:
         """Return all aliases for a node."""
@@ -649,8 +719,14 @@ class GraphManager:
                 if cursor.execute("SELECT 1 FROM Nodes WHERE name=?", (name,)).fetchone() is None:
                     raise ValueError(f"Cannot link missing node '{name}'.")
             self._check_pair_conflict(cursor, source, target, edge_type)
-            cursor.execute("INSERT OR IGNORE INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
-            changed = cursor.rowcount > 0
+            # A Synergy row an older build left back to front is this one.
+            reversed_helps = edge_type == EDGE_HELPS and cursor.execute(
+                "SELECT 1 FROM Edges WHERE source=? AND target=? AND type=?",
+                (target, source, edge_type)).fetchone() is not None
+            changed = False
+            if not reversed_helps:
+                cursor.execute("INSERT OR IGNORE INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
+                changed = cursor.rowcount > 0
             if changed and not _defer_updates and edge_type == EDGE_NEEDS_HARD:
                 self._update_node_state(target)
         if changed and not _defer_updates:
@@ -918,31 +994,49 @@ class GraphManager:
     def get_downstream_done_dependents(self, node_name: str) -> List[str]:
         """Return Done downstream nodes that would re-block if `node_name` were un-Done.
 
-        Walks Hard out-edges transitively from `node_name` and returns every
-        Done node found. Used to warn the user before they un-Done a node:
-        these are the dependents that will flip Done → Blocked once the
-        cascade runs.
+        Used to warn the user before they un-Done a node: these are the
+        dependents that will flip Done → Blocked once the cascade runs. It
+        runs _cascade_update_states' rules in memory, without writing, since
+        an editor save asks inside its own transaction. Every Done node past
+        a Hard link used to be listed, including Goals, which keep their
+        status, and the nodes beyond them, which the cascade never reaches.
         """
-        result: List[str] = []
-        seen: Set[str] = {node_name}
-        stack: List[str] = [node_name]
         with self.get_connection() as conn:
-            cursor = conn.cursor()
-            while stack:
-                current = stack.pop()
-                cursor.execute(
-                    "SELECT target FROM Edges WHERE source=? AND type='Needs_Hard'",
-                    (current,),
-                )
-                for (target,) in cursor.fetchall():
-                    if target in seen:
-                        continue
-                    seen.add(target)
-                    target_node = self.get_node(target)
-                    if target_node and target_node.status == STATUS_DONE:
-                        result.append(target)
-                    stack.append(target)
-        return result
+            rows = conn.execute("SELECT name, type, status FROM Nodes").fetchall()
+            edges = conn.execute(
+                "SELECT source, target FROM Edges WHERE type='Needs_Hard'").fetchall()
+        kind = {name: node_type for name, node_type, _ in rows}
+        status = {name: node_status for name, _, node_status in rows}
+        prereqs: Dict[str, List[str]] = defaultdict(list)
+        dependents: Dict[str, List[str]] = defaultdict(list)
+        for source, target in edges:
+            prereqs[target].append(source)
+            dependents[source].append(target)
+
+        status[node_name] = STATUS_OPEN
+        reopened: List[str] = []
+        queue = deque(dict.fromkeys(dependents[node_name]))
+        pending = set(queue)
+        while queue:
+            name = queue.popleft()
+            pending.discard(name)
+            if kind.get(name, 'Goal') == 'Goal':
+                continue
+            blocked = any(status.get(p) != STATUS_DONE for p in prereqs[name])
+            current = status[name]
+            if current == STATUS_DONE and not blocked:
+                continue
+            new_status = STATUS_BLOCKED if blocked else STATUS_OPEN
+            if new_status == current:
+                continue
+            if current == STATUS_DONE:
+                reopened.append(name)
+            status[name] = new_status
+            for dependent in dependents[name]:
+                if dependent not in pending:
+                    queue.append(dependent)
+                    pending.add(dependent)
+        return reopened
 
     @database.atomic
     def recompute_all_statuses(self) -> int:
@@ -1193,8 +1287,9 @@ class GraphManager:
     def hidden_by_status(self, nodes: List[Node], filters: Dict) -> Dict[str, int]:
         return graph_queries.hidden_by_status(self, nodes, filters)
 
-    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
-        return graph_queries._build_nx_graph(self, allowed_names)
+    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None,
+                        include_dormant: bool = False) -> "nx.Graph":
+        return graph_queries._build_nx_graph(self, allowed_names, include_dormant)
 
     # --- Migration ---
 

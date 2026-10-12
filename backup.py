@@ -155,11 +155,13 @@ def copy_database(destination) -> None:
             conn.close()
 
 
-def create_backup(kind="manual", *, dedupe=False) -> Optional[Path]:
+def create_backup(kind="manual", *, dedupe=False, keep=()) -> Optional[Path]:
     """Copy the database into the Backups folder and return the new file.
 
     Returns None when there is no database yet or, with ``dedupe``, when the
-    copy is identical to the newest backup, which already covers it.
+    copy is identical to the newest backup, which already covers it. The
+    paths in ``keep`` survive the pruning of old copies, as the backup about
+    to be restored must.
     """
     if kind not in KEEP:
         raise ValueError(f"Unknown backup kind {kind!r}")
@@ -175,13 +177,15 @@ def create_backup(kind="manual", *, dedupe=False) -> Optional[Path]:
         tmp.unlink()
         return None
     os.replace(tmp, final)
-    _prune(kind, directory)
+    _prune(kind, directory, keep)
     logger.info("Backed up the database to %s", final)
     return final
 
 
-def _prune(kind, directory) -> None:
-    backups = list_backups(kind, directory)
+def _prune(kind, directory, keep=()) -> None:
+    kept = {Path(p).resolve() for p in keep}
+    backups = [info for info in list_backups(kind, directory)
+               if Path(info["path"]).resolve() not in kept]
     for info in backups[:max(0, len(backups) - KEEP[kind])]:
         try:
             info["path"].unlink()

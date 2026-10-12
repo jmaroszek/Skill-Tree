@@ -15,7 +15,7 @@ from callback_helpers import (build_filters, empty_canvas_detail, is_filters_act
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
-from config import DEFAULT_NODE_COLORS
+from config import ConfigManager, DEFAULT_NODE_COLORS
 
 
 @pytest.fixture(autouse=True)
@@ -117,8 +117,10 @@ class TestBuildFilters:
     def test_time_band_converts_both_ends_with_the_unit(self):
         result = build_filters("All", "All", ["show_done"], f_time_min=1, f_time=2,
                                f_time_unit="days")
-        hours_per_day = result["max_time"] / 2
-        assert result == {"min_time": hours_per_day, "max_time": 2 * hours_per_day}
+        hours_per_day = ConfigManager.get_time_multiplier("days")
+        # Rounded as Node.time is, so a node sitting on a bound stays in.
+        assert result == {"min_time": round(hours_per_day, 2),
+                          "max_time": round(2 * hours_per_day, 2)}
 
     def test_min_time_above_max_time_filters_nothing(self):
         result = build_filters("All", "All", ["show_done"], f_time_min=10, f_time=2)

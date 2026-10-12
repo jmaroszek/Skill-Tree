@@ -388,3 +388,36 @@ class TestCalibrationModalLayout:
         order = [text.index(marker) for marker in
                  ("calibration-value", "time-calibration-lower", "calibration-notes")]
         assert order == sorted(order)
+
+
+# --- Submitted actual times: order, zeros, and an unchanged Submit ---------
+
+@pytest.mark.parametrize("entered, expected", [
+    ((2, 3, 5), (2.0, 3.0, 5.0)),
+    ((5, 3, 2), (2.0, 3.0, 5.0)),       # typed back to front
+    ((5, None, 2), (2.0, None, 5.0)),   # two-point, reversed
+    ((0, 3, -1), (None, 3.0, None)),    # zero and negative are no data
+    (("", None, float("nan")), (None, None, None)),
+])
+def test_actual_bracket_hours(entered, expected):
+    from callback_helpers import actual_bracket_hours
+    assert actual_bracket_hours(entered, 1.0) == expected
+
+
+def test_an_unchanged_submit_keeps_the_stored_hours():
+    from callback_helpers import actual_bracket_hours
+    stored = (20 / 7, 40 / 7, None)   # shown in days as 1.0 and 2.0 at 20/7 h a day
+    shown = tuple(None if h is None else round(h / (20 / 7), 2) for h in stored)
+
+    assert actual_bracket_hours(shown, 20 / 7, stored) == stored
+    # A changed field is written as typed.
+    assert actual_bracket_hours((1.0, 3.0, None), 20 / 7, stored) == (
+        stored[0], 3.0 * 20 / 7, None)
+
+
+def test_recorded_zeros_are_no_actual_time():
+    item = Node(name="Z", type="Learn", description="", value=5, time_o=1,
+                time_m=2, time_p=4, interest=5, difficulty=5, status="Done",
+                context="Mind", actual_time_lower=0, actual_time_point=0,
+                actual_time_upper=0)
+    assert item.actual_time is None

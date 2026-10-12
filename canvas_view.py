@@ -170,6 +170,12 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
                 quote = "'" if has_dq else '"'
                 return f'[{prop} = {quote}{value}{quote}]'
 
+            def _edge_selector(source, target, edge_type):
+                parts = [_attr_selector('source', source),
+                         _attr_selector('target', target),
+                         _attr_selector('type', edge_type)]
+                return None if None in parts else ''.join(parts)
+
             for node_name in focus_subtree:
                 sel_tail = _attr_selector('id', node_name)
                 if sel_tail is None:
@@ -192,8 +198,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
             edges = manager.get_edges()
             for e in edges:
                 if e['source'] in focus_subtree and e['target'] in focus_subtree:
-                    eid = f"{e['source']}_{e['target']}_{e['type']}"
-                    sel_tail = _attr_selector('id', eid)
+                    sel_tail = _edge_selector(e['source'], e['target'], e['type'])
                     if sel_tail is None:
                         continue
                     active_stylesheet.append({
@@ -239,8 +244,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
                     color = PATH_COLORS.get(int(rank))
                     if color is None:
                         continue
-                    eid = f"{src}_{tgt}_{etype}"
-                    sel_tail = _attr_selector('id', eid)
+                    sel_tail = _edge_selector(src, tgt, etype)
                     if sel_tail is None:
                         continue
                     active_stylesheet.append({

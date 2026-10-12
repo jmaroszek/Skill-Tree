@@ -8,7 +8,7 @@ History tab). Its helpers are in editor_values.
 from dash import html, Input, Output, State, no_update
 
 import style_tokens as tokens
-from callback_helpers import get_trigger_id
+from callback_helpers import actual_bracket_hours, get_trigger_id
 from config import ConfigManager
 from editor_values import (_calibration_modal_text, _calibration_prepop,
                            _calibration_review_queue, _calibration_unit_for)
@@ -95,14 +95,12 @@ def register_calibration_callbacks(app, services=None):
         # Apply the chosen action to the current node.
         if node is not None:
             if trig == 'btn-time-calibration-submit':
-                mult = ConfigManager.get_time_multiplier(unit or 'hours')
-
-                def _to_hours(v):
-                    return float(v) * mult if v not in (None, '') else None
-
-                node.actual_time_lower = _to_hours(lower)
-                node.actual_time_point = _to_hours(point)
-                node.actual_time_upper = _to_hours(upper)
+                stored = (node.actual_time_lower, node.actual_time_point,
+                          node.actual_time_upper)
+                (node.actual_time_lower, node.actual_time_point,
+                 node.actual_time_upper) = actual_bracket_hours(
+                    (lower, point, upper),
+                    ConfigManager.get_time_multiplier(unit or 'hours'), stored)
                 node.actual_time_unit = unit or 'hours'
                 node.reflect_value = int(val) if val is not None else None
                 node.reflect_interest = int(interest) if interest is not None else None

@@ -385,9 +385,7 @@ def register_event_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def run_event_clock(_n):
-        woken = event_manager.check_pending_activations()
-        fired = event_manager.check_scheduled_triggers()
-        if not woken and not fired:
+        if not event_manager.run_sweeps():
             return no_update
         return f"event-clock-{int(time.time() * 1000)}"
 

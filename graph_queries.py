@@ -491,12 +491,16 @@ def _matching_terms(manager, nodes: List[Node], terms: List[str],
     return [n for n in nodes if all(term in text(n) for term in terms)]
 
 
-def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None) -> "nx.Graph":
+def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None,
+                    include_dormant: bool = False) -> "nx.Graph":
+    """The undirected graph of the nodes in ``allowed_names`` (any node, when
+    it is given; otherwise the awake ones, or all with ``include_dormant``)."""
     # Imported here: NetworkX is hundreds of modules, and the server should
     # answer before it has loaded. app.main warms it in the background.
     import networkx as nx
     G = nx.Graph()
-    nodes = manager.get_all_nodes()
+    nodes = manager.get_all_nodes(
+        include_dormant=include_dormant or allowed_names is not None)
     edges = manager.get_edges()
     for n in nodes:
         if allowed_names is None or n.name in allowed_names:
@@ -541,7 +545,9 @@ def list_communities(manager, method: str = "louvain",
 
 def detect_communities(manager, method: str = "components", filters: Optional[Dict] = None) -> List[Set[str]]:
     if filters:
-        all_nodes = manager.get_all_nodes()
+        # Dormant nodes too: filter_nodes' dormant gate decides, as it does
+        # for the canvas, so Show Dormant keeps them in their communities.
+        all_nodes = manager.get_all_nodes(include_dormant=True)
         filtered_nodes = manager.filter_nodes(all_nodes, filters)
         allowed_names = {n.name for n in filtered_nodes}
     else:
@@ -567,8 +573,11 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
         return result
 
     if method == "orphans":
-        # Each isolated node (degree 0 in the filtered graph) is its own "community"
-        result = [{node} for node in G.nodes if G.degree(node) == 0]
+        # An orphan has no link at all. Its degree comes from the whole
+        # graph: hiding Done nodes used to make orphans of the nodes linked
+        # only to them.
+        whole = manager._build_nx_graph(include_dormant=True)
+        result = [{node} for node in G.nodes if whole.degree(node) == 0]
         manager._cache_communities(cache_key, result)
         return [set(c) for c in result]
 

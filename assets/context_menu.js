@@ -141,18 +141,20 @@
             var allNow = nowCount > 0 && nowTargets.every(function (node) {
                 return Number(node.now) > 0;
             });
-            var allDone = targets.length > 0 && targets.every(function (node) {
+            var doneTargets = targets.filter(function (node) { return !asleep(node); });
+            var doneCount = doneTargets.length;
+            var allDone = doneCount > 0 && doneTargets.every(function (node) {
                 return node.status === 'Done';
             });
             toggleNowItem.style.display = nowCount > 0 ? '' : 'none';
-            toggleDoneItem.style.display = targets.length > 0 && targets.every(asleep) ? 'none' : '';
+            toggleDoneItem.style.display = targets.length > 0 && doneCount === 0 ? 'none' : '';
             toggleNowLabel.textContent = nowCount > 1
                 ? (allNow ? 'Remove ' + nowCount + ' from Now' : 'Add ' + nowCount + ' to Now')
                 : (allNow ? 'Remove from Now' : 'Add to Now');
             toggleDoneItem.querySelector('.ctx-menu-icon').className =
                 'bi bi-' + (allDone ? 'arrow-counterclockwise' : 'check-circle') + ' ctx-menu-icon';
-            toggleDoneLabel.textContent = targetCount > 1
-                ? (allDone ? 'Reopen ' + targetCount : 'Mark ' + targetCount + ' Done')
+            toggleDoneLabel.textContent = doneCount > 1
+                ? (allDone ? 'Reopen ' + doneCount : 'Mark ' + doneCount + ' Done')
                 : (allDone ? 'Reopen' : 'Mark Done');
             toggleNowItem.querySelector('.ctx-menu-icon').className =
                 'bi bi-' + (allNow ? 'pause-circle' : 'play-circle') + ' ctx-menu-icon';
@@ -243,7 +245,10 @@
                 _clickDashBtn('btn-toggle-done-node');
                 return;
             }
-            var targetIds = _currentTargetIds();
+            // Sleeping nodes sit out, as the label counted them.
+            var targetIds = _currentTargetNodes().filter(function (node) {
+                return !(Number(node.dormant) > 0);
+            }).map(function (node) { return node.id; });
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 

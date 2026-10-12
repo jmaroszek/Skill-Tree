@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 # legacy column left behind by a migration can't reach the dataclass.
 _EVENT_COLUMNS = ("name", "description", "status", "trigger_date", "trigger_mode")
 
+# The longest delay a node can wait after its event fires. A date past year
+# 9999 can't be computed, and one bad delay stopped every event sweep.
+MAX_DELAY_DAYS = 100 * 365
+
 
 class EventManager:
     """Gateway for the Events and EventNodes tables.
@@ -211,6 +215,15 @@ class EventManager:
             self._check_name(event.name)
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            if event.trigger_nodes:
+                placeholders = ",".join("?" * len(event.trigger_nodes))
+                asleep = cursor.execute(
+                    f"SELECT node_name FROM EventNodes WHERE event_name=? "
+                    f"AND activated=0 AND node_name IN ({placeholders}) "
+                    "ORDER BY node_name",
+                    (old_name, *event.trigger_nodes)).fetchone()
+                if asleep is not None:
+                    raise ValueError(self._own_trigger_message(asleep[0], event.name))
             if old_name != event.name:
                 try:
                     cursor.execute(
@@ -343,6 +356,7 @@ class EventManager:
         node = gm.get_node(node_name)
         if node is not None and node.status == STATUS_DONE:
             raise ValueError(f"Reopen '{node_name}' before putting it to sleep.")
+        delay_days = self._checked_delay(delay_days)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT status FROM Events WHERE name=?", (event_name,))
@@ -352,6 +366,7 @@ class EventManager:
                     f"'{event_name}' has already been triggered, so a node "
                     "added to it would never wake."
                 )
+            self._check_not_own_trigger(cursor, event_name, node_name)
             cursor.execute(
                 "SELECT event_name, activated FROM EventNodes WHERE node_name=?",
                 (node_name,),
@@ -471,7 +486,9 @@ class EventManager:
                     "into it would never wake."
                 )
 
-            new_delay = source_delay if delay_days is None else int(delay_days)
+            self._check_not_own_trigger(cursor, to_event, node_name)
+            new_delay = (source_delay if delay_days is None
+                         else self._checked_delay(delay_days))
             new_now = source_now if now_on_trigger is None else int(bool(now_on_trigger))
 
             # The node's one row changes event and starts over unfired.
@@ -560,6 +577,7 @@ class EventManager:
 
     @database.atomic
     def set_node_delay(self, event_name: str, node_name: str, delay_days: int):
+        delay_days = self._checked_delay(delay_days)
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -781,7 +799,9 @@ class EventManager:
             rows = cursor.fetchall()
 
             for node_name, delay_days, now_on_trigger, dormant in rows:
-                wake_date = occurrence + timedelta(days=delay_days)
+                # Clamped: a delay saved before the limit can't stop the firing.
+                wake_date = occurrence + timedelta(
+                    days=min(max(delay_days or 0, 0), MAX_DELAY_DAYS))
                 if not dormant:
                     # Close its row out, but with no future date, or the
                     # delayed sweep would later "wake" an already-live node
@@ -965,6 +985,44 @@ class EventManager:
         })
         return result
 
+    def run_sweeps(self) -> bool:
+        """Wake the delayed nodes that are due, fire the date events that
+        are, and return whether anything changed. A failure is logged, not
+        raised: every click runs the sweeps, so one bad event would otherwise
+        break them all."""
+        changed = False
+        for sweep in ("check_pending_activations", "check_scheduled_triggers"):
+            try:
+                changed = bool(getattr(self, sweep)()) or changed
+            except Exception:
+                logger.exception("The event sweep %s failed", sweep)
+        return changed
+
+    @staticmethod
+    def _checked_delay(delay_days) -> int:
+        """``delay_days`` as whole days, or a ValueError the editor can show."""
+        try:
+            days = int(delay_days or 0)
+        except (TypeError, ValueError):
+            raise ValueError("A delay must be a whole number of days.") from None
+        if days < 0:
+            raise ValueError("A delay can't be negative.")
+        if days > MAX_DELAY_DAYS:
+            raise ValueError("A delay can be at most 100 years.")
+        return days
+
+    @staticmethod
+    def _own_trigger_message(node_name: str, event_name: str) -> str:
+        return (f"'{node_name}' triggers '{event_name}', so it can't sleep "
+                f"until '{event_name}' fires: it would never wake.")
+
+    def _check_not_own_trigger(self, cursor, event_name: str, node_name: str) -> None:
+        """Refuse to put a node to sleep under an event it triggers."""
+        if cursor.execute(
+                "SELECT 1 FROM EventTriggerNodes WHERE event_name=? AND node_name=?",
+                (event_name, node_name)).fetchone():
+            raise ValueError(self._own_trigger_message(node_name, event_name))
+
     def check_scheduled_triggers(self) -> List[str]:
         """Auto-triggers events whose trigger_date has arrived.
 
@@ -1146,18 +1204,19 @@ class EventManager:
         rank = max((n.now for n in current), default=0)
 
         pinned, skipped = [], []
-        for name in intent_nodes:
-            node = gm.get_node(name)
-            if node is None or node.dormant or node.now > 0 or node.status == STATUS_DONE:
-                continue
-            if room <= 0:
-                skipped.append(name)
-                continue
-            rank += 1
-            node.now = rank
-            gm.update_node(node)
-            room -= 1
-            pinned.append(name)
+        with gm.ranking_batch():
+            for name in intent_nodes:
+                node = gm.get_node(name)
+                if node is None or node.dormant or node.now > 0 or node.status == STATUS_DONE:
+                    continue
+                if room <= 0:
+                    skipped.append(name)
+                    continue
+                rank += 1
+                node.now = rank
+                gm.update_node(node)
+                room -= 1
+                pinned.append(name)
         return pinned, skipped
 
     # --- Convenience ---

@@ -241,6 +241,34 @@ class TestImportChecksTheGraph:
             bundle["tables"][table].append(_row_like(bundle, table, **changes))
         self._refused(monkeypatch, tmp_path, add, fragment)
 
+    @pytest.mark.parametrize("table, changes, fragment", [
+        ("Nodes", {"value": "high"}, "value that isn't a number"),
+        ("Nodes", {"time_m": None}, "time_m that isn't a number"),
+        ("Nodes", {"interest": True}, "interest that isn't a number"),
+        ("Nodes", {"reflect_value": [5]}, "reflect_value that isn't a number"),
+        ("Nodes", {"type": "Skill"}, "unknown type"),
+        ("Nodes", {"time_mode": "auto"}, "unknown time_mode"),
+        ("Nodes", {"context": 7}, "context that isn't text"),
+        ("Events", {"trigger_date": "someday"}, "date that isn't one"),
+        ("Events", {"status": "Done"}, "unknown status"),
+        ("EventNodes", {"delay_days": 10 ** 9}, "up to 100 years"),
+        ("EventNodes", {"delay_days": 1.5}, "whole number"),
+        ("EventNodes", {"activated": "yes"}, "isn't 0 or 1"),
+        ("Settings", {"key": "CONTEXTS", "value": "{\"a\": 1}"}, "damaged"),
+        ("Settings", {"key": "HYPERPARAMS", "value": "not json"}, "damaged"),
+        ("Settings", {"key": "NOW_NODE_CAP", "value": 5}, "isn't stored as text"),
+    ])
+    def test_a_value_of_the_wrong_kind_is_refused(self, monkeypatch, tmp_path,
+                                                  table, changes, fragment):
+        def change(bundle):
+            rows = bundle["tables"][table]
+            if table == "Settings":
+                rows[:] = [r for r in rows if r["key"] != changes["key"]]
+                rows.append(dict(changes))
+            else:
+                rows[0] = _row_like(bundle, table, **changes)
+        self._refused(monkeypatch, tmp_path, change, fragment)
+
     def test_helps_rows_are_put_in_order_not_refused(self, monkeypatch, tmp_path):
         """A rename in the exporting app can leave a Helps row back to front."""
         _rich_graph()
@@ -274,6 +302,27 @@ class TestRestore:
         assert conn.execute("SELECT 1 FROM Nodes WHERE name='Afterwards'").fetchone()
         conn.close()
         assert revisions.graph > version_before
+
+    def test_the_oldest_before_restore_copy_can_be_restored(self):
+        import shutil
+        manager = _rich_graph()
+        saved = backup.create_backup("manual")
+        before = _comparable(data_transfer.export_data())
+        # A full set of before-restore copies; the oldest is the one chosen,
+        # and the backup taken before restoring used to prune it first.
+        copies = []
+        for day in range(1, backup.KEEP["before-restore"] + 1):
+            copy = saved.with_name(
+                f"{backup._stem()}_202601{day:02d}-120000_before-restore.db")
+            shutil.copyfile(saved, copy)
+            copies.append(copy)
+        saved.unlink()
+        manager.delete_node("Nap")
+
+        data_transfer.restore_backup(copies[0])
+
+        assert _comparable(data_transfer.export_data()) == before
+        assert copies[0].exists()
 
     def test_an_older_backup_is_upgraded_after_restoring(self):
         _rich_graph()

@@ -148,10 +148,14 @@ def create_app(settings=None, services=None):
     repaired = services.graph.recompute_all_statuses()
     if repaired:
         _logger.info("Startup safety-net repaired %d node status(es).", repaired)
+    flipped = services.graph.canonicalize_helps_edges()
+    if flipped:
+        _logger.info("Startup safety-net stored %d Synergy link(s) the "
+                     "canonical way round.", flipped)
     unranked = services.graph.prune_priority_goals()
     if unranked:
         _logger.info("Startup safety-net cleared the priority rank of %d "
-                     "non-Goal(s): %s", len(unranked), unranked)
+                     "non-Goal(s) or finished Goal(s): %s", len(unranked), unranked)
     rewoken = services.events.reconcile_dormant_flags()
     if rewoken:
         _logger.info("Startup safety-net rewoke %d node(s) their event had "

@@ -253,7 +253,11 @@ class Node:
         upper, weighted as `time` weights the estimate. None when nothing was
         captured. Every view reads it here, so a bracket without a best
         estimate counts in History as it does in Analyze."""
-        captured = (self.actual_time_lower, self.actual_time_point, self.actual_time_upper)
+        # A recorded 0 is no data. Three of them used to read as the 1 hour
+        # expected_time_estimate returns when given nothing.
+        captured = tuple(hours if hours is not None and hours > 0 else None
+                         for hours in (self.actual_time_lower, self.actual_time_point,
+                                       self.actual_time_upper))
         if all(hours is None for hours in captured):
             return None
         return expected_time_estimate(*captured)

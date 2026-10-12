@@ -407,3 +407,41 @@ def test_existing_missing_done_dates_stay_unknown():
     item.description = 'edited'
     manager.update_node(item)
     assert manager.get_node('A').done_date is None
+
+
+@pytest.mark.parametrize('via', ['menu', 'editor'])
+def test_a_refused_now_change_says_why(handlers, via):
+    # A node with no context: every save of it is refused until it gets one.
+    manager = graph('A', 'B')
+    with database.transaction() as conn:
+        conn.execute("UPDATE Nodes SET context=NULL WHERE name='A'")
+
+    if via == 'menu':
+        _, toast = handlers['handle_now_trigger']('["A", "B"]|1')
+        assert manager.get_node('B').now > 0  # the other still changed
+    else:
+        _, toast = handlers['dispatch_now_toggle'](['now'], 'A')
+
+    assert manager.get_node('A').now == 0
+    assert toast.startswith('error|') and 'must have a context' in toast
+    is_open, message, header = handlers['show_now_cap_toast'](toast)
+    assert is_open and 'must have a context' in message
+    assert header == "Couldn't change Now"
+
+
+@pytest.mark.parametrize('trigger', ['btn-save', 'btn-unsaved-save'])
+@pytest.mark.parametrize('state, fragment', [
+    (dict(time_o=5, time_m=2, time_p=4), 'Lower must be ≤ Expected'),
+    (dict(time_o=1, time_m=0, time_p=0), 'Lower alone is not enough'),
+    (dict(time_habit_mode=['habit'], habit_duration=0), 'habit duration'),
+])
+def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger,
+                                                  state, fragment):
+    # Save is disabled while the estimate is invalid, but the unsaved-changes
+    # dialog's Save, and habit mode, went around the button.
+    manager = graph('A')
+    result = run_core(handlers, monkeypatch, trigger, name='A', original_name='A',
+                      pristine_snapshot={'name': 'A'}, **state)
+
+    assert result.message.startswith('Error:') and fragment in result.message
+    assert manager.get_node('A').description != 'edited'

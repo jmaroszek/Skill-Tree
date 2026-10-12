@@ -46,7 +46,7 @@ from callback_helpers import (
     follow_done_status, resolve_done_intent,
     RELATIONSHIP_FIELDS, stored_relationships, follow_relationships,
     resolve_relationship_intent,
-    compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
+    compute_habit_time_omp, resolve_time_mode, resolve_value_mode, time_estimate_problem,
     habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
 )
@@ -1173,21 +1173,39 @@ def register_callbacks(app, services=None):
     # server round-trip causes the toggle to visibly flip OFF before
     # snapping back ON. The triggered-IDs check distinguishes user toggles
     # from form-populate cycles (where node-type also fires).
+    #
+    # Changing the type away from Goal or Milestone used to leave the forced
+    # Inherit on: an Action or Resource then had no time of its own and scored
+    # at no cost. They get their own estimate back. A Learn may be a header
+    # over its children, so it keeps Inherit, with a note saying so.
     app.clientside_callback(
         """
         function(time_mode_val, node_type) {
             var no_update = window.dash_clientside.no_update;
             var hidden = {display: "none"};
             var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
+            var note = {display: "block", color: "var(--st-text-dim)", fontSize: "var(--st-fs-base)"};
             var ctx = window.dash_clientside.callback_context;
             var triggered = (ctx && ctx.triggered) || [];
             var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
             var only_time_mode = ids.length === 1 && ids[0] === 'node-time-mode';
+            var only_type = ids.length === 1 && ids[0] === 'node-type';
+            var store = window.SkillTree = window.SkillTree || {};
+            var prev = store.editorTypeForTime;
+            store.editorTypeForTime = node_type;
+            var inherited_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
 
             if (node_type !== 'Goal' && node_type !== 'Milestone') {
+                if (only_type && inherited_on && (prev === 'Goal' || prev === 'Milestone')) {
+                    if (node_type === 'Learn') {
+                        return [no_update, note, "Inherit came with the " + prev +
+                                ". Keep it if this Learn is a header over its children; " +
+                                "turn it off to give it its own estimate."];
+                    }
+                    return [[], hidden, ""];
+                }
                 return [time_mode_val, hidden, ""];
             }
-            var inherited_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
             if (inherited_on) {
                 if (only_time_mode) return [no_update, no_update, no_update];
                 return [no_update, hidden, ""];
@@ -1266,15 +1284,31 @@ def register_callbacks(app, services=None):
             var no_update = window.dash_clientside.no_update;
             var hidden = {display: "none"};
             var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
+            var note = {display: "block", color: "var(--st-text-dim)", fontSize: "var(--st-fs-base)"};
             var ctx = window.dash_clientside.callback_context;
             var triggered = (ctx && ctx.triggered) || [];
             var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
             var only_value_mode = ids.length === 1 && ids[0] === 'node-value-mode';
+            var only_type = ids.length === 1 && ids[0] === 'node-type';
+            var store = window.SkillTree = window.SkillTree || {};
+            var prev = store.editorTypeForValue;
+            store.editorTypeForValue = node_type;
+            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
 
             if (node_type !== 'Milestone') {
+                // A former Milestone gets its own ratings back, as the time
+                // lock above gives back an estimate. A Learn may stay a
+                // header that passes value through.
+                if (only_type && inherited_on && prev === 'Milestone') {
+                    if (node_type === 'Learn') {
+                        return [no_update, note, "Inherit came with the Milestone. " +
+                                "Keep it if this Learn only passes value through; " +
+                                "turn it off to rate it."];
+                    }
+                    return [[], hidden, ""];
+                }
                 return [no_update, hidden, ""];
             }
-            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
             if (inherited_on) {
                 if (only_value_mode) return [no_update, no_update, no_update];
                 return [no_update, hidden, ""];
@@ -1375,45 +1409,8 @@ def register_callbacks(app, services=None):
            (habit_mode_val and 'habit' in habit_mode_val):
             return "", hidden, False, False, "", ""
 
-        o = float(time_o or 0)
-        m = float(time_m or 0)
-        p = float(time_p or 0)
-        has_o, has_m, has_p = o > 0, m > 0, p > 0
-        pattern = (has_o, has_m, has_p)
-
-        valid_patterns = {
-            (False, True, False),   # m only
-            (True, False, True),    # o + p
-            (True, True, True),     # all three
-        }
-
-        if pattern == (False, False, False):
-            msg = "Enter at least an Expected estimate, or both Lower and Upper."
-            return msg, visible, True, True, msg, msg
-
-        if pattern not in valid_patterns:
-            if pattern == (True, False, False):
-                msg = "Lower alone is not enough — also enter Upper, or use Expected instead."
-            elif pattern == (False, False, True):
-                msg = "Upper alone is not enough — also enter Lower, or use Expected instead."
-            elif pattern == (True, True, False):
-                msg = "Lower + Expected is not a valid pair — also enter Upper, or drop Lower."
-            elif pattern == (False, True, True):
-                msg = "Expected + Upper is not a valid pair — also enter Lower, or drop Upper."
-            else:
-                msg = "Invalid time-estimate combination."
-            return msg, visible, True, True, msg, msg
-
-        errors = []
-        if has_o and has_m and o > m:
-            errors.append("Lower must be ≤ Expected")
-        if has_m and has_p and m > p:
-            errors.append("Expected must be ≤ Upper")
-        if has_o and has_p and o > p:
-            errors.append("Lower must be ≤ Upper")
-
-        if errors:
-            msg = "; ".join(errors)
+        msg = time_estimate_problem(time_o, time_m, time_p)
+        if msg:
             return msg, visible, True, True, msg, msg
         return "", hidden, False, False, "", ""
 
@@ -1848,9 +1845,7 @@ def register_callbacks(app, services=None):
 
         # Check for any delayed event nodes or scheduled events that are due
         from event_manager import EventManager
-        _event_mgr = EventManager()
-        _event_mgr.check_pending_activations()
-        _event_mgr.check_scheduled_triggers()
+        EventManager().run_sweeps()
 
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
                                 f_time_min=f_time_min, f_search=f_search)
@@ -1965,6 +1960,16 @@ def register_callbacks(app, services=None):
                             habit_int_o or 0, habit_int_m or 0, habit_int_p or 0,
                             habit_int_unit or 'min_per_session', habit_days,
                         )
+                    # Save is disabled while the estimate is invalid, but the
+                    # unsaved-changes dialog's Save, and habit mode, went
+                    # around the button. A refusal rolls the save back.
+                    if time_mode == 'habit' and not (t_o or t_m or t_p):
+                        raise ValueError("Enter a habit duration and the minutes "
+                                         "per session, so it comes to some hours.")
+                    if time_mode in ('manual', 'habit'):
+                        problem = time_estimate_problem(t_o, t_m, t_p)
+                        if problem:
+                            raise ValueError(problem)
                     # Mirror time_mode: the shared resolver centralizes the
                     # Milestone-must-inherit-value invariant (Goals are exempt —
                     # they carry their own value).
@@ -2113,6 +2118,12 @@ def register_callbacks(app, services=None):
                 node_names = bridge_payloads.names(toggle_done_trigger_data)
 
                 nodes = [n for n in (manager.get_node(nm) for nm in node_names) if n]
+                # A sleeping node can't be Done, and one in the selection
+                # used to refuse the whole action. It sits out instead.
+                asleep = [n for n in nodes if n.dormant]
+                nodes = [n for n in nodes if not n.dormant]
+                if asleep and not nodes:
+                    msg = "Error: a sleeping node can't be marked Done. Wake it first."
                 if nodes:
                     any_not_done = any(n.status != STATUS_DONE for n in nodes)
                     new_status = STATUS_DONE if any_not_done else STATUS_OPEN
@@ -2159,6 +2170,8 @@ def register_callbacks(app, services=None):
                         msg = f"Toggled status of '{nodes[0].name}' to {new_status}"
                     else:
                         msg = f"Set {flipped} node(s) to {new_status}"
+                    if asleep:
+                        msg += f", leaving out {len(asleep)} sleeping"
             except ValueError as e:
                 msg = f"Error: {e}"
             except Exception:
@@ -2537,8 +2550,9 @@ def register_callbacks(app, services=None):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
 
-    # Whether any filter narrows the Nodes canvas, for its count and for
-    # Next's indicator. It writes only when the answer changes: a filter
+    # Whether any filter narrows the Nodes canvas, for its count, and Next,
+    # for its indicator. Next ignores Community and Orphans, so they don't
+    # mark it filtered. Each writes only when its answer changes: a filter
     # change starts the Nodes layout, and each write would land inside it.
     @app.callback(
         Output('canvas-filters-active-store', 'data'),
@@ -2556,22 +2570,22 @@ def register_callbacks(app, services=None):
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         State('canvas-filters-active-store', 'data'),
+        State('next-filter-indicator', 'children'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_canvas_filters_active(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
                                      f_time, f_time_unit, f_time_min, f_search,
-                                     current):
-        active = is_filters_active(
-            node_type=f_type, context=f_ctx, subcontext=f_sub,
-            community=f_comm,
-            community_method=f_comm_method, value=f_val,
-            interest=f_int, difficulty=f_diff, time=f_time,
-            time_min=f_time_min, search=f_search)
-        if active == bool(current):
-            return no_update, no_update
-        return active, "filtered" if active else ""
+                                     current, next_current):
+        shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                      value=f_val, interest=f_int, difficulty=f_diff,
+                      time=f_time, time_min=f_time_min, search=f_search)
+        active = is_filters_active(community=f_comm,
+                                   community_method=f_comm_method, **shared)
+        next_text = "filtered" if is_filters_active(**shared) else ""
+        return (no_update if active == bool(current) else active,
+                no_update if next_text == (next_current or "") else next_text)
 
     # The count is read in the browser from the payload's stamp, as Details
     # counts its own.
@@ -3179,7 +3193,13 @@ def register_callbacks(app, services=None):
             node.now = max_now + 1
         elif not wants_now and is_now:
             node.now = 0
-        manager.update_node(node)
+        try:
+            manager.update_node(node)
+        except ValueError as e:
+            # A refusal (a node with no context, say) bounces the switch back
+            # and says why, instead of failing in silence.
+            ts = int(_time.time() * 1000)
+            return f"refused|{ts}", f"error|{ts}|{e}"
         return f"{node_name}|{int(_time.time() * 1000)}", no_update
 
     # --- Context-Menu Now Toggle ---
@@ -3216,23 +3236,36 @@ def register_callbacks(app, services=None):
         current_count = len(now_nodes)
         max_now = max([n.now for n in now_nodes]) if now_nodes else 0
         refused_any = False
-        for node in nodes:
-            if not wants_now and node.now > 0:
-                # Clearing an all-Now selection is always allowed.
-                node.now = 0
-                current_count -= 1
-            elif wants_now and node.now <= 0:
-                if current_count >= ConfigManager.get_now_node_cap():
-                    refused_any = True
-                    continue  # Cap reached — skip this set-Now.
-                max_now += 1
-                node.now = max_now
-                current_count += 1
-            else:
-                continue
-            manager.update_node(node)
+        error = None
+        # One ranking for the whole selection: each start scored the graph.
+        with manager.ranking_batch():
+            for node in nodes:
+                before = node.now
+                if not wants_now and node.now > 0:
+                    # Clearing an all-Now selection is always allowed.
+                    node.now = 0
+                    current_count -= 1
+                elif wants_now and node.now <= 0:
+                    if current_count >= ConfigManager.get_now_node_cap():
+                        refused_any = True
+                        continue  # Cap reached — skip this set-Now.
+                    max_now += 1
+                    node.now = max_now
+                    current_count += 1
+                else:
+                    continue
+                try:
+                    manager.update_node(node)
+                except ValueError as e:
+                    # The others still change; the toast names the refusal.
+                    error = error or str(e)
+                    current_count += -1 if node.now > 0 else 1
+                    node.now = before
         ts = int(_time.time() * 1000)
-        refused_out = f"refused|{ts}" if refused_any else no_update
+        if error is not None:
+            refused_out = f"error|{ts}|{error}"
+        else:
+            refused_out = f"refused|{ts}" if refused_any else no_update
         return f"ctx|{ts}", refused_out
 
     # --- Now cap toast ---
@@ -3243,14 +3276,19 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output("now-cap-toast", "is_open"),
         Output("now-cap-toast", "children"),
+        Output("now-cap-toast", "header"),
         Input("now-cap-refused-trigger", "value"),
         prevent_initial_call=True,
     )
     def show_now_cap_toast(trigger):
         if not trigger:
-            return False, no_update
+            return False, no_update, no_update
+        # "error|<ts>|<message>" carries a save's refusal; anything else is
+        # the cap.
+        if trigger.startswith("error|"):
+            return True, trigger.split("|", 2)[2], "Couldn't change Now"
         cap = ConfigManager.get_now_node_cap()
-        return True, f"{cap} Now nodes is the cap. Clear one to make room."
+        return True, f"{cap} Now nodes is the cap. Clear one to make room.", "Now Cap Reached"
 
     # --- Drag and drop reordering of Now cards ---
     @app.callback(

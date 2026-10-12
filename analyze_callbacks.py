@@ -1064,10 +1064,12 @@ def _render_sections_once(signature, args, reuse):
 def _analyze_signature():
     """What the Analyze charts are computed from, cheaply. The graph version
     covers nodes, edges, and the scoring and time settings. Contexts are
-    listed on their own because adding an empty one bumps nothing, and the
-    date because the charts are dated."""
+    listed on their own because adding an empty one bumps nothing, the
+    ratings rubric because the tooltips quote it, and the date because the
+    charts are dated."""
     return [_PROCESS_EPOCH, GraphManager._graph_version,
-            ConfigManager.get_contexts(), date.today().isoformat()]
+            ConfigManager.get_contexts(), ConfigManager.get_ratings_definitions(),
+            date.today().isoformat()]
 
 
 def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,

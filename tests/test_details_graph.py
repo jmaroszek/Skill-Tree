@@ -14,6 +14,7 @@ import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from graph_manager import GraphManager
 from details_callbacks import _build_graph_elements
+import bridge_payloads
 
 
 @pytest.fixture(autouse=True)
@@ -316,10 +317,12 @@ class TestDependencyViewTraversal:
             "Root", ["include"], [], show_cross_links=True)
 
         assert _node_ids(without) == _node_ids(with_links) == {"Root", "A", "B"}
+        key = bridge_payloads.edge_key
         assert _edge_ids(without) == {
-            "A_Root_Needs_Hard", "B_Root_Needs_Hard"}
+            key("A", "Root", "Needs_Hard"), key("B", "Root", "Needs_Hard")}
         assert _edge_ids(with_links) == {
-            "A_Root_Needs_Hard", "B_Root_Needs_Hard", "A_B_Needs_Hard"}
+            key("A", "Root", "Needs_Hard"), key("B", "Root", "Needs_Hard"),
+            key("A", "B", "Needs_Hard")}
 
     def test_depth_limited_goal_progress_remains_hard_only(self, mgr):
         mgr.add_node(_make_node("Goal", type="Goal", time_mode="inherited"))

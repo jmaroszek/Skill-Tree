@@ -74,3 +74,28 @@ def test_group_delete_rolls_back_as_one(monkeypatch, manager):
         handle_group_delete(manager, '["A", "B", "C"]|1')
 
     assert all(manager.get_node(n) is not None for n in "ABC")
+
+
+def test_a_sleeping_node_sits_out_of_a_bulk_done(monkeypatch, manager):
+    """It used to refuse the whole action, though the menu offered it."""
+    from event_manager import EventManager
+    from models import Event, STATUS_DONE
+    events = EventManager()
+    events.add_event(Event(name="Later"))
+    events.add_node_to_event("Later", "C")
+    core_engine = _core_engine()
+    trigger = "toggle-done-trigger-input"
+    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
+    kwargs["toggle_done_trigger_data"] = '["A", "B", "C"]|1|1'
+
+    response = callbacks.CoreResponse(*core_engine(**kwargs))
+
+    assert response.message == "Set 2 node(s) to Done, leaving out 1 sleeping"
+    assert [manager.get_node(n).status for n in "AB"] == [STATUS_DONE] * 2
+    assert manager.get_node("C").status == STATUS_OPEN
+
+    kwargs["toggle_done_trigger_data"] = '["C"]|2|2'
+    response = callbacks.CoreResponse(*core_engine(**kwargs))
+    assert "sleeping node can't be marked Done" in response.message
