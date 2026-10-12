@@ -3,6 +3,7 @@ remove it (node_commands.change_link, link_menu_callbacks)."""
 import dash
 import pytest
 
+import details_callbacks
 import link_menu_callbacks
 from graph_manager import GraphManager
 from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
@@ -219,6 +220,70 @@ def test_a_change_that_reopens_done_nodes_waits_for_confirmation(done_chain, mon
     assert refresh.startswith("link-") and is_open is False and cleared is None
     assert ("P", "A", EDGE_NEEDS_HARD) in _edges(done_chain)
     assert [_status(done_chain, n) for n in "AB"] == ["Blocked", "Blocked"]
+
+
+# --- Linking an existing node on Details ----------------------------------------
+
+def _link_existing():
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    details_callbacks.register_details_callbacks(app)
+    for spec in app.callback_map.values():
+        fn = spec.get("callback")
+        while hasattr(fn, "__wrapped__"):
+            fn = fn.__wrapped__
+        if getattr(fn, "__name__", None) == "link_existing_node":
+            return fn
+    raise AssertionError("link_existing_node is not registered")
+
+
+def test_a_dry_run_add_names_the_done_nodes_it_would_reopen(done_chain):
+    # P is open, so as a Hard prerequisite of A it reopens A and B after it.
+    edges = _edges(done_chain)
+    done_chain.remove_edge("P", "A", EDGE_NEEDS_SOFT)
+
+    assert link_change_reopens(done_chain, "P", "A", EDGE_NEEDS_HARD, "add") == ["A", "B"]
+    assert link_change_reopens(done_chain, "P", "A", EDGE_NEEDS_SOFT, "add") == []
+    assert _edges(done_chain) == edges - {("P", "A", EDGE_NEEDS_SOFT)}
+    assert [_status(done_chain, n) for n in "ABC"] == ["Done", "Done", "Open"]
+
+
+def test_linking_an_open_node_to_a_done_one_asks_first(done_chain, monkeypatch):
+    # Details: select B, "+ > Existing node...", pick P, Hard. Every other
+    # path that would reopen a Done node asks; this one used to reopen A's
+    # successor B (and clear its completion date) without a word.
+    is_open, refresh, error, asks, body, pending = _link_existing()(1, "B", "P", "hard")
+
+    assert (is_open, refresh, error, asks) == (False, dash.no_update, "", True)
+    assert pending == ["add", "P", "B", EDGE_NEEDS_HARD]
+    assert "reopens a Done node" in str(body)
+    assert ("P", "B", EDGE_NEEDS_HARD) not in _edges(done_chain)
+    assert _status(done_chain, "B") == "Done"
+
+    monkeypatch.setattr(link_menu_callbacks, "get_trigger_id",
+                        lambda: "btn-link-reopen-confirm")
+    refresh, _message, is_open, cleared = _callbacks()["answer_link_reopen"](1, None, pending)
+    assert refresh.startswith("link-") and is_open is False and cleared is None
+    assert ("P", "B", EDGE_NEEDS_HARD) in _edges(done_chain)
+    assert _status(done_chain, "B") == "Blocked"
+
+
+def test_a_link_that_reopens_nothing_is_made_at_once(done_chain):
+    # A is Done, so as a Hard prerequisite of C it changes nothing Done.
+    is_open, refresh, error, asks, _body, _pending = _link_existing()(1, "C", "A", "hard")
+
+    assert (is_open, error, asks) == (False, "", dash.no_update)
+    assert refresh.startswith("link-")
+    assert ("A", "C", EDGE_NEEDS_HARD) in _edges(done_chain)
+
+
+def test_a_refused_link_says_why_and_asks_nothing(done_chain):
+    # C already follows A, so A needing C would be a circle.
+    is_open, refresh, error, asks, _body, _pending = _link_existing()(1, "A", "C", "hard")
+
+    assert (is_open, refresh, asks) == (dash.no_update, dash.no_update, dash.no_update)
+    assert "cycle" in error
+    assert ("C", "A", EDGE_NEEDS_HARD) not in _edges(done_chain)
 
 
 def test_cancelling_the_confirmation_leaves_the_link(done_chain, monkeypatch):

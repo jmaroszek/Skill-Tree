@@ -91,11 +91,13 @@ def _history_sort_value(node, key):
         return node.name.casefold()
     if key == "estimated":
         return estimate if estimate > 0 else None
+    # The actual time weighs the whole captured bracket, as Analyze does, so
+    # a reflection with a lower and upper but no best estimate has one too.
+    actual = node.actual_time
     if key == "actual":
-        return node.actual_time_point
+        return actual
     if key == "delta_time":
-        return (node.actual_time_point - estimate
-                if node.actual_time_point is not None and estimate > 0 else None)
+        return actual - estimate if actual is not None and estimate > 0 else None
     if key == "delta_ratings":
         return _rating_change_magnitude(node)
     return None
@@ -264,7 +266,7 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
     rows = []
     for node in nodes:
         est_hours = getattr(node, 'time', 0) or 0
-        act_hours = node.actual_time_point
+        act_hours = node.actual_time
         name_id = {'type': 'hub-history-name', 'index': node.name}
         ratings_id = {'type': 'hub-history-ratings', 'index': node.name}
         estimated_ratings = _fmt_vie_tuple(node.value, node.interest, node.difficulty)
@@ -538,39 +540,16 @@ def register_review_hub_callbacks(app, services=None):
         if not node:
             return (no_update,) * 13
 
-        # Modal copy reuses the same helper as the queue / single flows.
-        from editor_values import _calibration_modal_text, _calibration_unit_for
+        # The modal copy and the saved answers come from the same helpers
+        # as the queue and single flows. Times show in the unit that suits
+        # them (e.g. "2.8w" instead of "56h"), and a slider with no saved
+        # rating starts at the node's estimate.
+        from editor_values import _calibration_modal_text, _calibration_prepop
         title, reference = _calibration_modal_text(node)
-        # Display unit matches the actuals' magnitude (e.g. "2.8w" instead of
-        # "56h") so the Best Estimate field reads in the same friendly units
-        # as the reference text above it. Falls back to the stored unit only
-        # when no actual-time datapoint exists.
-        anchor_hours = (node.actual_time_point
-                        if node.actual_time_point is not None
-                        else node.actual_time_lower
-                        if node.actual_time_lower is not None
-                        else node.actual_time_upper)
-        if anchor_hours is not None:
-            unit = _calibration_unit_for(anchor_hours)
-        else:
-            unit = node.actual_time_unit or 'hours'
-        mult = ConfigManager.get_time_multiplier(unit)
-        def _from_hours(h):
-            if h is None or mult == 0:
-                return None
-            return round(h / mult, 2)
-        time_lower = _from_hours(node.actual_time_lower)
-        time_point = _from_hours(node.actual_time_point)
-        time_upper = _from_hours(node.actual_time_upper)
-
-        # Sliders fall back to the node's estimate when the reflect column is
-        # NULL — covers partially-rated history rows (time-only entries from
-        # before V/I/E was wired) without exposing 0/None as a default.
-        val = node.reflect_value if node.reflect_value is not None else (node.value or 5)
-        interest = node.reflect_interest if node.reflect_interest is not None else (node.interest or 5)
-        diff = node.reflect_difficulty if node.reflect_difficulty is not None else (node.difficulty or 5)
+        (time_lower, time_point, time_upper, unit,
+         val, interest, diff, notes) = _calibration_prepop(node)
 
         store = {'mode': 'edit', 'node': node_name}
         return (False, True, store, title, reference,
                 time_lower, time_point, time_upper, unit,
-                int(val), int(interest), int(diff), node.reflect_notes or '')
+                int(val), int(interest), int(diff), notes)

@@ -173,8 +173,24 @@
     window.addEventListener('resize', place);
     document.addEventListener('scroll', place, true);
 
+    // The names to suggest, from the node editor Search list's options. An
+    // alias's option value is "alias:<alias>", which matches nothing as a
+    // search. The field searches aliases too, so it suggests the alias itself.
+    function namesFromOptions(options) {
+        var seen = {};
+        return (Array.isArray(options) ? options : []).map(function (option) {
+            var value = String((option && option.value) || '');
+            return value.indexOf('alias:') === 0 ? value.slice(6) : value;
+        }).filter(function (name) {
+            if (!name || seen[name]) return false;
+            seen[name] = true;
+            return true;
+        });
+    }
+
     ST.filterSuggest = {
         setNames: function (list) { names = Array.isArray(list) ? list : []; },
+        setOptions: function (options) { names = namesFromOptions(options); },
         matches: matches
     };
 })();

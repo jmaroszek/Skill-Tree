@@ -168,18 +168,16 @@ def _compute_estimation_accuracy(nodes):
     actual time. Both figures run through the same `expected_time_estimate`
     blend so they are directly comparable. Nodes with no actual-time data,
     or with no own estimate (inherited-time Goals), are skipped."""
-    from models import expected_time_estimate
     rows = []
     for n in nodes:
         if n.status != STATUS_DONE:
             continue
-        lo, mid, hi = n.actual_time_lower, n.actual_time_point, n.actual_time_upper
-        if lo is None and mid is None and hi is None:
+        actual = n.actual_time
+        if actual is None:
             continue
         estimate = n.time
         if estimate <= 0:
             continue
-        actual = expected_time_estimate(lo, mid, hi)
         rows.append({
             'name': n.name,
             'type': n.type,
@@ -317,19 +315,18 @@ def _compute_throughput(nodes, granularity='quarter',
     for n in nodes:
         if n.status != STATUS_DONE:
             continue
-        if not n.done_date:
+        # A date that isn't one is skipped. A damaged or hand-edited file
+        # can carry month 13, and read as plain numbers it sent the walk
+        # over the buckets below on forever.
+        done = _parse(n.done_date[:10]) if isinstance(n.done_date, str) else None
+        if done is None:
             continue
-        try:
-            y_str, m_str, _ = n.done_date.split('-')
-            y, m = int(y_str), int(m_str)
-        except (ValueError, AttributeError):
+        if start_date and done.isoformat() < start_date:
             continue
-        if start_date and n.done_date < start_date:
-            continue
-        if end_date and n.done_date > end_date:
+        if end_date and done.isoformat() > end_date:
             continue
         group = n.type if by == 'type' else (n.context or 'No Context')
-        buckets[_bucket_key(y, m)][group].append((n.name, _hours(n)))
+        buckets[_bucket_key(done.year, done.month)][group].append((n.name, _hours(n)))
 
     if not buckets:
         return []
@@ -382,12 +379,8 @@ def _compute_throughput(nodes, granularity='quarter',
 def _completed_hours(n):
     """Hours a finished node took: its captured actual time when there is
     one, otherwise its forecast estimate."""
-    from models import expected_time_estimate
-    captured = (n.actual_time_lower, n.actual_time_point, n.actual_time_upper)
-    actual = expected_time_estimate(*captured)
-    if actual > 0 and any(v is not None for v in captured):
-        return actual
-    return n.time
+    actual = n.actual_time
+    return actual if actual is not None and actual > 0 else n.time
 
 
 _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',

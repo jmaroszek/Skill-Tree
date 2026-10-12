@@ -556,7 +556,7 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 
 | Filter | Function |
 |---|---|
-| Search | Keep only nodes whose name contains every word you type. Aliases count as part of the name. Turn on *Include descriptions* to search descriptions too. Matching node names appear as suggestions while you type; pick one, or press Enter to filter by what you typed. The search applies on Enter or when you click away, so a large graph is not laid out again for every letter. |
+| Search | Keep only nodes whose name contains every word you type. Aliases count as part of the name. Turn on *Include descriptions* to search descriptions too. Matching node names and aliases appear as suggestions while you type; pick one, or press Enter to filter by what you typed. The search applies on Enter or when you click away, so a large graph is not laid out again for every letter. |
 | Context | Restrict the app to one or more life areas. |
 | Subcontext | Narrow those contexts to more specific domains. |
 | Node Type | Show only certain node types (e.g. learns + resources). |
@@ -595,6 +595,8 @@ The Communities section algorithmically groups related nodes together. Three det
 Pick a detection method, then a specific community from the list. Each name says what the community is built around. It names up to three hub nodes, usually the Goals the community leads into. When one context holds most of the community, the name starts with it, as in "Health: Exercise + Rhythms." A community that spans areas shows only its hubs, as in "Creativity + Literature + Frontend Development." A community of one or two nodes is named after them.
 
 The list is ordered by importance: the summed priority of each community's nodes. It shows the top 20. Communities of one or two nodes aren't listed, except in Orphans mode. So a filter that shatters the graph into hundreds of pieces still gives a short list. Communities that aren't listed still appear under "All."
+
+Communities move as the graph changes. Marking a node Done hides it, which can regroup a community and change its name. Your selection follows its community to the listed one that shares at least half of its nodes. If none does, the selection goes back to "All." In Orphans mode, "All" shows every orphan, so the canvas empties once every node has a link.
 
 Here is an example. The algorithm identified a cluster of physics nodes, and as you can see, it also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
 
@@ -765,7 +767,7 @@ The **+** next to "Goals" creates a new one. Search for existing goals in the fi
 
 Your top three goals are your **Priority Goals.** Because Skill Tree respects your autonomy, you must set these explicitly. While the app functions perfectly well without them, designating Priority Goals allows the [scoring](scoring.md#goal-priority-boost) algorithm to apply a priority boost to all tasks in their subtrees.
 
-You can set a goal's priority in two ways. Right-click the goal and choose **Set Priority**, as seen on the left. This works in the goal sidebar and anywhere else the goal appears. Or set the priority field that appears only for goal nodes in the [Node Editor](#node-editor).
+To set a goal's priority, right-click the goal and choose **Set Priority**, as seen on the left. This works in the goal sidebar and anywhere else the goal appears. Only unfinished goals take a priority. Marking a Priority Goal Done frees its slot, and the goals ranked after it move up. Changing it to another type does the same.
 
 </td>
   </tr>
@@ -802,7 +804,9 @@ A Node Completion trigger can watch more than one node. When it does, you choose
 
 Picking a single node makes the choice moot, so the app just treats it as the plain "when this is done" trigger.
 
-Two details worth knowing. Firing is one-way: once an event fires, un-completing one of its trigger nodes does **not** put the dormant nodes back to sleep. And deleting a trigger node narrows the condition rather than voiding it — the remaining nodes still have to be finished. If you delete the *last* node in the set, the event has nothing left to watch, so it quietly falls back to manual and tells you it did.
+A few details worth knowing. Firing is one-way: once an event fires, un-completing one of its trigger nodes does **not** put the dormant nodes back to sleep. Deleting a trigger node narrows the condition rather than voiding it. The remaining nodes still have to be finished, and if they already are, the event fires then. If you delete the *last* node in the set, the event has nothing left to watch. It falls back to manual and tells you it did.
+
+Saving an event checks the condition too. Dropping the last unfinished node from an All event fires it on the spot, and so does switching to Any when one node is Done. A new event can't watch a node that is already Done. It would fire as soon as you saved it, before you could put anything in it.
 
 ## The Events Tab
 The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.

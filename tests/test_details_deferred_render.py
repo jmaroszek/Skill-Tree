@@ -458,7 +458,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     args = [
         "", 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], None, None, "Current",
+        {}, [], "Current",
     ]
     placeholder = next(
         c for c in app._callback_list
@@ -526,7 +526,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
     result = callback(
         '{"root":"Current","settledAt":1}', 0, 0,
         ["include"], [], 6,
-        None, None, [], 1, 1, None, "All", [], [], [], None, None, "Current",
+        {}, [], "Current",
     )
 
     assert "Child" in str(result)

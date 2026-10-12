@@ -328,6 +328,30 @@ class TestCalibrationPrepopulation:
         node = _make_node("Rated", status=STATUS_DONE, reflect_notes="Slower than hoped.")
         assert _calibration_prepop(node)[-1] == "Slower than hoped."
 
+    def test_saved_ratings_come_back_instead_of_the_estimates(self):
+        # A ratings-only reflection stays in the review queue. Prefilled with
+        # the estimates, its next Submit wrote them over the saved answers.
+        node = _make_node("Units", status=STATUS_DONE, value=7, interest=6,
+                          difficulty=4, reflect_value=9, reflect_interest=3,
+                          reflect_difficulty=8)
+        assert _calibration_prepop(node)[4:7] == (9, 3, 8)
+
+    def test_a_rating_left_unsaved_starts_at_the_estimate(self):
+        node = _make_node("Units", status=STATUS_DONE, value=7, interest=6,
+                          difficulty=4, reflect_value=9)
+        assert _calibration_prepop(node)[4:7] == (9, 6, 4)
+
+    def test_saved_actual_times_come_back_in_a_fitting_unit(self):
+        # A node reopened and finished again keeps its first finish's times.
+        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        node = _make_node("Again", status=STATUS_DONE, time_o=1, time_m=2, time_p=4,
+                          actual_time_lower=40.0, actual_time_point=56.0)
+
+        lower, point, upper, unit = _calibration_prepop(node)[:4]
+
+        assert unit == _calibration_unit_for(56.0) == "weeks"
+        assert (lower, point, upper) == (2.0, 2.8, None)
+
 
 # ============================================================================
 # prior_node_for_completion — the Done-transition pre-check in core_engine

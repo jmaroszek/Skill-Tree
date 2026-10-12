@@ -291,13 +291,17 @@ def test_returning_to_a_loaded_canvas_sends_nothing(monkeypatch):
 @pytest.mark.parametrize("trigger", sorted(callbacks._FILTER_TRIGGERS))
 def test_a_filter_change_sends_only_the_view(monkeypatch, trigger):
     """A filter starts the Nodes layout. The save message, the modals, the
-    option lists and the stylesheet each woke callbacks inside it."""
+    option lists and the stylesheet each woke callbacks inside it. The
+    Community selection is part of the view, and moves only when its
+    cluster does."""
     out = _render(monkeypatch, trigger, "tab-canvas")
     assert isinstance(out.elements, list)
     assert isinstance(out.community_options, list)
     for field in out._fields:
-        if field not in ("elements", "community_options"):
+        if field not in ("elements", "community_options",
+                         "community_value", "community_memory"):
             assert getattr(out, field) is dash.no_update, field
+    assert out.community_value is dash.no_update  # "All" stays "All"
 
 
 def test_the_search_query_reaches_the_canvas_filters(monkeypatch):

@@ -297,12 +297,37 @@ def test_stale_auto_done_is_not_accepted_or_displayed(handlers, monkeypatch, cha
     else:
         manager.remove_edge('Child', 'Goal', 'Needs_Hard')
     monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-confirm')
-    result = handlers['manage_auto_done_modal'](1, 1, 0, candidates, 'tab-next', None)
+    result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
     assert manager.get_node('Goal').status != 'Done'
     assert result[0] is False and result[2] == []
     monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'graph-version-store')
-    result = handlers['manage_auto_done_modal'](2, 0, 0, candidates, 'tab-next', None)
+    result = handlers['manage_auto_done_modal'](2, 0, 0, candidates)
     assert result[0] is False and result[2] == []
+
+
+def test_accepting_auto_done_redraws_through_the_core_engine(handlers, monkeypatch):
+    # The core engine's render keeps the filters and the selection. The
+    # modal used to draw its own canvas: every node, nothing selected.
+    manager = graph('Child')
+    manager.add_node(node('Goal', type='Goal'))
+    manager.add_node(node('Elsewhere', context='Body'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    complete(manager, 'Child')
+    candidates = manager.pop_auto_done_candidates()
+    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-confirm')
+    result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
+    assert manager.get_node('Goal').status == 'Done'
+    assert isinstance(result[3], str)  # details-refresh-trigger
+
+    response = run_core(handlers, monkeypatch, trigger='details-refresh-trigger',
+                        f_context=['Mind'], f_done=['show_done'], active_tab='tab-canvas')
+    shown = {element['data']['id'] for element in response.elements
+             if 'source' not in element['data']}
+    assert shown == {'Child', 'Goal'}
+    assert all('selected' not in element for element in response.elements)
+
+    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-dismiss')
+    assert handlers['manage_auto_done_modal'](2, 0, 1, ['Goal'])[3] is dash.no_update
 
 
 def test_dormant_container_is_never_suggested():

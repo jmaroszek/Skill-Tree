@@ -42,6 +42,12 @@ def test_details_link_node_opener_does_nothing_with_the_right_arity():
     assert len(fn(None, None)) == outputs
 
 
+def test_details_link_save_does_nothing_with_the_right_arity():
+    fn, outputs = _callbacks(details_callbacks.register_details_callbacks)["link_existing_node"]
+    assert len(fn(None, None, None, None)) == outputs
+    assert len(fn(1, "Voice", None, "hard")) == outputs
+
+
 def _node(name, *, dormant=0):
     return Node(
         name=name, type="Goal", description="", value=5,
@@ -67,9 +73,9 @@ def test_details_link_existing_node_adds_selected_edge():
     manager.add_node(_node("Music"))
     fn, _ = _callbacks(details_callbacks.register_details_callbacks)["link_existing_node"]
 
-    is_open, refresh, error = fn(1, "Voice", "Music", "soft")
+    is_open, refresh, error, asks, _body, _pending = fn(1, "Voice", "Music", "soft")
 
-    assert (is_open, error) == (False, "")
-    assert refresh == "link-Music"
+    assert (is_open, error, asks) == (False, "", dash.no_update)
+    assert refresh.startswith("link-")
     assert any(e["source"] == "Music" and e["target"] == "Voice"
                and e["type"] == "Needs_Soft" for e in manager.get_edges())

@@ -19,7 +19,8 @@ from config import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
 from models import STATUS_DONE
 from details_layout import build_goal_card
 from sidebars_layout import goal_list_cover
-from callback_helpers import node_menu_attributes, left_sidebar_is_open
+from callback_helpers import (node_menu_attributes, left_sidebar_is_open,
+                              merge_manual_order)
 
 graph_manager = GraphManager()
 
@@ -249,6 +250,11 @@ def register_sidebars_callbacks(app, services=None):
         goal_name, action = parts
         if not goal_name:
             return no_update
+        # Only an unfinished Goal takes a rank. Clearing one always works.
+        goal = graph_manager.get_node(goal_name)
+        if action in ('1', '2', '3') and (
+                goal is None or goal.type != "Goal" or goal.status == STATUS_DONE):
+            return no_update
         priority_goals = ConfigManager.get_priority_goals()
         if goal_name in priority_goals:
             priority_goals.remove(goal_name)
@@ -265,15 +271,20 @@ def register_sidebars_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def reorder_goals(drag_order_json):
-        if drag_order_json:
-            try:
-                new_order = _json.loads(drag_order_json)
-                if isinstance(new_order, list) and new_order:
-                    ConfigManager.set_goal_order(new_order)
-                    return new_order
-            except (ValueError, TypeError):
-                pass
-        return no_update
+        try:
+            shown = _json.loads(drag_order_json) if drag_order_json else None
+        except (ValueError, TypeError):
+            return no_update
+        if not isinstance(shown, list) or not shown:
+            return no_update
+        # The drag reorders the cards it shows, within the saved order. The
+        # pinned priority Goals lead the list whatever that order says, so
+        # their places in it aren't the drag's to change.
+        pinned = set(ConfigManager.get_priority_goals()[:3])
+        order = merge_manual_order(ConfigManager.get_goal_order(),
+                                   [name for name in shown if name not in pinned])
+        ConfigManager.set_goal_order(order)
+        return order
 
     # A card click selects its goal in Details. Selection only changes card
     # decoration, so move the outline here instead of rebuilding the list.

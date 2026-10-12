@@ -9,12 +9,13 @@ from html import escape as _escape
 import hashlib
 import json
 import logging
+import math
 from dataclasses import dataclass
 import bridge_payloads
 import database
 
 import dash
-from dash import html, State, ALL
+from dash import html, Input, State, ALL
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 
@@ -281,6 +282,26 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
     return current_name
 
 
+def merge_manual_order(saved, shown):
+    """The saved manual order after a drag reordered the ``shown`` names.
+
+    A list posts only the cards it shows. A search hides some, and finished
+    or pinned items aren't shown in the manual run. Saving the post as the
+    whole order dropped every other name back to database order. So the
+    shown names take the slots they held in the saved order, in their new
+    order, and every other name keeps its slot. A shown name the saved order
+    lacks joins at its end first, where the list shows unsaved names.
+    """
+    shown = list(dict.fromkeys(name for name in shown if isinstance(name, str)))
+    merged = list(dict.fromkeys(saved or []))
+    known = set(merged)
+    merged += [name for name in shown if name not in known]
+    slots = sorted(merged.index(name) for name in shown)
+    for slot, name in zip(slots, shown):
+        merged[slot] = name
+    return merged
+
+
 def node_options(nodes, exclude=None):
     """Build dropdown options from a list of nodes, optionally excluding one by name."""
     return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
@@ -534,6 +555,41 @@ def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None
     return filters
 
 
+# The filters sidebar's controls, for a callback that applies all of them. It
+# takes FILTER_INPUTS (or FILTER_STATES) as one argument, receives a dict of
+# their values, and filters_from() turns that into build_filters' dict. Listed
+# once, so every view filters alike: Details listed the controls one by one
+# and had lost the Time filter's unit. A @prerendered callback can't take a
+# group, since prerender calls it with a flat argument list.
+SIDEBAR_FILTERS = {
+    'context': ('filter-context', 'value'),
+    'subcontext': ('filter-subcontext', 'value'),
+    'done': ('filter-done', 'value'),
+    'value': ('filter-value', 'value'),
+    'interest': ('filter-interest', 'value'),
+    'time_min': ('filter-time-min', 'value'),
+    'time': ('filter-time', 'value'),
+    'time_unit': ('filter-time-unit', 'value'),
+    'difficulty': ('filter-difficulty', 'value'),
+    'types': ('filter-node-type', 'value'),
+    'dormant': ('filter-dormant', 'value'),
+    'search': ('filter-search-query', 'data'),
+}
+FILTER_INPUTS = {key: Input(*prop) for key, prop in SIDEBAR_FILTERS.items()}
+FILTER_STATES = {key: State(*prop) for key, prop in SIDEBAR_FILTERS.items()}
+
+
+def filters_from(values):
+    """build_filters' dict from the values of FILTER_INPUTS or FILTER_STATES."""
+    values = values or {}
+    return build_filters(
+        values.get('context'), values.get('subcontext'), values.get('done'),
+        values.get('value'), values.get('interest'), values.get('time'),
+        values.get('difficulty'), values.get('types'),
+        f_time_unit=values.get('time_unit'), f_show_dormant=values.get('dormant'),
+        f_time_min=values.get('time_min'), f_search=values.get('search'))
+
+
 def time_range(f_time_min, f_time):
     """The Time fields as ``(low, high)`` floats in the field's own unit.
 
@@ -777,6 +833,32 @@ def sync_time_fields(triggered, hpd, hpw, hpm, hpy):
     except (TypeError, ValueError):
         pass
     return none
+
+
+def capacity_hours(hpw, hpm, stored):
+    """The hours per week and per month to save from the Settings fields.
+
+    A field left blank, or one the browser can't read as a number, arrives as
+    None. Both used to save as 40 or 160, so one blank field broke the
+    four-week month every unit converts with. Now a month is four weeks: one
+    readable field gives the other, and with neither the ``stored`` pair stays.
+    """
+    def positive(value):
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return value if math.isfinite(value) and value > 0 else None
+
+    week, month = positive(hpw), positive(hpm)
+    if week is None and month is None:
+        return {'hours_per_week': stored['hours_per_week'],
+                'hours_per_month': stored['hours_per_month']}
+    if week is None:
+        week = month / 4.0
+    if month is None:
+        month = week * 4.0
+    return {'hours_per_week': week, 'hours_per_month': month}
 
 
 def compute_habit_time_omp(duration, duration_unit,

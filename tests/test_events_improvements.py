@@ -122,10 +122,13 @@ class TestNotificationHooks:
 
 class TestNodeCompletionAutoTrigger:
     def test_auto_trigger_by_node_completion_silently_activates_dormant_nodes(self, em, mgr):
-        mgr.add_node(_node("Key", status="Done"))
+        mgr.add_node(_node("Key"))
         mgr.add_node(_node("Reward"))
         em.add_event(Event(name="OnKey", description="", trigger_nodes=["Key"]))
         em.add_node_to_event("OnKey", "Reward", delay_days=0)
+        # Done behind the save's back, so the call below is the firing.
+        with database.get_connection() as conn:
+            conn.execute("UPDATE Nodes SET status='Done' WHERE name='Key'")
 
         ConfigManager.clear_pending_event_notifications()
         triggered = em.auto_trigger_by_node_completion("Key")

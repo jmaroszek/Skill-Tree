@@ -465,14 +465,13 @@ def register_callbacks(app, services=None):
     )
 
     # The suggestions under the Search field come from the node editor's own
-    # Search list, which holds every node's name. The script keeps the names; it
-    # draws the panel (assets/filter_suggest.js).
+    # Search list, which holds every node's name and alias. The script keeps
+    # the names and draws the panel (assets/filter_suggest.js).
     app.clientside_callback(
         """
         function(options) {
             var suggest = window.SkillTree && window.SkillTree.filterSuggest;
-            if (suggest) suggest.setNames(
-                (options || []).map(function (o) { return o.value; }));
+            if (suggest) suggest.setOptions(options);
         }
         """,
         Input('search-node', 'options'),
@@ -776,6 +775,22 @@ def register_callbacks(app, services=None):
         def _has_unsaved_changes():
             return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
 
+        def _ask_before_leaving(target, picker=dash.no_update):
+            """The unsaved-changes dialog in place of loading `target`, or
+            None when the open form has nothing to lose. `target` is a node
+            name or a pending-navigation sentinel. Loading the node the form
+            already holds keeps its edits and asks nothing. `picker` is what
+            the node picker goes back to while the dialog asks."""
+            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
+            if not (editor_open and _has_unsaved_changes()):
+                return None
+            no_change = _untouched()
+            no_change[27] = picker  # search-node
+            if target != original_name:
+                no_change[31] = target  # pending-navigation-store
+                no_change[32] = True    # modal-unsaved-changes
+            return no_change
+
         def _bridge_form_out():
             """def_out for a new node between the bridge dialog's two nodes,
             with the relationships filled in. None when the bridge no longer
@@ -889,16 +904,12 @@ def register_callbacks(app, services=None):
             else:
                 return def_out
 
-        # Intercept node tap when editor has unsaved changes
-        if trigger_id == 'cytoscape-graph' and data:
-            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-            tapped_id = data.get('id')
-            if editor_open and tapped_id and tapped_id != original_name and _has_unsaved_changes():
-                # Store the pending target and show unsaved modal instead of populating
-                no_change = _untouched()
-                no_change[31] = tapped_id  # pending-navigation-store
-                no_change[32] = True       # modal-unsaved-changes
-                return no_change
+        # A tap, an Edit (the node menu, the Events table, Details) and the
+        # node picker all ask before they replace unsaved edits.
+        if trigger_id == 'cytoscape-graph' and data and data.get('id'):
+            asked = _ask_before_leaving(data.get('id'))
+            if asked is not None:
+                return asked
 
         name = None
         if trigger_id == 'btn-revert':
@@ -916,15 +927,20 @@ def register_callbacks(app, services=None):
                 edit_node_name = bridge_payloads.strip_stamp(edit_val)
                 node = manager.get_node(edit_node_name)
                 if node:
+                    asked = _ask_before_leaving(node.name)
+                    if asked is not None:
+                        return asked
                     name = node.name
                     data = node.to_dict()
                     data['id'] = name
                 else:
                     return _untouched()
         elif trigger_id == 'search-node':
+            # While the dialog asks, the picker goes back to the node the
+            # form holds, so it never names a node the form isn't showing.
             if not search_val:
-                # User cleared the search bar — reset form to defaults
-                return def_out
+                # Clearing the picker starts a blank form, as New Node does.
+                return _ask_before_leaving('__new_node__', picker=original_name) or def_out
             # Resolve alias: prefix to actual node name
             resolved_name = search_val
             if search_val.startswith('alias:'):
@@ -935,6 +951,9 @@ def register_callbacks(app, services=None):
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
             if node:
+                asked = _ask_before_leaving(node.name, picker=original_name)
+                if asked is not None:
+                    return asked
                 name = node.name
                 data = node.to_dict()
                 data['id'] = name
@@ -1658,7 +1677,9 @@ def register_callbacks(app, services=None):
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
          Output('modal-editor-reopen-confirm', 'is_open', allow_duplicate=True),
          Output('editor-reopen-confirm-body', 'children'),
-         Output('editor-reopen-pending-store', 'data')],
+         Output('editor-reopen-pending-store', 'data'),
+         Output('filter-community', 'value', allow_duplicate=True),
+         Output('community-memory-store', 'data')],
 
         [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
@@ -1718,6 +1739,7 @@ def register_callbacks(app, services=None):
          State('canvas-payload-stamp', 'data'),
          State('bridge-pending-store', 'data'),
          State('editor-reopen-pending-store', 'data'),
+         State('community-memory-store', 'data'),
          EDITOR_FORM],
         prevent_initial_call='initial_duplicate'
     )
@@ -1734,7 +1756,7 @@ def register_callbacks(app, services=None):
                      f_search, btn_editor_reopen_confirm,
                      ed_style, original_name, goal_sidebar_style, events_sidebar_style,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
-                     bridge_pending, editor_reopen_pending, form):
+                     bridge_pending, editor_reopen_pending, community_memory, form):
         """Central state callback handling node CRUD, filtering, and UI updates.
 
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
@@ -2184,7 +2206,8 @@ def register_callbacks(app, services=None):
             canvas_selection = KEEP_SELECTION
         with database.read_snapshot():
             view = build_canvas_view(
-                manager, render_elements, trigger_id, canvas_selection, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info)
+                manager, render_elements, trigger_id, canvas_selection, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info,
+                community_memory=community_memory)
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how
@@ -2226,7 +2249,9 @@ def register_callbacks(app, services=None):
             # their listeners: the save message alone woke six callbacks,
             # all landing inside the layout this filter change starts.
             return CoreResponse(elements=view.elements,
-                                community_options=view.community_options)
+                                community_options=view.community_options,
+                                community_value=view.community_value,
+                                community_memory=view.community_memory)
 
         # The editor may be showing a node whose status just changed from
         # the node menu or a cascade; its Done switch follows.
@@ -2302,27 +2327,27 @@ def register_callbacks(app, services=None):
     # may queue parent containers (chained), so the modal stays open until the
     # queue is empty. Dismiss simply pops without acting. The store is the
     # SSOT for what's queued — both branches read and write it via this
-    # single callback to avoid races with the drain trigger.
+    # single callback to avoid races with the drain trigger. A Mark Done
+    # redraws through the core engine, as a link change does, so the canvas
+    # keeps the filters, the community, focus and the user's selection. This
+    # callback used to draw it bare: every node, nothing selected.
     @app.callback(
         Output('modal-auto-done-suggestion', 'is_open'),
         Output('auto-done-suggestion-body', 'children'),
         Output('auto-done-candidates-store', 'data'),
-        Output('elements-pending-store', 'data', allow_duplicate=True),
+        Output('details-refresh-trigger', 'data', allow_duplicate=True),
         Output('save-output', 'children', allow_duplicate=True),
         Input('graph-version-store', 'data'),
         Input('btn-auto-done-confirm', 'n_clicks'),
         Input('btn-auto-done-dismiss', 'n_clicks'),
         State('auto-done-candidates-store', 'data'),
-        State('main-tabs', 'active_tab'),
-        State('canvas-payload-stamp', 'data'),
         prevent_initial_call=True,
     )
-    def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates,
-                               active_tab, canvas_stamp):
+    def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates):
         from models import STATUS_DONE
         trig = get_trigger_id()
         candidates = list(current_candidates or [])
-        elements_out = no_update
+        refresh_out = no_update
         save_msg_out = no_update
 
         if trig == 'btn-auto-done-confirm' and candidates:
@@ -2345,9 +2370,8 @@ def register_callbacks(app, services=None):
                     accepted = manager.complete_suggested_node(target)
                     save_msg_out = (f"Marked '{target}' as Done" if accepted
                                     else f"'{target}' is no longer eligible")
-                    elements_out = (render_elements()
-                                    if canvas_wanted(active_tab, canvas_stamp)
-                                    else CANVAS_DEFERRED)
+                    if accepted:
+                        refresh_out = f"auto-done-{time.time()}"
                 except Exception as exc:
                     save_msg_out = (
                         f"Error marking '{target}' Done: {exc}"
@@ -2386,8 +2410,8 @@ def register_callbacks(app, services=None):
                     className="text-muted small",
                 ),
             ])
-            return True, body, candidates, elements_out, save_msg_out
-        return False, "", [], elements_out, save_msg_out
+            return True, body, candidates, refresh_out, save_msg_out
+        return False, "", [], refresh_out, save_msg_out
 
     # Either answer closes the reopen confirmation. The core engine reads the
     # held Save from the store on a yes, so only a no clears it.
@@ -2410,8 +2434,12 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
+    # The dialog's pending navigation is where Discard and Save go next.
+    # "Edit" (keep editing) and a close request both forget it, or a later
+    # Discard would load the node a cancelled tap was heading for.
     @app.callback(
         Output('modal-unsaved-changes', 'is_open'),
+        Output('pending-navigation-store', 'data', allow_duplicate=True),
         [Input('btn-close-editor', 'n_clicks'),
          Input('btn-add', 'n_clicks'),
          Input('btn-unsaved-cancel', 'n_clicks'),
@@ -2425,15 +2453,19 @@ def register_callbacks(app, services=None):
     def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
                              ed_style, pristine_snapshot, form):
         trig = get_trigger_id()
+        if trig == 'btn-unsaved-cancel':
+            return False, None
         if trig == 'btn-add':
             # btn-add is the toolbar toggle: only its close half (editor already
             # open) should guard against unsaved changes. Opening never does.
             editor_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
             if not editor_open:
-                return False
+                return False, dash.no_update
         elif trig != 'btn-close-editor':
-            return False
-        return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
+            return False, dash.no_update
+        if not is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form)):
+            return False, dash.no_update
+        return True, None
 
     # --- Delete Confirmation Modal ---
     @app.callback(
@@ -2589,15 +2621,20 @@ def register_callbacks(app, services=None):
         nodes = manager.get_all_nodes(include_dormant=True)
         if not nodes:
             return closed  # A graph with nothing in it is the welcome's business.
+        shown, away = {}, {"display": "none"}
         hidden = {'hidden': 0, 'done': 0, 'dormant': 0}
-        if (not f_community or f_community == "All") and community_method != "orphans":
+        if not f_community or f_community == "All":
             filters = build_filters(
                 f_context, f_subcontext, f_done, f_value, f_interest, f_time,
                 f_difficulty, f_node_types, f_time_unit=f_time_unit,
                 f_show_dormant=f_show_dormant, f_time_min=f_time_min,
                 f_search=f_search)
-            hidden = manager.hidden_by_status(nodes, filters)
-        shown, away = {}, {"display": "none"}
+            if community_method != "orphans":
+                hidden = manager.hidden_by_status(nodes, filters)
+            elif manager.filter_nodes(nodes, filters):
+                # Orphans, and nodes match: every one of them has a link.
+                return ('canvas-empty-state is-open',
+                        "No orphans: every matching node has a link.", away, away)
         return ('canvas-empty-state is-open', empty_canvas_detail(hidden),
                 shown if hidden['done'] else away,
                 shown if hidden['dormant'] else away)

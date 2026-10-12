@@ -161,6 +161,14 @@ class EventManager:
     # --- Event CRUD ---
 
     @staticmethod
+    def _date_or_none(value):
+        """A trigger date as stored: None when there is none. An empty
+        string reads as a date before every other, so it was always due."""
+        if isinstance(value, str):
+            value = value.strip()
+        return value or None
+
+    @staticmethod
     def _check_name(name):
         import graph_rules
         problem = graph_rules.name_problem(name, "Event name")
@@ -170,13 +178,24 @@ class EventManager:
     @database.atomic
     def add_event(self, event: Event):
         self._check_name(event.name)
+        # A new event holds nothing yet. One that fired as it was saved would
+        # wake nothing, and nothing could be added to it after.
+        done = self._done_trigger_nodes(event.trigger_nodes)
+        if self._condition_holds(event, done):
+            if self._normalize_mode(event.trigger_mode) == TRIGGER_MODE_ALL and len(done) > 1:
+                problem = "Its trigger nodes are all complete already"
+            else:
+                problem = f"'{done[0]}' is complete already"
+            raise ValueError(f"{problem}, so the event would fire as soon as it "
+                             "was saved. Pick a trigger node that isn't finished.")
         with self.get_connection() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute(
                     "INSERT INTO Events (name, description, status, trigger_date, trigger_mode) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (event.name, event.description, event.status, event.trigger_date,
+                    (event.name, event.description, event.status,
+                     self._date_or_none(event.trigger_date),
                      self._normalize_mode(event.trigger_mode))
                 )
                 self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
@@ -197,7 +216,8 @@ class EventManager:
                     cursor.execute(
                         "UPDATE Events SET name=?, description=?, status=?, trigger_date=?, "
                         "trigger_mode=? WHERE name=?",
-                        (event.name, event.description, event.status, event.trigger_date,
+                        (event.name, event.description, event.status,
+                         self._date_or_none(event.trigger_date),
                          self._normalize_mode(event.trigger_mode), old_name)
                     )
                 except sqlite3.IntegrityError as exc:
@@ -214,7 +234,8 @@ class EventManager:
                 cursor.execute(
                     "UPDATE Events SET description=?, status=?, trigger_date=?, "
                     "trigger_mode=? WHERE name=?",
-                    (event.description, event.status, event.trigger_date,
+                    (event.description, event.status,
+                     self._date_or_none(event.trigger_date),
                      self._normalize_mode(event.trigger_mode), old_name)
                 )
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
@@ -222,6 +243,7 @@ class EventManager:
         if old_name != event.name:
             from config import ConfigManager
             ConfigManager.rename_event_references(old_name, event.name)
+        self.fire_if_met_after_commit(event.name)
         self._graph_changed(scoring=False)
 
     @database.atomic
@@ -617,9 +639,30 @@ class EventManager:
                 (*event.trigger_nodes, STATUS_DONE),
             )
             done_count = cursor.fetchone()[0]
+        return self._condition_holds(event, [None] * done_count)
+
+    def _condition_holds(self, event: Event, done: List) -> bool:
+        """Whether ``done``, the event's trigger nodes that are complete,
+        satisfy its condition. OR needs one; AND needs every node."""
+        if not event.trigger_nodes:
+            return False
         if self._normalize_mode(event.trigger_mode) == TRIGGER_MODE_ALL:
-            return done_count >= len(event.trigger_nodes)
-        return done_count >= 1
+            return len(done) >= len(set(event.trigger_nodes))
+        return len(done) >= 1
+
+    def _done_trigger_nodes(self, names: List[str]) -> List[str]:
+        """The awake nodes among ``names`` that are Done, sorted. A sleeping
+        node stored as Done counts once it wakes, which fires its events then
+        (see _fire_completion_events_after_commit)."""
+        if not names:
+            return []
+        with self.get_connection() as conn:
+            placeholders = ",".join("?" * len(names))
+            return [row[0] for row in conn.execute(
+                f"SELECT name FROM Nodes WHERE name IN ({placeholders}) "
+                "AND status=? AND dormant=0 ORDER BY name",
+                (*names, STATUS_DONE),
+            )]
 
     def get_trigger_node_names(self) -> set:
         """Returns names of nodes whose completion could trigger a Pending event."""
@@ -795,7 +838,9 @@ class EventManager:
     # the database's write lock and waits on anything else holding it.
     _DUE_ACTIVATIONS = ("SELECT 1 FROM EventNodes WHERE activation_date IS NOT NULL "
                         "AND activation_date <= ? AND activated = 0 LIMIT 1")
+    # An empty date, saved before the editor refused one, is no date.
     _DUE_TRIGGERS = ("SELECT 1 FROM Events WHERE trigger_date IS NOT NULL "
+                     "AND trigger_date <> '' "
                      "AND trigger_date <= ? AND status = 'Pending' LIMIT 1")
 
     def _anything_due(self, query) -> bool:
@@ -938,6 +983,7 @@ class EventManager:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT name FROM Events WHERE trigger_date IS NOT NULL "
+                "AND trigger_date <> '' "
                 "AND trigger_date <= ? AND status = 'Pending'", (today,)
             )
             due = [row[0] for row in cursor.fetchall()]
@@ -991,34 +1037,89 @@ class EventManager:
 
         Returns the list of event names that were triggered.
         """
-        from config import ConfigManager
-
         watching = self.get_events_triggered_by_node(node_name)
         if not watching:
             return []
 
-        today = date.today().isoformat()
         triggered: List[str] = []
         for event in watching:
             if not self.is_trigger_condition_met(event):
                 continue
-            result = self.trigger_event(event.name)
+            self._fire_on_completion(event, node_name)
             triggered.append(event.name)
-            now_pinned, now_skipped = self._apply_now_intent(result.get('now_intent', []))
-            ConfigManager.add_pending_event_notification({
-                "kind": "node_triggered",
-                "event": event.name,
-                "trigger_node": node_name,
-                "trigger_nodes": list(event.trigger_nodes),
-                "trigger_mode": self._normalize_mode(event.trigger_mode),
-                "activated": result.get('activated', []),
-                "scheduled": result.get('scheduled', []),
-                "already_awake": result.get('already_awake', []),
-                "now_pinned": now_pinned,
-                "now_skipped": now_skipped,
-                "when": today,
-            })
         return triggered
+
+    def _fire_on_completion(self, event: Event, trigger_node: str,
+                            already_met: bool = False) -> None:
+        """Fire ``event`` because its completion condition holds, and queue
+        the announcement. ``already_met`` says no save just finished
+        ``trigger_node``: the event was satisfied some other way."""
+        from config import ConfigManager
+
+        result = self.trigger_event(event.name)
+        now_pinned, now_skipped = self._apply_now_intent(result.get('now_intent', []))
+        entry = {
+            "kind": "node_triggered",
+            "event": event.name,
+            "trigger_node": trigger_node,
+            "trigger_nodes": list(event.trigger_nodes),
+            "trigger_mode": self._normalize_mode(event.trigger_mode),
+            "activated": result.get('activated', []),
+            "scheduled": result.get('scheduled', []),
+            "already_awake": result.get('already_awake', []),
+            "now_pinned": now_pinned,
+            "now_skipped": now_skipped,
+            "when": date.today().isoformat(),
+        }
+        if already_met:
+            entry["already_met"] = True
+        ConfigManager.add_pending_event_notification(entry)
+
+    @database.atomic
+    def fire_if_condition_met(self, event_name: str) -> bool:
+        """Fire a Pending event whose completion condition already holds.
+
+        A completion fires the events watching it only on the save that
+        marks the node Done. An event can come to be satisfied another way:
+        an edit that drops its unfinished trigger nodes or switches it to
+        OR, or a deleted trigger node. It used to wait until one of the
+        others was reopened and finished again.
+
+        Returns whether the event fired.
+        """
+        event = self.get_event(event_name)
+        if event is None or event.status != "Pending":
+            return False
+        done = self._done_trigger_nodes(event.trigger_nodes)
+        if not self._condition_holds(event, done):
+            return False
+        self._fire_on_completion(event, done[0], already_met=True)
+        return True
+
+    def fire_if_met_after_commit(self, event_name: str) -> None:
+        """Run ``fire_if_condition_met`` once the current write commits.
+
+        After the commit, as a completion fires its events, so a failure to
+        fire is logged instead of rolling back the edit that satisfied it.
+        """
+        def fire():
+            try:
+                self.fire_if_condition_met(event_name)
+            except Exception:
+                logger.exception("Firing the satisfied event %s failed", event_name)
+        database.on_commit(fire, key=("condition-met", event_name))
+
+    def fire_satisfied_events(self) -> List[str]:
+        """Startup safety net: fire every Pending event whose completion
+        condition already holds, and return their names. Catches events left
+        waiting before saves and deletions checked, or brought in by an
+        import."""
+        with self.get_connection() as conn:
+            names = [row[0] for row in conn.execute(
+                "SELECT DISTINCT e.name FROM Events e "
+                "JOIN EventTriggerNodes etn ON etn.event_name = e.name "
+                "WHERE e.status='Pending' ORDER BY e.name")]
+        return [name for name in names if self.fire_if_condition_met(name)]
 
     def _apply_now_intent(self, intent_nodes: List[str]) -> Tuple[List[str], List[str]]:
         """Move the nodes an event just woke onto the Now list.

@@ -248,6 +248,17 @@ class Node:
         return expected_time_estimate(self.time_o, self.time_m, self.time_p)
 
     @property
+    def actual_time(self) -> Optional[float]:
+        """Hours the work actually took, from the captured lower / best /
+        upper, weighted as `time` weights the estimate. None when nothing was
+        captured. Every view reads it here, so a bracket without a best
+        estimate counts in History as it does in Analyze."""
+        captured = (self.actual_time_lower, self.actual_time_point, self.actual_time_upper)
+        if all(hours is None for hours in captured):
+            return None
+        return expected_time_estimate(*captured)
+
+    @property
     def is_container(self) -> bool:
         """True when EITHER ratings or time inherit from descendants.
 

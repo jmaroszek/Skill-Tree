@@ -6,6 +6,7 @@ import bridge_payloads
 import database
 import json
 import logging
+import time
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from graph_manager import GraphManager
 from event_manager import EventManager
@@ -19,13 +20,15 @@ from simulation import SimulationCancelled
 from simulation_service import simulation_service
 from duration_ui import simulation_figure
 from prerender import prerendered
-from callback_helpers import (build_filters,
+from callback_helpers import (build_filters, FILTER_INPUTS, FILTER_STATES,
+                              filters_from,
                               is_filters_active, select_explore_goals,
                               build_explain_summary, build_explain_chart,
                               format_value_rank, format_priority_rank,
                               get_trigger_id,
                               build_node_element, build_edge_element,
-                              canvas_node_styles)
+                              canvas_node_styles, reopen_body)
+from node_commands import change_link, link_change_reopens
 from scoring import explain_score, focus_route_data
 import style_tokens as tokens
 
@@ -285,18 +288,8 @@ def register_details_callbacks(app, services=None):
         Input("details-max-depth", "value"),
         State("details-include-soft-needs", "value"),
         State("details-include-synergies", "value"),
-        State("filter-context", "value"),
-        State("filter-subcontext", "value"),
-        State("filter-done", "value"),
-        State("filter-value", "value"),
-        State("filter-interest", "value"),
-        State("filter-time", "value"),
-        State("filter-difficulty", "value"),
-        State("filter-node-type", "value"),
-        State("filter-dormant", "value"),
+        FILTER_STATES,
         State("details-hide-blocked", "value"),
-        State("filter-time-min", "value"),
-        State("filter-search-query", "data"),
         # What the store already holds. Most of this callback's Inputs are
         # refresh signals, not selection changes, so the store slot below is
         # left untouched unless the selection actually moved — see the note
@@ -307,10 +300,7 @@ def register_details_callbacks(app, services=None):
     @database.snapshot_read
     def select_detail_node(node_name, _refresh, _version,
                            max_depth_val, include_soft_val, include_synergies_val,
-                           f_context, f_subcontext, f_done,
-                           f_value, f_interest, f_time, f_difficulty,
-                           f_node_types, f_show_dormant, hide_blocked_val,
-                           f_time_min, f_search, current_selection):
+                           sidebar_filters, hide_blocked_val, current_selection):
         # Dash re-fires every dependent callback when an Output is written,
         # even with an unchanged value. Writing the same node name back on a
         # refresh would look like a fresh selection: the simulation would go
@@ -445,10 +435,7 @@ def register_details_callbacks(app, services=None):
 
         # Subtasks use the same filter-aware dependency view as the graph and
         # simulation, so a hidden bridge cannot leave orphaned descendants.
-        global_filters = build_filters(f_context, f_subcontext, f_done,
-                                       f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min, f_search=f_search)
+        global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = _collect_details_subtasks(
@@ -500,28 +487,15 @@ def register_details_callbacks(app, services=None):
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
-        Input("filter-context", "value"),
-        Input("filter-subcontext", "value"),
-        Input("filter-done", "value"),
-        Input("filter-value", "value"),
-        Input("filter-interest", "value"),
-        Input("filter-time", "value"),
-        Input("filter-difficulty", "value"),
-        Input("filter-node-type", "value"),
-        Input("filter-dormant", "value"),
+        FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
-        Input("filter-time-min", "value"),
-        Input("filter-search-query", "data"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     @database.snapshot_read
     def render_details_subtasks(settled_token, _refresh, _version,
                                 include_soft_val, include_synergies_val,
-                                max_depth_val, f_context, f_subcontext,
-                                f_done, f_value, f_interest, f_time,
-                                f_difficulty, f_node_types, f_show_dormant,
-                                hide_blocked_val, f_time_min, f_search,
+                                max_depth_val, sidebar_filters, hide_blocked_val,
                                 selected_node):
         # A deleted node has no table. Its refresh can land after the
         # selection clears.
@@ -543,10 +517,7 @@ def register_details_callbacks(app, services=None):
         include_synergies = bool(
             include_synergies_val and "include" in include_synergies_val)
         max_depth = _normalize_max_depth(max_depth_val)
-        global_filters = build_filters(
-            f_context, f_subcontext, f_done, f_value, f_interest, f_time,
-            f_difficulty, f_node_types, f_show_dormant=f_show_dormant,
-            f_time_min=f_time_min, f_search=f_search)
+        global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters["hide_blocked"] = True
 
@@ -584,29 +555,15 @@ def register_details_callbacks(app, services=None):
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
-        Input("filter-context", "value"),
-        Input("filter-subcontext", "value"),
-        Input("filter-done", "value"),
-        Input("filter-value", "value"),
-        Input("filter-interest", "value"),
-        Input("filter-time", "value"),
-        Input("filter-difficulty", "value"),
-        Input("filter-node-type", "value"),
-        Input("filter-dormant", "value"),
+        FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
-        Input("filter-time-min", "value"),
-        Input("filter-search-query", "data"),
         State("details-selected-node-store", "data"),
         prevent_initial_call=True,
     )
     @database.snapshot_read
     def toggle_details_subtask_filters(include_soft_val, include_synergies_val,
-                                       max_depth_val,
-                                       f_context, f_subcontext, f_done,
-                                       f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types, f_show_dormant,
-                                       hide_blocked_val, f_time_min, f_search,
-                                       selected_node):
+                                       max_depth_val, sidebar_filters,
+                                       hide_blocked_val, selected_node):
         if not selected_node:
             return no_update, no_update, no_update
 
@@ -614,10 +571,7 @@ def register_details_callbacks(app, services=None):
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
         max_depth = _normalize_max_depth(max_depth_val)
 
-        global_filters = build_filters(f_context, f_subcontext, f_done,
-                                       f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min, f_search=f_search)
+        global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = _collect_details_subtasks(
@@ -706,37 +660,21 @@ def register_details_callbacks(app, services=None):
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
         Input("details-show-cross-links", "value"),
-        Input("filter-node-type", "value"),
-        Input("filter-done", "value"),
-        Input("filter-context", "value"),
-        Input("filter-subcontext", "value"),
-        Input("filter-value", "value"),
-        Input("filter-interest", "value"),
-        Input("filter-time", "value"),
-        Input("filter-difficulty", "value"),
-        Input("filter-dormant", "value"),
+        FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
-        Input("filter-time-min", "value"),
-        Input("filter-search-query", "data"),
     )
     @database.snapshot_read
     def update_details_graph(selected_node, _refresh, _version,
                              include_soft_val, include_synergies_val,
                              max_depth_val, show_cross_links_val,
-                             f_node_types, f_done, f_context, f_subcontext,
-                             f_value, f_interest, f_time, f_difficulty,
-                             f_show_dormant, hide_blocked_val, f_time_min,
-                             f_search):
+                             sidebar_filters, hide_blocked_val):
         if not selected_node:
             return []
         # select_detail_node keeps the previous view for a name that no
         # longer exists, so this keeps its graph too.
         if not graph_manager.get_node(selected_node):
             return no_update
-        global_filters = build_filters(f_context, f_subcontext, f_done,
-                                       f_value, f_interest, f_time, f_difficulty,
-                                       f_node_types, f_show_dormant=f_show_dormant,
-                                       f_time_min=f_time_min, f_search=f_search)
+        global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         return _build_graph_elements(selected_node, include_soft_val,
@@ -1143,10 +1081,15 @@ def register_details_callbacks(app, services=None):
     def cancel_link_node(n_clicks):
         return False if n_clicks else no_update
 
+    # A link that would reopen Done nodes asks first, in the link menu's
+    # confirmation, which makes the link on a yes (link_menu_callbacks).
     @app.callback(
         Output("modal-details-link-node", "is_open", allow_duplicate=True),
         Output("details-refresh-trigger", "data", allow_duplicate=True),
         Output("details-add-save-status", "children"),
+        Output("modal-link-reopen-confirm", "is_open", allow_duplicate=True),
+        Output("link-reopen-confirm-body", "children", allow_duplicate=True),
+        Output("link-action-pending-store", "data", allow_duplicate=True),
         Input("btn-details-add-save", "n_clicks"),
         State("details-selected-node-store", "data"),
         State("details-add-existing-dropdown", "value"),
@@ -1155,15 +1098,20 @@ def register_details_callbacks(app, services=None):
     )
     def link_existing_node(n_clicks, selected_node, link_node, link_edge_type):
         if not n_clicks or not selected_node:
-            return no_update, no_update, no_update
+            return (no_update,) * 6
         if not link_node:
-            return no_update, no_update, "Please select a node to link."
+            return no_update, no_update, "Please select a node to link.", no_update, no_update, no_update
         edge_type = EDGE_NEEDS_HARD if link_edge_type == "hard" else EDGE_NEEDS_SOFT
+        change = ["add", link_node, selected_node, edge_type]
         try:
-            graph_manager.add_edge(link_node, selected_node, edge_type)
+            reopened = link_change_reopens(graph_manager, link_node, selected_node,
+                                           edge_type, "add")
+            if reopened:
+                return False, no_update, "", True, reopen_body(reopened), change
+            change_link(graph_manager, link_node, selected_node, edge_type, "add")
         except ValueError as e:
-            return no_update, no_update, str(e)
-        return False, f"link-{link_node}", ""
+            return no_update, no_update, str(e), no_update, no_update, no_update
+        return False, f"link-{int(time.time() * 1000)}", "", no_update, no_update, no_update
 
     # --- Details Graph Layout: Toggle Panel ---
     @app.callback(

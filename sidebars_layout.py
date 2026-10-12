@@ -784,6 +784,9 @@ def build_filters_content():
 
         dbc.Label("Community", className="mt-3"),
         dbc.Select(id="filter-community", options=[{"label": "All", "value": "All"}], value="All"),
+        # The selected row's label and members, so a selection can follow its
+        # cluster when the label changes (canvas_view.resolve_community).
+        dcc.Store(id="community-memory-store", data=None),
 
         html.Hr(className="my-3"),
         # Filters decide what the canvas shows; layout physics live in the

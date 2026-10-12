@@ -51,35 +51,43 @@ def _calibration_prepop(node):
     in `time_unit`, NOT canonical hours; Submit converts on the way to the
     DB).
 
-    Actual-time fields deliberately start blank. Lifecycle dates measure how
-    long a node remained selected, not how many hours the user worked on it;
-    turning that span into an hours estimate creates a misleading anchor. The
-    unit still follows the original estimate's scale as an entry convenience.
+    The modal starts from what the user already answered. A reflection with
+    ratings and no time keeps its node in the review queue, and a node
+    reopened and finished again keeps the actual times of its first finish.
+    Starting from the estimates, or from blank times, Submit wrote over them.
 
-    V/I/E sliders default to the node's own estimates so the user's
-    starting point is "same as I thought" and they only have to move
-    sliders that actually diverged.
+    With no saved times, the actual-time fields start blank. Lifecycle dates
+    measure how long a node remained selected, not how many hours the user
+    worked on it; turning that span into an hours estimate creates a
+    misleading anchor. The unit still follows the original estimate's scale
+    as an entry convenience. Saved times show in the unit that suits them.
+
+    A V/I/E slider with no saved rating defaults to the node's own estimate,
+    so the user's starting point is "same as I thought" and they only have
+    to move sliders that actually diverged.
     """
-    time_lower = None
-    time_point = None
-    time_upper = None
-    time_unit = _calibration_unit_for(node.time if node else 0)
+    if node is None:
+        return (None, None, None, _calibration_unit_for(0), 5, 5, 5, '')
 
-    val = getattr(node, 'value', None) if node else None
-    interest = getattr(node, 'interest', None) if node else None
-    diff = getattr(node, 'difficulty', None) if node else None
-    # Sliders need a numeric default if the node didn't carry one (e.g.
-    # inherited-mode containers where the local rating is 0/None).
-    if not val:
-        val = 5
-    if not interest:
-        interest = 5
-    if not diff:
-        diff = 5
+    saved = (node.actual_time_lower, node.actual_time_point, node.actual_time_upper)
+    anchor = next((hours for hours in (saved[1], saved[0], saved[2])
+                   if hours is not None), None)
+    time_unit = _calibration_unit_for(node.time if anchor is None else anchor)
+    multiplier = ConfigManager.get_time_multiplier(time_unit)
+    time_lower, time_point, time_upper = (
+        None if hours is None or not multiplier else round(hours / multiplier, 2)
+        for hours in saved)
 
-    notes = (getattr(node, 'reflect_notes', None) if node else None) or ''
+    def rating(answer, estimate):
+        # Sliders need a number even when the node carries no rating (e.g.
+        # inherited-mode containers, whose local rating is 0 or None).
+        return answer if answer is not None else (estimate or 5)
 
-    return (time_lower, time_point, time_upper, time_unit, val, interest, diff, notes)
+    return (time_lower, time_point, time_upper, time_unit,
+            rating(node.reflect_value, node.value),
+            rating(node.reflect_interest, node.interest),
+            rating(node.reflect_difficulty, node.difficulty),
+            node.reflect_notes or '')
 
 
 def _friendly_time_estimates(time_o, time_m, time_p):

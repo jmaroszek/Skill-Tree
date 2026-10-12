@@ -86,3 +86,57 @@ def test_manual_event_list_uses_the_saved_order():
     cards = copy_context().run(run)
     text = str(cards)
     assert text.index("Move") < text.index("Launch") < text.index("Trip")
+
+
+# --- A drag under a search ------------------------------------------------------
+# A list posts only the cards it shows. Saving that as the whole order put
+# every hidden item back in database order once the search was cleared.
+
+def test_a_drag_reorders_the_shown_names_within_the_saved_order():
+    from callback_helpers import merge_manual_order
+
+    saved = ["A", "B", "C", "D", "E"]
+    # A search shows B and D, and D is dragged above B.
+    assert merge_manual_order(saved, ["D", "B"]) == ["A", "D", "C", "B", "E"]
+    # Showing everything, the post is the order.
+    assert merge_manual_order(saved, ["E", "D", "C", "B", "A"]) == ["E", "D", "C", "B", "A"]
+    # A name the saved order lacks joins at its end, then takes its place.
+    assert merge_manual_order(["A", "B"], ["New", "A"]) == ["New", "B", "A"]
+    assert merge_manual_order(None, ["B", "A"]) == ["B", "A"]
+    # Repeats and junk in the post count once.
+    assert merge_manual_order(saved, ["D", "B", "D", 7]) == ["A", "D", "C", "B", "E"]
+
+
+def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
+    events = EventManager()
+    for name in ("Trip", "Move", "Launch", "Party"):
+        events.add_event(Event(name=name))
+    ConfigManager.set_event_order(["Trip", "Move", "Launch", "Party"])
+    reorder = _callbacks(event_callbacks.register_event_callbacks)["reorder_event"][0]
+
+    # A search for "a" shows Launch and Party; Party is dragged above Launch.
+    reorder('["Party", "Launch"]')
+
+    assert ConfigManager.get_event_order() == ["Trip", "Move", "Party", "Launch"]
+
+
+def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
+    import sidebars_callbacks
+    from test_atomic_saves import graph, node
+
+    manager = graph()
+    saved = ["Video", "Training", "Values", "Writing", "Stress", "Running"]
+    for name in saved:
+        manager.add_node(node(name, type="Goal", time_mode="inherited"))
+    ConfigManager.set_goal_order(saved)
+    ConfigManager.set_priority_goals(["Writing"])
+    reorder = _callbacks(sidebars_callbacks.register_sidebars_callbacks)["reorder_goals"][0]
+
+    # A search for "ing" shows the pinned Writing first, then Training and
+    # Running. Running is dragged above Training.
+    reorder('["Writing", "Running", "Training"]')
+
+    # Running and Training swap slots. Writing leads the list because it is
+    # pinned, not because of the drag, so its own slot stays.
+    assert ConfigManager.get_goal_order() == [
+        "Video", "Running", "Values", "Writing", "Stress", "Training"]

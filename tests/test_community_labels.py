@@ -1,6 +1,8 @@
 """Community filter labels and ranking (community_labels)."""
 from types import SimpleNamespace
 
+import dash
+
 from community_labels import MAX_LISTED, build_listing, label_communities
 
 
@@ -222,7 +224,11 @@ class TestCanvasOptions:
 
     def test_a_stale_selection_shows_everything(self, temp_database):
         manager = self._graph()
-        assert self._shown(self._view(manager, 'Gone')) == {'Hub', 'A', 'B', 'Loner'}
+        view = self._view(manager, 'Gone')
+        assert self._shown(view) == {'Hub', 'A', 'B', 'Loner'}
+        # The Select goes back to All with it, so it and the "filtered"
+        # indicator agree with the canvas.
+        assert view.community_value == 'All'
 
     def test_orphans_all_still_means_only_orphans(self, temp_database):
         view = self._view(self._graph(), 'All', method="orphans")
@@ -235,3 +241,127 @@ class TestCanvasOptions:
         view = self._view(graph(*names), 'All', method="orphans")
         assert len(view.community_options) == MAX_LISTED + 1
         assert self._shown(view) == set(names)
+
+    @staticmethod
+    def _two_goals():
+        """Goals K (fed by C and D) and G (fed by A and B), joined by a Soft
+        link from A to K. One cluster, labelled after both Goals."""
+        from test_atomic_saves import graph, node
+        manager = graph('A', 'B', 'C', 'D')
+        manager.add_node(node('G', type='Goal', time_mode='inherited'))
+        manager.add_node(node('K', type='Goal', time_mode='inherited'))
+        for source, target in (('A', 'G'), ('B', 'G'), ('C', 'K'), ('D', 'K')):
+            manager.add_edge(source, target, 'Needs_Hard')
+        manager.add_edge('A', 'K', 'Needs_Soft')
+        return manager
+
+    def _render(self, manager, f_community, memory=None):
+        from canvas_view import build_canvas_view
+        from callbacks import generate_elements
+        return build_canvas_view(manager, generate_elements, 'filter-community',
+                                 None, "components", {'hide_done': True},
+                                 f_community, None, None, None,
+                                 community_memory=memory)
+
+    def test_a_selection_follows_its_cluster_when_a_done_toggle_renames_it(
+            self, temp_database):
+        manager = self._two_goals()
+        picked = self._render(manager, 'Mind: K + G')
+        assert self._shown(picked) == {'A', 'B', 'C', 'D', 'G', 'K'}
+        assert picked.community_value is dash.no_update
+        memory = picked.community_memory
+        assert memory == {'label': 'Mind: K + G',
+                          'members': ['A', 'B', 'C', 'D', 'G', 'K']}
+
+        # Finishing C hides it, and the cluster is now named G first.
+        c = manager.get_node('C')
+        c.status = 'Done'
+        manager.update_node(c)
+        view = self._render(manager, 'Mind: K + G', memory)
+
+        assert view.community_value == 'Mind: G + K'
+        assert self._shown(view) == {'A', 'B', 'D', 'G', 'K'}
+        assert view.community_memory['label'] == 'Mind: G + K'
+
+    def test_a_selection_whose_cluster_is_gone_goes_back_to_all(self, temp_database):
+        manager = self._graph()
+        memory = {'label': 'Gone', 'members': ['X', 'Y', 'Z']}
+        view = self._view_with(manager, 'Gone', memory)
+
+        assert view.community_value == 'All'
+        assert view.community_memory is None
+        assert self._shown(view) == {'Hub', 'A', 'B', 'Loner'}
+
+    def test_orphans_with_none_left_shows_nothing(self, temp_database):
+        manager = self._graph()
+        manager.add_edge('Loner', 'Hub', 'Needs_Soft')
+        view = self._view(manager, 'All', method="orphans")
+        assert self._shown(view) == set()
+        assert view.community_options == [{"label": "All", "value": "All"}]
+
+    def test_the_empty_orphans_view_says_why(self, temp_database):
+        import callbacks
+        app = dash.Dash(__name__)
+        app.config.suppress_callback_exceptions = True
+        callbacks.register_callbacks(app)
+        empty = next(spec['callback'] for key, spec in app.callback_map.items()
+                     if 'canvas-empty-detail.children' in key)
+        while hasattr(empty, '__wrapped__'):
+            empty = empty.__wrapped__
+        manager = self._graph()
+        manager.add_edge('Loner', 'Hub', 'Needs_Soft')
+
+        def detail(context):
+            return empty({'nodes': 0}, context, None, [], [], None, None, None,
+                         'hours', None, [], None, None, 'All', 'orphans')[1]
+
+        assert detail(None) == "No orphans: every matching node has a link."
+        # Filters that match nothing are the reason instead.
+        assert detail(['Body']) == "Widen the filters, or clear them."
+
+    def _view_with(self, manager, f_community, memory):
+        from canvas_view import build_canvas_view
+        from callbacks import generate_elements
+        return build_canvas_view(manager, generate_elements, 'filter-community',
+                                 None, "components", {}, f_community, None, None,
+                                 None, community_memory=memory)
+
+
+class TestResolveCommunity:
+    ROWS = [("Mind: Sleep", {"Sleep", "A", "B", "C"}),
+            ("Body: Run", {"Run", "D", "E"})]
+
+    @staticmethod
+    def _resolve(f_community, memory=None, rows=None):
+        from canvas_view import resolve_community
+        return resolve_community(f_community, rows or TestResolveCommunity.ROWS, memory)
+
+    def test_all_selects_nothing(self):
+        assert self._resolve("All") == ("All", None)
+        assert self._resolve(None, {"label": "Mind: Sleep", "members": ["Sleep"]}) == ("All", None)
+
+    def test_a_label_just_picked_is_taken_as_it_is(self):
+        memory = {"label": "Body: Run", "members": ["Run", "D", "E"]}
+        assert self._resolve("Mind: Sleep", memory) == ("Mind: Sleep", {"Sleep", "A", "B", "C"})
+
+    def test_a_label_just_picked_that_is_not_listed_selects_nothing(self):
+        assert self._resolve("Stale") == ("All", None)
+
+    def test_a_kept_label_holding_its_cluster_stays(self):
+        memory = {"label": "Mind: Sleep", "members": ["Sleep", "A", "B"]}
+        assert self._resolve("Mind: Sleep", memory)[0] == "Mind: Sleep"
+
+    def test_a_kept_label_that_is_gone_follows_most_of_its_members(self):
+        memory = {"label": "Mind: Nap", "members": ["Sleep", "A", "B", "X"]}
+        # 3 shared of 5 in either: 0.6.
+        assert self._resolve("Mind: Nap", memory) == ("Mind: Sleep", {"Sleep", "A", "B", "C"})
+
+    def test_too_little_in_common_selects_nothing(self):
+        memory = {"label": "Mind: Nap", "members": ["Sleep", "X", "Y", "Z"]}
+        assert self._resolve("Mind: Nap", memory) == ("All", None)
+
+    def test_a_kept_label_now_naming_another_cluster_follows_the_members(self):
+        # Unnamed clusters are numbered in order, so "Mind #2" can move.
+        rows = [("Mind #2", {"P", "Q", "R"}), ("Mind", {"S", "T", "U"})]
+        memory = {"label": "Mind #2", "members": ["S", "T", "U"]}
+        assert self._resolve("Mind #2", memory, rows) == ("Mind", {"S", "T", "U"})

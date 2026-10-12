@@ -42,7 +42,7 @@ def _rich_graph():
     rest.status = STATUS_DONE
     manager.update_node(rest)
     events = EventManager()
-    events.add_event(Event(name="Winter", trigger_nodes=["Rest"]))
+    events.add_event(Event(name="Winter", trigger_nodes=["Nap"]))
     events.add_node_to_event("Winter", "Dream", delay_days=3)
     ConfigManager.set_priority_goals(["Sleep"])
     ConfigManager.set_contexts(["Mind", "Body"])
@@ -74,6 +74,18 @@ class TestExportImport:
         counts = data_transfer.import_data(json.loads(json.dumps(exported)))
 
         assert counts["Nodes"] == 4
+        assert _comparable(data_transfer.export_data()) == _comparable(exported)
+
+    def test_import_works_after_a_node_was_deleted(self, monkeypatch, tmp_path):
+        _rich_graph()
+        exported = data_transfer.export_data()
+        _fresh_database(monkeypatch, tmp_path)
+        # The ledger keeps a deleted node's rows, with ids the export reuses.
+        GraphManager().add_node(_node("Trial"))
+        GraphManager().delete_node("Trial")
+
+        data_transfer.import_data(json.loads(json.dumps(exported)))
+
         assert _comparable(data_transfer.export_data()) == _comparable(exported)
 
     def test_the_json_names_its_format_and_versions(self):
@@ -220,6 +232,8 @@ class TestImportChecksTheGraph:
         ("Nodes", {"name": "Extra", "status": "Finished"}, "unknown status"),
         ("Events", {"name": "Tab\there"}, "single line"),
         ("Aliases", {"alias": ""}, "required"),
+        ("Nodes", {"name": "Extra", "done_date": "2025-13-05"}, "finish date that isn't a date"),
+        ("Nodes", {"name": "Extra", "start_date": "soon"}, "start date that isn't a date"),
     ])
     def test_a_name_or_status_the_editor_refuses_is_refused(self, monkeypatch, tmp_path,
                                                             table, changes, fragment):

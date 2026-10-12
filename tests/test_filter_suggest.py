@@ -36,6 +36,18 @@ assert.equal(suggest.matches('node').length, 8);
 // A bad payload leaves no names rather than throwing.
 suggest.setNames(null);
 assert.deepEqual(suggest.matches('node'), []);
+
+// From the node editor Search list's options, an alias is suggested as its
+// own text: the field searches aliases, but "alias:..." matches nothing.
+suggest.setOptions([
+    {label: '8 Fold Path', value: '8 Fold Path'},
+    {label: 'Eightfold Path → 8 Fold Path', value: 'alias:Eightfold Path'},
+    {label: 'Pathfinding', value: 'Pathfinding'},
+]);
+assert.deepEqual(suggest.matches('eight'), ['Eightfold Path']);
+assert.deepEqual(suggest.matches('path'), ['Pathfinding', '8 Fold Path', 'Eightfold Path']);
+suggest.setOptions(undefined);
+assert.deepEqual(suggest.matches('path'), []);
 '''
     result = subprocess.run([node_binary, '-e', script, str(asset)],
                             capture_output=True, text=True, timeout=30)

@@ -238,7 +238,9 @@ def finish_bridge(manager, name, pending):
 
 # --- Link menu -------------------------------------------------------------
 # Right-clicking a link offers to change it in place. ``kind`` names what to
-# do: make it Hard or Soft, reverse it, or remove it.
+# do: make it Hard or Soft, reverse it, or remove it. Details' "+ > Existing
+# node..." adds a link ('add'), and asks before reopening Done nodes the same
+# way.
 
 LINK_ACTIONS = ('hard', 'soft', 'reverse', 'remove')
 
@@ -264,6 +266,9 @@ def change_link(manager, source, target, edge_type, action):
     was. The status cascade follows the edges, so a Hard link made Soft
     unblocks its target and a Soft link made Hard can block it.
     """
+    if action == 'add':
+        manager.add_edge(source, target, edge_type)
+        return f"Linked '{source}' to '{target}'"
     if action not in LINK_ACTIONS:
         raise ValueError(f"Unknown link action '{action}'.")
     if not _has_edge(manager, source, target, edge_type):
@@ -318,7 +323,7 @@ def done_names(manager):
 
 
 def link_change_reopens(manager, source, target, edge_type, action):
-    """The Done nodes a link menu action would reopen, sorted by name.
+    """The Done nodes a link change (change_link) would reopen, sorted by name.
 
     A Done node keeps its status only while every Hard prerequisite is Done,
     so a change that gives one an unfinished Hard prerequisite reopens it, and

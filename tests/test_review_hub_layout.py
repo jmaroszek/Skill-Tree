@@ -131,6 +131,38 @@ def test_history_sorts_numeric_time_and_rating_change_with_missing_last():
             "Short", "Long", "Missing"]
 
 
+def test_a_bracket_without_a_best_estimate_has_an_actual_time():
+    # History showed a dash for it, while Analyze plotted it.
+    from graph_analytics import _compute_estimation_accuracy
+    from review_hub_callbacks import _fmt_delta_hours, _fmt_hours
+    bracket = _reviewed_node("Bracket")
+    bracket.time_o = bracket.time_m = bracket.time_p = 80
+    bracket.actual_time_point = None
+    bracket.actual_time_lower, bracket.actual_time_upper = 207.8, 552.5
+    point = _reviewed_node("Point")
+    point.time_o = point.time_m = point.time_p = 80
+    point.actual_time_point = 100
+
+    analyzed = {row["name"]: row["actual"]
+                for row in _compute_estimation_accuracy([bracket, point])}
+    actual = bracket.actual_time
+    assert actual == analyzed["Bracket"] > 300
+
+    cells = _build_history_table([bracket]).children[1].children[0].children
+    assert cells[2].children == _fmt_hours(actual)
+    assert cells[3].children == _fmt_delta_hours(actual, 80)
+    assert [n.name for n in _sort_history_nodes(
+        [point, bracket], {"key": "actual", "direction": "desc"})] == ["Bracket", "Point"]
+    assert [n.name for n in _sort_history_nodes(
+        [point, bracket], {"key": "delta_time", "direction": "asc"})] == ["Point", "Bracket"]
+
+
+def test_a_node_with_no_captured_time_has_no_actual_time():
+    node = _reviewed_node()
+    node.actual_time_point = None
+    assert node.actual_time is None
+
+
 def test_history_show_more_batches_and_filter_resets():
     assert _visible_history_count('modal-review-hub', 60, 73) == 20
     assert _visible_history_count('hub-history-show-more', 20, 73) == 40

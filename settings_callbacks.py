@@ -27,7 +27,7 @@ from models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from callback_helpers import (
     get_trigger_id, build_context_editor_rows, sync_time_fields,
-    spawn_local_file_picker)
+    spawn_local_file_picker, capacity_hours)
 import context_rules
 import style_tokens as tokens
 from resource_links import (get_sections, save_sections, validate_sections,
@@ -639,8 +639,8 @@ def register_settings_callbacks(app, services=None):
             status_color_rows,
             type_color_rows,
             round(ConfigManager.get_hours_per_day(), 2),
-            ts.get('hours_per_week', 40),
-            ts.get('hours_per_month', 160),
+            ts['hours_per_week'],
+            ts['hours_per_month'],
             ConfigManager.get_hours_per_year(),
             ted.get('unit', DEFAULT_TIME_ESTIMATE_DEFAULTS['unit']),
             ted.get('optimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic']),
@@ -762,10 +762,7 @@ def register_settings_callbacks(app, services=None):
                 # Keep simulation policy values that are no longer exposed in the
                 # modal while updating the two user-supplied capacity values.
                 new_ts = dict(ConfigManager.get_time_settings())
-                new_ts.update({
-                    'hours_per_week': float(hpw) if hpw is not None else 40,
-                    'hours_per_month': float(hpm) if hpm is not None else 160,
-                })
+                new_ts.update(capacity_hours(hpw, hpm, new_ts))
 
                 from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
                 new_ted = {

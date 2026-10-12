@@ -9,7 +9,7 @@ running and the next page load shows the restored graph.
 import json
 import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import backup
@@ -98,13 +98,27 @@ def _refuse(message) -> TransferRefused:
     return TransferRefused(f"That export can't be imported. {message} Nothing was changed.")
 
 
+def _is_date_or_blank(value) -> bool:
+    """True for no date, or a calendar date as the app writes them."""
+    if value is None or value == "":
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        date.fromisoformat(value[:10])
+    except ValueError:
+        return False
+    return True
+
+
 def _validated_graph(tables) -> dict:
     """The tables, checked against the rules the editor enforces on every save.
 
     Import writes rows as they are, so a hand-edited or damaged export could
     load a graph the app could never have built: a name that can't travel
-    through menus and the canvas, prerequisites that loop, or one pair
-    related as two kinds of prerequisite. Such a graph is refused whole.
+    through menus and the canvas, a date that isn't one, prerequisites that
+    loop, or one pair related as two kinds of prerequisite. Such a graph is
+    refused whole.
 
     A Helps row whose ends are the wrong way round is put in order instead,
     since a rename in the exporting app can leave one that way. Returns a
@@ -119,6 +133,10 @@ def _validated_graph(tables) -> dict:
         if row.get("status") not in ALL_STATUSES:
             raise _refuse(f"The node {_shown(name)} has an unknown status, "
                           f"{_shown(row.get('status'))}.")
+        for column, label in (("start_date", "start date"), ("done_date", "finish date")):
+            if not _is_date_or_blank(row.get(column)):
+                raise _refuse(f"The node {_shown(name)} has a {label} that isn't "
+                              f"a date, {_shown(row.get(column))}.")
         names.add(name)
     for table, column, label in (("Events", "name", "An event name"),
                                  ("Aliases", "alias", "An alias")):
@@ -184,8 +202,11 @@ def import_data(bundle) -> dict:
             local_backup_dir = conn.execute(
                 "SELECT value FROM Settings WHERE key = 'BACKUP_EXTRA_DIR'"
             ).fetchone()
-            conn.execute("DELETE FROM ResourceSections")
-            conn.execute("DELETE FROM Settings")
+            # No node or event is left, but the ledger outlives deleted nodes
+            # (it has no foreign key), and the export's ledger rows reuse its
+            # ids. The export replaces every table, children first.
+            for table in reversed(TABLES):
+                conn.execute(f"DELETE FROM {table}")
             for table in TABLES:
                 columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
                 rows = tables.get(table, [])
@@ -300,13 +321,17 @@ def _after_replacing_the_graph():
     """Nothing in memory may describe the graph that was just replaced.
 
     The new graph never went through a startup either, so the startup safety
-    nets run on it: statuses from prerequisites, and dormant flags from
-    events that already woke their nodes.
+    nets run on it: statuses from prerequisites, dormant flags from events
+    that already woke their nodes, priority ranks held by non-Goals, and
+    events whose trigger nodes are already complete.
     """
     from event_manager import EventManager
     from graph_manager import GraphManager
     manager = GraphManager()
     manager.pop_auto_done_candidates()
     manager.recompute_all_statuses()
-    EventManager().reconcile_dormant_flags()
+    events = EventManager()
+    events.reconcile_dormant_flags()
+    manager.prune_priority_goals()
+    events.fire_satisfied_events()
     revisions.changed(scoring=True)

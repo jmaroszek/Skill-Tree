@@ -146,9 +146,11 @@ def test_a_completion_fires_its_events_when_the_save_writes_the_node_twice():
 def test_a_node_reopened_and_redone_in_one_save_is_no_new_completion():
     """Done before the save and Done after it: nothing was completed."""
     manager, events = GraphManager(), EventManager()
-    manager.add_node(_node("Plan", status=STATUS_DONE))
-    # Made after Plan was finished, so it still waits.
+    manager.add_node(_node("Plan"))
     events.add_event(Event(name="Later", trigger_nodes=["Plan"]))
+    # Finished behind the saves' backs, so the event still waits.
+    with database.get_connection() as conn:
+        conn.execute("UPDATE Nodes SET status='Done' WHERE name='Plan'")
 
     with database.transaction():
         plan = manager.get_node("Plan")

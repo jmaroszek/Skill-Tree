@@ -265,6 +265,14 @@ class GraphManager:
         now_rank = (self._recommendation_rank(node.name)
                     if 'now_started' in lifecycle_event_types else (None, None))
         self._repository.write_node(node, lifecycle_event_types, _utc_now_ts, now_rank)
+        # A priority rank belongs to an unfinished Goal: it boosts the work
+        # leading into it. A Goal turned into another type kept its rank, so
+        # its old subtree stayed boosted, in a slot nothing could clear. A
+        # finished Goal frees its slot for the next one.
+        if prior is not None and prior.type == "Goal" and (
+                node.type != "Goal"
+                or (node.status == STATUS_DONE and prior.status != STATUS_DONE)):
+            ConfigManager.drop_priority_goal(node.name)
         self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
@@ -439,8 +447,29 @@ class GraphManager:
                 "deleted_node": node_name,
                 "when": date.today().isoformat(),
             })
+        if narrowed:
+            # The nodes left in a narrowed set may all be Done already. Lazy
+            # import: event_manager imports this module.
+            from event_manager import EventManager
+            events = EventManager()
+            for ev in narrowed:
+                events.fire_if_met_after_commit(ev)
         ConfigManager.delete_node_references(node_name)
         self._bump_version()
+
+    @database.atomic
+    def prune_priority_goals(self) -> List[str]:
+        """Take the priority ranks of names that aren't unfinished Goals,
+        and return those names. A save drops a rank when its Goal changes
+        type or is finished; this catches data from before that, or from an
+        import or a script."""
+        goals = {n.name for n in self.get_all_nodes(include_dormant=True)
+                 if n.type == "Goal" and n.status != STATUS_DONE}
+        stale = [name for name in ConfigManager.get_priority_goals()
+                 if name not in goals]
+        for name in stale:
+            ConfigManager.drop_priority_goal(name)
+        return stale
 
     @database.atomic
     def rename_node(self, old_name: str, new_name: str):

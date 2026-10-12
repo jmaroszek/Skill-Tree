@@ -148,10 +148,18 @@ def create_app(settings=None, services=None):
     repaired = services.graph.recompute_all_statuses()
     if repaired:
         _logger.info("Startup safety-net repaired %d node status(es).", repaired)
+    unranked = services.graph.prune_priority_goals()
+    if unranked:
+        _logger.info("Startup safety-net cleared the priority rank of %d "
+                     "non-Goal(s): %s", len(unranked), unranked)
     rewoken = services.events.reconcile_dormant_flags()
     if rewoken:
         _logger.info("Startup safety-net rewoke %d node(s) their event had "
                      "already activated.", rewoken)
+    fired = services.events.fire_satisfied_events()
+    if fired:
+        _logger.info("Startup safety-net fired %d event(s) whose trigger nodes "
+                     "were already complete: %s", len(fired), fired)
 
     import dash
     import dash_cytoscape as cyto

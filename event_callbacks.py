@@ -5,6 +5,7 @@ Callback definitions for the Events tab.
 import bridge_payloads
 import database
 import time
+from datetime import date
 import dash
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from event_manager import EventManager
@@ -18,7 +19,7 @@ from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
 from callback_helpers import (build_node_element, build_edge_element,
                               canvas_node_styles, build_dormancy_snapshot,
-                              NEW_EVENT_OPTION)
+                              NEW_EVENT_OPTION, merge_manual_order)
 import style_tokens as tokens
 
 event_manager = EventManager()
@@ -86,7 +87,16 @@ def _render_announcements(entries):
         elif kind == "node_triggered":
             trig = entry.get("trigger_node", "?")
             trig_set = entry.get("trigger_nodes") or []
-            if len(trig_set) > 1 and entry.get("trigger_mode") == "all":
+            if entry.get("already_met"):
+                # Saved or narrowed to trigger nodes that were already Done.
+                if len(trig_set) > 1 and entry.get("trigger_mode") == "all":
+                    summary = html.Strong(
+                        f"{event_name} — triggered: all {len(trig_set)} trigger "
+                        f"nodes were already complete ({when})")
+                else:
+                    summary = html.Strong(
+                        f"{event_name} — triggered: {trig} was already complete ({when})")
+            elif len(trig_set) > 1 and entry.get("trigger_mode") == "all":
                 summary = html.Strong(
                     f"{event_name} — triggered: all {len(trig_set)} nodes complete, "
                     f"last was {trig} ({when})")
@@ -389,15 +399,17 @@ def register_event_callbacks(app, services=None):
     )
     def reorder_event(drag_order_json):
         import json as _json
-        if drag_order_json:
-            try:
-                new_order = _json.loads(drag_order_json)
-                if isinstance(new_order, list) and new_order:
-                    ConfigManager.set_event_order(new_order)
-                    return new_order
-            except (ValueError, TypeError):
-                pass
-        return no_update
+        try:
+            shown = _json.loads(drag_order_json) if drag_order_json else None
+        except (ValueError, TypeError):
+            return no_update
+        if not isinstance(shown, list) or not shown:
+            return no_update
+        # The drag reorders the cards it shows (a search, or hidden finished
+        # events, leave some out) within the saved order.
+        order = merge_manual_order(ConfigManager.get_event_order(), shown)
+        ConfigManager.set_event_order(order)
+        return order
 
     # --- Populate trigger node dropdown when Events data changes/arrives ---
     @app.callback(
@@ -647,7 +659,17 @@ def register_event_callbacks(app, services=None):
         if trigger_type == "node" and not resolved_nodes:
             return (no_update, no_update, "Pick at least one trigger node.",
                     no_update, no_update, no_update, no_update, no_update)
+        # A Date event saved without one was stored with an empty date, which
+        # the sweep read as already due: it fired on the next click and woke
+        # every node it held, while its card still said Manual.
+        if trigger_type == "date":
+            try:
+                resolved_date = date.fromisoformat((trigger_date or "").strip()).isoformat()
+            except ValueError:
+                return (no_update, no_update, "Pick a date.",
+                        no_update, no_update, no_update, no_update, no_update)
 
+        before = event_manager.get_event(selected_event) if selected_event else None
         try:
             if selected_event is None:
                 event_manager.add_event(Event(
@@ -667,11 +689,17 @@ def register_event_callbacks(app, services=None):
             return no_update, no_update, str(e), no_update, no_update, no_update, no_update, no_update
 
         event = event_manager.get_event(name)
-        trigger_style = {"display": "none"} if event and event.status == "Triggered" else {
+        fired = event is not None and event.status == "Triggered"
+        trigger_style = {"display": "none"} if fired else {
             "display": "flex", "alignItems": "center"
         }
+        # An edit can leave the trigger condition met already (it dropped the
+        # unfinished nodes, or switched to OR), and the save fires the event.
+        message = ("Saved. Its trigger condition was already met, so it fired."
+                   if fired and before is not None and before.status == "Pending"
+                   else "Saved.")
 
-        return name, f"save-{name}", "Saved.", trigger_style, "", "primary", _badge_hidden, False
+        return name, f"save-{name}", message, trigger_style, "", "primary", _badge_hidden, False
 
     # --- Auto-dismiss save status ---
     @app.callback(

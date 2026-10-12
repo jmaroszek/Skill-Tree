@@ -40,3 +40,8 @@ class CoreResponse(NamedTuple):
     reopen_open: object = no_update
     reopen_body: object = no_update
     reopen_pending: object = no_update
+    # The Community select's value, when the selected cluster's label changed
+    # or the cluster is gone, and the members the selection stands for
+    # (canvas_view.resolve_community).
+    community_value: object = no_update
+    community_memory: object = no_update

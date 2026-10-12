@@ -579,10 +579,10 @@ def build_undo_done_confirm_modal():
     ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
 
 
-# Confirmation for a link menu change that would reopen Done nodes: making a
-# link Hard, or reversing one, can give a Done node a Hard prerequisite that
-# isn't Done. link_menu_callbacks fills the body and holds the request until
-# the user answers.
+# Confirmation for a link change that would reopen Done nodes: making a link
+# Hard, reversing one, or linking an existing node on Details can give a Done
+# node a Hard prerequisite that isn't Done. link_menu_callbacks fills the body
+# and holds the request until the user answers.
 def build_link_reopen_confirm_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),

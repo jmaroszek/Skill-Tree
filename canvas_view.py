@@ -30,7 +30,50 @@ def canvas_wanted(active_tab, payload_stamp):
             or bool((payload_stamp or {}).get('loaded')))
 
 
-def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info):
+# A Community row's label names its hubs, and the clusters move when the
+# graph does: a node marked Done leaves the graph they are drawn from, which
+# can regroup a cluster and rename it. A selection whose label is gone used to
+# show the whole graph while the Select still held the dead label and the
+# "filtered" indicator stayed on. Now the canvas remembers the members of the
+# selected row and follows the listed row that shares at least this much of
+# them (members in both over members in either). With none, the selection
+# goes back to All, so the Select, the indicator and the canvas agree.
+FOLLOW_OVERLAP = 0.5
+
+
+def _overlap(a, b):
+    union = a | b
+    return len(a & b) / len(union) if union else 0.0
+
+
+def resolve_community(f_community, rows, memory):
+    """The Community row a selection stands for, as ``(value, members)``.
+
+    ``rows`` are list_communities' ``(label, members)`` pairs, and ``memory``
+    the ``{"label", "members"}`` the selection had at the last render. The
+    value is the label to select, "All" for no selection, and members are
+    None for All. A label the user just picked is taken as it is; a label
+    kept from earlier must still hold the same cluster.
+    """
+    if not f_community or f_community == "All":
+        return "All", None
+    by_label = {label: set(members) for label, members in rows}
+    memory = memory if isinstance(memory, dict) else {}
+    if memory.get("label") != f_community:
+        members = by_label.get(f_community)
+        return (f_community, members) if members is not None else ("All", None)
+    remembered = set(memory.get("members") or ())
+    current = by_label.get(f_community)
+    if current is not None and _overlap(remembered, current) >= FOLLOW_OVERLAP:
+        return f_community, current
+    best = max(by_label, key=lambda label: (_overlap(remembered, by_label[label]), label),
+               default=None)
+    if best is not None and _overlap(remembered, by_label[best]) >= FOLLOW_OVERLAP:
+        return best, by_label[best]
+    return "All", None
+
+
+def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info, community_memory=None):
     # --- Visual Generation ---
     ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
     if trigger_id in ui_only_triggers:
@@ -44,6 +87,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         f_type_list = dash.no_update
         active_stylesheet = dash.no_update
         clear_focus_style = dash.no_update
+        community_value = community_memory_out = dash.no_update
 
     else:
         community_method = community_method or "louvain"
@@ -57,14 +101,20 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
                                       "value": label})
             members_by_value[label] = members
 
-        community_names = None
-        if f_community and f_community != "All":
-            community_names = members_by_value.get(f_community)
-        elif community_method == "orphans" and members_by_value:
+        selected, community_names = resolve_community(
+            f_community, rows, community_memory)
+        if selected == "All" and community_method == "orphans":
             # "All" in orphans mode still means every orphan node, listed or
-            # not, and nothing else.
+            # not, and nothing else: none at all once every node has a link.
             community_names = set().union(
                 *manager.detect_communities(method="orphans", filters=filters))
+        # Written only when they change: the Select's value wakes the
+        # filters indicator.
+        community_value = (selected if selected != (f_community or "All")
+                           else dash.no_update)
+        memory = ({"label": selected, "members": sorted(community_names)}
+                  if selected != "All" else None)
+        community_memory_out = memory if memory != community_memory else dash.no_update
 
         elements = generate_elements(filters, active_node_id,
                                     community_names=community_names)
@@ -226,4 +276,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         filter_type_options=f_type_list,
         stylesheet=active_stylesheet,
         clear_focus_style=clear_focus_style,
+        community_value=community_value,
+        community_memory=community_memory_out,
     )

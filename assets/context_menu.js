@@ -162,15 +162,16 @@
             deleteLabel.textContent = targetCount > 1
                 ? 'Delete ' + targetCount + '…'
                 : 'Delete…';
-            // A priority is one Goal's rank, so it has no bulk form. The
-            // section goes with its divider, leaving every other node's menu
-            // exactly as it is.
+            // A priority is one unfinished Goal's rank, so it has no bulk
+            // form, and a Done Goal has none to set. The section goes with
+            // its divider, leaving every other node's menu exactly as it is.
             // A bridge goes between exactly two nodes, so it is offered only
             // when the menu acts on two. A row or card is always one node.
             var showBridge = !!_menuCy && targets.length === 2;
             if (bridgeItem) bridgeItem.style.display = showBridge ? '' : 'none';
             if (bridgeDivider) bridgeDivider.style.display = showBridge ? '' : 'none';
-            var showPriority = targetCount === 1 && nodeData.type === 'Goal';
+            var showPriority = targetCount === 1 && nodeData.type === 'Goal'
+                && nodeData.status !== 'Done';
             priorityItem.style.display = showPriority ? '' : 'none';
             if (priorityDivider) priorityDivider.style.display = showPriority ? '' : 'none';
 

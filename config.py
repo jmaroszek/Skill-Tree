@@ -841,7 +841,8 @@ class ConfigManager:
     @classmethod
     def get_time_settings(cls):
         val = cls._get_db_value("TIME_SETTINGS")
-        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_SETTINGS)
+        # A stored value missing a key reads that key's default.
+        return {**DEFAULT_TIME_SETTINGS, **json.loads(val)} if val else copy.deepcopy(DEFAULT_TIME_SETTINGS)
 
     @classmethod
     def set_time_settings(cls, params: dict):
@@ -1116,6 +1117,14 @@ class ConfigManager:
         cls._set_db_value("PRIORITY_GOALS", json.dumps(goals[:3]))
 
     @classmethod
+    def drop_priority_goal(cls, name: str) -> None:
+        """Take ``name``'s priority rank away, if it has one. The ranks after
+        it move up."""
+        pg = cls.get_priority_goals()
+        if name in pg:
+            cls.set_priority_goals([g for g in pg if g != name])
+
+    @classmethod
     def rename_node_references(cls, old_name: str, new_name: str) -> None:
         """Propagate a node rename to every config entry that stores a node name.
 
@@ -1147,9 +1156,7 @@ class ConfigManager:
         if not name:
             return
 
-        pg = cls.get_priority_goals()
-        if name in pg:
-            cls.set_priority_goals([g for g in pg if g != name])
+        cls.drop_priority_goal(name)
 
         order = cls.get_goal_order()
         if name in order:

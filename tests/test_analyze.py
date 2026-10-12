@@ -854,6 +854,16 @@ class TestThroughputStatusGate:
         nodes = [_make_node("X", status="Blocked", done_date="2026-02-01")]
         assert _compute_throughput(nodes) == []
 
+    def test_a_date_that_isnt_one_is_skipped(self):
+        # Month 13, read as plain numbers, sent the bucket walk on forever.
+        nodes = [_make_node("Good", status="Done", done_date="2026-03-15")]
+        for bad in ("2025-13-05", "2025-00-05", "2025-02-30", "soon", "2025-1"):
+            nodes.append(_make_node(f"Bad {bad}", status="Done", done_date=bad))
+        for granularity in ("month", "quarter", "year"):
+            rows = _compute_throughput(nodes, granularity=granularity,
+                                       today=date(2026, 10, 11))
+            assert _throughput_node_names(rows) == {"Good"}
+
 
 class TestThroughputCapacity:
     """Each bucket carries the hours a week from the time settings, spread
