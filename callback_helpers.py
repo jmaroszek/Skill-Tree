@@ -1039,20 +1039,7 @@ def build_editor_snapshot(manager, node_name):
     if node is None:
         return None
 
-    edges = manager.get_edges()
-    needs_h = sorted({e['source'] for e in edges
-                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_HARD})
-    needs_s = sorted({e['source'] for e in edges
-                      if e['target'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
-    supp_h = sorted({e['target'] for e in edges
-                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_HARD})
-    supp_s = sorted({e['target'] for e in edges
-                     if e['source'] == node_name and e['type'] == EDGE_NEEDS_SOFT})
-    helps_set = {e['target'] for e in edges
-                 if e['source'] == node_name and e['type'] == EDGE_HELPS}
-    helps_set |= {e['source'] for e in edges
-                  if e['target'] == node_name and e['type'] == EDGE_HELPS}
-    helps = sorted(helps_set)
+    relationships = stored_relationships(manager.get_edges(), node_name)
 
     priority_goals = ConfigManager.get_priority_goals()
     if node.type == 'Goal' and node.name in priority_goals:
@@ -1080,11 +1067,7 @@ def build_editor_snapshot(manager, node_name):
         'time_m': friendly_m,
         'time_p': friendly_p,
         'time_unit': friendly_unit,
-        'e_needs_h': needs_h,
-        'e_needs_s': needs_s,
-        'e_supp_h': supp_h,
-        'e_supp_s': supp_s,
-        'e_helps': helps,
+        **relationships,
         'resource_links': node.resource_links,
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
         'time_habit_mode': ['habit'] if node.time_mode == 'habit' else [],
@@ -1136,6 +1119,80 @@ def follow_done_status(node, switch, snapshot):
         return dash.no_update, dash.no_update
     new_switch = stored if (switch or []) == loaded else dash.no_update
     return new_switch, {**snapshot, 'status_done': stored}
+
+
+# The editor's relationship pickers, by their EDITOR_FORM and snapshot keys.
+RELATIONSHIP_FIELDS = ('e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps')
+
+
+def stored_relationships(edges, node_name):
+    """{field: sorted names} for the editor's relationship pickers, from ``edges``."""
+    def linked(end, other, edge_type):
+        return {e[other] for e in edges
+                if e[end] == node_name and e['type'] == edge_type}
+
+    return {
+        'e_needs_h': sorted(linked('target', 'source', EDGE_NEEDS_HARD)),
+        'e_needs_s': sorted(linked('target', 'source', EDGE_NEEDS_SOFT)),
+        'e_supp_h': sorted(linked('source', 'target', EDGE_NEEDS_HARD)),
+        'e_supp_s': sorted(linked('source', 'target', EDGE_NEEDS_SOFT)),
+        'e_helps': sorted(linked('source', 'target', EDGE_HELPS)
+                          | linked('target', 'source', EDGE_HELPS)),
+    }
+
+
+def merge_relationships(loaded, edited, stored):
+    """One relationship list after a three-way merge.
+
+    ``loaded`` is what the editor was filled with, ``edited`` what the form
+    holds now, and ``stored`` what the database holds now. A name stays if
+    neither side removed it, and joins if either side added it. So the user's
+    edits and a change made elsewhere while the editor was open (the link
+    menu, the Details tab, a bridge) both survive. The form's order is kept,
+    and names only the database added follow it.
+    """
+    base = set(_norm_list(loaded))
+    mine = set(_norm_list(edited))
+    theirs = set(_norm_list(stored))
+    keep = (mine & theirs) | ((mine | theirs) - base)
+    ordered = [name for name in dict.fromkeys(edited or []) if name in keep]
+    return ordered + sorted(keep - set(ordered))
+
+
+def resolve_relationship_intent(stored, form, snapshot):
+    """The relationship lists a save writes: the form's edits on top of what
+    is stored now, not the lists as they were when the editor loaded.
+
+    Save must do this as well as follow_relationships: a save can land before
+    the editor has caught up with a change made elsewhere. A list the
+    snapshot doesn't hold gives nothing to judge by, so the form's stands.
+    """
+    return {key: (merge_relationships(snapshot[key], form.get(key), stored.get(key))
+                  if key in snapshot else list(form.get(key) or []))
+            for key in RELATIONSHIP_FIELDS}
+
+
+def follow_relationships(stored, form, snapshot):
+    """(values, snapshot) for relationship pickers whose edges changed
+    outside the editor.
+
+    ``values`` holds the pickers that should change: an untouched one now
+    shows what is stored, and an edited one keeps the user's edits on top of
+    it. ``snapshot`` holds the stored lists for every changed key, so the
+    unsaved-changes check compares the form with what is really there. Both
+    are empty when the snapshot already matches the database, or holds no
+    relationship lists to compare.
+    """
+    values, followed = {}, {}
+    for key in RELATIONSHIP_FIELDS:
+        now = _norm_list(stored.get(key))
+        if key not in snapshot or _norm_list(snapshot[key]) == now:
+            continue
+        merged = merge_relationships(snapshot.get(key), form.get(key), now)
+        if _norm_list(merged) != _norm_list(form.get(key)):
+            values[key] = merged
+        followed[key] = now
+    return values, followed
 
 
 def snapshot_from_form_state(form_values, linted_name, linted_aliases):

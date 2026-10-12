@@ -647,3 +647,36 @@ def test_refresh_does_not_rewrite_an_unchanged_selection(monkeypatch):
     assert call("Current", "Other")[store_slot] == "Current"
     assert call(None, None)[store_slot] is dash.no_update
     assert call(None, "Current")[store_slot] is None
+
+
+def test_subtask_priority_reads_as_on_home_under_a_priority_goal():
+    """The table scored without the priority Goals, so a task under one read
+    lower here than on Home whenever the goal boost was above 1."""
+    from details_layout import build_details_subtasks_table
+
+    manager = GraphManager()
+    manager.add_node(_suggestion_node(name="Focus"))
+    manager.add_node(_suggestion_node(name="Other"))
+    tasks = [_suggestion_node(name=name, type="Learn", value=value)
+             for name, value in (("Boosted", 8), ("Plain", 9))]
+    for task in tasks:
+        manager.add_node(task)
+    manager.add_edge("Boosted", "Focus", EDGE_NEEDS_HARD)
+    manager.add_edge("Plain", "Other", EDGE_NEEDS_HARD)
+    ConfigManager.set_priority_goals(["Focus"])
+    ConfigManager.set_hyperparams({**ConfigManager.get_hyperparams(), "goal_boost": 1.5})
+
+    scored = manager.calculate_priority_scores(
+        manager.get_all_nodes(), priority_goals=ConfigManager.get_priority_goals())
+    base = manager.get_priority_normalizer()
+    on_home = {n.name: str(round(n.priority_score / base * 100))
+               for n in scored if n.name in ("Boosted", "Plain")}
+
+    table = build_details_subtasks_table(
+        [manager.get_node("Boosted")], manager, manager.get_edges(), "Focus")
+    headings = [th.children for th in table.children[0].children.children]
+    row = table.children[1].children[0]
+    cell = row.children[headings.index("Priority")]
+    assert cell.children == on_home["Boosted"]
+    # The boost is what lifts it, or the comparison proves nothing.
+    assert on_home["Boosted"] == "100" and on_home["Plain"] != "100"

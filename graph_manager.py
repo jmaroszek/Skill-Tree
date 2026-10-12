@@ -100,6 +100,7 @@ class GraphManager:
         if epoch != self.caches.read_epoch:
             self.caches.communities.clear()
             self.caches.subtrees.clear()
+            self.caches.inherited_times = None
             self.caches.read_epoch = epoch
 
     def _cache_communities(self, key, communities):
@@ -1148,8 +1149,9 @@ class GraphManager:
         (`Node.time`, weighted from its own time_o/m/p bracket).
 
         For nodes with time_mode='inherited', sums the expected times of all
-        incomplete nodes in the node's dependency subtree, treating the node
-        itself as a container with zero direct time.
+        incomplete nodes among its Hard prerequisites, transitively, treating
+        the node itself as a container with zero direct time. Soft
+        prerequisites are optional, so they are not part of what it inherits.
 
         Returns:
             Time in hours.
@@ -1247,26 +1249,31 @@ class GraphManager:
                                  pair_moves) -> None:
         """Carry context renames and (context, subcontext) moves onto the nodes.
 
-        Pair moves run first, while the rows still hold their original values;
-        the context renames that follow then only reach the nodes no pair move
-        claimed — those with no subcontext, or with one being dropped. Doing it
-        the other way round would leave a renamed context's pairs unmatchable.
+        Each node's destination comes from the values it holds before any of
+        the changes. A pair move claims the nodes in its pair; a context rename
+        reaches the rest of that context — nodes with no subcontext, or with
+        one being dropped. Writing them one UPDATE at a time instead would let
+        a later rename re-match nodes an earlier one had just moved, so a swap
+        (Mind <-> Body) or a chain (Mind -> Body -> Physical) would pour two
+        contexts into one.
         """
-        pair_moves = [tuple(m) for m in pair_moves or []]
+        pair_moves = {(m[0], m[1]): (m[2], m[3]) for m in pair_moves or []}
+        ctx_renames = ctx_renames or {}
         if not ctx_renames and not pair_moves:
             return
 
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            for old_ctx, old_sub, new_ctx, new_sub in pair_moves:
-                cursor.execute(
-                    "UPDATE Nodes SET context=?, subcontext=? "
-                    "WHERE context=? AND subcontext=?",
-                    (new_ctx, new_sub, old_ctx, old_sub),
-                )
-            for old_ctx, new_ctx in (ctx_renames or {}).items():
-                cursor.execute("UPDATE Nodes SET context=? WHERE context=?",
-                               (new_ctx, old_ctx))
+            cursor.execute("SELECT name, context, subcontext FROM Nodes")
+            moves = []
+            for name, context, subcontext in cursor.fetchall():
+                dest = pair_moves.get((context, subcontext))
+                if dest is None and context in ctx_renames:
+                    dest = (ctx_renames[context], subcontext)
+                if dest is not None and dest != (context, subcontext):
+                    moves.append((*dest, name))
+            cursor.executemany(
+                "UPDATE Nodes SET context=?, subcontext=? WHERE name=?", moves)
             conn.commit()
         self._bump_version(scoring=True)
 

@@ -212,9 +212,10 @@ def plan_taxonomy_change(rows, old_contexts, old_subcontexts):
       ``deleted_pairs``     [[ctx, sub]] dropped while their context survives.
 
     Only the two deletion lists can strand nodes, so they are the only reason
-    to open the migration dialog. Pair moves are ordered before context renames
-    by ``GraphManager.apply_taxonomy_migration``, which is what lets a renamed
-    context and a moved chip inside it both land correctly.
+    to open the migration dialog. ``GraphManager.apply_taxonomy_migration``
+    places each node by the pair it held before the save, which is what lets a
+    renamed context and a moved chip inside it both land correctly, and lets
+    two renames swap or chain.
     """
     rows = normalize_rows(rows)
     contexts, subcontexts, weights = rows_to_taxonomy(rows)

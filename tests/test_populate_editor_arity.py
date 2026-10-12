@@ -180,3 +180,37 @@ def test_populate_editor_writes_its_early_return_filler_once(monkeypatch):
     assert body.count("* 18 + [options]") == 1, (
         "populate_editor writes a no_update filler outside _untouched()"
     )
+
+
+def test_revert_reloads_the_loaded_node(monkeypatch):
+    """Revert puts back what is stored, dropping the unsaved edit."""
+    manager = GraphManager()
+    manager.add_node(Node(
+        name="Plain", type="Learn", description="stored", value=5,
+        time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+        status="Open", context="Mind",
+    ))
+    result = _call_with_trigger(monkeypatch, "btn-revert", revert_clicks=1,
+                                original_name="Plain", name="Plain",
+                                desc="unsaved edit")
+    assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
+    assert (result[0], result[2]) == ("Plain", "stored")
+    assert result[33]["desc"] == "stored"
+
+
+def test_revert_of_a_node_deleted_meanwhile_leaves_the_form(monkeypatch):
+    result = _call_with_trigger(monkeypatch, "btn-revert", revert_clicks=1,
+                                original_name="Gone", name="Gone")
+    assert len(result) == POPULATE_EDITOR_NUM_OUTPUTS
+    assert (result[0], result[2]) == (dash.no_update, dash.no_update)
+
+
+def test_revert_does_not_go_through_the_edit_trigger():
+    """The Edit trigger's payload was built wrong, so Revert reloaded
+    nothing, and the trigger switches to the Nodes tab from Details."""
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    register_callbacks(app)
+    for key, spec in app.callback_map.items():
+        if "edit-trigger-input.value" in key:
+            assert all(dep["id"] != "btn-revert" for dep in spec["inputs"])

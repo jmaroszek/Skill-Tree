@@ -563,7 +563,7 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Value | Keep only nodes rated within a range. Drag either handle: raise the left one to hide low-rated nodes, or lower the right one to find nodes worth reconsidering. |
 | Interest | The same two-handle range, for how much a node interests you. |
 | Effort | The same two-handle range, for how difficult a node is. |
-| Time | Keep only nodes within a time range, in your preferred units. Fill in either end or both: a minimum finds the big projects, a maximum finds the quick wins. |
+| Time | Keep only nodes within a time range, in your preferred units. Fill in either end or both: a minimum finds the big projects, a maximum finds the quick wins. A Goal, or any node that inherits its time, measures the unfinished work it inherits. On the Details tab, such a node stays in view even over the maximum, so the quick wins beneath it still show. |
 | Done Toggle | Show or hide complete nodes. Hidden by default. |
 | Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
@@ -681,7 +681,7 @@ Hit **Clear Focus** at the top of the canvas to exit.
 ## Subtasks Panel
 The Subtasks table in the lower-left lists every node related to the selected one. 
 
-Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The most important subtask is normalized to 100, and every other score is its share of that — this is a *local* ranking for this subtree only, not the same as what appears on the Home tab. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
+Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The priority score is the same one the Home tab shows. 100 is the Home tab's top recommendation, so the best subtask here can read lower. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
 <p align="center">
   <img src="../images/details-stoicism.png">

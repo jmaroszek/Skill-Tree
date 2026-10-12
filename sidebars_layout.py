@@ -179,6 +179,10 @@ def build_node_editor_content():
                 ),
                 dcc.Store(id='aliases-store', data=['']),
                 dcc.Store(id='editor-pristine-snapshot', data=None),
+                # Relationship lists the open node's edges now call for, with
+                # the form they were worked out against (callbacks.py,
+                # follow_editor_relationships).
+                dcc.Store(id='editor-relationships-follow', data=None),
 
                 hover_label("Type", "node-type-label", _EDITOR_HINTS["type"],
                              className="mt-2"),

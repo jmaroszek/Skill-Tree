@@ -28,7 +28,7 @@ from canvases import CANVASES
 from prerender import prerendered
 from config import (ConfigManager, sort_subcontexts, SIDEBAR_TRANSLATE_CLOSED,
                     DEFAULT_GRAPH_LAYOUT)
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_DONE
+from models import STATUS_OPEN, STATUS_DONE
 import bridge_payloads
 from node_commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
@@ -44,6 +44,8 @@ from callback_helpers import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
     follow_done_status, resolve_done_intent,
+    RELATIONSHIP_FIELDS, stored_relationships, follow_relationships,
+    resolve_relationship_intent,
     compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
     habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
     build_node_element, build_edge_element, canvas_node_styles,
@@ -325,6 +327,82 @@ def register_callbacks(app, services=None):
             snapshot_out['status_done'] = followed['status_done']
         now = ["now"] if node.now else []
         return done, snapshot_out, (now if now != (now_switch or []) else no_update)
+
+    # --- Editor follows relationships changed elsewhere ---
+    # The link menu, the Details tab and a bridge change the open node's links
+    # without the editor, whose pickers were filled when it loaded. A picker
+    # the user hasn't touched takes the stored links; an edited one keeps the
+    # edits on top of them (callback_helpers.follow_relationships). Save
+    # merges the same way, so it never depends on this having run. A changed
+    # snapshot also checks again: after a save that merged in an outside
+    # change, the snapshot holds the form's lists rather than what was stored.
+    @app.callback(
+        Output('editor-relationships-follow', 'data'),
+        Input('graph-version-store', 'data'),
+        Input('editor-pristine-snapshot', 'data'),
+        [State('node-original-name', 'data'),
+         {key: EDITOR_FORM[key] for key in RELATIONSHIP_FIELDS}],
+        prevent_initial_call=True,
+    )
+    def follow_editor_relationships(_version, snapshot, original_name, form):
+        if (not original_name or not isinstance(snapshot, dict)
+                or snapshot.get('name') != original_name
+                or manager.get_node(original_name) is None):
+            return no_update
+        stored = stored_relationships(manager.get_edges(), original_name)
+        values, followed = follow_relationships(stored, form, snapshot)
+        if not followed:
+            return no_update
+        return {'name': original_name, 'values': values, 'snapshot': followed,
+                'seen': {key: {'snapshot': snapshot.get(key), 'form': form.get(key)}
+                         for key in followed}}
+
+    # Applied in the browser, against the editor as it is when the answer
+    # lands: if another node has loaded, or the user has changed a picker
+    # since, the answer is stale and is dropped rather than written into it.
+    app.clientside_callback(
+        """
+        function(follow, name, snapshot, needsHard, needsSoft, suppHard, suppSoft, helps) {
+            var NO = window.dash_clientside.no_update;
+            var keys = ['e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps'];
+            var form = {e_needs_h: needsHard, e_needs_s: needsSoft, e_supp_h: suppHard,
+                        e_supp_s: suppSoft, e_helps: helps};
+            var unchanged = [NO, NO, NO, NO, NO, NO];
+            if (!follow || !snapshot || follow.name !== name || snapshot.name !== name) {
+                return unchanged;
+            }
+            var same = function (a, b) {
+                return JSON.stringify(a || []) === JSON.stringify(b || []);
+            };
+            for (var key in follow.seen) {
+                if (!same(follow.seen[key].snapshot, snapshot[key])
+                        || !same(follow.seen[key].form, form[key])) {
+                    return unchanged;
+                }
+            }
+            var out = keys.map(function (key) {
+                return key in follow.values ? follow.values[key] : NO;
+            });
+            out.push(Object.assign({}, snapshot, follow.snapshot));
+            return out;
+        }
+        """,
+        Output('edge-needs-hard', 'value', allow_duplicate=True),
+        Output('edge-needs-soft', 'value', allow_duplicate=True),
+        Output('edge-supports-hard', 'value', allow_duplicate=True),
+        Output('edge-supports-soft', 'value', allow_duplicate=True),
+        Output('edge-helps', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+        Input('editor-relationships-follow', 'data'),
+        State('node-original-name', 'data'),
+        State('editor-pristine-snapshot', 'data'),
+        State('edge-needs-hard', 'value'),
+        State('edge-needs-soft', 'value'),
+        State('edge-supports-hard', 'value'),
+        State('edge-supports-soft', 'value'),
+        State('edge-helps', 'value'),
+        prevent_initial_call=True,
+    )
 
     # --- Clear Filters ---
     # Note: filter-subcontext.value is reset clientside (see below). The prop is
@@ -625,7 +703,8 @@ def register_callbacks(app, services=None):
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
          Input('details-add-choice-input', 'value'),
-         Input('btn-bridge-create', 'n_clicks')],
+         Input('btn-bridge-create', 'n_clicks'),
+         Input('btn-revert', 'n_clicks')],
         [State('sidebar-editor-container', 'style'),
          State('node-original-name', 'data'),
          State('pending-navigation-store', 'data'),
@@ -643,6 +722,7 @@ def register_callbacks(app, services=None):
     )
     def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
+                        revert_clicks,
                         ed_style, original_name, pending_nav, pristine_snapshot,
                         details_selected_node, bridge_ends, bridge_kind, form):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
@@ -821,7 +901,15 @@ def register_callbacks(app, services=None):
                 return no_change
 
         name = None
-        if trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
+        if trigger_id == 'btn-revert':
+            # Reload the node the editor holds, dropping what wasn't saved.
+            node = manager.get_node(original_name) if revert_clicks and original_name else None
+            if node is None:
+                return _untouched()
+            name = node.name
+            data = node.to_dict()
+            data['id'] = name
+        elif trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
             # Context menu / Events-table Edit: node ID carried in the trigger value
             edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
             if edit_val:
@@ -864,23 +952,10 @@ def register_callbacks(app, services=None):
         if not name or not data:
             return _untouched()
 
-        edges = manager.get_edges()
-
         # In/Out Edges mapping
-        needs_hard_vals = [e['source'] for e in edges
-                           if e['target'] == name and e['type'] == EDGE_NEEDS_HARD]
-        needs_soft_vals = [e['source'] for e in edges
-                           if e['target'] == name and e['type'] == EDGE_NEEDS_SOFT]
-        supp_hard_vals = [e['target'] for e in edges
-                          if e['source'] == name and e['type'] == EDGE_NEEDS_HARD]
-        supp_soft_vals = [e['target'] for e in edges
-                          if e['source'] == name and e['type'] == EDGE_NEEDS_SOFT]
-
-        helps_vals = [e['target'] for e in edges
-                      if e['source'] == name and e['type'] == EDGE_HELPS]
-        helps_vals += [e['source'] for e in edges
-                       if e['target'] == name and e['type'] == EDGE_HELPS]
-        helps_vals = list(set(helps_vals))
+        relationships = stored_relationships(manager.get_edges(), name)
+        needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals, helps_vals = (
+            relationships[key] for key in RELATIONSHIP_FIELDS)
         filtered_options = node_options(all_nodes, exclude=name)
 
         actual_status = data.get('status', STATUS_OPEN)
@@ -1518,25 +1593,15 @@ def register_callbacks(app, services=None):
             return "", True
         return dash.no_update, dash.no_update
 
-    # --- "Cancel": re-trigger edit flow for the loaded node to re-populate
-    # the editor from the DB, discarding any unsaved edits. Disabled when
-    # no node is loaded. Suffix + timestamp forces edit-trigger-input to
-    # change value even when clicking Cancel twice on the same node.
+    # --- Revert: populate_editor reloads the loaded node from the database,
+    # discarding any unsaved edits. Disabled when no node is loaded. It used
+    # to go through the context menu's Edit trigger, whose payload it got
+    # wrong, so it reloaded nothing while saying it had, and from Details or
+    # Events it also switched to the Nodes tab.
     app.clientside_callback(
         "function(name) { return !name; }",
         Output('btn-revert', 'disabled'),
         Input('node-original-name', 'data'),
-    )
-
-    app.clientside_callback(
-        """function(n_clicks, name) {
-            if (!n_clicks || !name) return window.dash_clientside.no_update;
-            return name + '|revert-' + Date.now();
-        }""",
-        Output('edit-trigger-input', 'value', allow_duplicate=True),
-        Input('btn-revert', 'n_clicks'),
-        State('node-original-name', 'data'),
-        prevent_initial_call=True,
     )
 
     @app.callback(
@@ -1550,6 +1615,8 @@ def register_callbacks(app, services=None):
     def revert_message(n_clicks, name):
         if not n_clicks or not name:
             return dash.no_update, dash.no_update, dash.no_update
+        if manager.get_node(name) is None:
+            return (f"Couldn't revert: '{name}' no longer exists.", False, 0)
         return "Changes reverted.", False, 0
 
     # The node editor used to carry a read-only strip of "Priority N" /
@@ -1683,8 +1750,6 @@ def register_callbacks(app, services=None):
         val, interest, diff = form.get('val'), form.get('interest'), form.get('diff')
         time_o, time_m, time_p = form.get('time_o'), form.get('time_m'), form.get('time_p')
         time_unit = form.get('time_unit')
-        e_needs_h, e_needs_s = form.get('e_needs_h'), form.get('e_needs_s')
-        e_supp_h, e_supp_s, e_helps = form.get('e_supp_h'), form.get('e_supp_s'), form.get('e_helps')
         link_values, link_ids = form.get('link_values'), form.get('link_ids')
         time_mode_val, time_habit_mode_val = form.get('time_mode'), form.get('time_habit_mode')
         value_mode_val, alias_values = form.get('value_mode'), form.get('aliases')
@@ -1890,11 +1955,22 @@ def register_callbacks(app, services=None):
                     if was_dormant and not sleeping:
                         EventManager().detach_node_from_all_events(name)
                         was_dormant = False
+                    # The pickers were filled when the editor loaded. The link
+                    # menu, the Details tab or a bridge may have changed this
+                    # node's links since, so write the user's edits on top of
+                    # what is stored rather than the lists as loaded, which
+                    # would quietly undo those changes.
+                    relationships = {key: form.get(key) for key in RELATIONSHIP_FIELDS}
+                    if (_prior is not None and original_name
+                            and isinstance(pristine_snapshot, dict)
+                            and pristine_snapshot.get('name') == original_name.strip()):
+                        relationships = resolve_relationship_intent(
+                            stored_relationships(manager.get_edges(), name),
+                            form, pristine_snapshot)
                     msg = handle_save(manager, name, n_type, desc, val, t_o, t_m, t_p,
                                       interest, diff, status_done, context, subctx,
                                       resource_link_values(link_values, link_ids),
-                                      e_needs_h, e_needs_s,
-                                      e_supp_h, e_supp_s, e_helps,
+                                      *(relationships[key] for key in RELATIONSHIP_FIELDS),
                                       time_mode=time_mode,
                                       value_mode=value_mode,
                                       habit_duration=habit_duration or 0,
@@ -1977,9 +2053,13 @@ def register_callbacks(app, services=None):
                 return _core_engine_save_error_tuple(
                     msg, _editor_kept_open(next_ed_style), next_goal_style,
                     next_events_sidebar_style)
-        elif trigger_id == 'btn-node-delete-confirm' and name:
+        elif trigger_id == 'btn-node-delete-confirm' and (original_name or '').strip():
+            # Delete the node the editor loaded, never whatever the Name field
+            # says now: a half-typed rename, or another node's name typed over
+            # it, must not choose what gets deleted. A form that never loaded
+            # a node has nothing stored to delete; the editor just closes.
             try:
-                msg = handle_delete(manager, name)
+                msg = handle_delete(manager, original_name.strip())
             except ValueError as e:
                 msg = f"Error: {e}"
             except Exception:
@@ -2358,14 +2438,22 @@ def register_callbacks(app, services=None):
     # --- Delete Confirmation Modal ---
     @app.callback(
         Output('modal-node-delete-confirm', 'is_open'),
+        Output('node-delete-confirm-body', 'children'),
         [Input('btn-delete', 'n_clicks'),
          Input('btn-node-delete-cancel', 'n_clicks'),
          Input('btn-node-delete-confirm', 'n_clicks')],
+        State('node-original-name', 'data'),
         prevent_initial_call=True,
     )
-    def toggle_delete_modal(_delete, _cancel, _confirm):
-        trigger_id = get_trigger_id()
-        return trigger_id == 'btn-delete'
+    def toggle_delete_modal(_delete, _cancel, _confirm, original_name):
+        if get_trigger_id() != 'btn-delete':
+            return False, dash.no_update
+        # Name the node the confirm will delete: the one the editor loaded,
+        # which is not always what the Name field says by now.
+        loaded = (original_name or '').strip()
+        if not loaded:
+            return True, "This node hasn't been saved yet. Deleting it just closes the editor."
+        return True, f'Are you sure you want to delete "{loaded}"? This action cannot be undone.'
 
     # --- Group Delete Confirmation Modal (context menu + Delete key) ---
     @app.callback(

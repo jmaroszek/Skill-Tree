@@ -280,7 +280,7 @@ class TestApplyDragOrder:
 
 class TestApplyTaxonomyMigration:
     def test_rename_and_move_land_together(self):
-        """Pairs move before contexts rename, so both reach the right nodes."""
+        """A moved chip and its renamed context both reach the right nodes."""
         mgr = GraphManager()
         mgr.add_node(_node("Kant", "Wisdom", "Ethics"))
         mgr.add_node(_node("Aristotle", "Wisdom", "Logic"))
@@ -301,6 +301,45 @@ class TestApplyTaxonomyMigration:
         assert (nodes["Stoa"].context, nodes["Stoa"].subcontext) == ("Philosophy", None)
         assert (nodes["Resting"].context, nodes["Resting"].subcontext) == (
             "People", "Ethics")
+
+    @staticmethod
+    def _migrate(rows, placed):
+        """Seed ``placed`` {name: (ctx, sub)}, save ``rows``, return where each lands."""
+        mgr = GraphManager()
+        for name, (ctx, sub) in placed.items():
+            mgr.add_node(_node(name, ctx, sub))
+        plan = _plan(rows)
+        mgr.apply_taxonomy_migration(plan["ctx_renames"], plan["pair_moves"])
+        return {n.name: (n.context, n.subcontext) for n in mgr.get_all_nodes()}
+
+    PEOPLE_AND_HEALTH = {"Calm": ("Health", "Stress"), "Walk": ("Health", None),
+                         "Date": ("People", "Dating"), "Friend": ("People", None)}
+
+    def test_two_contexts_can_swap_names(self):
+        """Each node moves once, from where it was, not again after a rename."""
+        rows = _rows()
+        health, people = _row(rows, "Health"), _row(rows, "People")
+        health["name"], people["name"] = "People", "Health"
+        assert self._migrate(rows, self.PEOPLE_AND_HEALTH) == {
+            "Calm": ("People", "Stress"), "Walk": ("People", None),
+            "Date": ("Health", "Dating"), "Friend": ("Health", None)}
+
+    def test_renames_can_chain(self):
+        """Health -> People -> Social keeps the two groups of nodes apart."""
+        rows = _rows()
+        health, people = _row(rows, "Health"), _row(rows, "People")
+        health["name"], people["name"] = "People", "Social"
+        assert self._migrate(rows, self.PEOPLE_AND_HEALTH) == {
+            "Calm": ("People", "Stress"), "Walk": ("People", None),
+            "Date": ("Social", "Dating"), "Friend": ("Social", None)}
+
+    def test_two_subcontexts_can_swap_names(self):
+        rows = _rows()
+        ethics, logic = _row(rows, "Wisdom")["subs"]
+        ethics["name"], logic["name"] = "Logic", "Ethics"
+        placed = {"Kant": ("Wisdom", "Ethics"), "Aristotle": ("Wisdom", "Logic")}
+        assert self._migrate(rows, placed) == {
+            "Kant": ("Wisdom", "Logic"), "Aristotle": ("Wisdom", "Ethics")}
 
     def test_counts_include_dormant_nodes(self):
         mgr = GraphManager()

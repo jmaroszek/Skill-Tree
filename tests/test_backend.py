@@ -9,6 +9,7 @@ import pytest
 import database
 from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN
 from graph_manager import GraphManager
+import graph_queries
 from context_rules import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
@@ -1197,6 +1198,25 @@ class TestFiltering:
         result = mgr.filter_nodes(nodes, {"max_time": 10})
         assert len(result) == 1
         assert result[0].name == "A"
+
+    @staticmethod
+    def _goal_over(mgr, *hours):
+        """A Goal inheriting the given hours from its Hard prerequisites."""
+        mgr.add_node(_make_node("Goal", type="Goal", time_mode="inherited"))
+        for i, h in enumerate(hours):
+            mgr.add_node(_make_node(f"T{i}", time_o=h, time_m=h, time_p=h))
+            mgr.add_edge(f"T{i}", "Goal", EDGE_NEEDS_HARD)
+        return mgr.get_all_nodes()
+
+    def test_a_goal_is_as_long_as_the_work_it_inherits(self, mgr):
+        """Its own time is 0, which made every Goal a quick win and none big."""
+        nodes = self._goal_over(mgr, 60, 50)
+        assert "Goal" in [n.name for n in mgr.filter_nodes(nodes, {"min_time": 100})]
+        assert "Goal" not in [n.name for n in mgr.filter_nodes(nodes, {"max_time": 2})]
+
+    def test_a_goal_with_little_left_is_a_quick_win(self, mgr):
+        nodes = self._goal_over(mgr, 1)
+        assert sorted(n.name for n in mgr.filter_nodes(nodes, {"max_time": 2})) == ["Goal", "T0"]
 
     def test_filter_by_max_difficulty(self, mgr):
         nodes = [_make_node("A", difficulty=3), _make_node("B", difficulty=8)]
@@ -3500,6 +3520,47 @@ class TestGetEffectiveTime:
         mgr.add_edge("B", "Top", EDGE_NEEDS_HARD)
         eff = mgr.get_effective_time("Top")
         assert eff == pytest.approx(2.0 + 3.0)
+
+    def test_inherited_leaves_out_soft_prerequisites(self, mgr):
+        """Soft prerequisites are optional, so they are not inherited."""
+        mgr.add_node(_make_node("Hard", time_o=3, time_m=3, time_p=3))
+        mgr.add_node(_make_node("Soft", time_o=50, time_m=50, time_p=50))
+        mgr.add_node(_make_node("Under", time_o=7, time_m=7, time_p=7))
+        mgr.add_node(_make_node("Top", time_mode='inherited', type="Goal"))
+        mgr.add_edge("Hard", "Top", EDGE_NEEDS_HARD)
+        mgr.add_edge("Soft", "Top", EDGE_NEEDS_SOFT)
+        mgr.add_edge("Under", "Soft", EDGE_NEEDS_HARD)
+        assert mgr.get_effective_time("Top") == pytest.approx(3.0)
+        completion = mgr.get_goal_completion("Top", include_soft=False)
+        assert mgr.get_effective_time("Top") == completion["remaining_time"]
+
+    def test_inherited_times_match_get_effective_time(self, mgr):
+        """The filter's one-pass figures are the ones Details shows."""
+        mgr.add_node(_make_node("A", time_o=2, time_m=2, time_p=2))
+        mgr.add_node(_make_node("B", time_o=3, time_m=3, time_p=3, status="Done"))
+        mgr.add_node(_make_node("C", time_o=5, time_m=5, time_p=5))
+        mgr.add_node(_make_node("Box", time_mode='inherited'))
+        mgr.add_node(_make_node("Top", time_mode='inherited', type="Goal"))
+        mgr.add_node(_make_node("Side", time_mode='inherited', type="Goal"))
+        mgr.add_edge("A", "Box", EDGE_NEEDS_HARD)
+        mgr.add_edge("B", "Box", EDGE_NEEDS_HARD)
+        mgr.add_edge("Box", "Top", EDGE_NEEDS_HARD)
+        mgr.add_edge("A", "Top", EDGE_NEEDS_HARD)
+        mgr.add_edge("C", "Top", EDGE_NEEDS_SOFT)
+        times = graph_queries.inherited_times(mgr)
+        assert times == {name: mgr.get_effective_time(name) for name in ("Box", "Top", "Side")}
+        assert times == {"Box": 2.0, "Top": 2.0, "Side": 0.0}
+
+    def test_inherited_times_follow_a_change(self, mgr):
+        """They are cached, so a Done flip must still reach them."""
+        mgr.add_node(_make_node("A", time_o=2, time_m=2, time_p=2))
+        mgr.add_node(_make_node("Top", time_mode='inherited', type="Goal"))
+        mgr.add_edge("A", "Top", EDGE_NEEDS_HARD)
+        assert graph_queries.inherited_times(mgr) == {"Top": 2.0}
+        done = mgr.get_node("A")
+        done.status = STATUS_DONE
+        mgr.update_node(done)
+        assert graph_queries.inherited_times(mgr) == {"Top": 0.0}
 
 
 # ============================================================================

@@ -216,6 +216,15 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
         filtered_names = {
             node.name for node in manager.filter_nodes(candidate_nodes, filters)
         }
+        if 'max_time' in filters:
+            # A container's hours are all of the work beneath it, so one over
+            # the maximum can still lead to quick wins. A hidden node cuts off
+            # everything below it here, so the container stays as their way in.
+            containers = [n for n in candidate_nodes if n.time_mode == 'inherited']
+            without_max = {k: v for k, v in filters.items() if k != 'max_time'}
+            filtered_names |= {
+                node.name for node in manager.filter_nodes(containers, without_max)
+            }
         allowed_names = filtered_names | {root_name}
         node_names, depth_by_name, discovery_edges = traverse(allowed_names)
     else:
@@ -302,8 +311,9 @@ def get_effective_time(manager, node_name: str) -> float:
     (`Node.time`, weighted from its own time_o/m/p bracket).
 
     For nodes with time_mode='inherited', sums the expected times of all
-    incomplete nodes in the node's dependency subtree, treating the node
-    itself as a container with zero direct time.
+    incomplete nodes among its Hard prerequisites, transitively, treating
+    the node itself as a container with zero direct time. Soft prerequisites
+    are optional, so they are not part of what the node inherits.
 
     Returns:
         Time in hours.
@@ -315,14 +325,53 @@ def get_effective_time(manager, node_name: str) -> float:
     if node.time_mode != 'inherited':
         return node.time
 
-    # Inherited mode: sum subtree times
-    subtree = manager.get_goal_subtree(node_name)
-    total = 0.0
-    for name in subtree:
-        child = manager.get_node(name)
-        if child and child.status != STATUS_DONE:
-            total += child.time
-    return round(total, 2)
+    subtree = manager.get_goal_subtree(node_name, edge_types=(EDGE_NEEDS_HARD,))
+    return _unfinished_hours(manager.get_node(name) for name in subtree)
+
+
+def inherited_times(manager) -> Dict[str, float]:
+    """{name: get_effective_time} for every inherited-time node, in one pass.
+
+    Filtering a whole canvas by time needs this for every container. One map
+    of Hard prerequisites serves them all, where get_effective_time would
+    rebuild it for each. Cached until the graph changes, like the subtrees.
+    """
+    with manager.caches.lock:
+        manager._prepare_read_caches()
+        cached = manager.caches.inherited_times
+        if (not database.in_transaction() and cached is not None
+                and cached[0] == manager._graph_version):
+            return dict(cached[1])
+    version = manager._graph_version
+
+    nodes = {n.name: n for n in manager.get_all_nodes(include_dormant=True)}
+    prerequisites = {}
+    for edge in manager.get_edges():
+        if edge['type'] == EDGE_NEEDS_HARD:
+            prerequisites.setdefault(edge['target'], []).append(edge['source'])
+
+    times = {}
+    for name, node in nodes.items():
+        if node.time_mode != 'inherited':
+            continue
+        seen, stack = {name}, [name]
+        while stack:
+            for source in prerequisites.get(stack.pop(), ()):
+                if source not in seen:
+                    seen.add(source)
+                    stack.append(source)
+        seen.discard(name)
+        times[name] = _unfinished_hours(nodes.get(other) for other in seen)
+
+    if not database.in_transaction():
+        with manager.caches.lock:
+            manager.caches.inherited_times = (version, times)
+    return dict(times)
+
+
+def _unfinished_hours(nodes) -> float:
+    return round(sum(n.time for n in nodes
+                     if n is not None and n.status != STATUS_DONE), 2)
 
 
 def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
@@ -368,11 +417,21 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
             high = int(filters[f'max_{key}'])
             result = [n for n in result if getattr(n, key) <= high]
 
-    if 'min_time' in filters:
-        result = [n for n in result if getattr(n, 'time', 1.0) >= float(filters['min_time'])]
+    if 'min_time' in filters or 'max_time' in filters:
+        # A container's hours are the ones it inherits, the figure Details
+        # shows for it. Its own time is always 0, which put every Goal among
+        # the quick wins and out of reach of a minimum.
+        inherited = inherited_times(manager)
 
-    if 'max_time' in filters:
-        result = [n for n in result if getattr(n, 'time', 1.0) <= float(filters['max_time'])]
+        def hours(n):
+            return inherited.get(n.name, 0.0) if n.time_mode == 'inherited' else n.time
+
+        if 'min_time' in filters:
+            low = float(filters['min_time'])
+            result = [n for n in result if hours(n) >= low]
+        if 'max_time' in filters:
+            high = float(filters['max_time'])
+            result = [n for n in result if hours(n) <= high]
 
     if 'node_types' in filters:
         result = [n for n in result if n.type in filters['node_types']]

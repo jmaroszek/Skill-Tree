@@ -39,6 +39,8 @@ class GraphCaches:
     normalizer: float = 0.0
     normalizer_key: object = None
     subtrees: dict = field(default_factory=dict)
+    # (graph version, graph_queries.inherited_times result)
+    inherited_times: object = None
     read_epoch: object = None
     lock: object = field(default_factory=threading.Lock)
 

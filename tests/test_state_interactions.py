@@ -35,7 +35,10 @@ def handlers():
         while hasattr(fn, '__wrapped__'):
             fn = fn.__wrapped__
         if fn is not None:
+            # Both modules have a toggle_delete_modal; the qualified name
+            # tells them apart.
             result[fn.__name__] = fn
+            result[fn.__qualname__] = fn
     return result
 
 
@@ -113,6 +116,48 @@ def test_save_preserves_a_deliberate_unsaved_reopen(handlers, monkeypatch):
     run_core(handlers, monkeypatch, name='A', original_name='A', status_done=[],
              pristine_snapshot={'name': 'A', 'status_done': ['Done']})
     assert manager.get_node('A').status == 'Open'
+
+
+def delete(handlers, monkeypatch, **state):
+    return run_core(handlers, monkeypatch, trigger='btn-node-delete-confirm', **state)
+
+
+def test_delete_removes_the_loaded_node_not_the_name_typed_over_it(handlers, monkeypatch):
+    manager = graph('A', 'B')
+    manager.add_edge('A', 'B', 'Needs_Hard')
+    result = delete(handlers, monkeypatch, name='B', original_name='A')
+    assert manager.get_node('A') is None
+    assert manager.get_node('B') is not None
+    assert result.message == "Deleted node 'A'"
+
+
+def test_delete_during_an_unsaved_rename_deletes_the_node(handlers, monkeypatch):
+    manager = graph('A')
+    result = delete(handlers, monkeypatch, name='A renamed ', original_name='A')
+    assert manager.get_node('A') is None
+    assert result.message == "Deleted node 'A'"
+
+
+def test_delete_on_a_form_that_never_loaded_a_node_deletes_nothing(handlers, monkeypatch):
+    manager = graph('A')
+    delete(handlers, monkeypatch, name='A', original_name=None)
+    assert manager.get_node('A') is not None
+
+
+def test_delete_of_a_node_already_gone_does_not_report_success(handlers, monkeypatch):
+    graph('A')
+    result = delete(handlers, monkeypatch, name='Gone', original_name='Gone')
+    assert result.message.startswith('Error:')
+    assert 'nothing was deleted' in result.message
+
+
+def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
+    toggle = handlers['register_callbacks.<locals>.toggle_delete_modal']
+    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-delete')
+    is_open, body = toggle(1, None, None, 'A')
+    assert is_open and '"A"' in body
+    is_open, body = toggle(1, None, None, None)
+    assert is_open and "hasn't been saved" in body
 
 
 def test_add_to_event_ends_now_and_cannot_bypass_cap_on_wake(handlers):

@@ -554,7 +554,9 @@ def build_unsaved_changes_modal():
 def build_delete_confirm_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
-        dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone."),
+        # Names the node when it opens (callbacks.toggle_delete_modal).
+        dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone.",
+                      id="node-delete-confirm-body"),
         dbc.ModalFooter([
             dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
             dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill"),

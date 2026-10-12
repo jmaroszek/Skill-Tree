@@ -278,6 +278,31 @@ class TestDependencyViewTraversal:
         assert view["node_names"] == {"Root"}
         assert view["discovery_edges"] == set()
 
+    @staticmethod
+    def _root_box_tasks(mgr):
+        """Root needs Box, a container over a 1 h and a 40 h task."""
+        mgr.add_node(_make_node("Root", type="Goal", time_mode="inherited"))
+        mgr.add_node(_make_node("Box", time_mode="inherited"))
+        mgr.add_node(_make_node("Quick", time_o=1, time_m=1, time_p=1))
+        mgr.add_node(_make_node("Long", time_o=40, time_m=40, time_p=40))
+        mgr.add_edge("Box", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("Quick", "Box", EDGE_NEEDS_HARD)
+        mgr.add_edge("Long", "Box", EDGE_NEEDS_HARD)
+
+    def test_a_maximum_keeps_a_big_container_as_the_way_to_quick_wins(self, mgr):
+        self._root_box_tasks(mgr)
+        view = mgr.get_dependency_view("Root", filters={"max_time": 2})
+        assert view["node_names"] == {"Root", "Box", "Quick"}
+
+    def test_a_minimum_judges_a_container_by_the_hours_it_inherits(self, mgr):
+        """Containers inherit 0 h of their own; read as that, any minimum
+        cut the whole view down to the root."""
+        self._root_box_tasks(mgr)
+        view = mgr.get_dependency_view("Root", filters={"min_time": 10})
+        assert view["node_names"] == {"Root", "Box", "Long"}
+        view = mgr.get_dependency_view("Root", filters={"min_time": 100})
+        assert view["node_names"] == {"Root"}
+
     def test_cross_links_change_edges_not_nodes(self, mgr):
         for name in ("Root", "A", "B"):
             mgr.add_node(_make_node(name))

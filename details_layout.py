@@ -1090,7 +1090,10 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     priority_scores = {}
     priority_sort_key = {}  # numeric value used for sorting; -1 for unscored nodes
     if graph_manager:
-        scored = graph_manager.calculate_priority_scores(subtask_nodes)
+        # With the priority Goals, as Home and Explain score: without them a
+        # task under a priority Goal read lower here than there.
+        scored = graph_manager.calculate_priority_scores(
+            subtask_nodes, priority_goals=ConfigManager.get_priority_goals())
         # Normalized against the whole graph, not against these few rows: a
         # child's priority has to read the same here as on the Home tab and
         # in the Explain modal. A local maximum would print 100 next to the

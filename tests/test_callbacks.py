@@ -395,6 +395,10 @@ class TestHandleDelete:
         msg = handle_delete(manager,"MyNode")
         assert "MyNode" in msg
 
+    def test_a_missing_node_is_an_error_not_a_success(self):
+        with pytest.raises(ValueError, match="nothing was deleted"):
+            handle_delete(manager, "Nobody")
+
 
 # ============================================================================
 # handle_toggle_done

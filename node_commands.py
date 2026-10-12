@@ -375,7 +375,13 @@ def prior_node_for_completion(manager, name, original_name):
 
 
 def handle_delete(manager, name):
-    """Delete a single node by name. Returns a status message."""
+    """Delete a single node by name. Returns a status message.
+
+    Raises ValueError when no node has that name, so a delete that removed
+    nothing cannot report that it did.
+    """
+    if manager.get_node(name) is None:
+        raise ValueError(f"'{name}' no longer exists, so nothing was deleted.")
     manager.delete_node(name)
     return f"Deleted node '{name}'"
 
