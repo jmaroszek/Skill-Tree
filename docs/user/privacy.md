@@ -20,13 +20,7 @@ Only in these cases, and never with anything from your graph:
   asks GitHub, where its releases are published, whether there is a newer
   version. On Windows and with the Linux AppImage, a new version is then
   downloaded from GitHub. Like any web request, this tells GitHub your IP address
-  and that some copy of Skill Tree asked. Turn it off in Settings → About; the
-  **Check now** button there asks once, when you press it.
-- **Report a problem** (Settings → About) opens GitHub's issue form in your
-  browser, with diagnostics filled in: the versions of Skill Tree and your system,
-  where its files are (your home folder shows as `~`), and how many nodes, edges
-  and events your graph has, never their names. Nothing is sent until you read the
-  form and submit it yourself.
+  and that some copy of Skill Tree asked. Turn it off in Settings → App & Data → Application.
 - **Help** opens this project's documentation on GitHub, in your browser.
 - **Links you added to your nodes** open in your browser, or your other apps, when
   you click them. A link asks first when opening it would run a program, hand

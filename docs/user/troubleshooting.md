@@ -1,8 +1,9 @@
 # Troubleshooting
 
-If something here doesn't help, use **Report a problem on GitHub** in Settings →
-About. It fills in the details we need; the logs (Settings → About → **Open logs
-folder**) help too.
+If something here doesn't help, [report a problem on GitHub](https://github.com/jmaroszek/Skill-Tree/issues/new?template=bug_report.yml).
+Include your Skill Tree version (Settings → App & Data → Application) and
+what happened. Logs are in the Logs folder beside your Data folder
+([where your data lives](install.md#where-your-data-lives)).
 
 ## When Skill Tree won't start
 
@@ -44,7 +45,7 @@ On macOS, if the app won't open at all the first time, see
 **The window went blank, or says it stopped unexpectedly.** Choose **Reload**.
 Your graph is saved as you work, so nothing is lost.
 
-**I changed or deleted something by mistake.** Settings → Data → **Restore…** puts
+**I changed or deleted something by mistake.** Settings → App & Data → **Restore…** puts
 back an earlier state. Skill Tree backs up once a day when it starts, and before
 every upgrade, restore and import; **Back up now** makes one on the spot. A restore
 makes a backup of the current state first, so it can be undone the same way.

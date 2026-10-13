@@ -425,6 +425,7 @@ def test_settings_close_saves_the_last_field_and_reopens_with_it(page, server, d
     _welcome(page)
     page.click('#btn-settings-toggle')
     page.wait_for_selector('#setting-now-node-cap', state='visible')
+    _idle(page)
     page.fill('#setting-now-node-cap', '7')
     # Close immediately after typing, without a blur/idle helper.
     if dismiss == 'escape':
@@ -447,6 +448,7 @@ def test_settings_close_saves_the_last_field_and_reopens_with_it(page, server, d
 def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
     _welcome(page)
     page.click('#btn-settings-toggle')
+    _idle(page)
     page.fill('#setting-now-node-cap', '7')
     page.click("a.nav-link:has-text('Contexts')")
     page.wait_for_function(_INPUT_HOLDING, arg=['ctx-row-name', 'Mind'])
@@ -454,7 +456,7 @@ def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
     page.fill(f'[id={json.dumps(row)}]', 'Body')
     before = server.query('SELECT key, value FROM Settings ORDER BY key')
     page.click('#btn-settings-close')
-    page.wait_for_function("document.querySelector('#settings-save-status').innerText.includes('Nothing was saved')")
+    page.wait_for_function("document.querySelector('#settings-save-error').innerText.includes('Nothing was saved')")
     assert page.is_visible('#settings-modal')
     assert server.query('SELECT key, value FROM Settings ORDER BY key') == before
     assert page.input_value(f'[id={json.dumps(row)}]') == 'Body'
@@ -472,6 +474,7 @@ def test_settings_migration_cancel_preserves_the_complete_draft(page, server, di
     _new_node(page, 'Meditation', 'Action')
     _close_editor(page)
     page.click('#btn-settings-toggle')
+    _idle(page)
     page.fill('#setting-now-node-cap', '7')
     page.click("a.nav-link:has-text('Contexts')")
     page.wait_for_function(_INPUT_HOLDING, arg=['ctx-row-name', 'Mind'])

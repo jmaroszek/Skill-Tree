@@ -246,9 +246,7 @@ def _tab_ids(tab):
 
 
 def test_tabs_group_settings_by_what_they_adjust():
-    """Seven tabs, no Misc: each answers one question about the app. Data is
-    "where is my graph kept, and how do I move or recover it"; About is
-    "what is this, and where do I get help"."""
+    """App maintenance and data recovery share one tab."""
     modal = build_settings_modal()
     tabs = {
         component.tab_id: component for component in _walk(modal)
@@ -256,11 +254,10 @@ def test_tabs_group_settings_by_what_they_adjust():
     }
     assert list(tabs) == [
         "tab-recommendations", "tab-contexts", "tab-editing",
-        "tab-appearance", "tab-resources", "tab-data", "tab-about",
+        "tab-appearance", "tab-resources", "tab-data",
     ]
     assert [tab.label for tab in tabs.values()] == [
-        "Recommendations", "Contexts", "Editing", "Appearance", "Resources", "Data",
-        "About",
+        "Recommendations", "Contexts", "Editing", "Appearance", "Resources", "App & Data",
     ]
     assert {"btn-backup-now", "restore-backup-select", "btn-export-json",
             "upload-import"} <= _tab_ids(tabs["tab-data"])

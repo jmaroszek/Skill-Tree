@@ -507,6 +507,17 @@ def register_settings_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
+    app.clientside_callback(
+        """function(message) {
+            if (typeof message === 'string' && message.startsWith('Settings saved')) {
+                return '';
+            }
+            return message || '';
+        }""",
+        Output('settings-save-error', 'children'),
+        Input('settings-save-status', 'children'),
+    )
+
     # --- Settings: Toggle the Scoring Profile info popover ---
     @app.callback(
         Output("popover-hp-profile-info", "is_open"),

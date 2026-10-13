@@ -104,7 +104,7 @@ cd electron && npm run dist                                          # -> electr
 - `third_party_notices.py` lists what the build ships that others wrote, with their
   licenses: the server's Python packages, the shell's npm packages and the vendored
   fonts, icons and scripts. Each platform writes its own, since some Python packages
-  are platform-specific. The server's build bundles it and Settings → About opens it.
+  are platform-specific. The server's build bundles it as `THIRD_PARTY_NOTICES.txt`.
 
 - The spec leaves out files the server's packages ship but never serve: Dash's and
   Dash Cytoscape's development builds, and plotly's Jupyter widget

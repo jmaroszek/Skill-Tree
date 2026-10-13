@@ -16,7 +16,6 @@ from config import (
 )
 import style_tokens as tokens
 from resource_links import get_sections
-import about
 import backup
 from version import __version__
 from ui_kit import (cancel_action, danger_action, info_button,
@@ -302,7 +301,6 @@ def _build_contexts_tab():
             # --- Context definitions ---
             html.H5("Definitions", className="mt-2 mb-1"),
             html.Small(
-                "Drag to reorder, or focus a handle and use Alt + arrow keys. "
                 "Priority scales a context's tasks in the "
                 "rankings: 1 is normal, 2 doubles, 0.5 halves.",
                 className="text-muted d-block mb-2"),
@@ -386,88 +384,26 @@ def _build_resources_tab():
     ])
 
 
-def _build_about_tab():
-    """The version, where the data lives, and how to get help.
-
-    about_callbacks.py fills in the diagnostics and the report link when the
-    tab opens. The Updates block belongs to the desktop shell and stays hidden
-    in a browser (the clientside callbacks in about_callbacks.py).
-    """
-    return dbc.Tab(label="About", tab_id="tab-about", children=[
-        html.Div([
-            html.H5("Skill Tree", className="mt-2 mb-1"),
-            html.Div(f"Version {__version__}", id="about-version", className="mb-3"),
-
-            # --- Where things are ---
-            html.H5("Your data", className="mt-2 mb-1"),
-            html.Small("Your graph is kept on this computer and never leaves it.",
-                       className="text-muted d-block mb-2"),
-            html.Div([
-                cancel_action("Open data folder", "btn-open-data-folder", size="sm",
-                              className="me-2"),
-                cancel_action("Open logs folder", "btn-open-log-folder", size="sm"),
-            ], className="d-flex align-items-center mb-2"),
-            html.Div(id="about-status", className="mb-2"),
-
-            # --- Getting help ---
-            html.Hr(className="my-3"),
-            html.H5("Report a problem", className="mt-2 mb-1"),
-            html.Small("The report form on GitHub opens with these details filled in. "
-                       "Folders under your home folder show as ~, and your graph "
-                       "itself is never included.",
-                       className="text-muted d-block mb-2"),
-            # Boxed, so it's clear the copy button takes exactly this text.
-            html.Div([
-                html.Pre(id="about-diagnostics", className="small mb-0 flex-grow-1",
-                         style={"whiteSpace": "pre-wrap"}),
-                dcc.Clipboard(id="about-copy-diagnostics", target_id="about-diagnostics",
-                              title="Copy diagnostics", className="ms-2"),
-            ], className="about-diagnostics-box d-flex align-items-start mb-2"),
-            html.A("Report a problem on GitHub", id="about-report-link",
-                   href=about.ISSUES_NEW_URL, target="_blank", rel="noopener"),
-
-            # --- Updates (the desktop app only) ---
-            html.Div([
-                html.Hr(className="my-3"),
-                html.H5("Updates", className="mt-2 mb-1"),
-                dbc.Switch(id="about-update-auto", value=True,
-                           label="Check for a new version when Skill Tree starts"),
-                html.Small("The check asks GitHub for the newest release and sends "
-                           "nothing about you or your graph.",
-                           className="text-muted d-block mb-2"),
-                cancel_action("Check now", "btn-check-updates", size="sm"),
-                html.Div(id="about-update-status", className="mt-2"),
-                html.A("Open the release page", id="about-update-link", target="_blank",
-                       rel="noopener", style={"display": "none"}),
-                dcc.Store(id="about-update-sink"),
-            ], id="about-updates", style={"display": "none"}),
-
-            # --- Where it comes from ---
-            html.Hr(className="my-3"),
-            html.Small(["Skill Tree is open source. Its code, license, release notes "
-                        "and downloads are at ",
-                        html.A("github.com/jmaroszek/Skill-Tree", href=about.REPO_URL,
-                               target="_blank", rel="noopener"), "."],
-                       className="text-muted d-block mb-2"),
-            # The licenses of what it's built on. Only a build has the file.
-            html.Div([
-                cancel_action("Third-party notices", "btn-open-notices", size="sm"),
-                html.Div(id="about-notices-status", className="mt-2"),
-            ], id="about-notices",
-               style={} if about.notices_path() else {"display": "none"}),
-        ], style={"width": "100%", "maxWidth": "640px"}),
-    ])
-
-
 def _build_data_tab():
-    """Backups, restore, export and import: everything about the data file.
+    """Application preferences, followed by data backup and transfer controls.
 
     These act at once, unlike the other tabs, so their buttons sit in the tab
     rather than behind the Settings save. data_callbacks.py handles them.
     """
-    return dbc.Tab(label="Data", tab_id="tab-data", children=[
+    return dbc.Tab(label="App & Data", tab_id="tab-data", children=[
         html.Div([
+            # --- Application ---
+            html.H5("Application", className="mt-2 mb-1"),
+            html.Div(f"Skill Tree {__version__}", id="about-version",
+                     className="text-muted mb-2"),
+            html.Div([
+                dbc.Switch(id="about-update-auto", value=True,
+                           label="Check for a new version when Skill Tree starts"),
+                dcc.Store(id="about-update-sink"),
+            ], id="about-updates", style={"display": "none"}),
+
             # --- Backups ---
+            html.Hr(className="my-3"),
             html.H5("Backups", className="mt-2 mb-1"),
             html.Small([
                 "Skill Tree copies your graph once a day when it has changed, "
@@ -606,7 +542,7 @@ def build_settings_modal():
     return dbc.Modal([
         dbc.ModalHeader([
             dbc.ModalTitle("Settings"),
-            html.Span(id="settings-save-status", className="text-danger ms-3",
+            html.Span(id="settings-save-error", className="text-danger ms-3",
                       style={"fontSize": tokens.FS_BASE}, role="status"),
             panel_close_button("btn-settings-close", className_extra="ms-auto"),
         ], close_button=False),
@@ -618,9 +554,11 @@ def build_settings_modal():
                 _build_appearance_tab(),
                 _build_resources_tab(),
                 _build_data_tab(),
-                _build_about_tab(),
             ]),
         ),
+        # Internal completion signal used to refresh other views after commit.
+        # It must never appear during the modal's closing animation.
+        html.Span(id="settings-save-status", style={"display": "none"}),
         dcc.Store(id="settings-close-request"),
         dcc.Store(id="settings-close-result"),
         dcc.Store(id="settings-close-sink"),

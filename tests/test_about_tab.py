@@ -1,13 +1,11 @@
-"""Settings > About: what's installed, where the data is, and how to get help (P5.3)."""
+"""App & Data application controls, plus standalone diagnostic/build helpers."""
 import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import dash
 import pytest
 
 import about
-import about_callbacks
 import app_paths
 import database
 from graph_manager import GraphManager
@@ -30,26 +28,12 @@ def _ids(component, found=None):
     return found
 
 
-def _callbacks():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    about_callbacks.register_about_callbacks(app)
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
-
-
-def test_the_settings_modal_has_an_about_tab():
+def test_app_and_data_keeps_only_version_and_update_preference():
     ids = _ids(build_app_layout([], env="sandbox"))
-    assert {"about-version", "btn-open-data-folder", "btn-open-log-folder",
-            "about-diagnostics", "about-copy-diagnostics", "about-report-link",
-            "about-updates", "about-update-auto", "btn-check-updates",
-            "about-update-status"} <= ids
+    assert {"about-version", "about-updates", "about-update-auto"} <= ids
+    assert not ids & {"btn-open-data-folder", "btn-open-log-folder",
+                      "about-diagnostics", "about-copy-diagnostics", "about-report-link",
+                      "btn-check-updates", "about-update-status", "btn-open-notices"}
 
 
 def test_diagnostics_name_the_build_and_the_data(monkeypatch):
@@ -91,24 +75,6 @@ def test_the_bug_form_has_the_field_the_link_fills():
     assert re.search(r"^\s+id: diagnostics\s*$", form, re.M)
 
 
-def test_opening_the_tab_fills_the_diagnostics_and_the_link():
-    load = _callbacks()["load_about_tab"]
-    text, link = load("tab-about")
-    assert __version__ in text and "diagnostics=" in link
-    assert load("tab-data") == (dash.no_update, dash.no_update)
-
-
-@pytest.mark.parametrize("button, folder", [
-    ("open_data_folder", app_paths.get_data_dir),
-    ("open_log_folder", app_paths.get_log_dir),
-])
-def test_the_folder_buttons_open_the_folders(monkeypatch, button, folder):
-    opened = []
-    monkeypatch.setattr(about_callbacks, "open_path", opened.append)
-    _callbacks()[button](1)
-    assert opened == [str(folder())]
-
-
 def _component(root, component_id):
     if getattr(root, "id", None) == component_id:
         return root
@@ -125,27 +91,16 @@ def test_the_toolbar_has_no_external_help_button():
     assert _component(build_app_layout([], env="sandbox"), "btn-help") is None
 
 
-def test_about_opens_the_third_party_notices(monkeypatch, tmp_path):
+def test_the_notice_file_remains_available_to_packaged_builds(monkeypatch, tmp_path):
     notices = tmp_path / "THIRD_PARTY_NOTICES.txt"
     notices.write_text("the notices")
     monkeypatch.setattr(about, "resource_path", lambda *parts: tmp_path.joinpath(*parts))
-    opened = []
-    monkeypatch.setattr(about_callbacks, "open_path", opened.append)
-
-    _callbacks()["open_notices"](1)
-
-    assert opened == [str(notices)]
-    button = _component(build_app_layout([], env="sandbox"), "about-notices")
-    assert button.style.get("display") != "none"
+    assert about.notices_path() == notices
 
 
-def test_a_build_without_notices_shows_no_button(monkeypatch, tmp_path):
-    """A developer's checkout hasn't generated them."""
+def test_a_build_without_notices_returns_no_path(monkeypatch, tmp_path):
     monkeypatch.setattr(about, "resource_path", lambda *parts: tmp_path.joinpath(*parts))
-
     assert about.notices_path() is None
-    button = _component(build_app_layout([], env="sandbox"), "about-notices")
-    assert button.style == {"display": "none"}
 
 
 def test_the_notices_cover_every_runtime_package_and_vendored_asset():

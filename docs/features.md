@@ -1021,6 +1021,7 @@ The Settings modal collects the personal choices and machine-specific informatio
 | **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year, plus the time estimates and unit pre-filled for new nodes. Choose whether completing a node opens a reflection prompt. |
 | **Appearance** | Customize node shapes and colors by type, and set status colors. |
 | **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
+| **App & Data** | Back up, restore, export or import your graph, choose an extra backup folder, view the installed version, and control automatic update checks in the desktop app. |
 
 Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.
 
