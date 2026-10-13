@@ -10,7 +10,7 @@
         ['Tab on Now cards', 'Move between Now cards. Down goes to the Next list; Up from its top comes back.'],
         ['Down in a sidebar search', 'Move into the list below. Up from the list’s top returns to the search.'],
         ['Escape', 'Dismiss the innermost menu or panel and return focus. An open dropdown closes without changing its value. Draft checks still apply.'],
-        ['Ctrl+S / Cmd+S', 'Save the focused node editor, event editor, or Settings.'],
+        ['Ctrl+S / Cmd+S', 'Save the focused node editor or event editor.'],
         ['Ctrl+/ / Cmd+/', 'Show this list of keyboard controls.'],
         ['Alt+Enter / Menu key', 'Open actions for a card or graph node.'],
         ['Arrows, Home / End in menus', 'Choose an action. Right / Left enters or leaves a submenu.'],

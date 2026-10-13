@@ -5,11 +5,14 @@
         if (e.defaultPrevented || e.isComposing || !(e.ctrlKey || e.metaKey) ||
                 e.shiftKey || e.altKey || e.key.toLowerCase() !== 's') return;
         var target = e.target;
+        if (target.closest('#settings-modal')) {
+            // Settings commits on close; don't open the browser's Save Page dialog.
+            e.preventDefault();
+            return;
+        }
         var modal = target.closest('.modal.show');
         var buttonId;
-        if (modal) {
-            if (target.closest('#settings-modal')) buttonId = 'btn-settings-save';
-        } else if (!document.querySelector('.modal.show, dialog[open]')) {
+        if (!modal && !document.querySelector('.modal.show, dialog[open]')) {
             if (target.closest('#sidebar-editor-container:not([inert])')) buttonId = 'btn-save';
             else if (target.closest('#events-detail-panel')) buttonId = 'btn-event-save';
         }

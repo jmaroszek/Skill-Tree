@@ -196,6 +196,15 @@ A failed nested operation marks the entire save for rollback, including when a
 callback catches the error to display it. Cache-version changes and completion
 notifications are deferred until commit; rejected saves publish neither.
 
+Settings also commits one complete draft in a transaction. `assets/settings_close.js`
+routes X, Escape and backdrop dismissal through `settings-close-request`, waits
+for pending form callbacks, and prevents repeated requests while saving.
+`save_settings` validates before writing and closes only after commit; errors
+leave the mounted draft intact. Context removals hold the full draft in
+`pending-settings-store` until the migration dialog is answered. Cancel returns
+to that draft; Apply or Skip commits it and closes Settings. Unchanged drafts
+close without rewriting settings, resources or scoring overrides.
+
 This is the path almost every edit takes. Get it wrong and the canvas either doesn't update or jumps around.
 
 1. A callback (node editor in [sidebars_callbacks.py](../sidebars_callbacks.py), node ops in [callbacks.py](../callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).

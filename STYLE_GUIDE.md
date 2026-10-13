@@ -252,7 +252,10 @@ nodes by name. The blue focus halo and white selection borders remain distinct.
 Escape clears graph focus and selection before leaving fullscreen. Ctrl+/ (Cmd+/) opens
 the explicit local shortcut reference; shortcut
 help is also shown while cards, reorder handles or graphs have keyboard focus.
-Plain Ctrl/Cmd+S saves only the focused node/event editor or Settings.
+Plain Ctrl/Cmd+S saves only the focused node/event editor. Settings saves on
+close: its X, Escape and backdrop clicks share a save request, and the modal
+stays open with its draft when validation or saving fails. Its header uses
+`panel_close_button` rather than Bootstrap's immediate-dismiss X.
 Dividers are focusable separators and resize with their axis's arrow keys.
 
 ### Heading hierarchy

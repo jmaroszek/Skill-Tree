@@ -15,8 +15,8 @@ After opening a panel with the mouse, Tab from its opener enters the panel.
 Floating panels, modals and fullscreen follow the same focus boundary. Escape
 closes the innermost menu or panel first and returns focus to its opener.
 Use **Ctrl+S** (**Cmd+S** on macOS) to save the focused node editor, event
-editor, or Settings. Tooltips open on mouse hover only, never on keyboard
-focus. Escape on an open dropdown closes it without changing its value; the
+editor. Settings saves automatically when you close it. Tooltips open on mouse
+hover only, never on keyboard focus. Escape on an open dropdown closes it without changing its value; the
 next Escape closes the panel. **Enter** on a main tab moves straight into it:
 the first Now card, the Nodes graph, the Details search, the Events search, or
 Analyze's Plan tab. In the Goals and Events sidebars, **Down** from the search
@@ -1012,7 +1012,7 @@ Where the Work left column under Contexts shows your *intent* (active time you p
 
 # Settings
 
-The Settings modal collects the personal choices and machine-specific information the app cannot decide for you. Open it using the gear icon in the top-right corner.
+The Settings modal collects the personal choices and machine-specific information the app cannot decide for you. Open it using the gear icon in the top-right corner. Changes save automatically when you close it. If a change needs correction or a migration decision, Settings stays open until that is resolved.
 
 | Tab | What lives here |
 |---|---|

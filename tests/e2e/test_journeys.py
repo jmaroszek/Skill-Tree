@@ -407,7 +407,7 @@ def test_renaming_a_context_in_settings_moves_its_nodes(page, server):
     row = page.evaluate(_INPUT_HOLDING, ["ctx-row-name", "Mind"])
     page.fill(f"[id={json.dumps(row)}]", "Intellect")
     _idle(page)
-    page.click("#btn-settings-save")
+    page.click("#btn-settings-close")
     deadline = 20
     while deadline and server.query("SELECT context FROM Nodes") != [("Intellect",)]:
         page.wait_for_timeout(500)
@@ -416,4 +416,89 @@ def test_renaming_a_context_in_settings_moves_its_nodes(page, server):
     contexts = json.loads(server.query(
         "SELECT value FROM Settings WHERE key = 'CONTEXTS'")[0][0])
     assert "Intellect" in contexts and "Mind" not in contexts
+    page.wait_for_selector("#settings-modal", state="hidden")
+    assert page.console_errors == []
+
+
+@pytest.mark.parametrize('dismiss', ['close', 'escape', 'backdrop'])
+def test_settings_close_saves_the_last_field_and_reopens_with_it(page, server, dismiss):
+    _welcome(page)
+    page.click('#btn-settings-toggle')
+    page.wait_for_selector('#setting-now-node-cap', state='visible')
+    page.fill('#setting-now-node-cap', '7')
+    # Close immediately after typing, without a blur/idle helper.
+    if dismiss == 'escape':
+        page.press('#setting-now-node-cap', 'Escape')
+    elif dismiss == 'backdrop':
+        page.mouse.click(10, 10)
+    else:
+        page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    assert server.query("SELECT value FROM Settings WHERE key='NOW_NODE_CAP'") == [('7',)]
+    saved = server.query('SELECT key, value FROM Settings ORDER BY key')
+    page.click('#btn-settings-toggle')
+    page.wait_for_function("document.querySelector('#setting-now-node-cap').value === '7'")
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    assert server.query('SELECT key, value FROM Settings ORDER BY key') == saved
+    assert page.console_errors == []
+
+
+def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
+    _welcome(page)
+    page.click('#btn-settings-toggle')
+    page.fill('#setting-now-node-cap', '7')
+    page.click("a.nav-link:has-text('Contexts')")
+    page.wait_for_function(_INPUT_HOLDING, arg=['ctx-row-name', 'Mind'])
+    row = page.evaluate(_INPUT_HOLDING, ['ctx-row-name', 'Mind'])
+    page.fill(f'[id={json.dumps(row)}]', 'Body')
+    before = server.query('SELECT key, value FROM Settings ORDER BY key')
+    page.click('#btn-settings-close')
+    page.wait_for_function("document.querySelector('#settings-save-status').innerText.includes('Nothing was saved')")
+    assert page.is_visible('#settings-modal')
+    assert server.query('SELECT key, value FROM Settings ORDER BY key') == before
+    assert page.input_value(f'[id={json.dumps(row)}]') == 'Body'
+    page.fill(f'[id={json.dumps(row)}]', 'Intellect')
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    assert server.query("SELECT value FROM Settings WHERE key='NOW_NODE_CAP'") == [('7',)]
+    assert 'Intellect' in json.loads(server.query("SELECT value FROM Settings WHERE key='CONTEXTS'")[0][0])
+    assert page.console_errors == []
+
+
+@pytest.mark.parametrize('dismiss', ['cancel', 'close', 'escape'])
+def test_settings_migration_cancel_preserves_the_complete_draft(page, server, dismiss):
+    _welcome(page)
+    _new_node(page, 'Meditation', 'Action')
+    _close_editor(page)
+    page.click('#btn-settings-toggle')
+    page.fill('#setting-now-node-cap', '7')
+    page.click("a.nav-link:has-text('Contexts')")
+    page.wait_for_function(_INPUT_HOLDING, arg=['ctx-row-name', 'Mind'])
+    row = page.evaluate(_INPUT_HOLDING, ['ctx-row-name', 'Mind'])
+    remove = (page.locator(f'[id={json.dumps(row)}]')
+              .locator('xpath=ancestor::div[@data-ctx-row]')
+              .locator('button[title="Remove context"]'))
+    remove.focus()
+    remove.press('Enter')
+    _idle(page)
+    before = server.query('SELECT key, value FROM Settings ORDER BY key')
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#modal-migration', state='visible', timeout=20000)
+    assert server.query('SELECT key, value FROM Settings ORDER BY key') == before
+    if dismiss == 'close':
+        page.click('#modal-migration .btn-close')
+    elif dismiss == 'escape':
+        page.press('#btn-migration-cancel', 'Escape')
+    else:
+        page.click('#btn-migration-cancel')
+    page.wait_for_selector('#modal-migration', state='hidden')
+    assert page.is_visible('#settings-modal')
+    assert page.locator('.ctx-row-removed').count() == 1
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#modal-migration', state='visible', timeout=20000)
+    page.click('#btn-migration-skip')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    assert server.query("SELECT value FROM Settings WHERE key='NOW_NODE_CAP'") == [('7',)]
+    assert 'Mind' not in json.loads(server.query("SELECT value FROM Settings WHERE key='CONTEXTS'")[0][0])
     assert page.console_errors == []

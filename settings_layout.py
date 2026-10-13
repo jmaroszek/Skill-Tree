@@ -19,8 +19,8 @@ from resource_links import get_sections
 import about
 import backup
 from version import __version__
-from ui_kit import (Tooltip, cancel_action, danger_action, info_button,
-                    primary_action, restore_button)
+from ui_kit import (cancel_action, danger_action, info_button,
+                    panel_close_button, primary_action, restore_button)
 
 
 
@@ -603,20 +603,13 @@ def build_resource_setting_rows(sections, link_counts=None):
 
 def build_settings_modal():
     """The Settings modal — opened by the gear button in the top toolbar."""
-    save_group = html.Div([
-        dbc.Button(html.I(className="bi bi-floppy2-fill"), id="btn-settings-save",
-                   color="primary", size="sm",
-                   style={"fontSize": tokens.FS_LG, "lineHeight": "1", "padding": "4px 7px"}),
-        html.Span(id="settings-save-status", className="text-success ms-2",
-                  style={"fontSize": tokens.FS_BASE}),
-        Tooltip("Save settings", target="btn-settings-save", placement="bottom"),
-    ], className="ms-3 d-flex align-items-center")
-
     return dbc.Modal([
         dbc.ModalHeader([
             dbc.ModalTitle("Settings"),
-            save_group,
-        ]),
+            html.Span(id="settings-save-status", className="text-danger ms-3",
+                      style={"fontSize": tokens.FS_BASE}, role="status"),
+            panel_close_button("btn-settings-close", className_extra="ms-auto"),
+        ], close_button=False),
         dbc.ModalBody(
             dbc.Tabs(id="settings-modal-tabs", active_tab="tab-recommendations", children=[
                 _build_recommendations_tab(),
@@ -628,5 +621,8 @@ def build_settings_modal():
                 _build_about_tab(),
             ]),
         ),
+        dcc.Store(id="settings-close-request"),
+        dcc.Store(id="settings-close-result"),
+        dcc.Store(id="settings-close-sink"),
     ], id="settings-modal", dialog_style={"maxWidth": "900px"},
-       is_open=False, centered=True, scrollable=True)
+       is_open=False, centered=True, scrollable=True, backdrop="static", keyboard=False)

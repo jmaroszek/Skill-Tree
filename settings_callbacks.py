@@ -169,6 +169,52 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
+# The same complete draft is committed after an ordinary close or after the
+# migration dialog. Validation and migration planning happen before any write.
+_SETTING_METHODS = {
+    'hp_profile': 'hp_profile', 'ts': 'time_settings', 'ted': 'time_estimate_defaults',
+    'contexts': 'contexts', 'subcontexts': 'subcontexts',
+    'context_weights': 'context_weights', 'shapes': 'node_shapes',
+    'colors': 'node_colors', 'name_formatting': 'name_formatting',
+    'show_scoring_perf': 'show_scoring_perf',
+    'time_calibration_enabled': 'time_calibration_enabled',
+    'now_node_cap': 'now_node_cap', 'subcontext_sort_mode': 'subcontext_sort_mode',
+    'context_sort_mode': 'context_sort_mode', 'backup_extra_dir': 'backup_extra_dir',
+}
+
+
+def _changed_settings(draft):
+    changed = {}
+    for key, method in _SETTING_METHODS.items():
+        if key not in draft:
+            continue
+        current = getattr(ConfigManager, 'get_' + method)()
+        if key == 'context_weights':
+            # Missing weights already mean 1. Opening/closing the modal must
+            # not turn those defaults into an edit or clear profile overrides.
+            current = {name: current.get(name, 1.0)
+                       for name in set(current) | set(draft[key])}
+        if draft[key] != current:
+            changed[key] = draft[key]
+    return changed
+
+
+def _normalized_sections(rows):
+    return [{'id': row['id'], 'name': (row.get('name') or '').strip(),
+             'kind': row.get('kind', 'mixed'),
+             'root_path': (row.get('root_path') or '').strip(), 'position': i}
+            for i, row in enumerate(live_sections(rows))]
+
+
+def _apply_settings(draft):
+    for key, value in _changed_settings(draft).items():
+        getattr(ConfigManager, 'set_' + _SETTING_METHODS[key])(value)
+        if key == 'hp_profile':
+            ConfigManager.clear_hyperparams()
+    if (_normalized_sections(draft['resource_sections']) != get_sections()):
+        save_sections(draft['resource_sections'])
+
+
 def _fold_live_values(rows, name_vals, name_ids, weight_vals, weight_ids,
                       sub_vals, sub_ids):
     """Copy what is currently typed in the editor back into the stored rows.
@@ -451,7 +497,15 @@ def register_settings_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def toggle_settings_modal(_n_clicks, is_open):
-        return not is_open
+        return dash.no_update if is_open else True
+
+    app.clientside_callback(
+        "function(result) { window.SkillTree.settingsClose.finished(result); "
+        "return window.dash_clientside.no_update; }",
+        Output('settings-close-sink', 'data'),
+        Input('settings-close-result', 'data'),
+        prevent_initial_call=True,
+    )
 
     # --- Settings: Toggle the Scoring Profile info popover ---
     @app.callback(
@@ -590,12 +644,13 @@ def register_settings_callbacks(app, services=None):
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('settings-save-status', 'children', allow_duplicate=True),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 20
+            return (dash.no_update,) * 21
 
         editor_state = _editor_state(manager)
         profile = ConfigManager.get_hp_profile()
@@ -653,6 +708,7 @@ def register_settings_callbacks(app, services=None):
             context_sort_mode,
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_now_node_cap(),
+            '',
         )
 
     # --- Settings: Sync Time Estimates ---
@@ -675,14 +731,16 @@ def register_settings_callbacks(app, services=None):
         return tuple(dash.no_update if v is None else v
                      for v in sync_time_fields(triggered, hpd, hpw, hpm, hpy))
 
-    # --- Settings: Save ---
+    # --- Settings: Save before closing ---
     @app.callback(
         Output('settings-save-status', 'children'),
         Output('pending-settings-store', 'data'),
         Output('settings-clear-interval', 'disabled'),
         Output('settings-clear-interval', 'n_intervals'),
         Output('context-editor-store', 'data', allow_duplicate=True),
-        Input('btn-settings-save', 'n_clicks'),
+        Output('settings-modal', 'is_open', allow_duplicate=True),
+        Output('settings-close-result', 'data'),
+        Input('settings-close-request', 'data'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
         State({"type": "setting-color", "index": ALL}, "value"),
@@ -722,12 +780,17 @@ def register_settings_callbacks(app, services=None):
                        section_obsidian=None, section_obsidian_ids=None,
                        backup_extra_dir=None):
         if not n_clicks:
-            return (dash.no_update,) * 5
+            return (dash.no_update,) * 7
+
+        def result(message, pending=dash.no_update, editor=dash.no_update, closed=False):
+            # Failure messages remain visible until the user fixes the draft.
+            return (message, pending, True, 0, editor,
+                    False if closed else dash.no_update, n_clicks)
 
         try:
             # One transaction: a failure anywhere below saves none of it.
-            # Every setter and manager call joins it, and the early
-            # returns commit only what was written before them.
+            # Every setter and manager call joins it. Early returns below are
+            # validation/migration decisions and have written nothing.
             with database.transaction():
                 sections = _section_form_rows(
                     section_store, section_names, section_name_ids,
@@ -737,25 +800,7 @@ def register_settings_callbacks(app, services=None):
                 try:
                     validate_sections(sections)
                 except ValueError as exc:
-                    return (html.Span(str(exc), className="text-danger"),
-                            dash.no_update, False, 0, dash.no_update)
-                # Perf-toggle is independent of any migrated setting — persist
-                # it immediately so the user's choice survives regardless of
-                # whether a type/context migration is pending.
-                ConfigManager.set_show_scoring_perf(
-                    bool(show_scoring_perf_val and "enabled" in show_scoring_perf_val)
-                )
-                ConfigManager.set_time_calibration_enabled(
-                    bool(time_calibration_val and "enabled" in time_calibration_val)
-                )
-                if now_node_cap_val is not None:
-                    ConfigManager.set_now_node_cap(max(1, min(50, int(now_node_cap_val))))
-                if subcontext_sort_mode_val:
-                    ConfigManager.set_subcontext_sort_mode(subcontext_sort_mode_val)
-                if backup_extra_dir is not None:
-                    ConfigManager.set_backup_extra_dir(backup_extra_dir)
-                if context_sort_mode_val:
-                    ConfigManager.set_context_sort_mode(context_sort_mode_val)
+                    return result(html.Span(str(exc), className="text-danger"))
                 profile_name = hp_profile if hp_profile in PROFILES else "Sage"
 
                 # Keep simulation policy values that are no longer exposed in the
@@ -787,13 +832,8 @@ def register_settings_callbacks(app, services=None):
                     ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
                 errors = context_rules.validate_rows(rows)
                 if errors:
-                    # The settings written above are kept (see the perf-toggle
-                    # note), so say which, rather than imply nothing saved.
-                    return ("Contexts need a fix — see the note under the rows. "
-                            "Graph Statistics, Reflection, Maximum Now Nodes, "
-                            "Dropdown Order and the backup folder were saved. "
-                            "The rest saves once the contexts are fixed."
-                            ), dash.no_update, False, 0, dash.no_update
+                    return result("Contexts need a fix — see the note under the rows. "
+                                  "Nothing was saved.")
 
                 old_contexts = ConfigManager.get_contexts()
                 old_subcontexts = ConfigManager.get_subcontexts()
@@ -844,20 +884,9 @@ def register_settings_callbacks(app, services=None):
                              else NAME_FORMAT_TITLE),
                     'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
                 }
+                new_name_formatting['enabled'] = new_name_formatting['mode'] != NAME_FORMAT_NONE
 
-                if orphans:
-                    pending_shapes = {}
-                    if shape_ids and shape_values:
-                        for sid, sval in zip(shape_ids, shape_values):
-                            if sval:
-                                pending_shapes[sid["index"]] = sval
-                    pending_colors = {}
-                    if color_ids and color_values:
-                        for cid, cval in zip(color_ids, color_values):
-                            if cval:
-                                pending_colors[cid["index"]] = cval
-
-                    pending = {
+                draft = {
                         'hp_profile': profile_name,
                         'ts': new_ts,
                         'ted': new_ted,
@@ -865,9 +894,27 @@ def register_settings_callbacks(app, services=None):
                         'contexts': new_contexts,
                         'subcontexts': new_subcontexts,
                         'context_weights': new_ctx_weights,
-                        'shapes': pending_shapes,
-                        'colors': pending_colors,
+                        'shapes': {**ConfigManager.get_node_shapes(), **{
+                            sid['index']: value for sid, value in
+                            zip(shape_ids or [], shape_values or []) if value}},
+                        'colors': {**ConfigManager.get_node_colors(), **{
+                            cid['index']: value for cid, value in
+                            zip(color_ids or [], color_values or []) if value}},
                         'name_formatting': new_name_formatting,
+                        'show_scoring_perf': bool(show_scoring_perf_val and
+                                                  'enabled' in show_scoring_perf_val),
+                        'time_calibration_enabled': bool(time_calibration_val and
+                                                        'enabled' in time_calibration_val),
+                        'now_node_cap': (max(1, min(50, int(now_node_cap_val)))
+                                         if now_node_cap_val is not None
+                                         else ConfigManager.get_now_node_cap()),
+                        'subcontext_sort_mode': (subcontext_sort_mode_val or
+                                                ConfigManager.get_subcontext_sort_mode()),
+                        'context_sort_mode': (context_sort_mode_val or
+                                             ConfigManager.get_context_sort_mode()),
+                        'backup_extra_dir': (str(backup_extra_dir).strip()
+                                             if backup_extra_dir is not None
+                                             else ConfigManager.get_backup_extra_dir()),
                         'orphans': orphans,
                         'new_values': {
                             'context': new_contexts,
@@ -878,49 +925,25 @@ def register_settings_callbacks(app, services=None):
                         # rename the user asked for.
                         'ctx_renames': plan['ctx_renames'],
                         'pair_moves': plan['pair_moves'],
-                    }
-                    return ("Migration required — check the migration dialog.",
-                            pending, False, 0, dash.no_update)
+                }
+                if orphans:
+                    return result("Migration required — check the migration dialog.", draft)
+
+                if (not _changed_settings(draft)
+                        and _normalized_sections(sections) == get_sections()
+                        and not plan['ctx_renames'] and not plan['pair_moves']):
+                    return result(dash.no_update, closed=True)
 
                 manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
-
-                ConfigManager.set_hp_profile(profile_name)
-                ConfigManager.clear_hyperparams()
-                ConfigManager.set_time_settings(new_ts)
-                ConfigManager.set_time_estimate_defaults(new_ted)
-                save_sections(sections)
-                if new_contexts:
-                    ConfigManager.set_contexts(new_contexts)
-                ConfigManager.set_subcontexts(new_subcontexts)
-                # Weights ride along with their row, so a rename keeps its
-                # priority and a removal drops it without any reconciliation.
-                ConfigManager.set_context_weights(new_ctx_weights)
-
-                if shape_ids and shape_values:
-                    new_shapes = {}
-                    for sid, sval in zip(shape_ids, shape_values):
-                        if sval:
-                            new_shapes[sid["index"]] = sval
-                    if new_shapes:
-                        ConfigManager.set_node_shapes(new_shapes)
-
-                if color_ids and color_values:
-                    new_colors = {}
-                    for cid, cval in zip(color_ids, color_values):
-                        if cval:
-                            new_colors[cid["index"]] = cval
-                    if new_colors:
-                        ConfigManager.set_node_colors(new_colors)
-
-                ConfigManager.set_name_formatting(new_name_formatting)
-
-                return (_save_message(plan), dash.no_update, False, 0,
-                        _editor_state(manager))
+                _apply_settings(draft)
+                editor = _editor_state(manager)
+            # Only dismiss after the transaction has committed successfully.
+            return result(_save_message(plan), editor=editor, closed=True)
 
         except Exception:
             logger.exception("Failed to save settings")
-            return ("Couldn't save settings. Nothing was changed; the log has the "
-                    "details."), dash.no_update, False, 0, dash.no_update
+            return result("Couldn't save settings. Nothing was changed; the log has the "
+                          "details.")
 
     # --- Migration Modal ---
     @app.callback(
@@ -929,6 +952,9 @@ def register_settings_callbacks(app, services=None):
         Output('migration-mapping-store', 'data'),
         Output('context-editor-store', 'data', allow_duplicate=True),
         Output('migration-error', 'children'),
+        Output('pending-settings-store', 'data', allow_duplicate=True),
+        Output('settings-save-status', 'children', allow_duplicate=True),
+        Output('settings-modal', 'is_open', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-skip', 'n_clicks'),
@@ -939,7 +965,9 @@ def register_settings_callbacks(app, services=None):
         State({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
         State('migration-mapping-store', 'data'),
         State('pending-settings-store', 'data'),
-        prevent_initial_call=True
+        prevent_initial_call=True,
+        running=[(Output(button, 'disabled'), True, False)
+                 for button in ('btn-migration-apply', 'btn-migration-skip', 'btn-migration-cancel')],
     )
     def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
                          cgc_node_values, cgs_node_values,
@@ -966,11 +994,13 @@ def register_settings_callbacks(app, services=None):
                 orphans_for_ui, new_values, subcontexts_by_context,
                 rename_map=rename_map,
             )
-            return True, children, mapping, dash.no_update, ""
+            return (True, children, mapping, dash.no_update, "",
+                    dash.no_update, dash.no_update, dash.no_update)
 
         if trigger_id == 'btn-migration-cancel':
-            # Nothing was written, so put the editor back to what is stored.
-            return False, [], None, _editor_state(manager), ""
+            # Declining migration returns to the complete draft, including the
+            # context removals, so the user can correct it without losing edits.
+            return False, [], None, dash.no_update, "", None, "", dash.no_update
 
         if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
             try:
@@ -987,35 +1017,7 @@ def register_settings_callbacks(app, services=None):
                         pending_state.get('pair_moves', []),
                     )
 
-                    ConfigManager.set_hp_profile(
-                        pending_state.get('hp_profile', 'Sage'))
-                    ConfigManager.clear_hyperparams()
-                    if 'ts' in pending_state:
-                        ConfigManager.set_time_settings(pending_state['ts'])
-                    if 'ted' in pending_state:
-                        ConfigManager.set_time_estimate_defaults(pending_state['ted'])
-                    if 'resource_sections' in pending_state:
-                        save_sections(pending_state['resource_sections'])
-                    new_contexts = pending_state.get('contexts', [])
-                    if new_contexts:
-                        ConfigManager.set_contexts(new_contexts)
-                    ConfigManager.set_subcontexts(pending_state.get('subcontexts', {}))
-                    # Each weight came off its own row, so it is already keyed by
-                    # the post-rename name and a removed context simply is not in
-                    # the dict. Reassigning a stranded node below does not move a
-                    # weight with it — the surviving context's own priority is the
-                    # one the user set, and it stands.
-                    ConfigManager.set_context_weights(
-                        pending_state.get('context_weights', {}) or {})
-
-                    pending_shapes = pending_state.get('shapes', {})
-                    if pending_shapes:
-                        ConfigManager.set_node_shapes(pending_shapes)
-                    pending_colors = pending_state.get('colors', {})
-                    if pending_colors:
-                        ConfigManager.set_node_colors(pending_colors)
-                    if 'name_formatting' in pending_state:
-                        ConfigManager.set_name_formatting(pending_state['name_formatting'])
+                    _apply_settings(pending_state)
 
                     if trigger_id == 'btn-migration-apply' and mapping_data:
                         new_subcontexts = pending_state.get('subcontexts', {})
@@ -1027,17 +1029,18 @@ def register_settings_callbacks(app, services=None):
                         sub_nodes = mapping_data.get('sub_nodes', []) if isinstance(mapping_data, dict) else []
                         _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
                                                     sgs_node_values, new_subcontexts)
+                    editor = _editor_state(manager)
             except Exception:
                 logger.exception("Failed to apply the settings migration")
                 return (dash.no_update,) * 4 + (
                     "Couldn't apply the changes, so nothing was saved. The log "
-                    "has the details.",)
+                    "has the details.",) + (dash.no_update,) * 3
 
             # Re-seed the rows from what was just saved, so the next edit
             # diffs against it and the node counts reflect the rehoming.
-            return False, [], None, _editor_state(manager), ""
+            return False, [], None, editor, "", None, "Settings saved", False
 
-        return (dash.no_update,) * 5
+        return (dash.no_update,) * 8
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):

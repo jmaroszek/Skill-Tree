@@ -6,6 +6,7 @@ month that every week, month and year conversion uses.
 """
 import inspect
 
+import dash
 import pytest
 
 from callback_helpers import capacity_hours
@@ -102,15 +103,15 @@ def test_the_fields_take_fractions():
         assert _find(tab, field).step == "any"
 
 
-def test_a_contexts_error_says_which_settings_were_saved():
-    """Some settings are written before the contexts are checked, and stay
-    saved. The message used to read as if nothing had been."""
+def test_a_contexts_error_keeps_the_complete_draft_unsaved():
     save, args = _save_settings()
     args.update(n_clicks=1, hpw=30, hpm=120, now_node_cap_val=7,
                 editor_store={'rows': [{'rid': 'a', 'name': 'STEM', 'subs': []},
                                        {'rid': 'b', 'name': 'Stem', 'subs': []}]})
-    message = save(**args)[0]
+    result = save(**args)
+    message = result[0]
     assert "Contexts need a fix" in message
-    assert "Maximum Now Nodes" in message and "were saved" in message
-    assert ConfigManager.get_now_node_cap() == 7
-    assert _saved_hours() != (30, 120)  # hours wait for the contexts
+    assert "Nothing was saved" in message
+    assert ConfigManager.get_now_node_cap() != 7
+    assert _saved_hours() != (30, 120)
+    assert result[5] is dash.no_update  # Settings stays open without reloading the form.
