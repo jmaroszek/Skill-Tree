@@ -655,13 +655,14 @@ def register_settings_callbacks(app, services=None):
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('setting-show-hour-equivalents', 'value'),
         Output('settings-save-status', 'children', allow_duplicate=True),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
     )
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 21
+            return (dash.no_update,) * 22
 
         editor_state = _editor_state(manager)
         profile = ConfigManager.get_hp_profile()
@@ -719,6 +720,7 @@ def register_settings_callbacks(app, services=None):
             context_sort_mode,
             ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
             ConfigManager.get_now_node_cap(),
+            ["enabled"] if ts['show_hour_equivalents'] else [],
             '',
         )
 
@@ -773,6 +775,7 @@ def register_settings_callbacks(app, services=None):
         State('resource-section-settings-store', 'data'),
         *_SECTION_FORM_STATES,
         State('setting-backup-extra-dir', 'value'),
+        State('setting-show-hour-equivalents', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks,
@@ -789,7 +792,7 @@ def register_settings_callbacks(app, services=None):
                        section_roots=None, section_root_ids=None,
                        section_use_roots=None, section_use_root_ids=None,
                        section_obsidian=None, section_obsidian_ids=None,
-                       backup_extra_dir=None):
+                       backup_extra_dir=None, show_hour_equivalents_val=None):
         if not n_clicks:
             return (dash.no_update,) * 7
 
@@ -818,6 +821,8 @@ def register_settings_callbacks(app, services=None):
                 # modal while updating the two user-supplied capacity values.
                 new_ts = dict(ConfigManager.get_time_settings())
                 new_ts.update(capacity_hours(hpw, hpm, new_ts))
+                if show_hour_equivalents_val is not None:
+                    new_ts['show_hour_equivalents'] = 'enabled' in show_hour_equivalents_val
 
                 from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
                 new_ted = {

@@ -238,6 +238,13 @@ def _build_editing_tab():
                                       min=0, step=1, style={"width": "128px"}),
                         ]),
                     ], className="d-flex gap-3"),
+                    dbc.Checklist(
+                        id="setting-show-hour-equivalents",
+                        options=[{"label": "Show hour equivalents", "value": "enabled"}],
+                        value=["enabled"],
+                        switch=True,
+                        className="mt-3",
+                    ),
                 ], width=True),
             ], className="mt-1"),
 

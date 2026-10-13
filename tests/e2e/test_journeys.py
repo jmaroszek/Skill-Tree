@@ -445,6 +445,30 @@ def test_settings_close_saves_the_last_field_and_reopens_with_it(page, server, d
     assert page.console_errors == []
 
 
+def test_hour_equivalent_preference_saves_on_close(page, server):
+    _welcome(page)
+    page.click('#btn-settings-toggle')
+    page.get_by_role('tab', name='Editing', exact=True).click()
+    _idle(page)
+    switch = page.locator('#setting-show-hour-equivalents input')
+    assert switch.is_checked()
+    switch.uncheck()
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    settings = json.loads(server.query("SELECT value FROM Settings WHERE key='TIME_SETTINGS'")[0][0])
+    assert settings['show_hour_equivalents'] is False
+
+    page.click('#btn-settings-toggle')
+    _idle(page)
+    assert not switch.is_checked()
+    switch.check()
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    settings = json.loads(server.query("SELECT value FROM Settings WHERE key='TIME_SETTINGS'")[0][0])
+    assert settings['show_hour_equivalents'] is True
+    assert page.console_errors == []
+
+
 def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
     _welcome(page)
     page.click('#btn-settings-toggle')

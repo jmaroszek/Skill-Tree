@@ -1,0 +1,5 @@
+/* Hidden hints take no space. The bracket gets pb-2 only while hints show. */
+.time-hour-hint {
+    font-size: var(--st-fs-xs);
+    font-variant-numeric: tabular-nums;
+}

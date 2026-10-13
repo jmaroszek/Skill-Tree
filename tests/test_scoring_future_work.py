@@ -183,6 +183,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
     assert ConfigManager.get_time_settings() == {
         'hours_per_week': 25,
         'hours_per_month': 100,
+        'show_hour_equivalents': True,
         'monte_carlo_trials': 4321,
         'estimate_correlation': .25,
     }

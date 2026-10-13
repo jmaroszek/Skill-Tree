@@ -12,6 +12,11 @@ With the default settings, a week is 20 hours, a month is 80, and a year is 1,04
 
 Change those hours in Settings and every time in the app changes with them. The stored estimates are hours, so nothing is lost.
 
+The node editor shows the hour equivalent beneath each non-hour time estimate,
+such as `= 40h` for two work weeks at 20 hours per week. These hints update as
+you type. Turn off **Show hour equivalents** in Settings under Time Estimates
+to hide them; the setting is on by default.
+
 Some places do use the calendar. Habit durations, event delays, and the buckets on the Throughput chart count real days, weeks, and months. The editor labels the habit field "Calendar duration" for that reason.
 
 # What the Three Numbers Mean

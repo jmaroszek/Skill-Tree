@@ -308,6 +308,14 @@ calendar duration from the work-time minutes. The text is live:
 Habit switch or Settings change. Use an (i) button only for a control that opens
 a reference, such as "Ratings". A tooltip that only explains goes on the label.
 
+The editor's work-time bracket shows a compact hour equivalent below each
+populated non-hour input when "Show hour equivalents" is enabled in Settings
+(on by default). Hints use `.text-muted`, the XS type token, and `mt-1`.
+The bracket row gains `pb-2` only while a hint is visible, giving the following
+divider breathing room. Hidden hints use `display: none`, with no extra row
+padding, so disabling them preserves the original editor spacing. Calendar
+duration and habit inputs keep their existing presentation.
+
 `ui_kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
 builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
 targeting it, in a `display: contents` wrapper so it lays out as its two parts. Every such label gets the

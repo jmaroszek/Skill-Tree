@@ -296,7 +296,8 @@ def info_strip_segment_style(name: str, is_first: bool = False) -> dict:
 
 DEFAULT_TIME_SETTINGS = {
     'hours_per_week': 20,
-    'hours_per_month': 80
+    'hours_per_month': 80,
+    'show_hour_equivalents': True,
 }
 
 DEFAULT_MONTE_CARLO_TRIALS = 10000

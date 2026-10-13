@@ -397,10 +397,16 @@ def build_node_editor_content():
                              children=""),
                     html.Div(id="section-time-omp", children=[
                         dbc.Row([
-                            dbc.Col([*bracket_label("Lower", "node-time-o-label"), dbc.Input(id="node-time-o", type="number", min=0)]),
-                            dbc.Col([*bracket_label("Expected", "node-time-m-label"), dbc.Input(id="node-time-m", type="number", min=0)]),
-                            dbc.Col([*bracket_label("Upper", "node-time-p-label"), dbc.Input(id="node-time-p", type="number", min=0)]),
-                        ]),
+                            dbc.Col([
+                                *bracket_label(label, f"node-time-{field}-label"),
+                                dbc.Input(id=f"node-time-{field}", type="number", min=0),
+                                html.Small(id=f"node-time-{field}-hours",
+                                           className="time-hour-hint text-muted mt-1",
+                                           style={"display": "none"}),
+                            ]) for field, label in (("o", "Lower"), ("m", "Expected"),
+                                                   ("p", "Upper"))
+                        ], id="node-time-bracket-row"),
+                        dcc.Store(id="editor-time-settings", data=ConfigManager.get_time_settings()),
                         html.Div(id="time-validation-error", children="",
                                  style=tokens.ERROR_TEXT_HIDDEN,
                                  className="mt-1"),

@@ -84,6 +84,26 @@ def test_successful_close_commits_all_fields_and_acknowledges_request():
     assert ConfigManager.get_time_settings()['hours_per_week'] == 17.5
 
 
+def test_hour_equivalents_default_on_and_round_trip_with_capacity():
+    # Older settings have no preference yet; the default still applies.
+    ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+    assert ConfigManager.get_time_settings()['show_hour_equivalents'] is True
+    callbacks = _callbacks()
+    args = _draft(callbacks)
+    args.update(show_hour_equivalents_val=[], hpw=17.5, hpm=70)
+    assert callbacks['save_settings'](**args)[5] is False
+    assert ConfigManager.get_time_settings() == {
+        'hours_per_week': 17.5, 'hours_per_month': 70, 'show_hour_equivalents': False,
+    }
+    assert callbacks['load_settings'](True)[-2] == []
+
+    args = _draft(callbacks)
+    args['show_hour_equivalents_val'] = ['enabled']
+    assert callbacks['save_settings'](**args)[5] is False
+    assert ConfigManager.get_time_settings()['show_hour_equivalents'] is True
+    assert callbacks['load_settings'](True)[-2] == ['enabled']
+
+
 def test_failed_commit_keeps_settings_open_and_rolls_back(monkeypatch):
     callbacks = _callbacks()
     args = _draft(callbacks)

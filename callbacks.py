@@ -1236,6 +1236,7 @@ def register_callbacks(app, services=None):
     @app.callback(
         Output('node-time-heading-tooltip', 'children'),
         Output('time-calibration-heading-tooltip', 'children'),
+        Output('editor-time-settings', 'data'),
         Input('node-time-habit-mode', 'value'),
         Input('settings-modal', 'is_open'),
         prevent_initial_call=True,
@@ -1243,7 +1244,20 @@ def register_callbacks(app, services=None):
     def refresh_work_time_tooltips(habit_mode_val, _settings_open):
         habit = bool(habit_mode_val and 'habit' in habit_mode_val)
         return (work_time_tooltip("habit" if habit else "estimate"),
-                work_time_tooltip("actual"))
+                work_time_tooltip("actual"), ConfigManager.get_time_settings())
+
+    # Display conversions locally while typing; the store uses saved Settings.
+    app.clientside_callback(
+        ClientsideFunction(namespace='time_hour_hints', function_name='render'),
+        [Output(f'node-time-{field}-hours', 'children') for field in ('o', 'm', 'p')],
+        [Output(f'node-time-{field}-hours', 'style') for field in ('o', 'm', 'p')],
+        Output('node-time-bracket-row', 'className'),
+        Input('node-time-o', 'value'),
+        Input('node-time-m', 'value'),
+        Input('node-time-p', 'value'),
+        Input('node-time-unit', 'value'),
+        Input('editor-time-settings', 'data'),
+    )
 
     # --- Live total-hours preview for habit mode ---
     @app.callback(
