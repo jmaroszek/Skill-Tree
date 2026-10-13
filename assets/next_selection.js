@@ -18,7 +18,7 @@
     // The selected node's neighbours, from the row's data-relations JSON.
     const SECTIONS = [['supports', 'Supports'], ['synergy', 'Synergy']];
     const SHOWN = 3;
-    function relations(row) {
+    function relations(row, expanded = []) {
         if (!row) return null;
         let data;
         try { data = JSON.parse(row['data-relations'] || '{}'); } catch (_) { return null; }
@@ -32,7 +32,8 @@
                         color: 'var(--st-text-dim)', margin: '1.25rem 0 0.4rem',
                         whiteSpace: 'pre', gridColumn: '1 / -1'},
             })];
-            for (const [name, color, kind, done] of items.slice(0, SHOWN)) {
+            const visible = expanded.includes(key) ? items.length : SHOWN;
+            for (const [name, color, kind, done] of items.slice(0, visible)) {
                 const tag = [kind, done ? 'done' : ''].filter(Boolean).join(' · ');
                 children.push(el('Div', {
                     children: [
@@ -51,9 +52,18 @@
                 }));
             }
             if (items.length > SHOWN) {
-                children.push(el('Div', {children: '+' + (items.length - SHOWN) + ' more',
+                children.push(el('Button', {
+                    id: {type: 'next-relations-more', index: key},
+                    type: 'button', n_clicks: 0,
+                    children: expanded.includes(key)
+                        ? 'Hide ' + (items.length - SHOWN) +
+                            (items.length - SHOWN === 1 ? ' node' : ' nodes')
+                        : '+' + (items.length - SHOWN) + ' more',
+                    'aria-expanded': expanded.includes(key) ? 'true' : 'false',
                     style: {fontSize: 'var(--st-fs-sm)', color: 'var(--st-text-dim)',
-                            paddingLeft: '13px', gridColumn: '1 / -1'}}));
+                            padding: '0 0 0 13px', gridColumn: '1 / -1',
+                            background: 'none', border: 'none', textAlign: 'left',
+                            justifySelf: 'start', cursor: 'pointer'}}));
             }
             // One grid per section: the tags line up in a column that starts
             // just after the longest name, not at the edge of the panel.
@@ -63,10 +73,31 @@
                 columnGap: '100px', justifyContent: 'start'}}));
         }
         if (!blocks.length) return null;
-        return el('Div', {children: blocks});
+        return el('Div', {children: blocks, 'data-expanded': JSON.stringify(expanded),
+            'data-node': row.id.index});
     }
     window.dash_clientside = window.dash_clientside || {};
     window.dash_clientside.skillTreeNext = {
+        expand: function (clicks, table, cards, selected, current) {
+            const row = rows(table, 'suggestion-row').concat(rows(cards, 'now-row'))
+                .find(row => row.id.index === selected);
+            if (!row || !current || current.props['data-node'] !== selected) {
+                return window.dash_clientside.no_update;
+            }
+            const expanded = JSON.parse(current.props['data-expanded'] || '[]');
+            const triggered = window.dash_clientside.callback_context.triggered || [];
+            for (const trigger of triggered) {
+                if (!trigger.value || !trigger.prop_id.endsWith('.n_clicks')) continue;
+                const id = JSON.parse(trigger.prop_id.slice(0, -9));
+                if (id.type === 'next-relations-more') {
+                    const index = expanded.indexOf(id.index);
+                    if (index === -1) expanded.push(id.index);
+                    else expanded.splice(index, 1);
+                    return relations(row, expanded);
+                }
+            }
+            return window.dash_clientside.no_update;
+        },
         select: function (clicks, nowClicks, table, cards, selected) {
             const suggestions = rows(table, 'suggestion-row');
             const now = rows(cards, 'now-row');

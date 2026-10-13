@@ -1393,6 +1393,15 @@ def register_callbacks(app, services=None):
         return _reexpress(val_o), _reexpress(val_m), _reexpress(val_p), new_unit
 
     # --- Time Estimate Validation ---
+    # A newly loaded/reverted form starts quiet. Leaving the section reveals
+    # the latest validation result (assets/time_validation.js); validity and
+    # the save guards below remain independent of the warning's visibility.
+    app.clientside_callback(
+        "function(_snapshot) { return 'false'; }",
+        Output('section-time-estimates', 'data-validation-ready'),
+        Input('editor-pristine-snapshot', 'data'),
+    )
+
     @app.callback(
         Output('time-validation-error', 'children'),
         Output('time-validation-error', 'style'),

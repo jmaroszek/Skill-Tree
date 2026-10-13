@@ -1,5 +1,9 @@
-/* Hidden hints take no space. The bracket gets pb-2 only while hints show. */
+/* Hidden hints take no space; only visible hints tighten the next divider. */
 .time-hour-hint {
     font-size: var(--st-fs-xs);
     font-variant-numeric: tabular-nums;
+}
+
+#section-time-estimates:has(.has-hour-hints) + hr {
+    margin-top: 0.75rem !important;
 }

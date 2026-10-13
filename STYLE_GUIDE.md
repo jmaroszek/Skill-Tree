@@ -128,8 +128,12 @@ bar's end edge does not crowd the time. These are constants in
 
 Under the description, with no header, **Supports** lists the nodes that name
 the selected one as a hard or soft prerequisite, Goals included, and **Synergy**
-its Helps partners. Each shows at most three, best first, with a count of the
-rest. Only direct neighbours appear: the whole downstream reach belongs to
+its Helps partners. Each initially shows at most three, best first. A plain
+`+n more` button reveals all remaining items in that section, with a pointer
+cursor and no hover tooltip. Once expanded, the bottom control reads
+`Hide n nodes` and restores the three-item list. Selecting a node starts with
+three again.
+Only direct neighbours appear: the whole downstream reach belongs to
 Explain Priority, and a cut-off at some number of hops would be arbitrary.
 Each name carries a 3px left edge in its type colour.
 
@@ -265,6 +269,7 @@ Dividers are focusable separators and resize with their axis's arrow keys.
 | Section title | `html.H5` | `mt-2 mb-1` | Section headers everywhere |
 | Section title in a flex row | `html.H5` | `mb-0` | Where a bottom margin would break the row's centring |
 | Major section in a modal | `html.H5` | `mt-3 mb-2` | The migration modal's blocks |
+| Settings field group | `html.H6` | `mt-3 mb-2` | Editing Hints beneath the time defaults |
 | Inline heading | `html.H6` | `style=tokens.SECTION_TITLE_STYLE` | Home-tab section headings |
 
 **Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
@@ -311,10 +316,16 @@ a reference, such as "Ratings". A tooltip that only explains goes on the label.
 The editor's work-time bracket shows a compact hour equivalent below each
 populated non-hour input when "Show hour equivalents" is enabled in Settings
 (on by default). Hints use `.text-muted`, the XS type token, and `mt-1`.
-The bracket row gains `pb-2` only while a hint is visible, giving the following
-divider breathing room. Hidden hints use `display: none`, with no extra row
-padding, so disabling them preserves the original editor spacing. Calendar
+The bracket row gains `has-hour-hints` only while a hint is visible; the next
+divider then has a 12px top margin. Hidden hints use `display: none`, with no
+extra row padding, so disabling them preserves the original editor spacing. Calendar
 duration and habit inputs keep their existing presentation.
+
+Time-bracket validation keeps Save disabled for invalid estimates, but its
+inline warning stays hidden during editing. The whole Time Estimates section
+is one focus group: moving between its fields and unit selector stays quiet;
+leaving reveals any remaining error. Returning to edit or loading another
+form hides it again. Save paths always validate independently of this display.
 
 `ui_kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
 builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`

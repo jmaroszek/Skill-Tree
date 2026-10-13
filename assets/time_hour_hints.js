@@ -27,7 +27,7 @@
                 texts.push(visible ? text : '');
                 styles.push({display: visible ? 'block' : 'none'});
             });
-            return texts.concat(styles, [anyVisible ? 'pb-2' : '']);
+            return texts.concat(styles, [anyVisible ? 'has-hour-hints' : '']);
         }
     };
 })();

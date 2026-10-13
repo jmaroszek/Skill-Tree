@@ -17,6 +17,10 @@ such as `= 40h` for two work weeks at 20 hours per week. These hints update as
 you type. Turn off **Show hour equivalents** in Settings under Time Estimates
 to hide them; the setting is on by default.
 
+While you edit the time bracket, validation warnings stay quiet. Leaving the
+Time Estimates section shows any remaining problem; moving between its fields
+does not. Invalid estimates still cannot be saved.
+
 Some places do use the calendar. Habit durations, event delays, and the buckets on the Throughput chart count real days, weeks, and months. The editor labels the habit field "Calendar duration" for that reason.
 
 # What the Three Numbers Mean

@@ -360,7 +360,7 @@ def build_node_editor_content():
                     ]),
                 ]),
                 # --- Section: Time Estimates ---
-                html.Div(id="section-time-estimates", children=[
+                html.Div(id="section-time-estimates", **{'data-validation-ready': 'false'}, children=[
                     html.Hr(className="my-3"),
                     time_estimates_heading("node"),
                     html.Div([

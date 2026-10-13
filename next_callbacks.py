@@ -63,6 +63,17 @@ def register_next_callbacks(app, services=None):
         State('selected-suggestion-store', 'data'),
     )
 
+    app.clientside_callback(
+        ClientsideFunction(namespace='skillTreeNext', function_name='expand'),
+        Output('next-relations', 'children', allow_duplicate=True),
+        Input({'type': 'next-relations-more', 'index': ALL}, 'n_clicks'),
+        State('suggestions-table', 'children'),
+        State('now-nodes-table', 'children'),
+        State('selected-suggestion-store', 'data'),
+        State('next-relations', 'children'),
+        prevent_initial_call=True,
+    )
+
     # Not on page load. The layout already carries this table, built from the
     # same snapshot and filters (next_view._initial_next_view), and rebuilding
     # it there cost more than the request. Dash held the core engine behind
