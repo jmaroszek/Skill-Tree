@@ -96,7 +96,7 @@ def _build_reflect_tab():
             html.H5("Queue", className="mb-2"),
             html.P(
                 "Walk through completed nodes that haven't been "
-                "reflected on yet",
+                "reflected on yet.",
                 className="text-muted mb-3",
             ),
             html.Div([
@@ -126,74 +126,78 @@ def _build_reflect_tab():
 
 
 def _build_history_tab():
+    # The filters and table scroll; the "show more" pager stays below them, so
+    # it is reachable however much of the list fits on screen.
     return dbc.Tab(label="History", tab_id="tab-review-history", children=[
         html.Div([
-            # No caption. "Already-reflected nodes" only restates the tab's own
-            # name, and the pencil carries its own tooltip. The sibling tabs
-            # keep theirs because they say something their names do not: the
-            # queue identifies which completed nodes it handles, and Excluded
-            # says what can be restored.
-            #
-            # Search takes the width: a name is long and you type into it,
-            # while the context picker shows at most two contexts and a "+N".
-            #
-            # Sort is a visible dropdown rather than the sidebars' menu
-            # button: the table's default order (Completed) has no column
-            # header to click back to, so the current criterion must stay on
-            # screen. Direction is its own button; column headers still sort.
-            dbc.Row([
-                dbc.Col(
-                    dbc.Input(id="hub-history-search", type="search",
-                              placeholder="Search by name...",
-                              style={"width": "100%"}),
-                    width=6,
-                ),
-                dbc.Col(
-                    build_multi_context_picker(
-                        "hub-history-context-picker",
-                        "hub-history-filter-context",
-                        "hub-history-filter-subcontext",
+            html.Div([
+                # No caption. "Already-reflected nodes" only restates the tab's own
+                # name, and the pencil carries its own tooltip. The sibling tabs
+                # keep theirs because they say something their names do not: the
+                # queue identifies which completed nodes it handles, and Excluded
+                # says what can be restored.
+                #
+                # Search takes the width: a name is long and you type into it,
+                # while the context picker shows at most two contexts and a "+N".
+                #
+                # Sort is a visible dropdown rather than the sidebars' menu
+                # button: the table's default order (Completed) has no column
+                # header to click back to, so the current criterion must stay on
+                # screen. Direction is its own button; column headers still sort.
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Input(id="hub-history-search", type="search",
+                                  placeholder="Search by name...",
+                                  style={"width": "100%"}),
+                        width=6,
                     ),
-                    width=3,
-                ),
-                dbc.Col(
-                    html.Div([
-                        html.Label("Sort by", htmlFor="hub-history-sort-key",
-                                   className="visually-hidden"),
-                        dbc.Select(
-                            id="hub-history-sort-key",
-                            options=[{"label": label, "value": key}
-                                     for key, label in HISTORY_SORT_CRITERIA.items()],
-                            value=HISTORY_SORT_DEFAULT["key"],
-                            className=history_sort_key_class(HISTORY_SORT_DEFAULT),
+                    dbc.Col(
+                        build_multi_context_picker(
+                            "hub-history-context-picker",
+                            "hub-history-filter-context",
+                            "hub-history-filter-subcontext",
                         ),
-                        html.Button(
-                            html.I(id="hub-history-sort-direction-icon",
-                                   className=history_sort_direction_icon(
-                                       HISTORY_SORT_DEFAULT["direction"]),
-                                   **{"aria-hidden": "true"}),
-                            id="hub-history-sort-direction",
-                            type="button",
-                            className="btn btn-secondary details-header-btn "
-                                      "review-history-direction-btn",
-                            **{"aria-label": "Reverse sort order"},
-                        ),
-                        Tooltip(
-                            HISTORY_SORT_DIRECTION_LABELS["completed"]["desc"],
-                            id="hub-history-sort-direction-tooltip",
-                            target="hub-history-sort-direction",
-                            placement="top",
-                        ),
-                    ], className="review-history-sort-controls"),
-                    width=3,
-                ),
-            ], className="mb-2 g-2"),
-            dcc.Store(id="hub-history-visible-count", data=20),
-            dcc.Store(id="hub-history-sort", data=dict(HISTORY_SORT_DEFAULT)),
-            html.Div(id="hub-history-table-container",
-                     className="review-history-table-wrap"),
+                        width=3,
+                    ),
+                    dbc.Col(
+                        html.Div([
+                            html.Label("Sort by", htmlFor="hub-history-sort-key",
+                                       className="visually-hidden"),
+                            dbc.Select(
+                                id="hub-history-sort-key",
+                                options=[{"label": label, "value": key}
+                                         for key, label in HISTORY_SORT_CRITERIA.items()],
+                                value=HISTORY_SORT_DEFAULT["key"],
+                                className=history_sort_key_class(HISTORY_SORT_DEFAULT),
+                            ),
+                            html.Button(
+                                html.I(id="hub-history-sort-direction-icon",
+                                       className=history_sort_direction_icon(
+                                           HISTORY_SORT_DEFAULT["direction"]),
+                                       **{"aria-hidden": "true"}),
+                                id="hub-history-sort-direction",
+                                type="button",
+                                className="btn btn-secondary details-header-btn "
+                                          "review-history-direction-btn",
+                                **{"aria-label": "Reverse sort order"},
+                            ),
+                            Tooltip(
+                                HISTORY_SORT_DIRECTION_LABELS["completed"]["desc"],
+                                id="hub-history-sort-direction-tooltip",
+                                target="hub-history-sort-direction",
+                                placement="top",
+                            ),
+                        ], className="review-history-sort-controls"),
+                        width=3,
+                    ),
+                ], className="mb-2 g-2"),
+                dcc.Store(id="hub-history-visible-count", data=20),
+                dcc.Store(id="hub-history-sort", data=dict(HISTORY_SORT_DEFAULT)),
+                html.Div(id="hub-history-table-container",
+                         className="review-history-table-wrap"),
+            ], className="review-history-scroll"),
             _build_pager("hub-history"),
-        ], className="p-3")
+        ], className="review-history-pane")
     ])
 
 

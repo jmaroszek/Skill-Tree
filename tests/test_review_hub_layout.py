@@ -74,7 +74,7 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     css = THEME_CSS.read_text(encoding="utf-8")
     assert ".review-hub-dialog {\n    max-width: 980px;" in css
     assert ".review-hub-dialog .modal-content {\n    height:" in css
-    assert description.children == "Walk through completed nodes that haven't been reflected on yet"
+    assert description.children == "Walk through completed nodes that haven't been reflected on yet."
     assert empty.children[0].className == "bi bi-check-circle text-success me-2"
     assert empty.children[1] == "All caught up"
     tabs = modal.children[1].children.children
