@@ -750,7 +750,7 @@
    switching sections never resizes it. Only the section pane scrolls. */
 
 .settings-dialog {
-    max-width: 1040px;
+    max-width: 980px;
 }
 .settings-dialog .modal-content {
     height: min(90vh, 980px);
@@ -808,7 +808,7 @@
    Its height matches Settings, so the two read as one family. */
 
 .review-hub-dialog {
-    max-width: 940px;
+    max-width: 980px;
 }
 .review-hub-dialog .modal-content {
     height: min(90vh, 980px);

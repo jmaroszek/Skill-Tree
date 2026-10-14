@@ -71,7 +71,7 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     assert modal.dialog_class_name == "review-hub-dialog"
     assert modal.children[1].class_name == "review-hub-body"
     css = THEME_CSS.read_text(encoding="utf-8")
-    assert ".review-hub-dialog {\n    max-width: 940px;" in css
+    assert ".review-hub-dialog {\n    max-width: 980px;" in css
     assert ".review-hub-dialog .modal-content {\n    height:" in css
     # The tab pane is the scroller, so it carries the scroll fade.
     assert ".scroll-fade-bottom,\n.review-hub-body > .tab-content {" in css
