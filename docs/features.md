@@ -1014,14 +1014,16 @@ Where the Work left column under Contexts shows your *intent* (active time you p
 
 The Settings modal collects the personal choices and machine-specific information the app cannot decide for you. Open it using the gear icon in the top-right corner. Changes save automatically when you close it. If a change needs correction or a migration decision, Settings stays open until that is resolved.
 
-| Tab | What lives here |
+The sections are listed down the left side. The modal keeps one size, so switching sections never resizes it.
+
+| Section | What lives here |
 |---|---|
-| **Recommendations** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles), set the maximum number of Now nodes, and optionally show the startup graph summary on the Home tab. |
-| **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
+| **Recommendations** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and set the maximum number of Now nodes. |
 | **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year, plus the time estimates and unit pre-filled for new nodes. Choose whether completing a node opens a reflection prompt. |
-| **Appearance** | Customize node shapes and colors by type, and set status colors. |
+| **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
 | **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
-| **App & Data** | Back up, restore, export or import your graph, choose an extra backup folder, view the installed version, and control automatic update checks in the desktop app. |
+| **Appearance** | Customize node shapes and colors by type, and set status colors. |
+| **App & Data** | View the installed version, control automatic update checks in the desktop app, and optionally show the startup graph summary on the Home tab. Back up, restore, export or import your graph, and choose an extra backup folder. |
 
 Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.
 

@@ -134,25 +134,6 @@ def _build_recommendations_tab():
             dbc.Input(id="setting-now-node-cap", type="number",
                       min=1, max=50, step=1,
                       style={"width": "128px"}),
-
-            # The Home tab's stats readout: how big the graph is and how long
-            # scoring it took. Named for what you get rather than for when it
-            # runs -- "Startup Analysis" described the timing and left the
-            # content to be guessed at.
-            html.H5("Graph Statistics", className="mt-4 mb-1"),
-            html.Small(
-                "Shows node and edge counts, and how long scoring took, "
-                "on the Home tab.",
-                className="text-muted d-block mb-2",
-            ),
-            dbc.Checklist(
-                id="setting-show-scoring-perf",
-                options=[{"label": "Run on startup", "value": "enabled"}],
-                value=[],
-                switch=True,
-                className="mb-1",
-                labelStyle={"fontWeight": "normal", "fontSize": tokens.FS_MD},
-            ),
         ], className="p-2")
     ])
 
@@ -271,8 +252,6 @@ def _build_editing_tab():
 def _build_appearance_tab():
     return dbc.Tab(label="Appearance", tab_id="tab-appearance", children=[
         html.Div([
-            # --- Node Appearance group ---
-            html.H5("Node Appearance", className="mt-2 mb-1"),
             dbc.Row([
                 dbc.Col([
                     html.Div([
@@ -289,7 +268,7 @@ def _build_appearance_tab():
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Small("Open color for each node type.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-type-colors-container"),
-                ], width=3),
+                ], width=4),
                 dbc.Col([
                     html.Div([
                         dbc.Label("Status Colors", className="mb-0"),
@@ -297,7 +276,7 @@ def _build_appearance_tab():
                     ], className="d-flex align-items-center mt-2 mb-1"),
                     html.Small("Color for Done, Blocked, and Now.", className="text-muted d-block mb-2"),
                     html.Div(id="setting-node-status-colors-container"),
-                ], width=5),
+                ], width=4),
             ]),
         ], className="p-2")
     ])
@@ -409,6 +388,20 @@ def _build_data_tab():
                            label="Check for a new version when Skill Tree starts"),
                 dcc.Store(id="about-update-sink"),
             ], id="about-updates", style={"display": "none"}),
+
+            # The Home tab's stats readout: how big the graph is and how long
+            # scoring it took. It sits with the app's own preferences because
+            # it changes no recommendation.
+            dbc.Checklist(
+                id="setting-show-scoring-perf",
+                options=[{"label": "Show graph statistics on the Home tab",
+                          "value": "enabled"}],
+                value=[],
+                switch=True,
+                className="mb-0",
+            ),
+            html.Small("Node and edge counts, and how long scoring took at startup.",
+                       className="text-muted d-block mb-2"),
 
             # --- Backups ---
             html.Hr(className="my-3"),
@@ -545,6 +538,17 @@ def build_resource_setting_rows(sections, link_counts=None):
     return cards
 
 
+def _titled(tabs):
+    """Open each section with its nav label as the page title.
+
+    Every page then starts the same way, whatever its first subsection is.
+    """
+    for tab in tabs:
+        tab.children = [html.H4(tab.label, className="settings-page-title"),
+                        *tab.children]
+    return tabs
+
+
 def build_settings_modal():
     """The Settings modal — opened by the gear button in the top toolbar."""
     return dbc.Modal([
@@ -554,15 +558,20 @@ def build_settings_modal():
                       style={"fontSize": tokens.FS_BASE}, role="status"),
             panel_close_button("btn-settings-close", className_extra="ms-auto"),
         ], close_button=False),
+        # The tabs run down the left of a modal whose size never changes, so
+        # switching sections doesn't resize it; only the section pane scrolls.
+        # The layout lives under .settings-body in theme.css.
         dbc.ModalBody(
-            dbc.Tabs(id="settings-modal-tabs", active_tab="tab-recommendations", children=[
+            dbc.Tabs(id="settings-modal-tabs", active_tab="tab-recommendations",
+                     class_name="settings-nav", children=_titled([
                 _build_recommendations_tab(),
-                _build_contexts_tab(),
                 _build_editing_tab(),
-                _build_appearance_tab(),
+                _build_contexts_tab(),
                 _build_resources_tab(),
+                _build_appearance_tab(),
                 _build_data_tab(),
-            ]),
+            ])),
+            class_name="settings-body",
         ),
         # Internal completion signal used to refresh other views after commit.
         # It must never appear during the modal's closing animation.
@@ -570,5 +579,5 @@ def build_settings_modal():
         dcc.Store(id="settings-close-request"),
         dcc.Store(id="settings-close-result"),
         dcc.Store(id="settings-close-sink"),
-    ], id="settings-modal", dialog_style={"maxWidth": "900px"},
+    ], id="settings-modal", dialog_class_name="settings-dialog",
        is_open=False, centered=True, scrollable=True, backdrop="static", keyboard=False)

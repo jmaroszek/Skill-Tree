@@ -725,7 +725,9 @@
 .rd-tip .rd-tip-head { font-weight: 700; }
 .rd-tip .rd-tip-def { color: var(--st-text-soft); }
 
-/* --- Settings modal tab styling --- */
+/* --- Modal tab styling --- */
+/* Horizontal tabs inside a modal (Reflection) sit on the modal's own
+   background rather than the canvas color the app's top tabs use. */
 
 .modal .nav-tabs {
     background-color: transparent;
@@ -741,6 +743,63 @@
     color: var(--st-text-primary);
     background-color: transparent;
     border-bottom: 2px solid var(--st-accent);
+}
+
+/* --- Settings modal: side nav in a fixed-size frame --- */
+/* The section list runs down the left and the modal keeps one size, so
+   switching sections never resizes it. Only the section pane scrolls. */
+
+.settings-dialog {
+    max-width: 1040px;
+}
+.settings-dialog .modal-content {
+    height: min(90vh, 980px);
+}
+/* Each section opens with its name, so every page starts the same way. */
+.settings-page-title {
+    margin: 4px 0 12px;
+    padding: 0 0.5rem;
+}
+.modal-body.settings-body {
+    display: flex;
+    padding: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.settings-body > .nav-tabs.settings-nav {
+    flex: 0 0 184px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 12px 8px;
+    background-color: transparent;
+    border-bottom: none;
+    border-right: 1px solid var(--st-border-panel);
+    overflow-y: auto;
+}
+.settings-body > .nav-tabs.settings-nav .nav-link {
+    width: 100%;
+    text-align: left;
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--st-radius);
+    color: var(--st-text-soft);
+    letter-spacing: normal;
+}
+.settings-body > .nav-tabs.settings-nav .nav-link:hover {
+    color: var(--st-text-primary);
+    background-color: var(--st-ghost-hover-dark);
+}
+.settings-body > .nav-tabs.settings-nav .nav-link.active {
+    color: var(--st-text-primary);
+    background-color: var(--st-bg-sunken);
+    border: none;
+}
+.settings-body > .tab-content {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-y: auto;
+    padding: 12px 20px 20px;
 }
 
 /* --- Split handles --- */

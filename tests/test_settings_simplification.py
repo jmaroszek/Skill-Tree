@@ -126,35 +126,24 @@ def test_single_setting_sections_do_not_repeat_their_labels():
     assert "Manage reflections from the journal icon" not in text
 
 
-def test_graph_statistics_uses_concise_user_facing_description():
-    """The section is named for what it shows, not for when it runs.
+def test_graph_statistics_is_an_app_preference_named_for_what_it_shows():
+    """The toggle is named for what it shows, not for when it runs.
 
     It was "Startup Analysis", which described the timing and left the content
-    to be guessed at; the toggle beside it already says "Run on startup".
+    to be guessed at. It changes no recommendation, so it sits with the app's
+    own preferences in App & Data.
     """
     modal = build_settings_modal()
-    recommendations_tab = next(
+    data_tab = next(
         component for component in _walk(modal)
-        if getattr(component, "tab_id", None) == "tab-recommendations"
+        if getattr(component, "tab_id", None) == "tab-data"
     )
-    copy = _text(recommendations_tab)
-    components = list(_walk(recommendations_tab))
-    expected = ("Shows node and edge counts, and how long scoring took, "
-                "on the Home tab.")
-    description_index = next(
-        index for index, component in enumerate(components)
-        if getattr(component, "children", None) == expected
-    )
-    toggle_index = next(
-        index for index, component in enumerate(components)
-        if getattr(component, "id", None) == "setting-show-scoring-perf"
-    )
+    toggle = _by_id(data_tab)["setting-show-scoring-perf"]
+    copy = _text(data_tab)
 
-    assert "Graph Statistics" in copy
+    assert toggle.options[0]["label"] == "Show graph statistics on the Home tab"
+    assert "Node and edge counts, and how long scoring took at startup." in copy
     assert "Startup Analysis" not in copy
-    assert expected in copy
-    assert "records the first scoring run after launch" not in copy
-    assert description_index < toggle_index
 
 
 def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
@@ -253,18 +242,19 @@ def test_tabs_group_settings_by_what_they_adjust():
         if getattr(component, "tab_id", None)
     }
     assert list(tabs) == [
-        "tab-recommendations", "tab-contexts", "tab-editing",
-        "tab-appearance", "tab-resources", "tab-data",
+        "tab-recommendations", "tab-editing", "tab-contexts",
+        "tab-resources", "tab-appearance", "tab-data",
     ]
     assert [tab.label for tab in tabs.values()] == [
-        "Recommendations", "Contexts", "Editing", "Appearance", "Resources", "App & Data",
+        "Recommendations", "Editing", "Contexts", "Resources", "Appearance", "App & Data",
     ]
     assert {"btn-backup-now", "restore-backup-select", "btn-export-json",
-            "upload-import"} <= _tab_ids(tabs["tab-data"])
+            "upload-import", "setting-show-scoring-perf"} <= _tab_ids(tabs["tab-data"])
     assert _by_id(modal)["settings-modal-tabs"].active_tab == "tab-recommendations"
 
-    assert {"setting-hp-profile", "setting-now-node-cap",
-            "setting-show-scoring-perf"} <= _tab_ids(tabs["tab-recommendations"])
+    recommendations = _tab_ids(tabs["tab-recommendations"])
+    assert {"setting-hp-profile", "setting-now-node-cap"} <= recommendations
+    assert "setting-show-scoring-perf" not in recommendations
     assert {"setting-name-format-mode", "setting-hpd", "setting-default-time-unit",
             "setting-time-calibration-enabled"} <= _tab_ids(tabs["tab-editing"])
     appearance = _tab_ids(tabs["tab-appearance"])

@@ -40,6 +40,7 @@
             var active = tabs.includes(document.activeElement) ? document.activeElement
                 : tabs.find(function (t) { return t.classList.contains('active'); }) || tabs[0];
             bar.setAttribute('role', 'tablist');
+            if (bar.classList.contains('settings-nav')) bar.setAttribute('aria-orientation', 'vertical');
             bar.querySelectorAll('.nav-link').forEach(function (t) {
                 t.tabIndex = t === active ? 0 : -1;
                 t.setAttribute('role', 'tab');
@@ -227,11 +228,14 @@
         var target = e.target;
         if (!target.matches) return;
         if (target.matches('.nav-tabs .nav-link')) {
-            if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+            var bar = target.closest('.nav-tabs');
+            var vertical = bar.getAttribute('aria-orientation') === 'vertical';
+            var prev = vertical ? 'ArrowUp' : 'ArrowLeft', next = vertical ? 'ArrowDown' : 'ArrowRight';
+            if ([prev, next, 'Home', 'End'].includes(e.key)) {
                 e.preventDefault();
-                var tabs = Array.from(target.closest('.nav-tabs').querySelectorAll('.nav-link:not(.disabled)'));
+                var tabs = Array.from(bar.querySelectorAll('.nav-link:not(.disabled)'));
                 var i = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1
-                    : (tabs.indexOf(target) + (e.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
+                    : (tabs.indexOf(target) + (e.key === prev ? -1 : 1) + tabs.length) % tabs.length;
                 tabs.forEach(function (t) { t.tabIndex = -1; });
                 tabs[i].tabIndex = 0; F.focus(tabs[i]); return;
             }

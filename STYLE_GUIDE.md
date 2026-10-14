@@ -383,6 +383,15 @@ default (the unsaved-changes and delete confirms). Every modal is
 and one with a table is `xl` or a `dialog_style` max-width. Every modal has a
 `ModalHeader` with a `ModalTitle`, including the short confirms.
 
+### Sectioned modals
+
+A modal with several sections, which today is only Settings, lists them down
+the left and keeps one fixed size. Switching sections must never resize it.
+Only the section pane scrolls, and the list stays put. The app's top tabs stay
+horizontal, because they switch between workspaces rather than between pages
+of one dialog. The vertical list takes Up/Down arrows instead of Left/Right.
+The styles live under `.settings-body` in `theme.css`.
+
 ### Icon affordances
 
 **One icon family, Bootstrap Icons (`bi bi-*`), at one weight.** Never a Unicode
