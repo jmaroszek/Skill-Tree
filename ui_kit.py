@@ -215,6 +215,24 @@ def step_button(button_id, icon, tooltip, **kwargs):
                         tooltip=tooltip, **kwargs)
 
 
+def filter_chip(prefix, className_extra=""):
+    """The "Filtered" chip: which filters are narrowing this view, and a clear.
+
+    Hidden until `callback_helpers.filter_chip_state` marks it active. The
+    callback fills ``{prefix}-text`` and the chip's title and `hidden`; the
+    clear button is ``{prefix}-clear``.
+    """
+    return html.Div([
+        html.I(className="bi bi-funnel-fill", **{"aria-hidden": "true"}),
+        html.Span(id=f"{prefix}-text", className="filter-chip-text"),
+        html.Button(html.I(className="bi bi-x-lg", **{"aria-hidden": "true"}),
+                    id=f"{prefix}-clear", n_clicks=0, type="button",
+                    className="filter-chip-clear", title="Clear all filters",
+                    **{"aria-label": "Clear all filters"}),
+    ], id=prefix, className=" ".join(filter(None, ["filter-chip", className_extra])),
+        role="status", hidden=True, **{"aria-label": "Filtered"})
+
+
 def swap_button(button_id, tooltip, **kwargs):
     """Reverses a pair, such as the bridge dialog's Start and End. The only
     control beside the pair, so it is drawn in body text where a stepper is

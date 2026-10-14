@@ -667,9 +667,10 @@ A filter change starts the Nodes layout, and the same rules apply there.
   filters are all that fired. The other outputs stay as they were. Its reset
   outputs used to go out too, and the empty save message alone woke six
   callbacks, among them Analyze and time calibration.
-- One server callback reports whether any filter is active, for the Nodes
-  count and Next's indicator. It writes only when that answer changes. The
-  count itself is read in the browser from `canvas-payload-stamp`.
+- One server callback reports whether any filter is active, for the top bar's
+  funnel, and fills the Nodes and Next filter chips. It writes only what
+  changed. The count itself is read in the browser from
+  `canvas-payload-stamp`.
 - Next's scoring-time caption rides on the table's own callback, which writes
   it only when it changes.
 - The Search field and its descriptions switch reach every consumer as one

@@ -733,6 +733,78 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
     return False
 
 
+def filter_summary(*, node_type=None, context=None, subcontext=None,
+                   community=None, community_method=None,
+                   value=None, interest=None, difficulty=None,
+                   time=None, time_min=None, time_unit=None, search=None):
+    """The active filters as ``(short, full)`` labels, for the "Filtered" chip.
+
+    Takes the same arguments as `is_filters_active`, plus the Time unit, and
+    follows the same rule: a filter a canvas ignores is passed as None and
+    never appears. Empty exactly when `is_filters_active` is False. Contexts
+    come first, since they are the main axis; a list of three or more names
+    shortens to a count, and the full names stay in `full` for the tooltip.
+    """
+    def group(items, noun):
+        full = ", ".join(items)
+        return (full if len(items) <= 2 else f"{len(items)} {noun}s", full)
+
+    labels = []
+    if context:
+        labels.append(group(context, "context"))
+    if subcontext:
+        count = f"{len(subcontext)} subcontext{'' if len(subcontext) == 1 else 's'}"
+        labels.append((count, count))
+    if node_type:
+        labels.append(group(node_type, "type"))
+    for name, pair in (("Value", value), ("Interest", interest),
+                       ("Effort", difficulty)):
+        if pair is not None and rating_range(pair) != (RATING_MIN, RATING_MAX):
+            low, high = rating_range(pair)
+            labels.append((f"{name} {low}–{high}",) * 2)
+    low, high = time_range(time_min, time)
+    if (low, high) != (None, None):
+        unit = time_unit or ''
+        fmt = lambda n: f"{n:g}"  # noqa: E731
+        if low is not None and high is not None:
+            text = f"Time {fmt(low)}–{fmt(high)} {unit}"
+        elif low is not None:
+            text = f"Time ≥ {fmt(low)} {unit}"
+        else:
+            text = f"Time ≤ {fmt(high)} {unit}"
+        labels.append((text.strip(),) * 2)
+    query = ((search or {}).get('text') or '').strip()
+    if query:
+        labels.append((f'"{query}"',) * 2)
+    if community and community != "All":
+        labels.append((f"Community: {community}",) * 2)
+    if community_method == "orphans":
+        labels.append(("Orphans", "Orphans"))
+    return labels
+
+
+def filter_chip_state(labels, shown=3):
+    """``(text, tooltip, hidden)`` for a filter chip from `filter_summary`."""
+    if not labels:
+        return "", "", True
+    text = " · ".join(short for short, _ in labels[:shown])
+    if len(labels) > shown:
+        text += f" +{len(labels) - shown}"
+    return text, "\n".join(full for _, full in labels), False
+
+
+def filter_chip_updates(chip, current):
+    """`filter_chip_state` as callback outputs, leaving what is already shown.
+
+    ``current`` is the chip's present ``(text, title, hidden)``. A chip that
+    already reads right is not rewritten, so a filter change that leaves the
+    summary alone adds no round trip to the page.
+    """
+    from dash import no_update
+    old = (current[0] or "", current[1] or "", bool(current[2]))
+    return tuple(no_update if new == was else new for new, was in zip(chip, old))
+
+
 def empty_canvas_detail(hidden):
     """The line under "No nodes match your filters", from `hidden_by_status`.
 

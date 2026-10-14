@@ -84,6 +84,52 @@
     opacity: 0.9;
 }
 
+/* "Filtered" chip (ui_kit.filter_chip): shown only while a filter narrows the
+   view, so it costs nothing the rest of the time. */
+.filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 60%;
+    padding: 2px 4px 2px 10px;
+    border: 1px solid var(--st-border-panel);
+    border-radius: 999px;
+    background: var(--st-bg-raised);
+    color: var(--st-text-soft);
+    font-size: 0.8rem;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+.filter-chip[hidden] { display: none; }
+.filter-chip-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: inherit;
+}
+.filter-chip-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 0.65rem;
+}
+.filter-chip-clear:hover { background: var(--st-bg-sunken); color: #fff; }
+/* Over the Details graph, in its top-left corner. */
+.filter-chip-overlay {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    z-index: 10;
+}
+/* The top bar's funnel while any filter is on: solid white. */
+.filters-icon-active { color: #fff; }
+
 /* Over an empty Nodes canvas: what the filters hid and the way back. Only the
    buttons take the pointer, so the canvas under it stays usable. */
 .canvas-empty-state {

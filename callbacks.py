@@ -38,6 +38,7 @@ from node_commands import (
 from callback_helpers import (
     get_trigger_id, get_all_triggered_ids,
     node_options, build_filters, is_filters_active, empty_canvas_detail,
+    filter_summary, filter_chip_state, filter_chip_updates,
     render_alias_rows, alias_rows_label, update_alias_rows,
     resource_link_values, reopen_body,
     resolve_active_node_id, normalize_name_for_comparison,
@@ -2601,13 +2602,18 @@ def register_callbacks(app, services=None):
         if n > 0: return "", True
         return dash.no_update, dash.no_update
 
-    # Whether any filter narrows the Nodes canvas, for its count, and Next,
-    # for its indicator. Next ignores Community and Orphans, so they don't
+    # Whether any filter narrows the Nodes canvas, for the top bar's funnel,
+    # and each chip's summary. Next ignores Community and Orphans, so they don't
     # mark it filtered. Each writes only when its answer changes: a filter
     # change starts the Nodes layout, and each write would land inside it.
     @app.callback(
         Output('canvas-filters-active-store', 'data'),
-        Output('next-filter-indicator', 'children'),
+        Output('next-filter-chip-text', 'children'),
+        Output('next-filter-chip', 'title'),
+        Output('next-filter-chip', 'hidden'),
+        Output('nodes-filter-chip-text', 'children'),
+        Output('nodes-filter-chip', 'title'),
+        Output('nodes-filter-chip', 'hidden'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
@@ -2621,36 +2627,71 @@ def register_callbacks(app, services=None):
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         State('canvas-filters-active-store', 'data'),
-        State('next-filter-indicator', 'children'),
+        State('next-filter-chip-text', 'children'),
+        State('next-filter-chip', 'title'),
+        State('next-filter-chip', 'hidden'),
+        State('nodes-filter-chip-text', 'children'),
+        State('nodes-filter-chip', 'title'),
+        State('nodes-filter-chip', 'hidden'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_canvas_filters_active(f_type, f_ctx, f_sub, f_comm,
                                      f_comm_method, f_val, f_int, f_diff,
                                      f_time, f_time_unit, f_time_min, f_search,
-                                     current, next_current):
+                                     current, chip_text, chip_title, chip_class,
+                                     nodes_text, nodes_title, nodes_hidden):
         shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
                       value=f_val, interest=f_int, difficulty=f_diff,
                       time=f_time, time_min=f_time_min, search=f_search)
         active = is_filters_active(community=f_comm,
                                    community_method=f_comm_method, **shared)
-        next_text = "filtered" if is_filters_active(**shared) else ""
+        chip = filter_chip_state(filter_summary(time_unit=f_time_unit, **shared))
+        nodes_chip = filter_chip_state(filter_summary(
+            time_unit=f_time_unit, community=f_comm,
+            community_method=f_comm_method, **shared))
         return (no_update if active == bool(current) else active,
-                no_update if next_text == (next_current or "") else next_text)
+                *filter_chip_updates(chip, (chip_text, chip_title, chip_class)),
+                *filter_chip_updates(nodes_chip, (nodes_text, nodes_title, nodes_hidden)))
+
+    # The top bar's funnel fills in while any filter is narrowing the app.
+    app.clientside_callback(
+        """
+        function(active) {
+            return active ? 'bi bi-funnel-fill filters-icon-active' : 'bi bi-funnel';
+        }
+        """,
+        Output('btn-filters-icon', 'className'),
+        Input('canvas-filters-active-store', 'data'),
+    )
+
+    # The chips' clear buttons press Clear Filters, as the empty canvas's does.
+    app.clientside_callback(
+        """
+        function(next_clicks, details_clicks, nodes_clicks, current) {
+            return (next_clicks || details_clicks || nodes_clicks) ? (current || 0) + 1
+                : window.dash_clientside.no_update;
+        }
+        """,
+        Output('btn-clear-filters', 'n_clicks', allow_duplicate=True),
+        Input('next-filter-chip-clear', 'n_clicks'),
+        Input('details-filter-chip-clear', 'n_clicks'),
+        Input('nodes-filter-chip-clear', 'n_clicks'),
+        State('btn-clear-filters', 'n_clicks'),
+        prevent_initial_call=True,
+    )
 
     # The count is read in the browser from the payload's stamp, as Details
     # counts its own.
     app.clientside_callback(
         """
-        function(stamp, filtered) {
+        function(stamp) {
             var n = (stamp && stamp.nodes) || 0;
-            var text = n + (n === 1 ? ' node' : ' nodes');
-            return filtered ? text + ' · filtered' : text;
+            return n + (n === 1 ? ' node' : ' nodes');
         }
         """,
         Output('canvas-node-count', 'children'),
         Input('canvas-payload-stamp', 'data'),
-        Input('canvas-filters-active-store', 'data'),
         prevent_initial_call=True,
     )
 

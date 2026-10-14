@@ -32,8 +32,9 @@ import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select, work_time_tooltip
 from resource_links import MAX_SECTIONS
-from ui_kit import (Tooltip, cancel_action, edit_button, info_button,
-                    panel_close_button, primary_action, step_button)
+from ui_kit import (Tooltip, cancel_action, edit_button, filter_chip,
+                    info_button, panel_close_button, primary_action,
+                    step_button)
 
 
 # --- Graph View (Canvas only) ---
@@ -85,6 +86,7 @@ def create_graph_view(initial_elements):
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
+            filter_chip("nodes-filter-chip", "filter-chip-overlay"),
             # Shown over an empty canvas (callbacks.register_callbacks fills it
             # in and opens it): what the filters hid, and the way back.
             html.Div([
@@ -167,6 +169,7 @@ def build_next_view():
                                   "textAlign": "center"}),
                 step_button("btn-sugg-plus", "plus-lg", "Show more suggestions"),
             ], className="align-middle"),
+            filter_chip("next-filter-chip"),
         ], className="d-flex align-items-center mb-2", style={"gap": tokens.SPACE_BLOCK}),
     
         dcc.Store(id='selected-suggestion-store', data=None),
@@ -1286,7 +1289,8 @@ def build_app_layout(initial_elements, env="production"):
         html.Div([
             dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
                        className="me-2", style={"display": "none"}),
-            dbc.Button([html.I(className="bi bi-funnel", **{"aria-hidden": "true"}),
+            dbc.Button([html.I(className="bi bi-funnel", id="btn-filters-icon",
+                               **{"aria-hidden": "true"}),
                         html.Span("Filters", className="visually-hidden")],
                        id="btn-filters-toggle", color="secondary", size="sm"),
             Tooltip("Filters", target="btn-filters-toggle", placement="bottom"),
@@ -1356,7 +1360,6 @@ def build_app_layout(initial_elements, env="production"):
             html.Div([
                 html.Div([initial_next], className="px-4 pt-3 pb-4"),
             ], style={"flex": "1", "minHeight": "0", "overflowY": "auto"}),
-            html.Div(id="next-filter-indicator", className="canvas-stats-overlay"),
             # Filled here, like the table: the table no longer re-renders on
             # load, and that re-render was this caption's first update.
             html.Div(perf_stats_text(), id="next-perf-stats",

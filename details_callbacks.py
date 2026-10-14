@@ -22,7 +22,9 @@ from duration_ui import simulation_figure
 from prerender import prerendered
 from callback_helpers import (build_filters, FILTER_INPUTS, FILTER_STATES,
                               filters_from,
-                              is_filters_active, select_explore_goals,
+                              is_filters_active, filter_summary,
+                              filter_chip_state, filter_chip_updates,
+                              select_explore_goals,
                               build_explain_summary, build_explain_chart,
                               format_value_rank, format_priority_rank,
                               get_trigger_id,
@@ -1174,6 +1176,9 @@ def register_details_callbacks(app, services=None):
     # them — see is_filters_active on why a reveal is not a filter.
     @app.callback(
         Output('details-filters-active-store', 'data'),
+        Output('details-filter-chip-text', 'children'),
+        Output('details-filter-chip', 'title'),
+        Output('details-filter-chip', 'hidden'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
         Input('filter-subcontext', 'value'),
@@ -1184,16 +1189,26 @@ def register_details_callbacks(app, services=None):
         Input('details-max-depth', 'value'),
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
+        Input('filter-time-unit', 'value'),
+        State('details-filter-chip-text', 'children'),
+        State('details-filter-chip', 'title'),
+        State('details-filter-chip', 'hidden'),
         prevent_initial_call=True,
     )
     @prerendered
     def update_details_filters_active(f_type, f_ctx, f_sub, f_val, f_int,
                                       f_diff, f_time, max_depth_val, f_time_min,
-                                      f_search):
-        return bool(_normalize_max_depth(max_depth_val) is not None or is_filters_active(
-            node_type=f_type, context=f_ctx, subcontext=f_sub,
-            value=f_val, interest=f_int, difficulty=f_diff,
-            time=f_time, time_min=f_time_min, search=f_search))
+                                      f_search, f_time_unit,
+                                      chip_text, chip_title, chip_class):
+        shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                      value=f_val, interest=f_int, difficulty=f_diff,
+                      time=f_time, time_min=f_time_min, search=f_search)
+        active = bool(_normalize_max_depth(max_depth_val) is not None
+                      or is_filters_active(**shared))
+        # The depth limit is a graph setting, not a filter: Clear Filters
+        # leaves it, so the chip leaves it out and the count still marks it.
+        chip = filter_chip_state(filter_summary(time_unit=f_time_unit, **shared))
+        return (active, *filter_chip_updates(chip, (chip_text, chip_title, chip_class)))
 
     # The count itself is read in the browser from the payload on its way to
     # Cytoscape. Reading it from the canvas's elements sent the whole graph to

@@ -11,6 +11,7 @@ from ui_kit import (
     Tooltip,
     add_button,
     done_color,
+    filter_chip,
     nav_button,
     panel_close_button,
     progress_bar_color,
@@ -421,6 +422,7 @@ def build_details_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left"),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
+            filter_chip("details-filter-chip", "filter-chip-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",
