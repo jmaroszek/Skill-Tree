@@ -577,6 +577,31 @@ wraps `cy.layout` so that run randomizes, and skips its animation while the
 cover is still up, since nobody can watch it. Settle passes through untouched,
 because its graph is already laid out.
 
+That rule only covered Nodes, and only past half. A smaller pile still bent the
+drawing. The cause is in fCoSE's force step. For two nodes on the same spot,
+it always pushes along the same (1, 1) direction, so a pile can only spread
+along one diagonal. On a 118-node Details view, an incremental run from a full
+pile came out as an exact line (flatness 0, defined below). With two placed
+survivors it measured 0.23, and with 45% of the view piled, 0.47. A healthy
+drawing measures 0.8 to 0.9. CoSE breaks the tie itself and never went flat.
+
+`layout_requests.js` now handles every canvas in two steps:
+
+- **Before an incremental run**, each node at the origin starts next to the
+  placed nodes it connects to. It goes at their average position, plus a
+  random offset of half to one edge length. Arrivals that only connect to
+  other arrivals are placed breadth-first, once a neighbor has a spot. Arrivals
+  with no route to a placed node land at random inside the placed graph's
+  bounding box. A canvas that is more than half pile is randomized. The same
+  piles then measured 0.85 to 0.93.
+- **After any run**, the drawing's flatness is checked. Flatness is the square
+  root of the ratio of the positions' two principal variances. A view of 8 or
+  more nodes measuring under 0.2 gets one automatic Settle: the same request,
+  randomized. A randomized fCoSE run that came out flat retries with CoSE,
+  because fCoSE's randomized seed is deterministic and would draw the same
+  line. The retry is skipped when a newer layout has already started, and on
+  a frozen canvas.
+
 ## Hidden-tab and Details responsiveness
 
 All tab layouts remain mounted. Heavy callbacks therefore do not subscribe

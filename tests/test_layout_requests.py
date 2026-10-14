@@ -504,3 +504,176 @@ cyReady['#' + details.cytoscapeId](view);
 view.layout({name: 'fcose', quality: 'proof'});
 assert.equal(view.runs[0].quality, 'default');
 ''')
+
+
+PLACED_CY = r'''
+// A Cytoscape stand-in with positions: `placed` maps ids to positions,
+// `arriving` lists ids at the origin, and `edges` joins them. layout() records
+// what each run received, and stop() finishes the newest run with the given
+// positions.
+function placedCy(placed, arriving = [], edges = []) {
+    const nodes = [];
+    const byId = {};
+    function makeNode(id, p) {
+        const node = {
+            pos: {x: p.x, y: p.y},
+            id: () => id,
+            isParent: () => false,
+            position(next) {
+                if (next) { node.pos = {x: next.x, y: next.y}; return node; }
+                return node.pos;
+            },
+            neighborhood: () => edges
+                .filter(([a, b]) => a === id || b === id)
+                .map(([a, b]) => byId[a === id ? b : a])
+        };
+        byId[id] = node;
+        nodes.push(node);
+    }
+    Object.entries(placed).forEach(([id, p]) => makeNode(id, p));
+    arriving.forEach(id => makeNode(id, {x: 0, y: 0}));
+    const cy = {
+        runs: [],
+        byId,
+        nodes: () => nodes,
+        edges: () => [],
+        batch: fn => fn(),
+        layout(options) {
+            const handlers = [];
+            const run = {options, run() {}, one(event, fn) { handlers.push(fn); }};
+            cy.runs.push(options);
+            cy.stop = positions => {
+                Object.entries(positions || {}).forEach(([id, p]) => byId[id].position(p));
+                handlers.forEach(fn => fn());
+            };
+            return run;
+        }
+    };
+    return cy;
+}
+const settle = () => new Promise(resolve => setTimeout(resolve, 5));
+const line = count => Object.fromEntries(
+    Array.from({length: count}, (_, i) => ['n' + i, {x: 10 + 30 * i, y: 10 + 30 * i}]));
+const scatter = count => Object.fromEntries(
+    Array.from({length: count}, (_, i) => ['n' + i, {x: 100 * (i % 3) + 5, y: 100 * Math.floor(i / 3) + 5}]));
+function ready(key, cy) {
+    cyReady['#' + canvas(key).cytoscapeId](cy);
+    return cy;
+}
+'''
+
+
+def _run_async(body):
+    _run(PLACED_CY + '(async () => {\n' + body
+         + '\n})().catch(error => { console.error(error); process.exit(1); });')
+
+
+def test_arriving_nodes_start_beside_their_placed_neighbors():
+    """Cytoscape puts a node added without a position at the origin, and fCoSE
+    separates two nodes on one spot along a fixed diagonal. An incremental run
+    from that pile drew the arrivals as a line."""
+    _run_async(r'''
+const cy = ready('main', placedCy(
+    {a: {x: 500, y: 500}, b: {x: 520, y: 480}, c: {x: -300, y: 200}},
+    ['x', 'y'], [['x', 'a'], ['y', 'x']]));
+cy.layout({name: 'fcose', randomize: false, idealEdgeLength: 100});
+
+assert.equal(cy.runs[0].randomize, false, 'a few arrivals keep the graph incremental');
+const x = cy.byId.x.position(), y = cy.byId.y.position();
+const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+assert(near(x, {x: 500, y: 500}) <= 100, 'next to its placed neighbor');
+assert(near(y, x) <= 100, 'next to a neighbor that arrived with it');
+assert.notDeepEqual(x, y);
+''')
+
+
+def test_an_arrival_with_no_placed_route_lands_inside_the_graph():
+    _run_async(r'''
+const cy = ready('main', placedCy(
+    {a: {x: 100, y: 100}, b: {x: 300, y: 400}, c: {x: 200, y: 250}}, ['lonely']));
+cy.layout({name: 'fcose', randomize: false});
+const p = cy.byId.lonely.position();
+assert(p.x >= 100 && p.x <= 300 && p.y >= 100 && p.y <= 400, JSON.stringify(p));
+''')
+
+
+def test_every_canvas_randomizes_a_mostly_new_view():
+    """Details and Events have no first-paint cover, but a filter that brings
+    most of a view back leaves the same pile there."""
+    _run_async(r'''
+for (const key of ['main', 'details', 'events']) {
+    const cy = ready(key, placedCy({a: {x: 40, y: 40}}, ['p', 'q']));
+    cy.layout({name: 'fcose', randomize: false});
+    assert.equal(cy.runs[0].randomize, true, key);
+}
+''')
+
+
+def test_a_flat_drawing_gets_one_automatic_settle():
+    _run_async(r'''
+const cy = ready('details', placedCy(scatter(9)));
+cy.layout({name: 'fcose', randomize: false, animate: true, skillTreeRequestId: 4});
+cy.stop(line(9));
+await settle();
+
+assert.equal(cy.runs.length, 2);
+const retry = cy.runs[1];
+assert.equal(retry.randomize, true);
+assert.equal(retry.name, 'fcose');
+assert.equal(retry.skillTreeRequestId, undefined,
+    'a request id would let the one-shot rule take the randomize back');
+
+// Still flat: no second retry.
+cy.stop(line(9));
+await settle();
+assert.equal(cy.runs.length, 2);
+''')
+
+
+def test_a_flat_randomized_fcose_run_is_retried_with_cose():
+    """fCoSE's randomized seed is deterministic and is what puts a chain on a
+    line, so retrying it would draw the same line."""
+    _run_async(r'''
+const cy = ready('main', placedCy(scatter(9)));
+cy.layout({name: 'fcose', randomize: true, animate: true});
+cy.stop(line(9));
+await settle();
+assert.equal(cy.runs[1].name, 'cose');
+assert.equal(cy.runs[1].animate, 'end');
+''')
+
+
+def test_no_automatic_settle_for_healthy_small_newer_or_frozen_drawings():
+    _run_async(r'''
+// Two-dimensional.
+let cy = ready('main', placedCy(scatter(9)));
+cy.layout({name: 'fcose', randomize: false});
+cy.stop();
+await settle();
+assert.equal(cy.runs.length, 1);
+
+// A short chain in a row is a fine drawing of it.
+cy = ready('main', placedCy(scatter(5)));
+cy.layout({name: 'fcose', randomize: false});
+cy.stop(line(5));
+await settle();
+assert.equal(cy.runs.length, 1);
+
+// A newer layout already has the canvas.
+cy = ready('main', placedCy(scatter(9)));
+cy.layout({name: 'fcose', randomize: false});
+const firstStop = cy.stop;
+cy.layout({name: 'fcose', randomize: false});
+firstStop(line(9));
+await settle();
+assert.equal(cy.runs.length, 2);
+
+// A frozen canvas holds still until its user asks.
+window.SkillTree.isFrozen = key => key === 'main';
+cy = ready('main', placedCy(scatter(9)));
+cy.layout({name: 'fcose', randomize: false});
+cy.stop(line(9));
+await settle();
+assert.equal(cy.runs.length, 1);
+delete window.SkillTree.isFrozen;
+''')

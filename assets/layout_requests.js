@@ -252,6 +252,161 @@
         });
     }
 
+    // Cytoscape puts every node added without a position at the origin, so
+    // an incremental layout after a filter clears starts from a pile there.
+    // fCoSE can't separate a pile: for two nodes on the same spot it always
+    // pushes along the same (1, 1) direction, so the whole pile spreads
+    // along one diagonal. Run incrementally from a full pile, a 118-node view
+    // came out as an exact line, and with two placed survivors it stayed
+    // nearly one. Before an incremental run, each newcomer starts next to
+    // the placed nodes it connects to, as freeze_positions.js places nodes
+    // that arrive while a canvas is frozen. A canvas that is mostly pile has
+    // no shape to keep and is randomized, as canvas_first_paint.js does for
+    // the Nodes cold start.
+    function isPlaced(node) {
+        var p = node.position();
+        return Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
+    }
+
+    function layoutNodes(cy) {
+        var nodes = cy.nodes();
+        if (!nodes.length || typeof nodes[0].position !== 'function') return null;
+        // A compound parent's position follows its children.
+        return nodes.filter(function (node) {
+            return !(typeof node.isParent === 'function' && node.isParent());
+        });
+    }
+
+    function placeNewcomers(nodes, newcomers, spacing) {
+        var placed = Object.create(null);
+        var arriving = Object.create(null);
+        newcomers.forEach(function (node) { arriving[node.id()] = true; });
+        var box = { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity };
+        nodes.forEach(function (node) {
+            if (arriving[node.id()]) return;
+            var p = node.position();
+            placed[node.id()] = { x: p.x, y: p.y };
+            box.x1 = Math.min(box.x1, p.x); box.x2 = Math.max(box.x2, p.x);
+            box.y1 = Math.min(box.y1, p.y); box.y2 = Math.max(box.y2, p.y);
+        });
+        // Breadth-first out from the placed nodes: a newcomer whose only
+        // neighbors are newcomers waits until one of them has a spot.
+        var waiting = newcomers;
+        var progress = true;
+        while (waiting.length && progress) {
+            progress = false;
+            waiting = waiting.filter(function (node) {
+                var x = 0, y = 0, count = 0;
+                node.neighborhood('node').forEach(function (neighbor) {
+                    var p = placed[neighbor.id()];
+                    if (p) { x += p.x; y += p.y; count += 1; }
+                });
+                if (!count) return true;
+                var angle = Math.random() * 2 * Math.PI;
+                var distance = spacing * (0.5 + Math.random() / 2);
+                placed[node.id()] = {
+                    x: x / count + distance * Math.cos(angle),
+                    y: y / count + distance * Math.sin(angle)
+                };
+                progress = true;
+                return false;
+            });
+        }
+        // Newcomers with no route to a placed node land anywhere in the
+        // placed graph's footprint.
+        waiting.forEach(function (node) {
+            placed[node.id()] = {
+                x: box.x1 + Math.random() * (box.x2 - box.x1),
+                y: box.y1 + Math.random() * (box.y2 - box.y1)
+            };
+        });
+        newcomers.forEach(function (node) { node.position(placed[node.id()]); });
+    }
+
+    // How two-dimensional a drawing is: the square root of the ratio of the
+    // positions' two principal variances. A healthy view measures 0.7 to 0.9.
+    // A drawing on one line measures 0.
+    function flatness(nodes) {
+        var count = nodes.length, mx = 0, my = 0;
+        nodes.forEach(function (node) { var p = node.position(); mx += p.x; my += p.y; });
+        mx /= count; my /= count;
+        var xx = 0, xy = 0, yy = 0;
+        nodes.forEach(function (node) {
+            var p = node.position(), dx = p.x - mx, dy = p.y - my;
+            xx += dx * dx; xy += dx * dy; yy += dy * dy;
+        });
+        var half = (xx + yy) / 2;
+        var spread = Math.sqrt((xx - yy) * (xx - yy) / 4 + xy * xy);
+        if (half + spread <= 0) return 0;
+        return Math.sqrt(Math.max(half - spread, 0) / (half + spread));
+    }
+
+    // A drawing flatter than this gets one automatic Settle. In the sandbox,
+    // runs from a pile measured 0 to 0.23, and filtered Nodes views 0.64 and
+    // up.
+    var FLAT_DRAWING = 0.2;
+    // A handful of nodes in a row is a reasonable drawing of a short chain.
+    var FLAT_CHECK_NODES = 8;
+
+    // If a run still comes out flat, re-lay it out the way Settle does:
+    // randomized, once. fCoSE's randomized seed is deterministic, and it is
+    // what lays a chain on a line, so a flat randomized fCoSE run is retried
+    // with CoSE.
+    function settleIfFlat(cy, key, run) {
+        if (!run || typeof run.one !== 'function') return;
+        var started = cy._skillTreeLayoutCount;
+        run.one('layoutstop', function () {
+            var options = run.options || {};
+            if (options.skillTreeSettledFlat) return;
+            setTimeout(function () {
+                // A newer layout has the canvas now, or a frozen canvas holds
+                // still until its user asks.
+                if (cy._skillTreeLayoutCount !== started) return;
+                if (SkillTree.isFrozen && SkillTree.isFrozen(key)) return;
+                var nodes = layoutNodes(cy);
+                if (!nodes || nodes.length < FLAT_CHECK_NODES) return;
+                if (flatness(nodes) >= FLAT_DRAWING) return;
+                var retry = Object.assign({}, options, {
+                    randomize: true,
+                    skillTreeSettledFlat: true
+                });
+                // The request id would let resolveRequestOptions take the
+                // randomize back, and eles may no longer be the canvas.
+                delete retry.skillTreeRequestId;
+                delete retry.eles;
+                if (options.name === 'fcose' && options.randomize === true) {
+                    retry.name = 'cose';
+                    if (retry.animate) retry.animate = 'end';
+                }
+                cy.layout(retry).run();
+            }, 0);
+        });
+    }
+
+    // Registered before the other hooks, so it runs after them and sees the
+    // randomize each request finally resolved to.
+    function resolvePlacement(cy, key) {
+        if (!cy || typeof cy.layout !== 'function' || cy._skillTreePlacement) return;
+        cy._skillTreePlacement = true;
+        cy._skillTreeLayoutCount = 0;
+        window.SkillTree.wrapLayout(cy, 'placement', function (next, options) {
+            cy._skillTreeLayoutCount += 1;
+            var nodes = layoutNodes(cy);
+            if (nodes && options && options.randomize !== true) {
+                var newcomers = nodes.filter(function (node) { return !isPlaced(node); });
+                if (newcomers.length * 2 > nodes.length) {
+                    options = Object.assign({}, options, { randomize: true });
+                } else if (newcomers.length) {
+                    var spacing = Number(options.idealEdgeLength) || 100;
+                    cy.batch(function () { placeNewcomers(nodes, newcomers, spacing); });
+                }
+            }
+            var run = next(options);
+            settleIfFlat(cy, key, run);
+            return run;
+        });
+    }
+
     function layoutOptions(policy, controls, topology, randomize) {
         var nodeCount = topology.nodes.length;
         var name = policy.treesUseCose && isForest(topology) ? 'cose' : 'fcose';
@@ -295,6 +450,7 @@
         var screen = screenFor(canvas.key);
         var cy = liveCy(canvas);
         adopt(screen, cy);
+        resolvePlacement(cy, canvas.key);
         resolveRequestOptions(cy);
         resolveLargeViews(cy, policy);
 
@@ -429,6 +585,7 @@
         SkillTree.canvases.forEach(function (canvas) {
             SkillTree.onCytoReady('#' + canvas.cytoscapeId, function (cy) {
                 adopt(screenFor(canvas.key), cy);
+                resolvePlacement(cy, canvas.key);
                 resolveRequestOptions(cy);
                 resolveLargeViews(cy, policyFor(canvas.key));
             });
