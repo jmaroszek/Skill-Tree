@@ -77,6 +77,8 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     assert description.children == "Walk through completed nodes that haven't been reflected on yet."
     assert empty.children[0].className == "bi bi-check-circle text-success me-2"
     assert empty.children[1] == "All caught up"
+    # The History list fades while more rows sit below; its pager is outside it.
+    assert ".scroll-fade-bottom,\n.review-history-scroll {" in css
     tabs = modal.children[1].children.children
     assert [tab.label for tab in tabs] == ["Reflect", "History"]
     # The queue and the excluded list share the first tab, under headings.

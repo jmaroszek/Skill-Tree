@@ -1477,7 +1477,9 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
    end is in view. The size is driven by the element's own scroll position, so
    no script is involved. A panel that does not overflow has no scroll
    timeline, so the animation never applies and the registered initial value
-   of 0 leaves it unfaded. */
+   of 0 leaves it unfaded. Reflection's History list is named here because
+   its scroller is built inside dbc.Tab; its pager sits outside the scroller,
+   so the fade never dims it. */
 @property --scroll-fade-size {
     syntax: '<length>';
     inherits: false;
@@ -1489,7 +1491,8 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     to   { --scroll-fade-size: 0px; }
 }
 
-.scroll-fade-bottom {
+.scroll-fade-bottom,
+.review-history-scroll {
     animation: scroll-fade-out linear both;
     animation-timeline: scroll(self block);
     /* Hold the full fade until the last 24px of scrolling, then ramp it off. */
