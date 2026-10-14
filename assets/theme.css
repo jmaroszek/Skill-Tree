@@ -1570,9 +1570,11 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* The Reflection pagers reuse the Events triggered divider above; they only
    need room from the table they follow. */
 .review-hub-pager {
-    margin-top: 0.75rem;
-    /* Keeps the "show more" control off the modal's bottom edge. */
-    margin-bottom: 1.5rem;
+    /* Centers the "show more" control between the end of the list and the
+       modal's bottom edge: the pane's own 1rem bottom padding adds to the
+       margin below, so the two sides come out equal. */
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
 }
 
 /* Details subtasks and Reflection history use the same progressive row

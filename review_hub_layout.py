@@ -112,7 +112,7 @@ def _build_reflect_tab():
                    className="mb-0", style={"display": "none"}),
             dbc.Button("Start Reflection", id="btn-hub-pending-launch",
                        color="primary"),
-            html.H5("Excluded", className="mt-4 mb-2"),
+            html.H5("Excluded", className="mt-5 mb-2"),
             html.P(
                 "Nodes marked \"Don't ask again\" during reflection. "
                 "Restore one to make it eligible for the queue again.",
