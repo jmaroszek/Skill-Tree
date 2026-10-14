@@ -1,10 +1,4 @@
-"""Tests for the Creator-profile cross_context_mult hyperparameter.
-
-The multiplier scales the Helps pair bonus (d_Syn_pair * tv(partner)) when
-the partner sits in a different context from the start node. Same-context
-partners and Hard/Soft cascade are unaffected. Default is 1.0 → no
-behavioral change from prior versions.
-"""
+"""Cross-context anticipation approaches the completed reinforcement ceiling."""
 
 import math
 
@@ -61,28 +55,21 @@ def test_same_context_synergy_unchanged_by_multiplier():
 # ---------------------------------------------------------------------------
 
 def test_cross_context_synergy_scales_with_multiplier():
-    """A in Mind, B in Body, Helps-linked. mult=2.0 should add d_Syn_pair * IV(B)."""
+    """Cross-context credit rises sublinearly toward completed credit."""
     nodes = [_node("A", ctx="Mind", value=8), _node("B", ctx="Body", value=6)]
     edges = [{"source": "A", "target": "B", "type": EDGE_HELPS}]
 
     tv_at_1 = _tv("A", nodes, edges, cross_context_mult=1.0)
     tv_at_2 = _tv("A", nodes, edges, cross_context_mult=2.0)
 
-    # IV(B) = w_v*6 + w_i*5 = 11. Pair bonus at mult=1.0 is 0.10 * 11 = 1.10;
-    # at mult=2.0 it is 0.20 * 11 = 2.20. So tv_at_2 - tv_at_1 == 1.10.
-    iv_b = BASE['w_v'] * 6 + BASE['w_i'] * 5
-    delta_expected = (2.0 - 1.0) * BASE['d_Syn_pair'] * iv_b
+    # Candidate IV=13. eta=.1/.4=.25: cross=1 gives .25 exposure;
+    # cross=2 gives 1-.75**2=.4375. Partner ratings are not imported.
+    delta_expected = 13 * .4 * (.4375 - .25)
     assert math.isclose(tv_at_2 - tv_at_1, delta_expected, rel_tol=1e-9)
 
 
 def test_cross_context_does_not_touch_done_multiplier():
-    """Done synergy partners give iv * (1 + d_Syn_mul * sqrt(count)).
-
-    That multiplier is context-blind by design — it kicks in on the start
-    node's own intrinsic value regardless of where its Done partners live.
-    A Done partner pays no pair bonus, so nothing is left for the
-    cross-context multiplier to scale.
-    """
+    """Completed reinforcement is context-blind and uses the candidate base."""
     nodes = [
         _node("A", ctx="Mind", value=10),
         _node("B", ctx="Body", value=6, status="Done"),

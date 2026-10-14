@@ -19,6 +19,7 @@ import database
 from typing import Optional
 from database import get_connection
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from synergy import synergy_parameters
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
@@ -469,9 +470,10 @@ DEFAULT_TIME_CALIBRATION_ENABLED = True
 
 # Stamp on a HYPERPARAMS row written by set_hyperparams. Settings stores only
 # the profile's name, so the scoring settings follow the profile as the code
-# defines it. Rows stamped lower are snapshots an older Settings save took of
-# its profile, and are ignored: they would hold back every later retune.
-HYPERPARAMS_SCHEMA_VERSION = 5
+# defines it. Before v5, bundles were Settings snapshots and are ignored.
+# V5 tool overrides are retained and migrated to bounded synergy in memory;
+# v6 writes preserve d_Syn_pair and ensure d_Syn_mul >= d_Syn_pair.
+HYPERPARAMS_SCHEMA_VERSION = 6
 
 # Old profile names, and the profile each became.
 PROFILE_ALIASES = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
@@ -488,8 +490,8 @@ DEFAULT_HYPERPARAMS = {
     # Soft prep counts at half a hard step (2026-09): a soft route earns half
     # what the same route starting with a hard edge would.
     'd_S': 0.30,
-    'd_Syn_pair': 0.10,
-    'd_Syn_mul': 0.40,
+    'd_Syn_pair': 0.10,  # One unfinished partner, before work discount.
+    'd_Syn_mul': 0.40,  # One completed partner; many partners approach twice this.
     'cross_context_mult': 1.00,
     'w_e': 1.50,
     # w_t is on the normalized scale: it is the time term's value at exactly
@@ -727,10 +729,16 @@ class ConfigManager:
         val = cls._get_db_value("HYPERPARAMS")
         if val:
             stored = json.loads(val)
-            if stored.get('_schema', 1) >= HYPERPARAMS_SCHEMA_VERSION:
+            if stored.get('_schema', 1) >= 5:
                 merged.update(stored)
         merged.pop('_schema', None)
         merged.pop('alpha', None)
+        # Reads never write. Preserve v5 custom overrides, including pair-only
+        # bundles, without allowing anticipation to exceed completed strength.
+        strength, _, cross = synergy_parameters(merged['d_Syn_pair'],
+            merged['d_Syn_mul'], merged['cross_context_mult'])
+        merged['d_Syn_mul'] = strength
+        merged['cross_context_mult'] = cross
         return merged
 
     @classmethod
@@ -739,6 +747,14 @@ class ConfigManager:
         Settings never calls this: it stores the profile's name only."""
         stamped = dict(params)
         stamped.pop('alpha', None)
+        name = cls._get_db_value('HP_PROFILE')
+        effective = dict(DEFAULT_HYPERPARAMS)
+        effective.update(PROFILES.get(PROFILE_ALIASES.get(name, name), DEFAULT_HYPERPARAMS))
+        effective.update(stamped)
+        strength, _, _ = synergy_parameters(effective['d_Syn_pair'],
+            effective['d_Syn_mul'], effective['cross_context_mult'])
+        if strength != effective['d_Syn_mul']:
+            stamped['d_Syn_mul'] = strength
         stamped['_schema'] = HYPERPARAMS_SCHEMA_VERSION
         cls._set_db_value("HYPERPARAMS", json.dumps(stamped))
 

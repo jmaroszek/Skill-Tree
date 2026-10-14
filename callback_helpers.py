@@ -2413,12 +2413,6 @@ def _explain_summary_table(breakdown: dict, normalized):
     ):
         if amount > 1e-9:
             row(label, share(amount))
-    # Kept last, directly under the other synergy row, so both read together.
-    boost_from_partners = comp.get('iv_multiplier_contribution', 0.0)
-    if boost_from_partners > 1e-9:
-        done_count = comp.get('done_synergy_count', 0)
-        row("Finished synergy partners", share(boost_from_partners),
-            f"{done_count} finished")
 
     # --- Cost: the time and effort it is built from ---------------------
     header("Cost")
@@ -2507,8 +2501,16 @@ def _contributor_hover(row: dict) -> str:
         # A Goal's work counts in full, so there is no share to report.
         if row.get('iv', 0.0) > 1e-9 and not row.get('goal_work'):
             # Route discounts and the required-work discount, combined.
-            passed_on = 100.0 * row.get('contribution', 0.0) / row['iv']
-            lines.append(f"Passes on {_format_share(passed_on)} of its value")
+            channels = row.get('channels')
+            ordinary = (sum(channels.get(k, 0.0) for k in ('Self', 'Hard', 'Soft'))
+                        if channels is not None else row.get('contribution', 0.0))
+            if ordinary > 0:
+                passed_on = 100.0 * ordinary / row['iv']
+                lines.append(f"Passes on {_format_share(passed_on)} of its value")
+    synergy = row.get('synergy_detail')
+    if synergy:
+        state = 'Finished partner' if synergy['done'] else 'Unfinished partner'
+        lines.append(f"{state} · Reinforces this project")
     return "<br>".join(lines)
 
 

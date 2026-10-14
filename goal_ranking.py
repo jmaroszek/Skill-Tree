@@ -292,7 +292,6 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
             'hard_cascade': 0.0,
             'soft_cascade': 0.0,
             'synergy': 0.0,
-            'iv_multiplier_contribution': 0.0,
         },
         'goal_boost': ({'multiplier': me['rank_mult'], 'goal': goal_name,
                         'rank': me['rank_idx'] + 1}

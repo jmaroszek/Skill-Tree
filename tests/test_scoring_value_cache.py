@@ -62,13 +62,10 @@ def test_scalar_total_matches_attribution_exactly(profile, skip_done, flat_goals
         partners = {name: synergy.get(name, set()) - visited}
         rows = scoring._value_contributions(
             name, nodes, hard, soft, partners,
-            **{key: value for key, value in params.items() if key != 'd_Syn_mul'},
+            **params,
             skip_done=skip_done, flat_goals=flat_goals)
-        done = sum(nodes[partner].status == 'Done' for partner in partners[name]
-                   if partner != name)
-        kick = scoring.intrinsic_value(nodes[name], params['w_v'], params['w_i'],
-                                       params['value_exponent']) * params['d_Syn_mul'] * math.sqrt(done)
-        assert total == math.fsum(row['contribution'] for row in rows) + kick
+        assert total == math.fsum(row['contribution'] for row in rows)
+
 
 
 def test_repeated_value_reuses_scalar_without_rebuilding_contributions(monkeypatch):

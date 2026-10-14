@@ -11,6 +11,7 @@ hyperparameter profiles.
 """
 
 import heapq
+from synergy import synergy_parameters, partner_exposure
 import math
 import time
 from collections import Counter, deque
@@ -371,64 +372,93 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
                          value_exponent=1.0, memo=None,
                          future_work_half_credit_hours=0.0,
                          future_work_exponent=0.6, skip_done=True,
-                         flat_goals=True, *, with_attribution=True):
-    """Shared scoring/Explain attribution. Synergy is a separate additive channel.
+                         flat_goals=True, *, with_attribution=True,
+                         d_Syn_mul=0.4):
+    """Unique DAG benefits plus bounded reinforcement from direct partners.
 
-    With `skip_done`, Done nodes earn `start` nothing. A Done beneficiary's
-    value is already banked, and a Done Helps partner is rewarded by the
-    completion multiplier instead of the pair bonus. With `flat_goals`, a Goal
-    credits every task in its hard subtree alike (see _credited_routes). The
-    Goal ranker turns both off: it counts finished prerequisites as part of a
-    Goal's value, and it walks the inverted graph, where Goals are the start.
-    Milestones are free hops everywhere (see _strongest_routes).
-
-    Ranking requests only the summed value. Keep its arithmetic and per-name
-    summation identical to Explain without allocating the attribution rows.
+    Ranking and Explain use the same arithmetic and per-name summation. A
+    partner reinforces the candidate's capped DAG value; its own ratings and
+    downstream beneficiaries are never imported. Completed and unfinished
+    partners share one saturation curve, with exposures 1 and <=1 respectively.
+    Explain allocates the shared bonus in proportion to partner evidence, not
+    independent marginal bonuses (which would double-count saturation).
     """
     memo = {} if memo is None else memo
     if start not in all_nodes:
         return [] if with_attribution else 0.0
+    strength, anticipation, cross_context_mult = synergy_parameters(
+        d_Syn_pair, d_Syn_mul, cross_context_mult)
     skip = _done_names(all_nodes, memo) if skip_done else frozenset()
-    channels = [(start, 1.0, False)]
-    context = all_nodes[start].context
-    for partner in sorted(Syn.get(start, set()) - {start}):
-        other = all_nodes.get(partner)
-        if other is None or partner in skip:
-            continue
-        cross = cross_context_mult if context is not None and other.context is not None and context != other.context else 1.0
-        if d_Syn_pair * cross:
-            channels.append((partner, d_Syn_pair * cross, True))
-    rows = {}
-    for seed, coefficient, synergy in channels:
-        for name, (route_weight, depth, via, _) in _credited_routes(
-                seed, all_nodes, H_out, S_out, d_H, d_S, memo, skip, flat_goals).items():
-            if name not in all_nodes:
+    values, rows = {}, {}
+
+    def required_work(name):
+        hours = (_remaining_hours(name, start, all_nodes, H_out, memo)
+                 if future_work_half_credit_hours > 0 else 0.0)
+        discount = (1.0 / (1.0 + (hours / future_work_half_credit_hours) ** future_work_exponent)
+                    if future_work_half_credit_hours > 0 else 1.0)
+        return hours, discount
+
+    def row_for(name, iv, hours, discount):
+        return dict(name=name, type=all_nodes[name].type, depth=1, via='Synergy',
+                    iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
+                    contribution=0.0,
+                    channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0})
+
+    # Exactly one strongest ordinary route per beneficiary.
+    for name, (weight, depth, via, _) in _credited_routes(
+            start, all_nodes, H_out, S_out, d_H, d_S, memo, skip, flat_goals).items():
+        hours, discount = required_work(name)
+        iv = intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
+        amount = weight * iv * discount
+        values[name] = amount
+        if with_attribution:
+            row = row_for(name, iv, hours, discount)
+            row.update(weight=weight, depth=depth, via=via, contribution=amount)
+            row['channels'][via] = amount
+            rows[name] = row
+
+    base = math.fsum(values.values())
+    anchor = min(max(base, 0.0), (w_v + w_i) * 10 ** value_exponent)
+    partners = []
+    if strength > 0 and anchor > 0:
+        context = all_nodes[start].context
+        for name in sorted(Syn.get(start, set()) - {start}):
+            other = all_nodes.get(name)
+            if other is None:
                 continue
-            weight = coefficient * route_weight
-            hours = _remaining_hours(name, start, all_nodes, H_out, memo) if future_work_half_credit_hours > 0 else 0.0
-            discount = 1.0 / (1.0 + (hours / future_work_half_credit_hours) ** future_work_exponent) if future_work_half_credit_hours > 0 else 1.0
-            iv = intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
-            amount = weight * iv * discount
-            if not with_attribution:
-                rows[name] = rows.get(name, 0.0) + amount
-                continue
-            kind = 'Synergy' if synergy else via
-            row = rows.setdefault(name, dict(name=name, type=all_nodes[name].type,
-                depth=depth + int(synergy), via=kind,
-                iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
-                contribution=0.0, channel_routes={}, channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0}))
-            row['weight'] += weight
+            done = other.status == STATUS_DONE
+            if done:
+                hours, discount, exposure = 0.0, 1.0, 1.0
+            else:
+                hours, discount = required_work(name)
+                cross = (cross_context_mult if context is not None and other.context is not None
+                         and context != other.context else 1.0)
+                exposure = partner_exposure(anticipation, cross, discount)
+            evidence = exposure / (2.0 - exposure)
+            if evidence > 0:
+                partners.append((name, done, hours, discount, exposure, evidence))
+    evidence_sum = math.fsum(p[5] for p in partners)
+    for name, done, hours, discount, exposure, evidence in partners:
+        # Sum is strength * anchor * 2X/(1+X), always <= 2*strength*anchor.
+        weight = strength * (2.0 * evidence / (1.0 + evidence_sum))
+        amount = anchor * weight
+        values[name] = values.get(name, 0.0) + amount
+        if with_attribution:
+            if name not in rows:
+                rows[name] = row_for(name, intrinsic_value(all_nodes[name], w_v, w_i,
+                                                         value_exponent), hours, discount)
+            row = rows[name]
             row['contribution'] += amount
-            row['channels'][kind] += amount
-            if amount > row['channel_routes'].get(kind, (-1, 0))[0]:
-                row['channel_routes'][kind] = (amount, depth + int(synergy))
-    if not with_attribution:
-        return math.fsum(rows.values())
-    for row in rows.values():
-        # Mixed routes retain exact channel attribution; the bar uses the largest channel.
-        row['via'] = max(row['channels'], key=row['channels'].get)
-        row['depth'] = row.pop('channel_routes').get(row['via'], (0, row['depth']))[1]
-    return list(rows.values())
+            row['channels']['Synergy'] = amount
+            row['synergy_detail'] = dict(base=anchor, exposure=exposure,
+                weight=weight, done=done, contribution=amount,
+                remaining_hours=hours, future_discount=discount)
+            # Mixed relationships keep both channel amounts. Focus traces the
+            # largest channel, and a synergy route is always the direct edge.
+            row['via'] = max(row['channels'], key=row['channels'].get)
+            if row['via'] == 'Synergy':
+                row['depth'] = 1
+    return list(rows.values()) if with_attribution else math.fsum(values.values())
 
 
 def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
@@ -436,11 +466,9 @@ def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
                 cross_context_mult=1.0, value_exponent=1.0,
                 future_work_half_credit_hours=0.0, future_work_exponent=0.6,
                 skip_done=True, flat_goals=True):
-    """Strongest-path value, completion-work discount, and distinct synergy bonuses.
+    """Unique DAG value and one bounded synergy bonus, shared with Explain.
 
-    Direct callers may disable the future-work discount with a zero half-credit
-    scale. Profiles supply a positive scale; Goal ranking explicitly disables it,
-    and also turns off `skip_done` and `flat_goals` (see _value_contributions).
+    A zero half-credit scale disables the future-work discount.
     """
     if node_name in visited or node_name not in all_nodes:
         return 0.0
@@ -456,11 +484,8 @@ def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
     value = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
         future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals,
-        with_attribution=False)
-    done = sum(all_nodes[z].status == STATUS_DONE for z in partners[node_name]
-               if z != node_name and z in all_nodes)
-    kick = intrinsic_value(all_nodes[node_name], w_v, w_i, value_exponent) * d_Syn_mul * math.sqrt(done)
-    result = value + kick
+        with_attribution=False, d_Syn_mul=d_Syn_mul)
+    result = value
     if memo is not None:
         memo[key] = result
     return result
@@ -920,35 +945,16 @@ def explain_score(
         w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent,
         future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
         future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
-        skip_done=skip_done, flat_goals=flat_goals)
-
-    # Synergy multiplier on intrinsic: kicks in when partners are Done.
-    # This is a node-level scalar, not a per-contributor weight, so it
-    # lives outside the W loop.
-    done_syn_count = sum(
-        1 for z in Syn.get(node_name, set())
-        if z != node_name and (other := all_nodes_dict.get(z)) is not None
-        and other.status == STATUS_DONE
-    )
-    # Sub-linear (sqrt) so dense synergy hubs don't run away. Matches the
-    # formula in `total_value` exactly so explain_score's reported multiplier
-    # never drifts from the actual scoring multiplier.
-    iv_multiplier = 1.0 + d_Syn_mul * math.sqrt(done_syn_count)
-    iv_multiplier_contribution = iv * (iv_multiplier - 1.0)
+        skip_done=skip_done, flat_goals=flat_goals, d_Syn_mul=d_Syn_mul)
 
     hard_cascade = math.fsum(c['channels']['Hard'] for c in contributors)
     soft_cascade = math.fsum(c['channels']['Soft'] for c in contributors)
-    synergy_cascade = math.fsum(c['channels']['Synergy'] for c in contributors)
-    total_value_sum = math.fsum(c['contribution'] for c in contributors)
-
-    # Percentages (guard against TV=0). Use the *full* TV including the
-    # multiplicative kick so contributor percentages reflect the actual
-    # ranking signal — otherwise pct rows wouldn't add up sensibly when a
-    # synergy multiplier is active.
-    tv_full = total_value_sum + iv_multiplier_contribution
-    tv_for_pct = tv_full if tv_full > 0 else 1.0
+    synergy_bonus = math.fsum(c['channels']['Synergy'] for c in contributors)
+    tv_full = math.fsum(c['contribution'] for c in contributors)
+    done_syn_count = sum(all_nodes_dict[z].status == STATUS_DONE
+                        for z in Syn.get(node_name, set()) - {node_name})
     for c in contributors:
-        c['pct_of_tv'] = 100.0 * c['contribution'] / tv_for_pct
+        c['pct_of_tv'] = 100.0 * c['contribution'] / tv_full if tv_full > 0 else 0.0
 
     contributors.sort(key=lambda c: c['contribution'], reverse=True)
 
@@ -1049,13 +1055,11 @@ def explain_score(
         },
         'composition': {
             'iv': iv,
-            'iv_multiplier': iv_multiplier,
-            'iv_multiplier_contribution': iv_multiplier_contribution,
             'done_synergy_count': done_syn_count,
             'hard_cascade': hard_cascade,
             'soft_cascade': soft_cascade,
-            'synergy': synergy_cascade,
-            'total_value': total_value_sum + iv_multiplier_contribution,
+            'synergy': synergy_bonus,
+            'total_value': tv_full,
         },
         'goal_boost': goal_boost_info,
         'variety': variety,
@@ -1084,8 +1088,8 @@ def focus_route_data(
 
     Each contributor is drawn along the route its credit travelled: its
     strongest Hard/Soft route from `source`, or, when most of its credit
-    arrives through synergy, the Helps edge to the partner that passes on the
-    most, followed by that partner's strongest route.
+    is reinforcement, the direct Helps edge to that partner (including Done
+    partners). Synergy never draws a route into a partner's downstream graph.
 
     `k` counts routes, not contributors. Top contributors often sit on one
     another's routes. A node's second-largest beneficiary is frequently the
@@ -1114,9 +1118,7 @@ def focus_route_data(
 
     d_H = hyperparams.get('d_H', 0.6)
     d_S = hyperparams.get('d_S', 0.40)
-    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
-    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
-    H_out, S_out, Syn, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
+    H_out, S_out, _, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     memo: dict = {}
     skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
     hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
@@ -1140,30 +1142,11 @@ def focus_route_data(
             cur = parent
         return steps[::-1]
 
-    # Synergy coefficients, exactly as _value_contributions applies them.
-    context = all_nodes_dict[source].context
-    partners = {}
-    for partner in sorted(Syn.get(source, set()) - {source} - skip):
-        other = all_nodes_dict[partner]
-        cross = (cross_context_mult if context is not None and other.context is not None
-                 and context != other.context else 1.0)
-        if d_Syn_pair * cross:
-            partners[partner] = d_Syn_pair * cross
-
     def route_to(row):
         name = row.get('name')
         if row.get('via') == 'Synergy':
-            best = None
-            for partner, coefficient in partners.items():
-                routes = _credited_routes(partner, all_nodes_dict, H_out, S_out, d_H, d_S,
-                                          memo, skip, flat_goals)
-                if name in routes and (best is None or coefficient * routes[name][0] > best[0]):
-                    best = (coefficient * routes[name][0], partner, routes)
-            if best is None:
-                return None
-            _, partner, routes = best
-            return ([(partner, helps_edge[frozenset((source, partner))])]
-                    + route_steps(routes, name, partner))
+            edge = helps_edge.get(frozenset((source, name)))
+            return [(name, edge)] if edge is not None else None
         routes = _credited_routes(source, all_nodes_dict, H_out, S_out, d_H, d_S,
                                   memo, skip, flat_goals)
         return route_steps(routes, name, source) if name in routes else None

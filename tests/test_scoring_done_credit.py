@@ -64,14 +64,14 @@ def test_done_goal_pays_nothing():
     assert set(contributors('A', nodes, [edge('A', 'G')])) == {'A'}
 
 
-def test_done_helps_partner_gives_the_multiplier_but_no_pair_bonus():
+def test_done_helps_partner_reinforces_without_importing_its_downstream_value():
     nodes = [node('A'), node('B', status='Done'), node('C', value=9)]
     edges = [edge('A', 'B', 'Helps'), edge('B', 'C')]
     bd = explain_score('A', nodes, edges, HP)
-    assert {r['name'] for r in bd['contributors']} == {'A'}
+    assert {r['name'] for r in bd['contributors']} == {'A', 'B'}
     comp = bd['composition']
     assert comp['done_synergy_count'] == 1
-    assert comp['synergy'] == 0
+    assert comp['synergy'] == pytest.approx(comp['iv'] * HP['d_Syn_mul'])
     iv = comp['iv']
     assert comp['total_value'] == pytest.approx(iv * (1 + HP['d_Syn_mul']))
     assert tv('A', nodes, edges) == pytest.approx(comp['total_value'])

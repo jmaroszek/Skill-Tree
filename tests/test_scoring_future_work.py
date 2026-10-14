@@ -73,7 +73,7 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
             hard.add_edge(e['source'], e['target'])
     byname = {n.name:n for n in ns}
     expected = {}
-    for seed, coefficient in [('A', 1), ('B', hp['d_Syn_pair']), ('C', hp['d_Syn_pair'])]:
+    for seed, coefficient in [('A', 1)]:
         for target in graph:
             paths = [[seed]] if seed == target else list(nx.all_simple_paths(graph, seed, target))
             if not paths or not coefficient:
@@ -84,12 +84,27 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
             discount = 1/(1+(hours/hp['future_work_half_credit_hours'])**hp['future_work_exponent'])
             intrinsic = (hp['w_v']+hp['w_i'])*5**hp['value_exponent']
             expected[target] = expected.get(target,0) + weight*coefficient*intrinsic*discount
+    # Independently add direct partner evidence; their DAGs never enter.
+    base = sum(expected.values())
+    limit = (hp['w_v'] + hp['w_i']) * 10**hp['value_exponent']
+    strength = hp['d_Syn_mul']
+    anticipation = hp['d_Syn_pair'] / strength
+    evidence = {}
+    for partner in ('B', 'C'):
+        required = (nx.ancestors(hard, partner) | {partner}) - {'A'}
+        hours = sum(byname[x].time for x in required)
+        q = 1 / (1 + (hours / hp['future_work_half_credit_hours'])**hp['future_work_exponent'])
+        exposure = anticipation * q
+        evidence[partner] = exposure / (2 - exposure)
+    for partner, x in evidence.items():
+        if x:
+            expected[partner] = expected.get(partner, 0) + min(base, limit) * strength * 2*x/(1+sum(evidence.values()))
     bd = explain_score('A', ns, es, hp)
     assert {r['name']:r['contribution'] for r in bd['contributors']} == pytest.approx(expected)
     ranked = score_nodes([ns[0]], ns, es, hp)
     assert ranked[0].total_value == pytest.approx(sum(expected.values()))
     comp = bd['composition']
-    assert sum(comp[k] for k in ['iv','hard_cascade','soft_cascade','synergy','iv_multiplier_contribution']) == pytest.approx(comp['total_value'])
+    assert sum(comp[k] for k in ['iv','hard_cascade','soft_cascade','synergy']) == pytest.approx(comp['total_value'])
 
 
 def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():

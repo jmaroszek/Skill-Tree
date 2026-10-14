@@ -82,34 +82,52 @@ Synergy edges — the Helps relationship — work differently from prerequisites
 
 Take Foreign Language and Travel. Time abroad cements vocabulary in a way no classroom drill can match. Modest fluency, in turn, opens up places a monolingual tourist would struggle to navigate. Each genuinely amplifies the other, so the algorithm rewards the pairing.
 
-Synergies feed into total value in two stages. The **pair bonus** applies while the partner is unfinished. The **completion multiplier** replaces it once the partner is Done.
+Every direct partner reinforces the candidate's ordinary value through one bounded bonus. Unfinished partners receive partial credit; completed partners receive full credit in the same calculation. Partner ratings, partner DAGs, and partners of partners are never imported.
 
-### Pair Bonus
-Write $Y(n)$ for $n$'s set of synergy partners. Each unfinished partner $z \in Y(n)$ passes a fraction $d_{\text{Syn,pair}}$ of its own total value back to $n$:
+### Candidate Value and Cap
 
-$$ \text{Syn}_+(n) = d_{\text{Syn,pair}} \sum_{z \in Y(n)} c(n, z) \cdot \sum_d W(z,d)\,\text{IV}(d)\,q(n,d) $$
+Let $B(n)$ be the candidate's unique Hard/Soft DAG value, including its own ratings, Goal credit, and the remaining-work discount, with all synergy excluded. The amount eligible for reinforcement is:
 
-The effect is that synergistic projects tend to surface together, so the user can choose which to tackle first.
+$$ A(n)=\min\left(\max(B(n),0),\;(w_V+w_I)10^\gamma\right) $$
 
-#### Cross-Context Coefficient
-The cross-context coefficient $c(n, z)$ amplifies the pair bonus when a synergy spans two different domains.
+The upper limit is the profile's maximum intrinsic node value: 200 under Sage. It scales with the profile's rating units, rather than with graph size. A project with inherited ratings can receive synergy through its ordinary downstream usefulness. A project with zero ordinary value receives no bonus.
 
-$$ c(n, z) = \begin{cases} m_{\text{cross}} & \text{if } \text{ctx}(z) \ne \text{ctx}(n)\\ 1 & \text{otherwise} \end{cases} $$
+### Partner Exposure
 
-This is a lever for exploration in the explore-versus-exploit tradeoff. Two profiles raise it above 1. Creator sets $m_{\text{cross}} = 3.0$, rewarding cross-domain connections as a source of creative inspiration. Explorer sets $m_{\text{cross}} = 2.5$, rewarding curiosity and the cross-pollination that tends to aid generalization. Every other profile leaves $m_{\text{cross}} = 1.0$, so a within-context synergy counts the same as a cross-context one.
+The existing setting names are retained: $s=d_{\text{Syn,mul}}$ is the one-completed-partner strength, and $d_{\text{Syn,pair}}$ is the one-unfinished-partner coefficient before work discount in the same context. Define $\eta=d_{\text{Syn,pair}}/s$, between zero and one. If both coefficients are zero, synergy is disabled. Custom settings with pair greater than completed strength are normalized by raising completed strength to pair; see [Versioned Settings](#versioned-settings).
 
-### Completion Multiplier
-The completion multiplier rewards a node once one of its synergy partners is finished. The boost is *multiplicative*, so it scales priority more aggressively than the *additive* pair bonus.
+For each direct partner $z$, use:
 
-Let $k(n) = |\{z \in Y(n) : \text{status}(z) = \text{Done}\}|$ be the count of finished partners, and let $d_{\text{Syn,mul}}$ be the profile's completion-multiplier weight. Then:
+$$ a(n,z)=\begin{cases}
+1 & \text{if }z\text{ is Done}\\
+\left[1-(1-\eta)^{c(n,z)}\right]q(n,z) & \text{otherwise}
+\end{cases} $$
 
-$$ \mu_Y(n) = 1 + d_{\text{Syn,mul}} \cdot \sqrt{k(n)} $$
+The remaining-work discount uses the partner's unique unfinished Hard closure, including its own hours and excluding today's candidate's own work. It is a preference discount, not a probability of completing the partner. A blocked partner can still reinforce the candidate, with the required work reflected in its exposure.
 
-The square root is a diminishing-returns guard. Without it, every Done partner would add the same fixed boost. With it, each adds less than the one before. The first Done partner delivers most of the realized "doing both" payoff; a second or third tops it up by shrinking amounts.
+The cross-context coefficient $c(n,z)$ is `cross_context_mult` when both nodes have known, different contexts; otherwise it is 1. A coefficient of zero disables unfinished cross-context exposure. Creator uses 3 and Explorer 2.5; the other profiles use 1. Larger coefficients increase anticipation toward the completed exposure of 1, without exceeding it. Completed exposure is independent of context.
 
-![Synergy Completion Multiplier](../images/scoring-synergy-sqrt.png)
+### Bounded Reinforcement
 
-*The $`\sqrt{k}`$ guard flattens the multiplier as Done partners accumulate, so the first delivers most of the payoff.*
+Convert each exposure into evidence $x(n,z)$ and sum over distinct direct partners:
+
+$$ x(n,z)=\frac{a(n,z)}{2-a(n,z)},\qquad X(n)=\sum_{z\in Y(n)}x(n,z) $$
+$$ \operatorname{Syn}(n)=sA(n)\frac{2X(n)}{1+X(n)} $$
+
+The transformation preserves the one-partner interpretation: a single exposure $a$ gives a bonus of $sA(n)a$. Several partners share one saturation curve. The bonus approaches, and never exceeds, $2sA(n)$.
+
+| Completed partners | Bonus as a multiple of $sA(n)$ |
+|---|---:|
+| 0, with no unfinished partners | 0 |
+| 1 | 1 |
+| 2 | 1.333 |
+| 5 | 1.667 |
+| 10 | 1.818 |
+| Arbitrarily many | Approaches 2 |
+
+Holding the candidate's ordinary value fixed, adding a partner or finishing an existing partner cannot reduce synergy. A partner that is also a Hard/Soft beneficiary can legitimately leave the ordinary DAG calculation when completed; total priority can then fall even though partner exposure increases.
+
+The model favors reinforcement of the candidate's own usefulness over borrowing a valuable partner's importance. A low-value companion therefore receives less promotion from a high-value partner than under the former mechanism. Reinforcement now includes the candidate's capped downstream usefulness rather than only intrinsic value, so some foundational projects gain more completed-partner credit. The ceiling and profile strengths are preference choices, not empirically calibrated joint benefits.
 
 ### Synergies are Depth-1 Relationships
 Synergies do not chain or cascade the way Hard and Soft edges do. They are depth-1 relationships: only the immediate synergy partners of $n$ contribute to its score, not the partners of those partners.
@@ -120,15 +138,18 @@ The second reason is performance. Helps edges are bidirectional and can form cyc
 
 ## Total Value
 
-$$ \text{TV}(n)=\mu_Y(n)\,\text{IV}(n)+\sum_{d\ne n}W(n,d)\,\text{IV}(d)\,q(n,d)+\text{Syn}_+(n) $$
+$$ B(n)=\sum_d W(n,d)\,\operatorname{IV}(d)\,q(n,d) $$
+$$ \operatorname{TV}(n)=B(n)+\operatorname{Syn}(n) $$
 
-Each synergy partner supplies a distinct additive channel with its own strongest DAG routes. Completion-work discounts are relative to today's candidate n, including benefits reached through a partner. Synergy never recurses through another synergy edge. The Done-partner multiplier applies only to n's intrinsic value.
+A beneficiary contributes once through its strongest ordinary route. A direct Helps partner supplies reinforcement without bringing its own downstream beneficiaries into the candidate's value. Mixed prerequisite/Helps relationships retain both distinct effects.
 
 ### Attribution
 
-Scoring and Explain share contribution records: beneficiary, structural weight, remaining required hours, retained credit, and adjusted contribution. Separate Self, Hard, Soft, and Synergy channel amounts keep composition totals exact. Via labels identify the largest contribution channel. Contributors plus the Done-synergy kick equal Total Value.
+Scoring and Explain share contribution records. The ordinary DAG contribution and direct reinforcement for the same node occupy one row with separate channel amounts. Every row, including completed partners, participates in the contributor sum; there is no separate completion multiplier outside the chart.
 
-Aggregated structural weight may exceed one when distinct synergy channels reinforce the same beneficiary. Ordinary DAG paths are deduplicated within each channel.
+The shared bonus is allocated to partner $z$ as $sA(n)\,2x(n,z)/(1+X(n))$. These are shares of one combined bonus, not independent marginal effects. They sum to the synergy total. Explain's Value section shows one Synergy partners row. Hover identifies unfinished or finished reinforcement without claiming it imports the partner's own value.
+
+Focus follows the largest contribution channel in a mixed row. For synergy it highlights only the direct Helps edge, including completed partners; for ordinary value it follows the strongest Hard/Soft route. It never follows a partner's downstream graph to explain a synergy bonus.
 
 ## Base Score
 
@@ -203,7 +224,7 @@ The variety walk is a lazy-greedy over a heap of the pool. A divisor only ever g
 
 Per-source strongest-route maps replace scalar subtree sums. Per-beneficiary required-work sets and hours are cached separately. A cold route map visits its reachable DAG; subsequent candidate and synergy calculations reuse it.
 
-Worst-case route and closure storage is quadratic. Cold preprocessing can cost O(N(N+E)); synergy aggregation additionally visits beneficiaries reachable from each partner. Sorting costs O(N log N). The old linear-time scalar-memo bound no longer applies; measure cold and warm performance on representative graphs.
+Worst-case route and closure storage is quadratic. Cold preprocessing can cost O(N(N+E)); synergy aggregation additionally visits the direct partners and uses cached required-work closures. Sorting costs O(N log N). The old linear-time scalar-memo bound no longer applies; measure cold and warm performance on representative graphs.
 
 GraphManager invalidates maps when scoring-relevant graph data changes. Future-work settings participate in its memo key. Explain computes the same contributions without retaining a stale cross-operation snapshot.
 
@@ -225,9 +246,9 @@ The six built-in profiles are essentially hyperparameter bundles. The first tabl
 | Rating exponent | $\gamma$ | 2.00 | 2.50 | 1.50 | 2.50 | 2.00 | 1.00 |
 | Hard discount | $d_H$ | 0.60 | 0.50 | 0.92 | 0.65 | 0.55 | 0.40 |
 | Soft discount | $d_S$ | 0.30 | 0.35 | 0.20 | 0.02 | 0.45 | 0.20 |
-| Synergy pair bonus | $d_{\text{Syn,pair}}$ | 0.10 | 0.35 | 0.02 | 0.00 | 0.60 | 0.05 |
-| Synergy completion mult | $d_{\text{Syn,mul}}$ | 0.40 | 0.90 | 0.10 | 0.10 | 1.30 | 0.20 |
-| Cross-context synergy mult | $m_{\text{cross}}$ | 1.00 | 2.50 | 1.00 | 1.00 | 3.00 | 1.00 |
+| Unfinished synergy coefficient | $d_{\text{Syn,pair}}$ | 0.10 | 0.35 | 0.02 | 0.00 | 0.60 | 0.05 |
+| Completed synergy strength | $d_{\text{Syn,mul}}$ | 0.40 | 0.90 | 0.10 | 0.10 | 1.30 | 0.20 |
+| Cross-context anticipation | $m_{\text{cross}}$ | 1.00 | 2.50 | 1.00 | 1.00 | 3.00 | 1.00 |
 | Difficulty weight | $w_e$ | 1.50 | 1.50 | 1.00 | 1.80 | 1.50 | 3.50 |
 | Time weight | $w_t$ | 6.00 | 6.00 | 5.00 | 7.00 | 6.00 | 135.0 |
 | Time exponent | $\beta$ | 0.60 | 0.60 | 0.50 | 0.70 | 0.60 | 0.95 |
@@ -246,7 +267,7 @@ Scaling $w_V$ and $w_I$ together changes nothing at all. Total value is homogene
 
 The ratio changes the relative influence of value and interest. Its effect depends on ratings across all reachable beneficiaries, not only the candidate's own ratings. Future-work settings also change relative priority by controlling how strongly distant required work discounts downstream benefits.
 
-The Done-synergy multiplier only differentiates scores once partners are complete. Additive synergy can influence rankings before completion. Profile differences should be assessed against current recommendations rather than a fixed target for top-ten overlap.
+Completed partners have full exposure; unfinished partners have partial exposure in the same bounded bonus. Profile differences should be assessed against current recommendations rather than a fixed target for top-ten overlap.
 
 ### The Perspective of Each Profile
 | Profile | Perspective | Parameter Tweaks |
@@ -254,8 +275,8 @@ The Done-synergy multiplier only differentiates scores once partners are complet
 | **Sage** | The reference baseline. A balanced ranking that leans no particular direction, landing near the graph's own median on time, value and interest alike. | All other profiles are expressed as deltas off these defaults. |
 | **Explorer** | Curiosity-driven. Favors what you find interesting, rewards cross-domain links, and gives sparse contexts a fair shot. | $w_I$ set to four times $w_V$, and the highest $\gamma$ of any profile so those ratings bite hard. Synergy parameters raised far enough that $m_{\text{cross}} = 2.5$ actually registers. The 10%/20% premiums encourage a wider recommendation list. $b = 1.0$ switches off the goal boost, since goals are not the point here. |
 | **Compounder** | Foundational depth. Work that unlocks long prerequisite chains, whether or not it is enjoyable. | The lowest $\gamma$ of the rating-driven profiles, deliberately: this profile is about structure, so ratings should not drown out reach. $d_H = 0.92$ carries value far along *hard* chains. $d_S = 0.20$ keeps soft links from flooding value everywhere. That contrast is what selects unlock-heavy nodes, and a high $d_S$ would erase it. Zero repetition premiums let deep contexts win on merit. |
-| **Pragmatist** | Goal-driven execution. What you said matters most should dominate, and distractions should not surface at all. | $w_V$ set to four times $w_I$. $d_S = 0.02$ all but removes soft prerequisites, and the additive synergy bonus is zero. $b = 4.0$ makes the priority-goal boost decisive. |
-| **Creator** | Synthesis and cross-disciplinary work. Rewards pairings that blend across domains. | $d_{\text{Syn,pair}} = 0.60$ and $d_{\text{Syn,mul}} = 1.30$ are the largest of any profile. That is what gives $m_{\text{cross}} = 3.0$ real leverage. Roughly seven in ten of its top picks carry a cross-context Helps edge. |
+| **Pragmatist** | Goal-driven execution. What you said matters most should dominate, and distractions should not surface at all. | $w_V$ set to four times $w_I$. $d_S = 0.02$ all but removes soft prerequisites, and unfinished synergy anticipation is zero. $b = 4.0$ makes the priority-goal boost decisive. |
+| **Creator** | Synthesis and cross-disciplinary work. Rewards pairings that blend across domains. | $d_{\text{Syn,pair}} = 0.60$ and $d_{\text{Syn,mul}} = 1.30$ are the largest of any profile. The $m_{\text{cross}} = 3.0$ coefficient raises cross-context anticipation toward full reinforcement; all partners still share the cap. |
 | **Glider** | Light, varied, low-friction work. For seasons when you need to coast. | $\gamma = 1$ keeps ratings plain and linear — no need to agonise over them while coasting. Every cost knob raised so heavy work is penalized hard: $w_e = 3.5$, a very large $w_t$, and $\beta \to 0.95$ to keep the penalty close to linear in hours. Cascade and synergy contributions damped. $b = 1.0$ disables the priority-goal boost so non-priority work competes fairly. |
 
 Profiles express different preferences; disagreement alone is not evidence of quality. Compare recommendations after structural changes before retuning profile weights.
@@ -438,8 +459,8 @@ The full edge set is $E = E_H \cup E_S \cup E_Y$. An edge $A \to B$ means $A$ is
 | $\text{IV}(n)$ | Intrinsic value | [Intrinsic Value](#intrinsic-value) |
 | $\text{Cost}(n)$ | Perceived cost | [Perceived Cost](#perceived-cost) |
 | $\text{TV}_{\text{dag}}(n)$ | Unique strongest-route value before future-work discount | [The DAG Cascade](#the-dag-cascade) |
-| $\text{Syn}_+(n)$ | Synergy pair bonus | [Pair Bonus](#pair-bonus) |
-| $\mu_Y(n)$ | Synergy completion multiplier | [Completion Multiplier](#completion-multiplier) |
+| $\operatorname{Syn}(n)$ | Bounded synergy bonus | [Bounded Reinforcement](#bounded-reinforcement) |
+| $A(n)$ | Candidate value eligible for reinforcement | [Candidate Value and Cap](#candidate-value-and-cap) |
 | $\text{TV}(n)$ | Total value | [Total Value](#total-value) |
 | $P_{\text{base}}(n)$ | Base score (ROI) | [Base Score](#base-score) |
 | $\rho(n)$ | Goal-priority boost | [Goal Priority Boost](#goal-priority-boost) |
@@ -452,6 +473,10 @@ The full edge set is $E = E_H \cup E_S \cup E_Y$. An edge $A \to B$ means $A$ is
 Profile hyperparameters ($w_V$, $w_I$, $d_H$, $d_S$, $d_{\text{Syn,pair}}$, $d_{\text{Syn,mul}}$, $m_{\text{cross}}$, $w_e$, $w_t$, $\beta$, $b$, $\alpha_g$, and suggestion premiums) are listed in [Profile Hyperparameters](#profile-hyperparameters).
 
 ## Versioned Settings
+
+Schema v6 unifies synergy. The existing `d_Syn_pair`, `d_Syn_mul`, and `cross_context_mult` keys remain, with the meanings above. Named profiles retain their numeric defaults. V5 tool overrides retain every unrelated preference; if pair exceeds completed strength, completed strength is raised to pair, including formerly pair-only configurations. Anticipation therefore remains finite and cannot exceed completion. Invalid negative or non-finite synergy parameters are rejected. Reads normalize in memory without writing; `set_hyperparams` stamps v6.
+
+Schema v5 made named profiles authoritative for ordinary Settings saves. Pre-v5 stored snapshots are ignored so they cannot hold back profile retunes. Deliberate v5-and-later tool overrides continue to override the selected profile.
 
 Schema v4 retires task alpha and adds suggestion premiums. Existing named profiles receive their new defaults; legacy custom bundles receive Sage defaults unless explicit premiums are stored. Reads do not write settings. Goal density and future-work settings are preserved.
 

@@ -942,15 +942,14 @@ class TestExplainSummary:
         for internal in ("10.00", "12.50", "15.50", "1.23", "Raw", "Intrinsic"):
             assert internal not in text
 
-    def test_synergy_rows_sit_together_at_the_end_of_value(self):
+    def test_synergy_has_one_unified_row_at_the_end_of_value(self):
         bd = _minimal_breakdown(composition={
-            'iv': 10.0, 'hard_cascade': 2.0, 'soft_cascade': 0.5, 'synergy': 1.0,
-            'iv_multiplier': 1.4, 'iv_multiplier_contribution': 4.0,
+            'iv': 10.0, 'hard_cascade': 2.0, 'soft_cascade': 0.5, 'synergy': 5.0,
             'done_synergy_count': 1, 'total_value': 17.5,
         })
         text = _render_text(build_explain_summary(bd, normalized=80))
-        assert ("Prepares you for 2.9% Synergy partners 5.7% "
-                "Finished synergy partners 1 finished 23% Cost") in text
+        assert "Prepares you for 2.9% Synergy partners 29% Cost" in text
+        assert "Finished synergy partners" not in text
 
     def test_value_sources_with_no_share_are_left_out(self):
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))

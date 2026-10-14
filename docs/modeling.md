@@ -129,7 +129,7 @@ A few patterns look like synergy but aren't:
 - **Both are just interesting** — Synergies are about *relationships* between topics, not your interest in them. The app already accounts for interest through a different mechanism.
 - **I want to work on these around the same time** — That's a sequencing preference. Use a hard or soft edge.
 
-Finally, resist piling many synergies onto a single hub node. The boost has diminishing returns, so two or three genuine partners beat a fan of weak ones.
+Finally, reserve synergy for meaningful reinforcement. Direct partners boost the project's own usefulness through one bounded bonus. Unfinished partners receive partial credit; finished partners receive full credit. More partners add progressively less, and their combined boost has a ceiling. Their ratings and downstream opportunities are not copied into the project's score.
 
 # Contexts & Subcontexts
 

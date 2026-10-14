@@ -101,25 +101,16 @@ def test_diamond_counts_beneficiary_once():
 
 
 def test_synergy_seed_weight_and_via():
-    """Pure synergy neighbor: W(z) = d_Syn_pair (additive bonus), via='Synergy', depth=1.
-
-    The multiplicative kick on intrinsic is *not* a per-contributor weight — it
-    only fires when partners are Done, and is tracked separately in
-    `composition['iv_multiplier_contribution']`. With Z status='Open' the
-    contributor sum equals TV(S) on its own.
-    """
-    nodes = [_node("S"), _node("Z", value=10, interest=0)]
-    edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    by_name = {c['name']: c for c in breakdown['contributors']}
-    assert math.isclose(by_name['Z']['weight'], HYPERS['d_Syn_pair'], rel_tol=1e-9)
+    """A direct partner receives its share of candidate reinforcement."""
+    nodes = [_node('S'), _node('Z', value=10, interest=1)]
+    edges = [dict(source='S', target='Z', type=EDGE_HELPS)]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    by_name = {c['name']: c for c in bd['contributors']}
+    assert math.isclose(by_name['Z']['synergy_detail']['weight'], .1)
+    assert math.isclose(by_name['Z']['contribution'], 1.0)
     assert by_name['Z']['depth'] == 1
     assert by_name['Z']['via'] == 'Synergy'
-
-    # Z is Open, so the multiplicative kick is inactive (multiplier == 1.0).
-    assert math.isclose(breakdown['composition']['iv_multiplier'], 1.0)
-    contributed = sum(c['contribution'] for c in breakdown['contributors'])
-    assert math.isclose(contributed, _tv("S", nodes, edges), rel_tol=1e-9)
+    assert math.isclose(sum(c['contribution'] for c in bd['contributors']), _tv('S', nodes, edges))
 
 
 def test_soft_edge_contribution():
@@ -132,19 +123,14 @@ def test_soft_edge_contribution():
     assert by_name['T']['via'] == 'Soft'
 
 
-def test_syn_then_hard_cascade():
-    """S synergy→Z, Z hard→D. W(D) = d_Syn_pair * d_H."""
-    nodes = [_node("S"), _node("Z"), _node("D", value=10, interest=0)]
-    edges = [
-        {"source": "S", "target": "Z", "type": EDGE_HELPS},
-        {"source": "Z", "target": "D", "type": EDGE_NEEDS_HARD},
-    ]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    by_name = {c['name']: c for c in breakdown['contributors']}
-    assert math.isclose(by_name['D']['weight'], HYPERS['d_Syn_pair'] * HYPERS['d_H'], rel_tol=1e-9)
-    # via is propagated from Z, which itself was via='Synergy'
-    assert by_name['D']['via'] == 'Synergy'
-    assert by_name['D']['depth'] == 2
+def test_synergy_does_not_import_partner_cascade():
+    nodes = [_node('S'), _node('Z'), _node('D', value=10, interest=1)]
+    edges = [dict(source='S', target='Z', type=EDGE_HELPS), _hard('Z', 'D')]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    by_name = {c['name']: c for c in bd['contributors']}
+    assert set(by_name) == {'S', 'Z'}
+    assert by_name['Z']['via'] == 'Synergy'
+    assert by_name['Z']['depth'] == 1
 
 
 # ---------------------------------------------------------------------------
@@ -366,17 +352,13 @@ def test_focus_follows_the_strongest_route_not_the_fewest_hops():
 
 
 def test_focus_synergy_route_uses_the_stored_helps_edge():
-    """Z helps S (stored Z → S) and unlocks T. T's credit arrives through Z."""
-    nodes = [_node("S"), _node("Z"), _node("T")]
-    edges = [
-        {"source": "Z", "target": "S", "type": EDGE_HELPS},
-        _hard("Z", "T"),
-    ]
-    contributors = explain_score("S", nodes, edges, HYPERS)['contributors']
-    pi = focus_route_data("S", contributors, 3, nodes, edges, HYPERS)
-    assert pi['edge_rank'] == {("Z", "S", EDGE_HELPS): 1,
-                               ("Z", "T", EDGE_NEEDS_HARD): 1}
-    assert pi['target_labels'] == {"Z": "#1"}
+    """Only the direct Helps edge is highlighted, never the partner's DAG."""
+    nodes = [_node('S'), _node('Z'), _node('T')]
+    edges = [dict(source='Z', target='S', type=EDGE_HELPS), _hard('Z', 'T')]
+    contributors = explain_score('S', nodes, edges, HYPERS)['contributors']
+    pi = focus_route_data('S', contributors, 3, nodes, edges, HYPERS)
+    assert pi['edge_rank'] == {('Z', 'S', EDGE_HELPS): 1}
+    assert pi['target_labels'] == {'Z': '#1'}
 
 
 def test_focus_skips_contributors_that_contribute_nothing():
@@ -406,130 +388,54 @@ def test_focus_missing_source_returns_empty():
 
 
 # ---------------------------------------------------------------------------
-# M3 hybrid synergy — pair bonus + completion multiplier
+# Unified synergy: partner attribution includes completed reinforcement.
 # ---------------------------------------------------------------------------
 
-def test_m3_synergy_partner_open_no_multiplier():
-    """Synergy partner is Open: pair bonus active, multiplier dormant."""
-    s = _node("S", value=10, interest=2)
-    z = _node("Z", value=8, interest=4, status="Open")
-    nodes = [s, z]
-    edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    comp = breakdown['composition']
 
-    # Multiplier neutral → contribution to TV is 0
-    assert math.isclose(comp['iv_multiplier'], 1.0)
-    assert math.isclose(comp['iv_multiplier_contribution'], 0.0)
-    assert comp['done_synergy_count'] == 0
-
-    # Pair bonus shows up in the synergy bucket
-    from scoring import intrinsic_value
-    iv_z = intrinsic_value(z, HYPERS['w_v'], HYPERS['w_i'])
-    expected_pair_bonus = HYPERS['d_Syn_pair'] * iv_z
-    assert math.isclose(comp['synergy'], expected_pair_bonus, rel_tol=1e-9)
+def test_unfinished_partner_uses_candidate_value():
+    nodes = [_node('S', value=10, interest=2), _node('Z', value=4, interest=3)]
+    edges = [dict(source='S', target='Z', type=EDGE_HELPS)]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    assert math.isclose(bd['composition']['synergy'], .1 * 12)
+    assert bd['composition']['done_synergy_count'] == 0
+    assert math.isclose(sum(r['contribution'] for r in bd['contributors']), _tv('S', nodes, edges))
 
 
-def test_m3_synergy_partner_done_multiplies_intrinsic():
-    """One Done synergy partner: iv_multiplier = 1 + d_Syn_mul."""
-    s = _node("S", value=10, interest=2)
-    z = _node("Z", value=8, interest=4, status="Done")
-    nodes = [s, z]
-    edges = [{"source": "S", "target": "Z", "type": EDGE_HELPS}]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    comp = breakdown['composition']
-
-    expected_multiplier = 1.0 + HYPERS['d_Syn_mul']
-    assert math.isclose(comp['iv_multiplier'], expected_multiplier, rel_tol=1e-9)
-    assert comp['done_synergy_count'] == 1
-
-    from scoring import intrinsic_value
-    iv_s = intrinsic_value(s, HYPERS['w_v'], HYPERS['w_i'])
-    expected_kick = iv_s * HYPERS['d_Syn_mul']
-    assert math.isclose(comp['iv_multiplier_contribution'], expected_kick, rel_tol=1e-9)
-
-    # Total TV includes additive contributors AND the multiplicative kick
-    contributed = sum(c['contribution'] for c in breakdown['contributors'])
-    expected_tv = contributed + comp['iv_multiplier_contribution']
-    assert math.isclose(comp['total_value'], expected_tv, rel_tol=1e-9)
-    # Cross-check against ground truth
-    assert math.isclose(comp['total_value'], _tv("S", nodes, edges), rel_tol=1e-9)
+def test_done_partner_is_in_the_same_contributor_sum_and_focus():
+    nodes = [_node('S', value=10, interest=2), _node('Z', status='Done')]
+    edges = [dict(source='Z', target='S', type=EDGE_HELPS)]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    assert math.isclose(bd['composition']['synergy'], .4 * 12)
+    assert bd['composition']['done_synergy_count'] == 1
+    assert math.isclose(sum(r['contribution'] for r in bd['contributors']), _tv('S', nodes, edges))
+    focus = focus_route_data('S', bd['contributors'], 3, nodes, edges, HYPERS)
+    assert focus['edge_rank'] == {('Z', 'S', EDGE_HELPS): 1}
 
 
-def test_m3_two_done_synergy_partners_accumulate_sublinearly():
-    """Two Done synergy partners: multiplier = 1 + sqrt(2) * d_Syn_mul.
-
-    Sub-linear (sqrt) accumulation prevents dense synergy hubs from running
-    away. With 2 partners the kick is sqrt(2)≈1.414× the single-partner
-    value, not 2× (which would let an N-partner hub get N× boost). 1
-    partner still gives exactly d_Syn_mul (sqrt(1)=1), preserving simple
-    cases.
-    """
-    import math
-    nodes = [_node("S", value=10, interest=0),
-             _node("Z1", value=4, interest=0, status="Done"),
-             _node("Z2", value=4, interest=0, status="Done")]
-    edges = [
-        {"source": "S", "target": "Z1", "type": EDGE_HELPS},
-        {"source": "S", "target": "Z2", "type": EDGE_HELPS},
-    ]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    comp = breakdown['composition']
-
-    expected_multiplier = 1.0 + math.sqrt(2) * HYPERS['d_Syn_mul']
-    assert math.isclose(comp['iv_multiplier'], expected_multiplier, rel_tol=1e-9)
-    assert comp['done_synergy_count'] == 2
+def test_two_done_partners_saturate():
+    nodes = [_node('S'), _node('Z1', status='Done'), _node('Z2', status='Done')]
+    edges = [dict(source='S', target=z, type=EDGE_HELPS) for z in ('Z1', 'Z2')]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    assert math.isclose(bd['composition']['synergy'], 10 * .4 * 4 / 3)
+    assert bd['composition']['done_synergy_count'] == 2
 
 
-def test_m3_pure_dag_node_unaffected_by_synergy_params():
-    """A node with no synergy edges: multiplier == 1, no synergy contribution.
-
-    Score should be identical regardless of the d_Syn_pair / d_Syn_mul values.
-    """
-    nodes = [_node("S", value=10), _node("A", value=8), _node("B", value=6)]
-    edges = [
-        {"source": "S", "target": "A", "type": EDGE_NEEDS_HARD},
-        {"source": "A", "target": "B", "type": EDGE_NEEDS_HARD},
-    ]
-    breakdown_default = explain_score("S", nodes, edges, HYPERS)
-    bizarre_hp = dict(HYPERS, d_Syn_pair=0.99, d_Syn_mul=10.0)
-    breakdown_bizarre = explain_score("S", nodes, edges, bizarre_hp)
-
-    assert math.isclose(
-        breakdown_default['composition']['total_value'],
-        breakdown_bizarre['composition']['total_value'],
-        rel_tol=1e-9,
-    )
-    assert breakdown_default['composition']['iv_multiplier'] == 1.0
-    assert breakdown_bizarre['composition']['iv_multiplier'] == 1.0
+def test_pure_dag_node_unaffected_by_synergy_params():
+    nodes = [_node('S'), _node('A'), _node('B')]
+    edges = [_hard('S', 'A'), _hard('A', 'B')]
+    base = explain_score('S', nodes, edges, HYPERS)
+    other = explain_score('S', nodes, edges, dict(HYPERS, d_Syn_pair=.99, d_Syn_mul=10))
+    assert base['composition'] == other['composition']
+    assert base['composition']['synergy'] == 0
 
 
-def test_m3_multiplier_does_not_amplify_cascade():
-    """The multiplier applies to intrinsic only, not to Hard/Soft cascade.
-
-    S has a Done synergy partner Z and a Hard prereq P. The Hard cascade
-    contribution P → S is unaffected by the multiplier; only S's intrinsic
-    value is amplified.
-    """
-    s = _node("S", value=10, interest=2)
-    p = _node("P", value=8, interest=6, status="Open")
-    z = _node("Z", value=4, interest=3, status="Done")
-    nodes = [s, p, z]
-    edges = [
-        {"source": "S", "target": "P", "type": EDGE_NEEDS_HARD},
-        {"source": "S", "target": "Z", "type": EDGE_HELPS},
-    ]
-    breakdown = explain_score("S", nodes, edges, HYPERS)
-    comp = breakdown['composition']
-
-    from scoring import intrinsic_value
-    iv_s = intrinsic_value(s, HYPERS['w_v'], HYPERS['w_i'])
-    iv_p = intrinsic_value(p, HYPERS['w_v'], HYPERS['w_i'])
-
-    # cascade is d_H * iv_p (unscaled — multiplier doesn't touch it)
-    assert math.isclose(comp['hard_cascade'], HYPERS['d_H'] * iv_p, rel_tol=1e-9)
-    # a Done partner pays no additive pair bonus; the multiplier replaces it
-    assert comp['synergy'] == 0
-    # multiplier kick is iv_s * d_Syn_mul — applies to intrinsic only
-    assert math.isclose(comp['iv_multiplier_contribution'],
-                        iv_s * HYPERS['d_Syn_mul'], rel_tol=1e-9)
+def test_reinforcement_uses_capped_base_without_rewriting_dag_components():
+    nodes = [_node('S', value=10, interest=2), _node('P', value=8, interest=6),
+             _node('Z', status='Done')]
+    edges = [_hard('S', 'P'), dict(source='S', target='Z', type=EDGE_HELPS)]
+    bd = explain_score('S', nodes, edges, HYPERS)
+    comp = bd['composition']
+    assert math.isclose(comp['hard_cascade'], .6 * 14)
+    # Base=20.4, maximum intrinsic with exponent 1=20.
+    assert math.isclose(comp['synergy'], .4 * 20)
+    assert math.isclose(comp['total_value'], 20.4 + 8)
