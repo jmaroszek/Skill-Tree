@@ -1445,7 +1445,8 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
    end is in view. The size is driven by the element's own scroll position, so
    no script is involved. A panel that does not overflow has no scroll
    timeline, so the animation never applies and the registered initial value
-   of 0 leaves it unfaded. */
+   of 0 leaves it unfaded. The Reflection modal's tab pane is built by
+   dbc.Tabs, which takes no class for it, so it is named here instead. */
 @property --scroll-fade-size {
     syntax: '<length>';
     inherits: false;
@@ -1457,7 +1458,8 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     to   { --scroll-fade-size: 0px; }
 }
 
-.scroll-fade-bottom {
+.scroll-fade-bottom,
+.review-hub-body > .tab-content {
     animation: scroll-fade-out linear both;
     animation-timeline: scroll(self block);
     /* Hold the full fade until the last 24px of scrolling, then ramp it off. */
