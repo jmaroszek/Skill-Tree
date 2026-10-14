@@ -802,6 +802,34 @@
     padding: 12px 20px 20px;
 }
 
+/* --- Reflection modal: fixed-size frame --- */
+/* Same idea as Settings, but the tabs stay on top: History is a wide table
+   and there are only three tabs. The tab bar stays put; the pane scrolls.
+   Its height matches Settings, so the two read as one family. */
+
+.review-hub-dialog {
+    max-width: 940px;
+}
+.review-hub-dialog .modal-content {
+    height: min(90vh, 980px);
+}
+.modal-body.review-hub-body {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.review-hub-body > .nav-tabs {
+    flex: 0 0 auto;
+    padding: 0 1rem;
+}
+.review-hub-body > .tab-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
 /* --- Split handles --- */
 /* The bar between two panels that you drag to resize them (ui_kit.split_handle,
    assets/split_handles.js). At rest it is a panel divider. On hover it fills

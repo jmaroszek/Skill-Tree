@@ -208,6 +208,7 @@ def build_review_hub_modal():
                          _build_history_tab(),
                          _build_excluded_tab(),
                      ]),
+            class_name="review-hub-body",
         ),
-    ], id="modal-review-hub", dialog_style={"maxWidth": "940px"},
+    ], id="modal-review-hub", dialog_class_name="review-hub-dialog",
        is_open=False, centered=True, scrollable=True)

@@ -385,12 +385,18 @@ and one with a table is `xl` or a `dialog_style` max-width. Every modal has a
 
 ### Sectioned modals
 
-A modal with several sections, which today is only Settings, lists them down
-the left and keeps one fixed size. Switching sections must never resize it.
-Only the section pane scrolls, and the list stays put. The app's top tabs stay
-horizontal, because they switch between workspaces rather than between pages
-of one dialog. The vertical list takes Up/Down arrows instead of Left/Right.
-The styles live under `.settings-body` in `theme.css`.
+A modal with several sections keeps one fixed size. Switching sections must
+never resize it. Only the section pane scrolls, and the section list stays put.
+
+Settings has many sections, so it lists them down the left. The vertical list
+takes Up/Down arrows instead of Left/Right. Its styles live under
+`.settings-body` in `theme.css`.
+
+Reflection has three tabs and a wide History table, so its tabs stay on top.
+Its styles live under `.review-hub-body`. Both modals share one height.
+
+The app's top tabs stay horizontal, because they switch between workspaces
+rather than between pages of one dialog.
 
 ### Icon affordances
 

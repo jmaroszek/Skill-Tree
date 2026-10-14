@@ -68,7 +68,11 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     description = pending.children[0].children[0]
     empty = pending.children[0].children[2]
 
-    assert modal.dialog_style == {"maxWidth": "940px"}
+    assert modal.dialog_class_name == "review-hub-dialog"
+    assert modal.children[1].class_name == "review-hub-body"
+    css = THEME_CSS.read_text(encoding="utf-8")
+    assert ".review-hub-dialog {\n    max-width: 940px;" in css
+    assert ".review-hub-dialog .modal-content {\n    height:" in css
     assert description.children == "Walk through completed nodes that haven't been reflected on yet"
     assert empty.children[0].className == "bi bi-check-circle text-success me-2"
     assert empty.children[1] == "All caught up"
