@@ -65,21 +65,23 @@ def test_review_history_edit_actions_reveal_on_row_intent_and_touch():
 def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     modal = build_review_hub_modal()
     pending = modal.children[1].children.children[0]
-    description = pending.children[0].children[0]
-    empty = pending.children[0].children[2]
+    section = pending.children[0].children
+    description = section[1]
+    empty = section[3]
 
     assert modal.dialog_class_name == "review-hub-dialog"
     assert modal.children[1].class_name == "review-hub-body"
     css = THEME_CSS.read_text(encoding="utf-8")
     assert ".review-hub-dialog {\n    max-width: 980px;" in css
     assert ".review-hub-dialog .modal-content {\n    height:" in css
-    # The tab pane is the scroller, so it carries the scroll fade.
-    assert ".scroll-fade-bottom,\n.review-hub-body > .tab-content {" in css
     assert description.children == "Walk through completed nodes that haven't been reflected on yet"
     assert empty.children[0].className == "bi bi-check-circle text-success me-2"
     assert empty.children[1] == "All caught up"
     tabs = modal.children[1].children.children
-    assert [tab.label for tab in tabs] == ["Queue", "History", "Excluded"]
+    assert [tab.label for tab in tabs] == ["Reflect", "History"]
+    # The queue and the excluded list share the first tab, under headings.
+    assert [item.children for item in section if item.__class__.__name__ == "H5"] == [
+        "Queue", "Excluded"]
 
 
 def test_review_history_summary_keeps_full_names_and_rating_comparison_accessible():

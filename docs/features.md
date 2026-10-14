@@ -870,18 +870,17 @@ When an event triggers — automatically or because you clicked trigger — an a
 
 Once a project is finished, you can reflect on it by clicking the journal icon in the top-right corner. You can do this the moment you finish a project, or batch them every few weeks; the only wrong move is waiting until you have forgotten the details of the work. You have the option to completely disable this feature, but I have found that keeping it on helps train your intuition, making your estimates for future tasks better, and the priority ranking algorithm more effective in turn.
 
-The reflection hub has three tabs:
+The reflection hub has two tabs:
 
 | Tab | Purpose |
 |---|---|
-| **Queue** | Completed work awaiting reflection. |
+| **Reflect** | Completed work awaiting reflection, and the nodes you excluded from it. |
 | **History** | Log of past reflections comparing estimates with actuals. |
-| **Excluded** | Archive of nodes permanently bypassed during reflection cycles. |
 
 
-## Queue
+## Reflect
 
-Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
+The top of this tab is the queue. Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
 
 Below the ratings is a notes box. Use it for what you learned, what was hard, and why your ratings or time estimates were off. The node's Description is for the plan you made before starting. The notes are for what happened.
 
@@ -890,6 +889,8 @@ Below the ratings is a notes box. Use it for what you learned, what was hard, an
   <br>
   <em>Reflection feature screen after you hit "start reflection" </em>
 </p>
+
+Below the queue is your "Don't ask again" list. Nodes here are quietly bypassed during your reflection cycles. To bring one back, click **Restore** and it returns to the queue.
 
 ## History
 
@@ -904,10 +905,6 @@ It starts with your newest completions first. Pick another order from the sort d
   <br>
   <em> The Reflection History table. </em>
 </p>
-
-## Excluded
-
-This is your "Don't ask again" archive. Nodes here are quietly bypassed during your reflection cycles. If you ever want to bring an excluded node back into the loop, simply click **Restore** to return it to the pending queue.
 
 # Analyze Tab
 

@@ -4,10 +4,10 @@ The hub is the entry point for the Reflection feature. The journal icon in the
 top toolbar opens this modal; the user picks an action (start the focused
 queue, browse history, manage excluded nodes) from within.
 
-Three tabs:
-  - Queue           — count of un-reflected completed nodes + a launch button
+Two tabs:
+  - Reflect         — the queue (count of un-reflected completed nodes + a
+                      launch button), then the "Don't ask again" list under it
   - History         — searchable/filterable table of already-reflected nodes
-  - Excluded        — the "Don't ask again" list (moved here from Settings)
 
 All container IDs (`hub-pending-count`, `hub-history-table-container`,
 `hub-excluded-list`, the filter inputs) must exist at initial render — Dash
@@ -85,9 +85,15 @@ def _build_pager(prefix):
     ], id=f"{prefix}-pager", className="events-triggered-divider review-hub-pager")
 
 
-def _build_pending_tab():
-    return dbc.Tab(label="Queue", tab_id="tab-review-pending", children=[
+def _build_reflect_tab():
+    """The queue and the nodes excluded from it, one above the other.
+
+    They are two halves of one question (which completed nodes get reflected
+    on), and each alone is too short to fill a fixed-size modal.
+    """
+    return dbc.Tab(label="Reflect", tab_id="tab-review-reflect", children=[
         html.Div([
+            html.H5("Queue", className="mb-2"),
             html.P(
                 "Walk through completed nodes that haven't been "
                 "reflected on yet",
@@ -106,6 +112,15 @@ def _build_pending_tab():
                    className="mb-0", style={"display": "none"}),
             dbc.Button("Start Reflection", id="btn-hub-pending-launch",
                        color="primary"),
+            html.H5("Excluded", className="mt-4 mb-2"),
+            html.P(
+                "Nodes marked \"Don't ask again\" during reflection. "
+                "Restore one to make it eligible for the queue again.",
+                className="text-muted mb-3",
+            ),
+            dcc.Store(id="hub-excluded-visible-count", data=20),
+            html.Div(id="hub-excluded-list"),
+            _build_pager("hub-excluded"),
         ], className="p-3")
     ])
 
@@ -182,31 +197,15 @@ def _build_history_tab():
     ])
 
 
-def _build_excluded_tab():
-    return dbc.Tab(label="Excluded", tab_id="tab-review-excluded", children=[
-        html.Div([
-            html.P(
-                "Nodes marked \"Don't ask again\" during reflection. "
-                "Restore one to make it eligible for the queue again.",
-                className="text-muted mb-3",
-            ),
-            dcc.Store(id="hub-excluded-visible-count", data=20),
-            html.Div(id="hub-excluded-list"),
-            _build_pager("hub-excluded"),
-        ], className="p-3")
-    ])
-
-
 def build_review_hub_modal():
     """The Reflection modal — opened by the journal button in the toolbar."""
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Reflection")),
         dbc.ModalBody(
-            dbc.Tabs(id="review-hub-tabs", active_tab="tab-review-pending",
+            dbc.Tabs(id="review-hub-tabs", active_tab="tab-review-reflect",
                      children=[
-                         _build_pending_tab(),
+                         _build_reflect_tab(),
                          _build_history_tab(),
-                         _build_excluded_tab(),
                      ]),
             class_name="review-hub-body",
         ),
