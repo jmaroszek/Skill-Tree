@@ -179,7 +179,7 @@ The relative weight of each factor isn't fixed. [Scoring profiles](scoring.md#sc
 ### Ratings Toggle
 Above the sliders sits one toggle.
 
-**Inherit** turns the node into a container along the ratings-dimension. That means its value, interest, and effort stop being its own, and instead flow up from its children. Reach for it when a node exists primarily to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
+**Inherit** turns the node into a container along the ratings-dimension. That means its value and interest stop being its own, and instead flow up from its children. Effort stays, because it describes the node's own hours. It goes away only when the node inherits its time as well. Reach for it when a node exists primarily to group other work. The [Containers](#containers) section, coming up soon, covers this in depth.
 
 Looking for a way to override the algorithm? That is what **Now** is for. Marking a project Now says you have already decided to work on it, whatever the ranking thinks. See [the Now section](#the-now-section).
 
@@ -228,7 +228,7 @@ You've now met both Inherit toggles — one for ratings, and one for time. Flipp
 |---|---|---|---|
 | Off | Off | Standard node — own ratings and own time. | -- |
 | On | Off | Own ratings, but time sums from incoming nodes. | *Sleep Theory* — I care about the topic enough to rate it directly, but its duration is just whatever the sub-Learns add up to. |
-| Off | On | Own time, but the score comes from what its children contribute. I've never found a use for it — let me know if you have. | — |
+| Off | On | Own time and effort, but the value comes from what its children contribute. I've never found a use for it — let me know if you have. | — |
 | On | On | Pure container — no time or ratings of its own. | A *Transcendentalism* Learn that groups *Walden* and *Emerson Essays*. This is not enough nodes for the parent to need its own ratings, and the time argument is the same as before. |
 
 Of the two toggles, Inherit Time is the one I reach for more often.

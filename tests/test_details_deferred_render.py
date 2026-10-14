@@ -439,7 +439,7 @@ def test_selection_callback_no_longer_serializes_subtasks_table():
     callback = _raw_callback(spec)
     arity = len(inspect.signature(callback).parameters)
     result = callback(*[None] * arity)
-    assert len(result) == 24
+    assert len(result) == 25
 
 
 def test_subtasks_table_waits_for_current_layout(monkeypatch):

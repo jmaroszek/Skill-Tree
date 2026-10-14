@@ -619,7 +619,10 @@ def register_callbacks(app, services=None):
                 lines.append(html.Div("Container", style={"color": tokens.TEXT_SOFT}))
             else:
                 if ratings_inherited:
+                    # Effort stays the node's own while it has its own hours.
                     lines.append(html.Div([html.Strong("Ratings: "), "inherited"]))
+                    if not time_inherited:
+                        lines.append(html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]))
                 else:
                     lines += [
                         html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
@@ -1273,7 +1276,7 @@ def register_callbacks(app, services=None):
     def update_habit_total_preview(duration, dur_unit, intensity_m, int_unit, days):
         return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
 
-    # --- Toggle Value/Interest/Effort sliders based on value_mode ---
+    # --- Toggle Value/Interest sliders based on value_mode ---
     app.clientside_callback(
         """
         function(value_mode_val) {
@@ -1345,20 +1348,24 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # --- Hide Effort slider on Goals; show caption instead ---
-    # Effort on a Goal is decorative — _rank_goals counts only the effort
-    # of the tasks beneath it, and total_value doesn't cascade it. The caption tells the user why the
-    # input is absent so the UI stops asking for a value the system ignores.
+    # --- Hide Effort slider when the node has no work of its own ---
+    # Effort describes a node's own hours, so scoring ignores it when time is
+    # inherited (Node.has_no_own_work). A Goal's Effort is decorative too:
+    # _rank_goals counts only the effort of the tasks beneath it. The caption
+    # tells the user why the input is absent so the UI stops asking for a
+    # value the system ignores. Inheriting ratings alone keeps the slider.
     app.clientside_callback(
         """
-        function(node_type) {
-            if (node_type === 'Goal') return [{display: 'none'}, {}];
+        function(node_type, time_mode_val) {
+            var no_own_work = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
+            if (node_type === 'Goal' || no_own_work) return [{display: 'none'}, {}];
             return [{}, {display: 'none'}];
         }
         """,
         Output('node-effort-row', 'style'),
         Output('node-effort-caption', 'style'),
         Input('node-type', 'value'),
+        Input('node-time-mode', 'value'),
     )
 
     # --- Auto-convert time estimates when unit dropdown changes ---

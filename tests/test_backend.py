@@ -13,7 +13,7 @@ import graph_queries
 from context_rules import compute_orphaned_subcontext_pairs
 from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
 from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
-                     total_value, score_nodes, TIME_REF_HOURS)
+                     total_value, score_nodes, explain_score, TIME_REF_HOURS)
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -3358,23 +3358,30 @@ class TestScoringInheritedValueMode:
         # Manual parent injects extra IV into the child via cascade — child A wins.
         assert a > b
 
-    def test_inherited_value_mode_zeroes_effort_in_cost(self):
-        """value_mode='inherited' also zeros the difficulty term in cost.
-        A pure container shouldn't inject its own effort into its denominator."""
-        manual = _make_node("M", value=5, interest=5, difficulty=10,
-                            time_o=1, time_m=1, time_p=1, value_mode='manual')
-        inherited = _make_node("I", value=5, interest=5, difficulty=10,
-                               time_o=1, time_m=1, time_p=1, value_mode='inherited')
-        # cost_manual  = 1 + 2.5*10 + 1.0*1 = 27
-        # cost_inherit = 1 + 0      + 1.0*1 = 2
-        c_manual = perceived_cost(manual, w_e=2.5, w_t=1.0, beta=0.85)
-        c_inherit = perceived_cost(inherited, w_e=2.5, w_t=1.0, beta=0.85,
-                                   effort_override=0.0)
-        assert c_manual > c_inherit
-        # And the score path uses the override automatically.
-        scored = score_nodes([inherited], [inherited], [], {})
-        # iv = 0, cost = 1 + 0 + 1.0*1 = 2.0, tv = 0, score = 0/2 = 0
-        assert scored[0].priority_score == 0.0
+    def test_inherited_ratings_keep_own_effort_in_cost(self):
+        """Effort prices the node's own hours, so inheriting only the ratings
+        leaves it in the cost. A node with Effort 10 must not score like one
+        with Effort 1 just because its value flows from what it unlocks."""
+        hp = {'w_e': 2.5, 'w_t': 1.0, 'beta': 0.85}
+        child = _make_node("Child", value=8, interest=8)
+
+        def score_with(difficulty):
+            parent = _make_node("P", difficulty=difficulty, time_o=1, time_m=1,
+                                time_p=1, value_mode='inherited')
+            edges = [{'source': 'P', 'target': 'Child', 'type': EDGE_NEEDS_HARD}]
+            scored = score_nodes([parent], [parent, child], edges, hp)
+            return scored[0].priority_score
+
+        assert score_with(1) > score_with(10) > 0
+
+    def test_inherited_time_zeroes_effort_in_cost(self):
+        """A node with no hours of its own (time inherited) has no work for
+        Effort to price, so Explain reports its effort as overridden."""
+        node = _make_node("C", difficulty=10, time_mode='inherited',
+                          value_mode='inherited')
+        breakdown = explain_score("C", [node], [], {'w_e': 2.5})
+        assert breakdown['cost']['effort_overridden'] is True
+        assert breakdown['cost']['cost'] == pytest.approx(1.0)
 
     def test_inherited_parent_still_passes_descendant_value(self):
         """An inherited parent zeroes its OWN IV but still passes its descendants'

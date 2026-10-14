@@ -296,6 +296,7 @@ def register_details_callbacks(app, services=None):
         Output("details-attr-ratings-own", "style"),
         Output("details-attr-ratings-inherited-wrap", "style"),
         Output("details-attr-ratings-inherited", "children"),
+        Output("details-attr-effort-wrap", "style"),
         # Inputs
         Input("details-node-select", "value"),
         Input("details-refresh-trigger", "data"),
@@ -334,12 +335,12 @@ def register_details_callbacks(app, services=None):
                 {"display": "none"}, "",
                 {"display": "none"}, {}, [],
                 # Ratings display (own group shown, inherited row hidden).
-                {}, {"display": "none"}, "",
+                {}, {"display": "none"}, "", {},
             )
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 24
+            return (no_update,) * 25
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
@@ -394,7 +395,7 @@ def register_details_callbacks(app, services=None):
         time_str = ConfigManager.format_time_friendly(effective_time) if effective_time else "—"
 
         # Ratings display: when a node's ratings are inherited (containers and
-        # Milestones), its stored value/interest/effort are scoring-inert, so
+        # Milestones), its stored value/interest are scoring-inert, so
         # showing the raw numbers misleads. Hide the own-ratings rows and show
         # a single "Inherited" row instead — matches the canvas hover tooltip.
         ratings_inherited = node.value_mode == 'inherited'
@@ -480,6 +481,7 @@ def register_details_callbacks(app, services=None):
             show_priority, priority_badge,
             ms_section_style, bottom_toggles_style, ms_tiles,
             ratings_own_style, ratings_inherited_style, ratings_inherited_text,
+            {"display": "none"} if node.has_no_own_work else {},
         )
 
     # --- Subtasks table: selection placeholder, then render after layout ---

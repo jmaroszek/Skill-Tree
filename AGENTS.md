@@ -48,7 +48,7 @@ The user-facing version of this is Node Types in [`docs/modeling.md`](docs/model
 
 The three real edge types are *not* a single "strength" gradient — `Helps` is on a different axis from `Needs_Hard`/`Needs_Soft`. Treat them as:
 
-- **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop).
+- **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop). Scoring reads the transitive reduction (`build_adjacency` drops Hard edges a longer Hard path implies), so redundant shortcuts never change a score; `Hard_in` keeps every edge for eligibility.
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
 - **`Helps`** (Synergy) — *mutual reinforcement*, not a lesser Soft. Bidirectional and non-transitive. Each direct partner reinforces the candidate's synergy-free DAG value, capped at the profile's maximum intrinsic node value. Unfinished partners have partial exposure, discounted by their remaining Hard work; Done partners have exposure 1. Cross-context preference raises unfinished exposure without exceeding 1. All partners share one saturation curve: one Done partner gives `d_Syn_mul * capped_value`, and arbitrarily many approach twice that. Partner ratings and partner DAGs are never imported. `d_Syn_pair / d_Syn_mul` sets baseline anticipation; legacy custom settings with pair above completed strength raise completed strength to pair. See [`docs/scoring.md`](docs/scoring.md) and [`scoring.py`](scoring.py)'s `_value_contributions`, shared by ranking and Explain.
 

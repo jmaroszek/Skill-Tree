@@ -304,12 +304,17 @@ def build_details_tab_content():
             html.Div([
                 _attribute_row("Value", "details-attr-value"),
                 _attribute_row("Interest", "details-attr-interest"),
-                _attribute_row("Effort", "details-attr-effort"),
             ], id="details-attr-ratings-own"),
             html.Div(
                 _attribute_row("Ratings", "details-attr-ratings-inherited"),
                 id="details-attr-ratings-inherited-wrap",
                 style={"display": "none"},
+            ),
+            # Effort follows the node's own hours, not its ratings: hidden
+            # only when the node has no work of its own.
+            html.Div(
+                _attribute_row("Effort", "details-attr-effort"),
+                id="details-attr-effort-wrap",
             ),
         ], style={"marginTop": tokens.SPACE_SECTION}),
 

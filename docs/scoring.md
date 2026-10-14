@@ -29,7 +29,9 @@ Perceived cost is how *expensive* a node feels to complete, in terms of time and
 
 $$ \text{Cost}(n) = 1 + w_e \cdot D(n) + w_t \cdot \left(\frac{t(n)}{t_{\text{ref}}}\right)^{\beta} $$
 
-A leading constant, two weights, a reference scale, and an exponent shape the cost. The $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile.
+A leading constant, two weights, a reference scale, and an exponent shape the cost. The $1$ keeps the denominator positive even when $D$ and $t$ are both zero, as they are for a container.
+
+Difficulty belongs to the node's own work, not to its ratings. A node that inherits its time has no work of its own, so both $D$ and $t$ count as zero. A node that inherits only its ratings keeps its own $D$, because its hours are still its own. The weights $w_e$ and $w_t$ are linear scalars, set by the scoring profile.
 
 The reference $t_{\text{ref}}$ is a fixed constant of 40 hours. That is roughly the size of a substantial project. Time is divided by it before the exponent applies. The division gives $w_t$ a plain reading: it is the time penalty of a project that takes exactly 40 hours. A 40-hour project always costs $w_t$, whatever $\beta$ happens to be.
 
@@ -53,6 +55,8 @@ $$ W(n,d)=\max_{p:n\leadsto d}\prod_{e\in p}d_e $$
 $$ \text{TV}_{\text{dag}}(n)=\sum_d W(n,d)\,\text{IV}(d) $$
 
 For A -> B -> D and A -> C -> D with all Hard edges, D contributes once at $d_H^2$. B and C still contribute their own value. Capping summed weights would leave duplicate credit below the cap. Strongest-path propagation removes it at every magnitude.
+
+Scoring reads the transitive reduction of the Hard graph. A Hard edge that a longer Hard path already implies is left out. With A -> B -> C, an extra A -> C adds no ordering, since C already waits on A. Kept, it would lift A's weight for C from $d_H^2$ to $d_H$. A task linked both to a sub-Goal and straight to its parent would likewise earn the parent at $d_H$ rather than $d_H^2$. Reachability is unchanged, so required work and Goal subtrees are too. Eligibility still reads every edge. Soft edges are never reduced.
 
 Discounts retain their per-hop meaning. Strongest does not always mean shortest. Ties prefer fewer hops, then a Hard first hop.
 
@@ -358,7 +362,7 @@ The reason is that two rules point at the same set of nodes. Time inheritance dr
 
 Ranking it anyway produces a bad recommendation twice over. Its cost carries no time term at all, so it undercuts the whole pool on price. Its total value still collects the full cascade from everything it unlocks. Value of a subtree divided by the cost of nothing puts it near the top of the list: on a ~450-node graph, such a node landed in the top five the moment it unblocked.
 
-The exclusion keys on **time alone**, deliberately. A node with inherited *ratings* but its own hours is a different case: it has real work to do and merely draws its worth from what it unlocks, so it keeps competing normally.
+The exclusion keys on **time alone**, deliberately. A node with inherited *ratings* but its own hours is a different case: it has real work to do and merely draws its worth from what it unlocks, so it keeps competing normally. It also keeps its own Effort, which prices that work.
 
 Excluded nodes are left out of the list, not out of the graph. Cascade still flows through them untouched, so they remain connective tissue. The Details tab suggests Goals in its own list, ranked by the Goal scoring above.
 

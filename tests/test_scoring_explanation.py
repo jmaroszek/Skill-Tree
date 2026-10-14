@@ -262,16 +262,15 @@ def test_returns_none_for_unknown_node():
 def test_inherited_time_cost_uses_zero_override():
     """A time_mode='inherited' node is a container — its marginal time is 0.
 
-    The cost still picks up the base 1.0 plus difficulty contribution, so the
-    denominator stays positive. Compare against the legacy behavior (time=1.0)
-    that mistakenly added a phantom unit of cost across inherited chains.
+    With no hours of its own it has no work for Effort to price either, so
+    only the base 1.0 remains and the denominator stays positive.
     """
     nodes = [_node("S", time_mode='inherited', difficulty=4)]
     breakdown = explain_score("S", nodes, [], HYPERS)
     assert breakdown['cost']['time_overridden'] is True
+    assert breakdown['cost']['effort_overridden'] is True
     assert breakdown['cost']['time'] == 0.0
-    # cost = 1 + 4*2.5 + 0^0.85 * 1.0 = 1 + 10 + 0 = 11
-    assert math.isclose(breakdown['cost']['cost'], 11.0, rel_tol=1e-9)
+    assert math.isclose(breakdown['cost']['cost'], 1.0, rel_tol=1e-9)
 
 
 # ---------------------------------------------------------------------------

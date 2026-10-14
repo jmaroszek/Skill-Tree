@@ -90,7 +90,7 @@ _EDITOR_HINTS = {
         "Soft: helps them, but does not block."),
     "helps": "Mutual boost: doing both is worth more than the sum. Does not block.",
     "resources": "External material that helps with this project. Add more types in Settings.",
-    "ratings_inherit": "Take ratings from the nodes inside this one.",
+    "ratings_inherit": "Take value and interest from the nodes inside this one.",
     "time_inherit": "Take time from the nodes inside this one.",
     "habit": "A routine spread over weeks. Enter a duration and minutes per session.",
     "community": bullet_hint(
@@ -349,15 +349,16 @@ def build_node_editor_content():
 
                     dbc.Label("Interest", className="mt-2"),
                     dcc.Slider(min=1, max=10, step=1, value=5, id="node-interest"),
-
-                    html.Div(id="node-effort-row", children=[
-                        dbc.Label("Effort", className="mt-2"),
-                        dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
-                    ]),
-                    html.Div(id="node-effort-caption", style={"display": "none"}, children=[
-                        dbc.Label("Effort", className="mt-2"),
-                        html.Div("Derived from subtasks", className="text-muted small"),
-                    ]),
+                ]),
+                # Effort stays outside section-ratings: it describes the
+                # node's own hours, so inheriting ratings leaves it in place.
+                html.Div(id="node-effort-row", children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    dcc.Slider(min=1, max=10, step=1, value=5, id="node-difficulty"),
+                ]),
+                html.Div(id="node-effort-caption", style={"display": "none"}, children=[
+                    dbc.Label("Effort", className="mt-2"),
+                    html.Div("Derived from subtasks", className="text-muted small"),
                 ]),
                 # --- Section: Time Estimates ---
                 html.Div(id="section-time-estimates", **{'data-validation-ready': 'false'}, children=[

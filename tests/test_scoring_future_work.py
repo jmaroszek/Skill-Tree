@@ -67,10 +67,13 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
     graph = nx.DiGraph(); graph.add_nodes_from(n.name for n in ns)
     hard = nx.DiGraph(); hard.add_nodes_from(graph)
     for e in es:
-        if e['type'] != 'Helps':
-            graph.add_edge(e['source'], e['target'], discount=hp['d_H'] if e['type']=='Needs_Hard' else hp['d_S'])
+        if e['type'] == 'Needs_Soft':
+            graph.add_edge(e['source'], e['target'], discount=hp['d_S'])
         if e['type'] == 'Needs_Hard':
             hard.add_edge(e['source'], e['target'])
+    # Routes run over the transitive reduction of the Hard graph.
+    for a, b in nx.transitive_reduction(hard).edges:
+        graph.add_edge(a, b, discount=hp['d_H'])
     byname = {n.name:n for n in ns}
     expected = {}
     for seed, coefficient in [('A', 1)]:

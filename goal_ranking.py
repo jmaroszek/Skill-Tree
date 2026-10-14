@@ -62,12 +62,11 @@ def _goal_work(all_nodes_dict, edges, hp):
                     weights[parent] = max(weights.get(parent, 0.0), weights[goal] * d_H)
         own = intrinsic_value(node, w_v, w_i, value_exponent)
         credit = {g: w * goal_iv[g] for g, w in weights.items()}
-        effort = 0.0 if node.value_mode == 'inherited' else None
         rows[name] = {
             'own': own,
             'credit': credit,
             'value': own + math.fsum(credit.values()),
-            'cost': perceived_cost(node, w_e, w_t, beta, effort_override=effort),
+            'cost': perceived_cost(node, w_e, w_t, beta),
             'hours': node.time,
         }
     return hard_in, rows

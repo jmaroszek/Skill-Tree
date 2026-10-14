@@ -23,10 +23,12 @@ def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dic
     """Build the four adjacency maps the scoring algorithm consumes.
 
     Returns (H_out, S_out, Syn, Hard_in) where:
-      - H_out[n]   : nodes that depend on n via a hard prerequisite
+      - H_out[n]   : nodes that depend on n via a hard prerequisite, less
+                     redundant shortcuts (see _drop_redundant_hard)
       - S_out[n]   : nodes that depend on n via a soft prerequisite
       - Syn[n]     : nodes synergistic with n (symmetric set)
-      - Hard_in[n] : the hard prerequisites of n (incoming)
+      - Hard_in[n] : the hard prerequisites of n (incoming), every edge kept
+                     because eligibility reads it
     """
     H_out = {n: [] for n in node_names}
     S_out = {n: [] for n in node_names}
@@ -47,7 +49,45 @@ def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dic
             Syn[src].add(trg)
             Syn[trg].add(src)
 
-    return H_out, S_out, Syn, Hard_in
+    return _drop_redundant_hard(H_out), S_out, Syn, Hard_in
+
+
+def _drop_redundant_hard(H_out: dict) -> dict:
+    """H_out without Hard edges that a longer Hard path already implies.
+
+    With A -> B -> C, an extra A -> C adds no ordering: C already waits on A.
+    Kept, it would raise A's route weight for C from d_H**2 to d_H, and let a
+    task skip its sub-Goal to credit the parent Goal at d_H. So scoring sees
+    the transitive reduction, and a redundant edge never changes a score.
+    Reachability is unchanged, so required-work closures and Goal subtrees
+    are too. A cyclic (invalid) Hard graph is returned unreduced.
+    """
+    in_degree = {n: 0 for n in H_out}
+    for children in H_out.values():
+        for c in children:
+            in_degree[c] += 1
+    order = [n for n, d in in_degree.items() if d == 0]
+    for n in order:  # Kahn's algorithm; `order` grows as it is walked
+        for c in H_out[n]:
+            in_degree[c] -= 1
+            if in_degree[c] == 0:
+                order.append(c)
+    if len(order) < len(H_out):
+        return H_out
+    bit = {n: 1 << i for i, n in enumerate(order)}
+    below = {}  # bitmask of every node strictly downstream of n
+    for n in reversed(order):
+        mask = 0
+        for c in H_out[n]:
+            mask |= below[c] | bit[c]
+        below[n] = mask
+    reduced = {}
+    for n, children in H_out.items():
+        implied = 0
+        for c in children:
+            implied |= below[c]
+        reduced[n] = [c for c in children if not implied & bit[c]]
+    return reduced
 
 
 def intrinsic_value(node: Node, w_v: float, w_i: float,
@@ -106,9 +146,10 @@ def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
 
     `time_override` substitutes for `node.time` when provided (used for
     `time_mode='inherited'` containers — see _compute_priority_score).
-    `effort_override` substitutes for `node.difficulty` similarly when
-    `value_mode='inherited'`, so a pure container contributes neither
-    intrinsic value nor own-effort cost.
+    `effort_override` substitutes for `node.difficulty` similarly when the
+    node has no work of its own (`has_no_own_work`). Effort belongs to the
+    node's own hours, not its ratings: a node with inherited ratings but its
+    own hours still pays its Effort.
 
     Time enters as `w_t * (t / TIME_REF_HOURS)**beta`. Note the scale change
     from the pre-normalization form: a `w_t` from that form must be
@@ -525,12 +566,12 @@ def _compute_priority_score(
     beta = hyperparams.get('beta', 0.85)
     context_weights = hyperparams.get('context_weights', {}) or {}
 
-    # Inherited-time containers carry no marginal time cost; inherited-value
-    # containers also carry no marginal effort cost (the node is a pure
-    # structural conduit). The base `1.0 +` keeps the denominator positive
-    # in both cases.
+    # Inherited-time containers have no work of their own, so they carry no
+    # marginal time or effort cost. Inherited ratings leave Effort in place:
+    # it describes the node's own hours. The base `1.0 +` keeps the
+    # denominator positive.
     t_override = 0.0 if node.time_mode == 'inherited' else None
-    e_override = 0.0 if node.value_mode == 'inherited' else None
+    e_override = 0.0 if node.has_no_own_work else None
     cost = perceived_cost(node, w_e, w_t, beta,
                           time_override=t_override, effort_override=e_override)
     tv = total_value(
@@ -937,7 +978,7 @@ def explain_score(
     time_overridden = (node.time_mode == 'inherited')
     value_overridden = (node.value_mode == 'inherited')
     t_override = 0.0 if time_overridden else None
-    e_override = 0.0 if value_overridden else None
+    e_override = 0.0 if node.has_no_own_work else None
     cost = perceived_cost(node, w_e, w_t, beta,
                           time_override=t_override, effort_override=e_override)
 
@@ -1050,7 +1091,7 @@ def explain_score(
             'difficulty': node.difficulty,
             'time': 0.0 if time_overridden else node.time,
             'time_overridden': time_overridden,
-            'effort_overridden': value_overridden,
+            'effort_overridden': node.has_no_own_work,
             'cost': cost,
         },
         'composition': {

@@ -112,7 +112,7 @@ def _baseline_score_nodes(
 
     def _merit(node):
         t_override = 0.0 if node.time_mode == 'inherited' else None
-        e_override = 0.0 if node.value_mode == 'inherited' else None
+        e_override = 0.0 if node.has_no_own_work else None
         cost = perceived_cost(node, w_e, w_t, beta,
                               time_override=t_override, effort_override=e_override)
         # CRITICAL: memo=None — replicates pre-Phase-E behavior.

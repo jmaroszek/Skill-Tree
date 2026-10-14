@@ -88,10 +88,12 @@ def test_inserting_a_goal_level_adds_a_discounted_share_not_a_full_one():
     assert added == pytest.approx(goal_credit - (D_H - D_H ** 2) * after['Health']['iv'])
 
 
-def test_a_goal_reached_two_ways_takes_the_stronger():
+def test_a_shortcut_past_a_sub_goal_earns_no_extra_credit():
+    # A -> Umbrella is implied by A -> Sub -> Umbrella, so scoring drops it
+    # and the parent stays one step further on.
     nodes = [node('A'), goal('Sub'), goal('Umbrella')]
     edges = [edge('A', 'Sub'), edge('Sub', 'Umbrella'), edge('A', 'Umbrella')]
-    assert rows('A', nodes, edges)['Umbrella']['weight'] == pytest.approx(D_H)
+    assert rows('A', nodes, edges)['Umbrella']['weight'] == pytest.approx(D_H ** 2)
 
 
 def test_a_done_task_cuts_the_subtree_route():

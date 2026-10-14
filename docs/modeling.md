@@ -111,6 +111,8 @@ The second is personal preference. I could technically have started *Beyond Good
 
 Either way, a hard edge says the same thing: $A$ *must* come before $B$.
 
+You don't need to avoid shortcut edges. If $A ightarrow B ightarrow C$ already exists, an extra $A ightarrow C$ says nothing new: $C$ already waits on $A$. Scoring ignores such a shortcut, so it never inflates $A$'s priority. That includes linking a task straight to a parent Goal when it already sits under one of its sub-Goals.
+
 ### When to Use Soft Edges
 Soft edges represent helpful prep work, not strict barriers. Use one when completing the source makes the target easier, faster, or higher quality — but you still want the freedom to start the target early if inspiration strikes.
 
