@@ -91,7 +91,9 @@ def canvases():
         'main': generate_elements(filters=show_dormant),
         'details': _build_graph_elements(
             'Root', ['include'], ['include'], global_filters=show_dormant),
-        'events': render_event_graph('Trip', 0),
+        # Show Done and Show Dormant, as the other two canvases are given.
+        'events': render_event_graph('Trip', 0, True, None, {
+            'done': ['show_done'], 'dormant': ['show_dormant']}),
     }
     assert set(rendered) == {canvas.key for canvas in CANVASES}
     return rendered

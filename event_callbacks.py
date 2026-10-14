@@ -19,7 +19,9 @@ from duration_ui import duration_to_days, format_duration_days
 from prerender import prerendered
 from callback_helpers import (build_node_element, build_edge_element,
                               canvas_node_styles, build_dormancy_snapshot,
-                              _norm_dormancy, NEW_EVENT_OPTION, merge_manual_order)
+                              _norm_dormancy, NEW_EVENT_OPTION, merge_manual_order,
+                              FILTER_INPUTS, filters_from,
+                              filter_summary, filter_chip_state, filter_chip_updates)
 import style_tokens as tokens
 
 event_manager = EventManager()
@@ -1444,7 +1446,9 @@ def register_event_callbacks(app, services=None):
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
     # The Nodes outside event switch drops the neighbors, leaving the event's own
-    # nodes and the links between them.
+    # nodes and the links between them. The sidebar filters narrow only the
+    # neighbors: the event's own nodes are the list the user loaded, and are
+    # dormant, so the Show Dormant gate alone would hide them all.
     # Outputs to events-elements-pending-store; freeze bypass applied by a
     # clientside callback in callbacks.py.
     # Any change to the graph can change the neighbors, such as a new node
@@ -1456,8 +1460,10 @@ def register_event_callbacks(app, services=None):
         Input("events-refresh-trigger", "data"),
         Input("events-outside-nodes", "value"),
         Input("graph-version-store", "data"),
+        FILTER_INPUTS,
     )
-    def render_event_graph(selected_event, _refresh, show_outside=True, _graph_version=None):
+    def render_event_graph(selected_event, _refresh, show_outside=True,
+                           _graph_version=None, sidebar_filters=None):
         if not selected_event:
             return []
 
@@ -1474,14 +1480,18 @@ def register_event_callbacks(app, services=None):
             if e['target'] in dormant_names and e['source'] not in dormant_names:
                 neighbor_names.add(e['source'])
 
-        all_names = dormant_names | neighbor_names
+        neighbors = [node for node in map(graph_manager.get_node, neighbor_names)
+                     if node]
+        neighbors = graph_manager.filter_nodes(
+            neighbors, filters_from(sidebar_filters))
+        nodes = [node for node in map(graph_manager.get_node, dormant_names)
+                 if node] + neighbors
+        all_names = {node.name for node in nodes}
         styles = canvas_node_styles(event_manager)
 
         elements = []
-        for name in all_names:
-            node = graph_manager.get_node(name)
-            if not node:
-                continue
+        for node in nodes:
+            name = node.name
             # "Dormant" on this canvas means attached to the selected event,
             # whatever the node's own flag says. The context menu routes Edit
             # on those nodes to the dormant-node editor.
@@ -1532,6 +1542,38 @@ def register_event_callbacks(app, services=None):
         Output('events-canvas-node-count', 'children'),
         Input('events-elements-pending-store', 'data'),
     )
+
+    # --- Events Tab: Filtered chip ---
+    # As on Details: the filters that narrow this canvas, which leave out
+    # Community. They hide only the nodes outside the event.
+    @app.callback(
+        Output('events-filter-chip-text', 'children'),
+        Output('events-filter-chip', 'title'),
+        Output('events-filter-chip', 'hidden'),
+        Input('filter-node-type', 'value'),
+        Input('filter-context', 'value'),
+        Input('filter-subcontext', 'value'),
+        Input('filter-value', 'value'),
+        Input('filter-interest', 'value'),
+        Input('filter-difficulty', 'value'),
+        Input('filter-time', 'value'),
+        Input('filter-time-min', 'value'),
+        Input('filter-search-query', 'data'),
+        Input('filter-time-unit', 'value'),
+        State('events-filter-chip-text', 'children'),
+        State('events-filter-chip', 'title'),
+        State('events-filter-chip', 'hidden'),
+        prevent_initial_call=True,
+    )
+    @prerendered
+    def update_events_filter_chip(f_type, f_ctx, f_sub, f_val, f_int, f_diff,
+                                  f_time, f_time_min, f_search, f_time_unit,
+                                  chip_text, chip_title, chip_hidden):
+        chip = filter_chip_state(filter_summary(
+            node_type=f_type, context=f_ctx, subcontext=f_sub, value=f_val,
+            interest=f_int, difficulty=f_diff, time=f_time,
+            time_min=f_time_min, search=f_search, time_unit=f_time_unit))
+        return filter_chip_updates(chip, (chip_text, chip_title, chip_hidden))
 
     # --- Events Graph Layout: Toggle Panel ---
     @app.callback(

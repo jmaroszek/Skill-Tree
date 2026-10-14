@@ -861,7 +861,7 @@ For a date event, that moment is its date. If the app was closed that day, the e
 Before the event fires you set a delay as an offset, because there is no date yet. Afterwards the editor shows you the wake date itself, since that is the thing that now exists. If two groups of work genuinely become relevant at different real-world moments, they are probably two events rather than one event with delays.
 
 ### Event Canvas
-The right side of the tab shows a mini-graph of the selected event's dormant nodes, plus the nodes they link to outside the event. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live. To see only the event's own nodes, turn off **Nodes outside event** in the Graph Layout panel.
+The right side of the tab shows a mini-graph of the selected event's dormant nodes, plus the nodes they link to outside the event. It works the same way as other canvases. Use it as a sanity check to make sure the nodes are wired how you want them before they go live. To see only the event's own nodes, turn off **Nodes outside event** in the Graph Layout panel. The [filters](#filters-sidebar) narrow only the nodes outside the event. The event's own nodes always show, since they are the list you loaded.
 
 ## Event Announcements
 When an event triggers — automatically or because you clicked trigger — an announcement shows up telling you what woke, what is scheduled and for when, and what was already awake. Delayed nodes get their own announcement later, on the day they actually wake.

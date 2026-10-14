@@ -15,7 +15,7 @@ from styles import events_graph_stylesheet
 from details_layout import build_graph_settings_panel, _freeze_indicator
 from list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 from ui_kit import (Tooltip, add_button, confirm_action, danger_action,
-                    done_color, panel_close_button, primary_action,
+                    done_color, filter_chip, panel_close_button, primary_action,
                     split_handle)
 
 
@@ -377,6 +377,7 @@ def build_events_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left"),
             html.Div(id="events-canvas-node-count", className="canvas-stats-overlay"),
+            filter_chip("events-filter-chip", "filter-chip-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="events-detail-graph-container", style={
         "flex": "1 1 0",

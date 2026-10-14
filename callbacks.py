@@ -2668,15 +2668,16 @@ def register_callbacks(app, services=None):
     # The chips' clear buttons press Clear Filters, as the empty canvas's does.
     app.clientside_callback(
         """
-        function(next_clicks, details_clicks, nodes_clicks, current) {
-            return (next_clicks || details_clicks || nodes_clicks) ? (current || 0) + 1
-                : window.dash_clientside.no_update;
+        function(next_clicks, details_clicks, nodes_clicks, events_clicks, current) {
+            return (next_clicks || details_clicks || nodes_clicks || events_clicks)
+                ? (current || 0) + 1 : window.dash_clientside.no_update;
         }
         """,
         Output('btn-clear-filters', 'n_clicks', allow_duplicate=True),
         Input('next-filter-chip-clear', 'n_clicks'),
         Input('details-filter-chip-clear', 'n_clicks'),
         Input('nodes-filter-chip-clear', 'n_clicks'),
+        Input('events-filter-chip-clear', 'n_clicks'),
         State('btn-clear-filters', 'n_clicks'),
         prevent_initial_call=True,
     )

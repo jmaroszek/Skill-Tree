@@ -914,7 +914,7 @@ in `context_rules.py` and its rows in `build_context_editor_rows`.
 
 ### Filtered chip
 
-A pill that says a view is narrowed by the Filters sidebar. Build it with `ui_kit.filter_chip`; its text, tooltip and `hidden` come from `callback_helpers.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details graph (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
+A pill that says a view is narrowed by the Filters sidebar. Build it with `ui_kit.filter_chip`; its text, tooltip and `hidden` come from `callback_helpers.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details and Events graphs (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
 
 ### Details local-view control row
 
