@@ -18,7 +18,7 @@ import subprocess
 import dash
 import pytest
 
-from skilltree.store.settings import LOADING_SPINNER_STYLE
+from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.shell import build_index_string
 
 

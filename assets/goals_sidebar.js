@@ -16,7 +16,7 @@
  * back takes a few milliseconds. The rebuild still runs after the slide, so
  * anything the key misses is corrected then.
  */
-// NOTE: 350px must match config.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
+// NOTE: 350px must match styles.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
 // transition in sidebars_layout.py.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.goals = window.dash_clientside.goals || {};

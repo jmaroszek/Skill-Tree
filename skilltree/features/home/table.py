@@ -7,7 +7,8 @@ from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.domain.scoring import explain_score
 from skilltree.store import database
 from skilltree.store.resources import get_sections
-from skilltree.store.settings import BADGE_PALETTE, ConfigManager
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
 

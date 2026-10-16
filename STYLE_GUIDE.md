@@ -12,7 +12,7 @@ Status columns beside it. The names are real now:
 |-------|-------|---------------|
 | CSS | [`assets/tokens.css`](assets/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
 | Python | [`skilltree/ui/tokens.py`](skilltree/ui/tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
-| Badges | [`skilltree/store/settings.py`](skilltree/store/settings.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
+| Badges | [`skilltree/ui/styles.py`](skilltree/ui/styles.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
 | Components | [`skilltree/ui/kit.py`](skilltree/ui/kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
 
 Read `assets/tokens.css` for the values. It is commented, and it is the only
@@ -73,14 +73,14 @@ a synonym for muted body text.
 
 The Next-tab priority bars, Node Editor priority strip, Details info
 pane, and subtasks-table tiles all share a single palette
-(`config.BADGE_PALETTE`, accessed via `config.badge_style(name)` for
+(`styles.BADGE_PALETTE`, accessed via `styles.badge_style(name)` for
 badges or read directly for the Next-tab bar fills). The palette is
 **deliberately decoupled from Settings → Type Colors** — the canvas
 needs vivid hues to keep the network readable; the bars/badges need the
 same hue identity at a quieter register, and frozen literals here are
 the single source of truth so future-you doesn't have to remember any
 derivation. **This file is the human-readable source of truth — keep
-`config.BADGE_PALETTE` and the documentation here in sync.**
+`styles.BADGE_PALETTE` and the documentation here in sync.**
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
@@ -102,7 +102,7 @@ The type-color values were originally derived by HSL-desaturating the
 saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
 Action −30/−10, Resource −10/−4, Goal/Milestone/Unblocking −20/−7), then
 frozen here. To re-derive after a major canvas-palette swap, dig those
-deltas out of the git history for this file or `config.BADGE_PALETTE`.
+deltas out of the git history for this file or `styles.BADGE_PALETTE`.
 Otherwise, just edit the literals to taste.
 
 **Next-tab priority bar.** The bar carries two cues: length is the priority and
@@ -541,7 +541,7 @@ command and disappears once the node is awake.
 
 | Element | Value |
 |---------|-------|
-| Sidebar width (editor / goals / events / filters) | `350px` (`config.SIDEBAR_WIDTH`) |
+| Sidebar width (editor / goals / events / filters) | `350px` (`styles.SIDEBAR_WIDTH`) |
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
@@ -1042,7 +1042,7 @@ modal width is shared across its tabs.
 
 ## Badges
 
-Use `config.badge_style(name)` rather than `dbc.Badge(color=...)` so badges
+Use `styles.badge_style(name)` rather than `dbc.Badge(color=...)` so badges
 pick up the centralized BADGE_PALETTE instead of stock Bootstrap colors.
 The helper returns an inline-style dict with background, foreground, and
 font size pre-set.

@@ -9,14 +9,22 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
-from skilltree.store.settings import (ConfigManager, EVENT_CLOCK_INTERVAL_MS,
-                    TOAST_CLEAR_INTERVAL_MS, badge_style)
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import badge_style
+pass
+from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import events_graph_stylesheet
 from skilltree.features.details.layout import build_graph_settings_panel, _freeze_indicator
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 from skilltree.ui.kit import (Tooltip, add_button, confirm_action, danger_action,
                     done_color, filter_chip, panel_close_button, primary_action,
                     split_handle)
+
+# --- Event clock ---
+# How often an open app checks for date triggers and wake dates that have come
+# due. They are due by the calendar, not by any click, so without this a node
+# due overnight stayed asleep until the first interaction of the morning.
+EVENT_CLOCK_INTERVAL_MS = 5 * 60 * 1000
 
 
 def build_events_sidebar_content():
@@ -80,7 +88,7 @@ def build_events_tab_content():
                 # that still target its children/color/style Outputs keep
                 # working. It stays a dbc.Badge for the `color` prop those
                 # Outputs write; it is never shown, so that colour is inert.
-                # If it is ever un-hidden, move it to config.badge_style like
+                # If it is ever un-hidden, move it to styles.badge_style like
                 # every other badge rather than trusting the stock palette.
                 dbc.Badge(id="event-status-badge", children="Pending", color="primary",
                           style={"display": "none"}),

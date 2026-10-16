@@ -11,7 +11,7 @@ from skilltree.features.events.layout import (
     dormant_delete_confirmation_body,
 )
 from skilltree.domain.models import Node
-from skilltree.store.settings import BADGE_PALETTE
+from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.domain.models import STATUS_DONE
 
 

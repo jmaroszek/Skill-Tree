@@ -10,7 +10,7 @@ Do not add literal hex or rem values to this module. If a new value is needed,
 declare it in ``assets/tokens.css`` and export the reference here.
 
 Badge and tile colors are deliberately NOT here — they live in
-``config.BADGE_PALETTE`` and are reached through ``config.badge_style()``.
+``styles.BADGE_PALETTE`` and are reached through ``styles.badge_style()``.
 That palette is user-adjacent (Settings recolors the canvas) and already
 served as the app's one working token system; this module is its counterpart
 for structural color and typography.
@@ -147,3 +147,5 @@ def card_style(selected: bool = False) -> dict:
         "cursor": "pointer",
         "transition": "background-color 0.2s",
     }
+
+

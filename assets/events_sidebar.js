@@ -19,7 +19,7 @@
  * main thread. The list refresh after opening waits for the slide to finish,
  * so the main thread is free to glide the Events tab content alongside it.
  */
-// NOTE: 350px must match config.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
+// NOTE: 350px must match styles.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
 // transition in sidebars_layout.py.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.events = window.dash_clientside.events || {};

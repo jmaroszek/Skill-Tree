@@ -15,7 +15,8 @@ from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunc
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
-from skilltree.store.settings import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.details.layout import build_goal_card
 from skilltree.ui.sidebars_layout import goal_list_cover

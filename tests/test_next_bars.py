@@ -6,7 +6,7 @@ from skilltree.features.home.table import (
     BAR_FILL_PERCENT, BAR_MIN_WIDTH, BAR_ROW_GAP, META_GAP, NAME_MAX_WIDTH,
     NAME_MIN_WIDTH, RANK_TRACK_WIDTH, format_suggestions_table,
 )
-from skilltree.store.settings import BADGE_PALETTE
+from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 

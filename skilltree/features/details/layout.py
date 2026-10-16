@@ -21,11 +21,8 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import Optional, List, Any
-from skilltree.store.settings import (
-    ConfigManager,
-    badge_style,
-    BADGE_PALETTE,
-)
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import badge_style, BADGE_PALETTE
 from skilltree.ui.styles import stylesheet
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 

@@ -9,17 +9,14 @@ from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from skilltree.store.settings import (
-    ConfigManager,
-    CANVAS_HEIGHT,
-    TOOLTIP_SHOW_DELAY_MS,
-    TOOLTIP_HIDE_DELAY_MS,
-    TOOLTIP_NODE_HIDE_DELAY_MS,
-    LOADING_SPINNER_STYLE,
-    TOAST_CLEAR_INTERVAL_MS,
-    DEFAULT_CONTEXTS,
-    DEFAULT_GRAPH_LAYOUT,
-    sort_subcontexts,
+    ConfigManager, DEFAULT_CONTEXTS, DEFAULT_GRAPH_LAYOUT, sort_subcontexts,
 )
+from skilltree.ui.styles import LOADING_SPINNER_STYLE
+from skilltree.ui.timing import (
+    TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
+    TOAST_CLEAR_INTERVAL_MS,
+)
+from skilltree.ui.styles import CANVAS_HEIGHT
 from skilltree.features.events.layout import build_events_tab_content, build_add_to_event_modal
 from skilltree.features.details.layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
 from skilltree.features.settings.layout import build_settings_modal

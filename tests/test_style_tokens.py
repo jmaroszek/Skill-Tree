@@ -19,8 +19,9 @@ ASSETS = ROOT / "assets"
 TOKENS_CSS = ASSETS / "tokens.css"
 
 # Modules that legitimately hold real values rather than references:
-#   store/settings.py  - BADGE_PALETTE and the canvas colours Settings edits
-#   ui/styles.py       - Cytoscape parses its own stylesheet, not CSS
+#   store/settings.py  - the canvas colours Settings edits
+#   ui/styles.py       - BADGE_PALETTE, and the Cytoscape stylesheet, which
+#                        reads values, not CSS
 #   ui/tokens.py       - the var() references themselves
 # analyze/callbacks.py builds Plotly figures, which read computed values and
 # cannot resolve a CSS variable; its chart constants stay literal and are
@@ -58,7 +59,7 @@ def _source(name):
 
 @pytest.mark.parametrize("module", UI_MODULES)
 def test_ui_modules_do_not_hardcode_colours(module):
-    """A colour in UI code must come from style_tokens or config.BADGE_PALETTE.
+    """A colour in UI code must come from style_tokens or styles.BADGE_PALETTE.
 
     Before the token layer there were 361 hex literals across these files, and
     the same semantic colour was written several different ways -- which is how
@@ -76,7 +77,7 @@ def test_ui_modules_do_not_hardcode_colours(module):
             offenders.append(f"{module}:{i}  {stripped[:88]}")
     assert not offenders, (
         "Hardcoded colour(s) found. Add the value to assets/tokens.css and "
-        "reference it through style_tokens, or use config.badge_style() for a "
+        "reference it through style_tokens, or use styles.badge_style() for a "
         "badge:\n  " + "\n  ".join(offenders))
 
 
@@ -234,7 +235,7 @@ def test_the_badge_table_in_the_style_guide_matches_the_palette():
     SoftRelPri matched the subtasks-table Soft tile when the two had different
     values. This holds the documentation to the code.
     """
-    from skilltree.store.settings import BADGE_PALETTE
+    from skilltree.ui.styles import BADGE_PALETTE
 
     guide = (ROOT / "STYLE_GUIDE.md").read_text(encoding="utf-8")
     rows = re.findall(r"^\|\s*(\w+)\s*\|\s*`(#[0-9a-fA-F]{6})`\s*\|\s*`(#[0-9a-fA-F]{3,6})`",
@@ -248,5 +249,5 @@ def test_the_badge_table_in_the_style_guide_matches_the_palette():
         if name in BADGE_PALETTE and BADGE_PALETTE[name] != pair
     }
     assert not mismatched, (
-        f"STYLE_GUIDE.md documents badge values that config.BADGE_PALETTE "
+        f"STYLE_GUIDE.md documents badge values that styles.BADGE_PALETTE "
         f"does not agree with: {mismatched}")

@@ -90,7 +90,6 @@ KNOWN_VIOLATIONS = {
     'deferred: skilltree.store.transfer -> skilltree.store.graph.manager',
     'deferred: skilltree.store.transfer -> skilltree.store.settings',
     'deferred: skilltree.ui.canvas.view -> skilltree.ui.styles',
-    'deferred: skilltree.ui.kit -> skilltree.store.settings',
     'layer: skilltree.domain.goals -> skilltree.store.settings',
     'layer: skilltree.features.events.layout -> skilltree.features.details.layout',
     'layer: skilltree.features.goals.callbacks -> skilltree.features.details.layout',

@@ -9,7 +9,8 @@ popover's click trigger bind reliably.
 
 from dash import html
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import ConfigManager, LOADING_SPINNER_STYLE
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui import tokens
 
 _GEAR_STYLE = {

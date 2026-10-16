@@ -26,8 +26,9 @@ aspirational.
 from dash import html
 import dash_bootstrap_components as dbc
 
-from skilltree.store.settings import (DEFAULT_NODE_COLORS, TOOLTIP_SHOW_DELAY_MS,
-                    TOOLTIP_HIDE_DELAY_MS, ConfigManager)
+from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
+from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.timing import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 
 _DELAY = {"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}
@@ -294,7 +295,7 @@ def split_handle(handle_id, axis, min_size):
 # "Cancel" had four treatments across four modals, including one button that
 # hand-painted #6c757d -- which is exactly `color="secondary"` -- and carried a
 # tooltip describing a revert. "Save" was `primary` in two places, `success` in
-# a third and an icon in a fourth. "Delete" inlined get_danger_color() at six
+# a third and an icon in a fourth. "Delete" inlined a danger colour at six
 # sites although custom.css already restyles .btn-danger globally, and three of
 # the six added their own padding on top.
 #
@@ -327,7 +328,7 @@ def danger_action(label, button_id, **kwargs):
     """Destructive: Delete, Discard.
 
     No inline background. `custom.css` already restyles `.btn-danger` to the
-    tamed red app-wide, so repeating ConfigManager.get_danger_color() here only
+    tamed red app-wide, so repeating the colour here only
     creates a second place for the value to drift.
     """
     kwargs.setdefault("color", "danger")
@@ -350,6 +351,5 @@ def progress_bar_color(pct):
     Both the Home tab and the Details goal-progress bar computed this with
     their own literals.
     """
-    from skilltree.store.settings import BADGE_PALETTE
     return (BADGE_PALETTE[STATUS_DONE][0] if pct == 100
             else BADGE_PALETTE[STATUS_OPEN][0])

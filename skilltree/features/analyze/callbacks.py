@@ -30,7 +30,8 @@ from skilltree.store import database
 from skilltree.ui import kit as ui_kit
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from skilltree.store.settings import ConfigManager, BADGE_PALETTE, DEFAULT_ANALYZE_LIMITS, badge_style
+from skilltree.store.settings import ConfigManager, DEFAULT_ANALYZE_LIMITS
+from skilltree.ui.styles import BADGE_PALETTE, badge_style
 from skilltree.ui import tokens
 
 graph_manager = GraphManager()
@@ -707,7 +708,7 @@ def _render_throughput_chart(quarter_rows,
 
 
 # Categorical palette for the Throughput chart's context segments. Tuned to
-# the muted, deeper register of config.BADGE_PALETTE (see STYLE_GUIDE.md) so
+# the muted, deeper register of styles.BADGE_PALETTE (see STYLE_GUIDE.md) so
 # it sits with the DARKLY theme rather than reading as bright/pastel. Distinct
 # hues, ordered to alternate warm/cool so adjacent stacked segments stay
 # legible.

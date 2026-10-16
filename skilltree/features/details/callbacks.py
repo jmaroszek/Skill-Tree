@@ -10,7 +10,8 @@ import time
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
-from skilltree.store.settings import ConfigManager, badge_style
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import badge_style
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.features.details.layout import (build_details_subtasks_table,
                              build_no_selection_subtasks,

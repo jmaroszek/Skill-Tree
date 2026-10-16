@@ -18,16 +18,10 @@ from skilltree.ui.components.duration import (DURATION_UNITS, NEW_NODE_TIME_UNIT
                          time_estimates_heading, unit_select)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import (
-    ConfigManager,
-    TOAST_CLEAR_INTERVAL_MS,
-    LOCATE_TOAST_CLEAR_INTERVAL_MS,
-    LOADING_SPINNER_STYLE,
-    SIDEBAR_WIDTH_PX,
-    SIDEBAR_TRANSLATE_CLOSED,
-    SUPPORTED_NODE_TYPES,
-    sort_contexts,
-)
+from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
+from skilltree.ui.styles import LOADING_SPINNER_STYLE
+from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS, LOCATE_TOAST_CLEAR_INTERVAL_MS
+from skilltree.ui.styles import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
 from skilltree.features.events.layout import build_events_sidebar_content, delay_fields, wake_switches
 from skilltree.ui.components.list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from skilltree.ui.components.context_picker import build_multi_context_picker, build_single_context_picker

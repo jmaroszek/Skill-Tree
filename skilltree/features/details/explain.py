@@ -5,7 +5,8 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html
 
-from skilltree.store.settings import BADGE_PALETTE, ConfigManager
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui import tokens
 
 # Maps the `via` field from scoring.explain_score to a bar color.
@@ -14,7 +15,7 @@ from skilltree.ui import tokens
 # neutral slate; Synergy cyan-teal (categorically different — mutual,
 # multiplicative reinforcement, not a weaker prereq). Self is a warm
 # sand off the cool axis entirely so it can't be confused with Soft.
-# Values come from config.BADGE_PALETTE so the chart, the subtasks-table
+# Values come from styles.BADGE_PALETTE so the chart, the subtasks-table
 # relationship column and the node-info badges cannot drift apart.
 _VIA_COLORS = {
     'Self':    BADGE_PALETTE['EdgeSelf'][0],     # warm sand — off the edge axis

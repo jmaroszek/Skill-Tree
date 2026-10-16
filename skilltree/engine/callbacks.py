@@ -26,8 +26,10 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.prerender import prerendered
-from skilltree.store.settings import (ConfigManager, sort_subcontexts, SIDEBAR_TRANSLATE_CLOSED,
-                    DEFAULT_GRAPH_LAYOUT)
+from skilltree.store.settings import (
+    ConfigManager, sort_subcontexts, DEFAULT_GRAPH_LAYOUT,
+)
+from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_OPEN, STATUS_DONE
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store.commands import (
