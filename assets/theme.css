@@ -576,7 +576,7 @@
 .gp-row:hover { background-color: var(--st-bg-panel); }
 .gp-name { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; font-size: var(--st-fs-base); }
 .gp-name-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.gp-rank { flex: none; }
+.gp-rank { flex: none; min-width: 1.9em; padding: 0.2em 0.5em; line-height: 1; font-size: 0.7rem !important; text-align: center; }
 .gp-bar { padding-block: 4px; }
 .gp-track {
     display: flex;
