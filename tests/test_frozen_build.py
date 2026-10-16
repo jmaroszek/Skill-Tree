@@ -7,7 +7,7 @@ import pytest
 
 from skilltree.runtime import paths as app_paths
 from skilltree.runtime import file_picker
-from skilltree.store import resources as resource_links
+from skilltree.runtime import opener
 
 ROOT = Path(__file__).resolve().parents[1]
 unused = runpy.run_path(str(ROOT / "packaging" / "unused_files.py"))["unused"]
@@ -85,8 +85,8 @@ def launched(monkeypatch):
 
     def popen(args, **kwargs):
         calls.append((args, kwargs.get("env")))
-    monkeypatch.setattr(resource_links.subprocess, "Popen", popen)
-    monkeypatch.setattr(resource_links.sys, "platform", "linux")
+    monkeypatch.setattr(opener.subprocess, "Popen", popen)
+    monkeypatch.setattr(opener.sys, "platform", "linux")
     return calls
 
 
@@ -95,7 +95,7 @@ def test_a_frozen_linux_build_launches_apps_with_the_systems_libraries(
     monkeypatch.setenv("LD_LIBRARY_PATH", str(frozen))
     monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib")
 
-    resource_links.open_path("/home/me/notes.pdf")
+    opener.open_path("/home/me/notes.pdf")
 
     (args, env), = launched
     assert args == ["xdg-open", "/home/me/notes.pdf"]
@@ -106,7 +106,7 @@ def test_a_frozen_linux_build_launches_apps_with_the_systems_libraries(
 def test_without_an_original_the_bundle_path_is_dropped(frozen, launched, monkeypatch):
     monkeypatch.setenv("LD_LIBRARY_PATH", str(frozen))
     monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
-    resource_links.open_path("/home/me/notes.pdf")
+    opener.open_path("/home/me/notes.pdf")
     (_args, env), = launched
     assert "LD_LIBRARY_PATH" not in env
 
@@ -114,9 +114,9 @@ def test_without_an_original_the_bundle_path_is_dropped(frozen, launched, monkey
 def test_a_frozen_linux_build_opens_web_pages_through_xdg_open(frozen, launched, monkeypatch):
     """webbrowser can't be given an environment, and its browser would load
     the bundle's libraries."""
-    monkeypatch.setattr(resource_links.webbrowser, "open_new_tab",
+    monkeypatch.setattr(opener.webbrowser, "open_new_tab",
                         lambda url: pytest.fail("used webbrowser in a frozen Linux build"))
-    resource_links.open_resource("https://example.com", {"kind": "mixed", "root_path": ""})
+    opener.open_resource("https://example.com", {"kind": "mixed", "root_path": ""})
     (args, _env), = launched
     assert args == ["xdg-open", "https://example.com"]
 
@@ -124,6 +124,6 @@ def test_a_frozen_linux_build_opens_web_pages_through_xdg_open(frozen, launched,
 def test_unfrozen_builds_keep_their_environment(launched, monkeypatch):
     monkeypatch.setattr(sys, "frozen", False, raising=False)
     monkeypatch.setenv("LD_LIBRARY_PATH", "/opt/lib")
-    resource_links.open_path("/home/me/notes.pdf")
+    opener.open_path("/home/me/notes.pdf")
     (_args, env), = launched
     assert env is None  # inherit, as before

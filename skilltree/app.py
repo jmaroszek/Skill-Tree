@@ -241,8 +241,8 @@ def open_resource_route():
     """Open one saved link selected from a node's context menu."""
     from flask import request, jsonify
     from skilltree.store.graph.manager import GraphManager
-    from skilltree.store.resources import (NeedsConfirmation, get_sections, get_node_links,
-                                open_resource)
+    from skilltree.store.resources import get_sections, get_node_links
+    from skilltree.runtime.opener import NeedsConfirmation, open_resource
 
     payload = request.get_json(silent=True) or {}
     name = payload.get('node')

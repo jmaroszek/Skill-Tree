@@ -18,8 +18,9 @@ import os
 import dash
 import pytest
 
-from skilltree.store import resources
-from skilltree.store.resources import NeedsConfirmation
+from skilltree.runtime import opener
+from skilltree.runtime.opener import NeedsConfirmation
+from skilltree.store import resources as stored_resources
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -30,8 +31,8 @@ MIXED = {"id": "files", "name": "Files", "kind": "mixed", "root_path": ""}
 @pytest.fixture
 def opened(monkeypatch):
     calls = []
-    monkeypatch.setattr(resources, "open_path", lambda target: calls.append(("os", target)))
-    monkeypatch.setattr(resources.webbrowser, "open_new_tab",
+    monkeypatch.setattr(opener, "open_path", lambda target: calls.append(("os", target)))
+    monkeypatch.setattr(opener.webbrowser, "open_new_tab",
                         lambda target: calls.append(("browser", target)) or True)
     return calls
 
@@ -58,7 +59,7 @@ def no_network_touch(monkeypatch):
     ("obsidian://open?vault=Notes&file=a", "os"),
 ])
 def test_everyday_links_open_without_asking(opened, link, how):
-    resources.open_resource(link, MIXED)
+    opener.open_resource(link, MIXED)
     assert opened == [(how, link)]
 
 
@@ -71,11 +72,11 @@ def test_everyday_links_open_without_asking(opened, link, how):
 ])
 def test_other_schemes_ask_first_and_open_once_agreed(opened, link, named):
     with pytest.raises(NeedsConfirmation) as asked:
-        resources.open_resource(link, MIXED)
+        opener.open_resource(link, MIXED)
     assert named in str(asked.value)
     assert opened == []
 
-    resources.open_resource(link, MIXED, confirmed=True)
+    opener.open_resource(link, MIXED, confirmed=True)
     assert opened == [("os", link)]
 
 
@@ -86,7 +87,7 @@ def test_other_schemes_ask_first_and_open_once_agreed(opened, link, named):
 ])
 def test_a_network_path_asks_before_touching_the_network(opened, no_network_touch, link):
     with pytest.raises(NeedsConfirmation) as asked:
-        resources.open_resource(link, MIXED)
+        opener.open_resource(link, MIXED)
     assert "evil.example" in str(asked.value)
     assert opened == []
 
@@ -94,9 +95,9 @@ def test_a_network_path_asks_before_touching_the_network(opened, no_network_touc
 def test_a_network_root_folder_asks_too(opened, no_network_touch):
     section = {**MIXED, "root_path": "\\\\evil.example\\share"}
     with pytest.raises(NeedsConfirmation, match="evil.example"):
-        resources.open_resource("notes/a.pdf", section)
+        opener.open_resource("notes/a.pdf", section)
     with pytest.raises(NeedsConfirmation, match="evil.example"):
-        resources.open_resource("notes/a.md", section)
+        opener.open_resource("notes/a.md", section)
     assert opened == []
 
 
@@ -109,7 +110,7 @@ def test_a_network_root_folder_asks_too(opened, no_network_touch):
 ])
 def test_a_file_that_opening_would_run_asks_first(opened, link):
     with pytest.raises(NeedsConfirmation) as asked:
-        resources.open_resource(link, MIXED)
+        opener.open_resource(link, MIXED)
     assert "run a program" in str(asked.value)
     assert opened == []
 
@@ -125,15 +126,15 @@ def test_a_file_that_opening_would_run_asks_first(opened, link):
     ("C:\\notes\\archive.tar.gz", None),
 ])
 def test_runnable_files_are_named_by_their_last_suffix(path, suffix):
-    assert resources.runnable_suffix(path) == suffix
+    assert opener.runnable_suffix(path) == suffix
 
 
 def test_a_runnable_file_opens_once_agreed(opened, tmp_path):
     program = tmp_path / "tool.exe"
     program.write_bytes(b"MZ")
     with pytest.raises(NeedsConfirmation, match=r"\.exe file"):
-        resources.open_resource(str(program), MIXED)
-    resources.open_resource(str(program), MIXED, confirmed=True)
+        opener.open_resource(str(program), MIXED)
+    opener.open_resource(str(program), MIXED, confirmed=True)
     assert opened == [("os", str(program))]
 
 
@@ -144,9 +145,9 @@ def test_runnable_files_under_a_root_folder_or_in_a_vault_ask_too(opened, tmp_pa
     (tmp_path / "sync.sh").write_text("echo hi")
     section = {**MIXED, "root_path": str(tmp_path)}
     with pytest.raises(NeedsConfirmation, match=r"\.lnk file"):
-        resources.open_resource("tools/setup.lnk", section)
+        opener.open_resource("tools/setup.lnk", section)
     with pytest.raises(NeedsConfirmation, match=r"\.sh file"):
-        resources.open_resource("sync.sh", section)
+        opener.open_resource("sync.sh", section)
     assert opened == []
 
 
@@ -157,22 +158,22 @@ def test_documents_and_folders_open_without_asking(opened, tmp_path, name):
         target.write_text("x")
     else:
         target.mkdir()
-    resources.open_resource(str(target), MIXED)
+    opener.open_resource(str(target), MIXED)
     assert opened == [("os", str(target))]
 
 
 def test_windows_drive_paths_are_not_mistaken_for_schemes(opened, tmp_path):
     local = tmp_path / "notes.txt"
     local.write_text("x")
-    resources.open_resource(str(local), MIXED)
+    opener.open_resource(str(local), MIXED)
     assert opened == [("os", str(local))]
-    assert resources.link_scheme("C:\\Users\\me\\notes.txt") is None
-    assert resources.link_scheme("c:/notes.txt") is None
+    assert opener.link_scheme("C:\\Users\\me\\notes.txt") is None
+    assert opener.link_scheme("c:/notes.txt") is None
 
 
 def test_a_bare_domain_with_a_port_is_a_web_address_not_a_scheme(opened):
-    assert resources.link_scheme("example.com:8080/docs") is None
-    resources.open_resource("example.com:8080/docs", MIXED)
+    assert opener.link_scheme("example.com:8080/docs") is None
+    opener.open_resource("example.com:8080/docs", MIXED)
     assert opened == [("browser", "https://example.com:8080/docs")]
 
 
@@ -218,7 +219,7 @@ def _callbacks():
 def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):
     from dash._callback_context import context_value
     from dash._utils import AttributeDict
-    monkeypatch.setattr(resources, "get_sections", lambda: [dict(MIXED, id="website")])
+    monkeypatch.setattr(stored_resources, "get_sections", lambda: [dict(MIXED, id="website")])
     from skilltree.features.editor import resources as resource_link_callbacks
     monkeypatch.setattr(resource_link_callbacks, "get_sections",
                         lambda: [dict(MIXED, id="website")])

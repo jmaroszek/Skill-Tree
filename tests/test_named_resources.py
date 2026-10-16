@@ -13,6 +13,7 @@ from skilltree.domain.models import Node
 from dash.development.base_component import Component
 from skilltree.runtime import paths
 from skilltree.store import schema
+from skilltree.runtime import opener
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -87,14 +88,14 @@ def test_mixed_url_and_file_resolution(tmp_path):
     section = {"kind": "mixed", "root_path": str(root)}
     assert resources.normalize_link(str(inside), section) == "note.txt"
     assert resources.normalize_link(str(outside), section) == str(outside)
-    assert resources.resolve_target("note.txt", section) == ("path", str(inside))
-    assert resources.resolve_target("https://example.com", section) == (
+    assert opener.resolve_target("note.txt", section) == ("path", str(inside))
+    assert opener.resolve_target("https://example.com", section) == (
         "web", "https://example.com")
-    assert resources.resolve_target("example.com", {"kind": "mixed", "root_path": ""}) == (
+    assert opener.resolve_target("example.com", {"kind": "mixed", "root_path": ""}) == (
         "web", "https://example.com")
-    assert resources.absolute_path("C:\\Users\\person\\file.txt")
+    assert opener.absolute_path("C:\\Users\\person\\file.txt")
     with pytest.raises(ValueError, match="root folder"):
-        resources.resolve_target("missing.txt", {"kind": "mixed", "root_path": ""})
+        opener.resolve_target("missing.txt", {"kind": "mixed", "root_path": ""})
 
 
 def _vault(tmp_path):
@@ -109,19 +110,19 @@ def test_a_note_in_a_vault_opens_in_the_obsidian_app(tmp_path):
     note = vault / "notes" / "a.md"
     note.write_text("note")
     section = {"root_path": str(vault)}
-    kind, target = resources.resolve_target("notes/a.md", section)
+    kind, target = opener.resolve_target("notes/a.md", section)
     assert kind == "uri"
     assert target.startswith("obsidian://open?path=")
     # Found by being in a vault, whatever the section's root.
-    assert resources.resolve_target(str(note), {"root_path": ""})[0] == "uri"
+    assert opener.resolve_target(str(note), {"root_path": ""})[0] == "uri"
     # A web link in the same section still goes to the browser.
-    assert resources.resolve_target("https://example.com", section)[0] == "web"
+    assert opener.resolve_target("https://example.com", section)[0] == "web"
 
 
 def test_a_vault_link_to_a_missing_file_says_so(tmp_path):
     section = {"root_path": str(_vault(tmp_path))}
     with pytest.raises(FileNotFoundError):
-        resources.open_resource("notes/gone.md", section)
+        opener.open_resource("notes/gone.md", section)
 
 
 def test_files_obsidian_cannot_open_go_to_the_default_app(tmp_path):
@@ -131,10 +132,10 @@ def test_files_obsidian_cannot_open_go_to_the_default_app(tmp_path):
     outside.write_text("not in a vault")
     section = {"root_path": str(vault)}
     # Obsidian can't open a Word file, even inside the vault.
-    assert resources.resolve_target("notes/report.docx", section) == (
+    assert opener.resolve_target("notes/report.docx", section) == (
         "path", os.path.join(str(vault), "notes", "report.docx"))
     # Nor a note outside every vault.
-    assert resources.resolve_target(str(outside), section) == ("path", str(outside))
+    assert opener.resolve_target(str(outside), section) == ("path", str(outside))
 
 
 @pytest.mark.parametrize("platform, expected", [
@@ -142,24 +143,24 @@ def test_files_obsidian_cannot_open_go_to_the_default_app(tmp_path):
 ])
 def test_open_path_platform_command(monkeypatch, platform, expected):
     calls = []
-    monkeypatch.setattr(resources.sys, "platform", platform)
-    monkeypatch.setattr(resources.subprocess, "Popen", lambda args, **kw: calls.append((args, kw)))
-    resources.open_path("obsidian://open?path=x")
+    monkeypatch.setattr(opener.sys, "platform", platform)
+    monkeypatch.setattr(opener.subprocess, "Popen", lambda args, **kw: calls.append((args, kw)))
+    opener.open_path("obsidian://open?path=x")
     assert calls == [([expected, "obsidian://open?path=x"], {"shell": False, "env": None})]
 
 
 def test_open_path_windows(monkeypatch):
     calls = []
-    monkeypatch.setattr(resources.sys, "platform", "win32")
+    monkeypatch.setattr(opener.sys, "platform", "win32")
     monkeypatch.setattr(resources.os, "startfile", calls.append, raising=False)
-    resources.open_path("C:\\book.pdf")
+    opener.open_path("C:\\book.pdf")
     assert calls == ["C:\\book.pdf"]
 
 
 def test_web_url_uses_browser(monkeypatch):
     calls = []
-    monkeypatch.setattr(resources.webbrowser, "open_new_tab", lambda value: calls.append(value) or True)
-    resources.open_resource("example.com", {"kind": "mixed", "root_path": ""})
+    monkeypatch.setattr(opener.webbrowser, "open_new_tab", lambda value: calls.append(value) or True)
+    opener.open_resource("example.com", {"kind": "mixed", "root_path": ""})
     assert calls == ["https://example.com"]
 
 
@@ -203,12 +204,12 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     # Build the app before patching. Its first import of a module that does
-    # `from resource_links import open_resource` would keep the fake for
+    # `from skilltree.runtime.opener import open_resource` would keep the fake for
     # every later test.
     app = app_module.create_app(app_module.AppSettings(
         environment=paths.ENVIRONMENT, configure_logging=False))
     opened = []
-    monkeypatch.setattr(resources, 'open_resource',
+    monkeypatch.setattr(opener, 'open_resource',
                         lambda value, section, confirmed=False:
                         opened.append((value, section['id'])))
     client = app.server.test_client()

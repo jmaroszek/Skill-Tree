@@ -15,7 +15,8 @@ pass
 from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.ui.prerender import prerendered
-from skilltree.store.resources import NeedsConfirmation, get_sections, open_resource, store_path
+from skilltree.store.resources import get_sections, store_path
+from skilltree.runtime.opener import NeedsConfirmation, open_resource
 from dash import html
 from skilltree.ui.kit import add_button
 import dash_bootstrap_components as dbc

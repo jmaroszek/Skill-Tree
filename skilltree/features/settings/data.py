@@ -16,7 +16,7 @@ from dash import Input, Output, State, dcc, html, no_update
 from skilltree.store import backup
 from skilltree.store import transfer as data_transfer
 from skilltree.store.settings import ConfigManager
-from skilltree.store.resources import open_path
+from skilltree.runtime.opener import open_path
 
 logger = logging.getLogger(__name__)
 
