@@ -697,7 +697,7 @@ If a subtask has a *direct* edge to the selected node, an **×** appears at the 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
 ### Controlling how much you see
-The controls in the top-right let you dial the local view from a compact list of immediate prerequisites to the entire project. **Max Depth** sits apart from them, in the graph settings panel behind the gear in the graph's bottom-right corner. Wherever you set them, the graph, Subtasks table, Milestones, and time simulation react together, so they never describe different slices of the project by accident.
+The controls in the top-right let you dial the local view from a compact list of immediate prerequisites to the entire project. **Max Depth** sits apart from them, in the graph settings panel behind the gear in the graph's bottom-right corner. While it's set below All, the node count in the bottom-left names the depth, so a cut-off view never passes for the whole subtree. Wherever you set them, the graph, Subtasks table, Milestones, and time simulation react together, so they never describe different slices of the project by accident.
 
 | Control | Where | What it does | Default |
 |---|---|---|:---:|

@@ -657,9 +657,9 @@ callbacks out of that second:
   value, rather than after the selection callback returns.
 - Navigation history, graph taps and suggestion clicks are clientside
   callbacks.
-- The node count is counted in the browser from the graph payload. A server
-  callback reports only whether any filter is active, and only when the
-  filters change.
+- The node count is counted in the browser from the graph payload, and names
+  the depth limit when one is set. A server callback updates only the filter
+  chip, and only when the filters change.
 - The Explain modal's inputs come from `details-explain-node`, which is
   written only while the modal is open.
 - Node-less simulation cancellations reach the server only while a
