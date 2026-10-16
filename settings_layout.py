@@ -35,9 +35,10 @@ _PAGE_DESCRIPTIONS = {
     "tab-contexts": "Contexts sort your nodes into areas of your life, and "
                     "subcontexts divide each area. Drag a row or a chip to "
                     "reorder it.",
-    "tab-resources": "Where your notes and materials live. Each resource gets "
-                     "its own field in the Node Editor, a labeled dot on Home, "
-                     "and an Open item in the right-click menu.",
+    "tab-resources": "Links to your notes and materials: files on this computer "
+                     "or web pages. Each resource gets its own field in the Node "
+                     "Editor, a labeled dot on Home, and an Open item in the "
+                     "right-click menu.",
     "tab-appearance": "How nodes look on every canvas.",
     "tab-data": "Updates, backups, and moving your graph to another computer.",
 }
@@ -341,7 +342,7 @@ def _build_resources_tab():
                 html.Span(hover_label(
                     "Root folder", "resource-head-root",
                     "Links to files under this folder are saved with paths "
-                    "relative to it.", component=html.Span)),
+                    "relative to it. Web links ignore it.", component=html.Span)),
                 html.Span(),
             ], className="resource-head"),
             dcc.Store(id="resource-section-settings-store", data=get_sections()),
