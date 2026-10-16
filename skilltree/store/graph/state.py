@@ -31,6 +31,27 @@ class GraphRevisions:
 revisions = GraphRevisions()
 
 
+# Fields whose mutation changes a node's priority_score. Anything else
+# (description, paths, aliases) is cosmetic
+# for scoring purposes and must not invalidate the scoring memo.
+# context/subcontext are in the list because they are what a node is
+# discounted against for suggestion variety, and they also pick its context
+# weight and decide which cascade hops count as cross-context.
+# `now` is in the list because Now *membership* changes other nodes' numbers:
+# scoring.variety_divisors builds its pool from the non-Now nodes, so flipping
+# one both drops its own divisor and stops it charging a repetition against its
+# context peers, and get_priority_normalizer takes its max over non-Now nodes.
+# Only membership matters, not rank -- reorder_now_nodes writes the rank in raw
+# SQL and correctly stays scoring=False.
+SCORING_RELEVANT_FIELDS = frozenset({
+    'type', 'value', 'interest', 'difficulty',
+    'time_o', 'time_m', 'time_p', 'time_mode',
+    'value_mode',
+    'status', 'dormant', 'now',
+    'context', 'subcontext',
+})
+
+
 @dataclass
 class GraphCaches:
     communities: OrderedDict = field(default_factory=OrderedDict)

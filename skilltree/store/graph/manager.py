@@ -15,10 +15,13 @@ from collections import defaultdict, deque
 from datetime import date
 from skilltree.store import database
 from skilltree.store.graph import queries as graph_queries
+from skilltree.store.graph import taxonomy as graph_taxonomy
 from skilltree.store.graph import scoring as graph_scoring
 from skilltree.domain import rules as graph_rules
 from skilltree.store.graph.repository import GraphRepository, record_ledger
-from skilltree.store.graph.state import GraphCaches, CacheValue, RevisionValue, revisions
+from skilltree.store.graph.state import (
+    SCORING_RELEVANT_FIELDS, CacheValue, GraphCaches, RevisionValue, revisions,
+)
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.settings import ConfigManager
 from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
@@ -28,28 +31,9 @@ if TYPE_CHECKING:
     import networkx as nx
 
 
-# Fields whose mutation changes a node's priority_score. Anything else
-# (description, paths, aliases) is cosmetic
-# for scoring purposes and must not invalidate the scoring memo.
-# context/subcontext are in the list because they are what a node is
-# discounted against for suggestion variety, and they also pick its context
-# weight and decide which cascade hops count as cross-context.
-# `now` is in the list because Now *membership* changes other nodes' numbers:
-# scoring.variety_divisors builds its pool from the non-Now nodes, so flipping
-# one both drops its own divisor and stops it charging a repetition against its
-# context peers, and get_priority_normalizer takes its max over non-Now nodes.
-# Only membership matters, not rank -- reorder_now_nodes writes the rank in raw
-# SQL and correctly stays scoring=False.
 # The ranking a run of Now starts shares (see GraphManager.ranking_batch).
 _rank_batch: contextvars.ContextVar = contextvars.ContextVar("rank_batch", default=None)
 
-_SCORING_RELEVANT_FIELDS = frozenset({
-    'type', 'value', 'interest', 'difficulty',
-    'time_o', 'time_m', 'time_p', 'time_mode',
-    'value_mode',
-    'status', 'dormant', 'now',
-    'context', 'subcontext',
-})
 
 
 # A Done node of these types stays Done when a prerequisite reopens. A
@@ -305,7 +289,7 @@ class GraphManager:
         # (a scoring-relevant field), so it sets _scoring_version directly.
         scoring_changed = prior is None or any(
             getattr(prior, f, None) != getattr(node, f, None)
-            for f in _SCORING_RELEVANT_FIELDS
+            for f in SCORING_RELEVANT_FIELDS
         )
         self._bump_version(scoring=scoring_changed)
         # Done is only ever set here — the cascade in
@@ -1316,189 +1300,25 @@ class GraphManager:
     # --- Migration ---
 
     def find_orphaned_nodes(self, field: str, old_values: list, new_values: list) -> Dict[str, List[Node]]:
-        """Find nodes that reference removed values for a given field.
-
-        Returns a dict mapping each removed value to the list of nodes that still reference it.
-        Only includes entries where at least one node is affected.
-
-        Includes dormant nodes — they reference config values too, and silently
-        leaving them out means a context/type/subcontext can be deleted while
-        dormant nodes still hold the stale value, only surfacing as broken
-        config when the event later triggers them back into play.
-        """
-        removed = set(old_values) - set(new_values)
-        if not removed:
-            return {}
-
-        all_nodes = self.get_all_nodes(include_dormant=True)
-        orphans = {}
-        for val in removed:
-            affected = [n for n in all_nodes if getattr(n, field, None) == val]
-            if affected:
-                orphans[val] = affected
-        return orphans
+        return graph_taxonomy.find_orphaned_nodes(self, field, old_values, new_values)
 
     def find_nodes_by_pairs(self, pairs) -> Dict[str, List[Node]]:
-        """Group nodes by the (context, subcontext) pairs they still reference.
+        return graph_taxonomy.find_nodes_by_pairs(self, pairs)
 
-        Keyed by 'ctx > sub' display labels, and only for pairs that actually
-        hold nodes. Includes dormant nodes — see find_orphaned_nodes.
-        """
-        pairs = [tuple(p) for p in pairs or []]
-        if not pairs:
-            return {}
-
-        all_nodes = self.get_all_nodes(include_dormant=True)
-        found = {}
-        for ctx, sub in pairs:
-            affected = [n for n in all_nodes if n.context == ctx and n.subcontext == sub]
-            if affected:
-                found[f"{ctx} > {sub}"] = affected
-        return found
-
-    def find_orphaned_subcontext_pairs(self, old_subcontexts: Dict, new_subcontexts: Dict,
-                                       new_contexts: list) -> Dict[str, List[Node]]:
-        """Find nodes whose (context, subcontext) pair no longer exists in the new structure.
-
-        Subcontext identity is the (context, subcontext) tuple, not the bare name —
-        moving a subcontext between parents leaves the bare name in the flat list but
-        invalidates the pair. Returns a dict keyed by 'ctx > sub' display labels.
-
-        This compares taxonomies by name. The Contexts editor tracks each row's
-        origin instead, so it names the dropped pairs itself and calls
-        find_nodes_by_pairs directly.
-        """
-        from skilltree.domain.contexts import compute_orphaned_subcontext_pairs
-        pairs = compute_orphaned_subcontext_pairs(old_subcontexts, new_subcontexts, new_contexts)
-        return self.find_nodes_by_pairs(pairs)
+    def find_orphaned_subcontext_pairs(self, old_subcontexts: Dict, new_subcontexts: Dict, new_contexts: list) -> Dict[str, List[Node]]:
+        return graph_taxonomy.find_orphaned_subcontext_pairs(self, old_subcontexts, new_subcontexts, new_contexts)
 
     def count_nodes_by_context(self):
-        """Return ({context: n}, {(context, subcontext): n}) across every node.
+        return graph_taxonomy.count_nodes_by_context(self)
 
-        Feeds the blast-radius counts in the Contexts editor, so it counts
-        dormant nodes too: they hold config values just the same, and a
-        deletion strands them just the same.
-        """
-        ctx_counts: Dict[str, int] = {}
-        pair_counts: Dict[tuple, int] = {}
-        for node in self.get_all_nodes(include_dormant=True):
-            if not node.context:
-                continue
-            ctx_counts[node.context] = ctx_counts.get(node.context, 0) + 1
-            if node.subcontext:
-                key = (node.context, node.subcontext)
-                pair_counts[key] = pair_counts.get(key, 0) + 1
-        return ctx_counts, pair_counts
+    def apply_taxonomy_migration(self, ctx_renames: Dict[str, str], pair_moves) -> None:
+        return graph_taxonomy.apply_taxonomy_migration(self, ctx_renames, pair_moves)
 
-    @database.atomic
-    def apply_taxonomy_migration(self, ctx_renames: Dict[str, str],
-                                 pair_moves) -> None:
-        """Carry context renames and (context, subcontext) moves onto the nodes.
+    def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict]=None):
+        return graph_taxonomy.apply_migration(self, field, remap, new_subcontexts)
 
-        Each node's destination comes from the values it holds before any of
-        the changes. A pair move claims the nodes in its pair; a context rename
-        reaches the rest of that context — nodes with no subcontext, or with
-        one being dropped. Writing them one UPDATE at a time instead would let
-        a later rename re-match nodes an earlier one had just moved, so a swap
-        (Mind <-> Body) or a chain (Mind -> Body -> Physical) would pour two
-        contexts into one.
-        """
-        pair_moves = {(m[0], m[1]): (m[2], m[3]) for m in pair_moves or []}
-        ctx_renames = ctx_renames or {}
-        if not ctx_renames and not pair_moves:
-            return
-
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name, context, subcontext FROM Nodes")
-            moves = []
-            for name, context, subcontext in cursor.fetchall():
-                dest = pair_moves.get((context, subcontext))
-                if dest is None and context in ctx_renames:
-                    dest = (ctx_renames[context], subcontext)
-                if dest is not None and dest != (context, subcontext):
-                    moves.append((*dest, name))
-            cursor.executemany(
-                "UPDATE Nodes SET context=?, subcontext=? WHERE name=?", moves)
-            conn.commit()
-        self._bump_version(scoring=True)
-
-    @database.atomic
-    def apply_migration(self, field: str, remap: Dict[str, str], new_subcontexts: Optional[Dict] = None):
-        """Remap node attribute values in bulk.
-
-        Args:
-            field: 'context', 'subcontext', or 'type'
-            remap: maps old_value -> new_value (or None to clear)
-            new_subcontexts: when field is 'context', used to check if subcontexts are still valid
-        """
-        if not remap:
-            return
-
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            for old_val, chosen in remap.items():
-                new_val = None if chosen == '__clear__' else chosen
-
-                # Apply the remap
-                cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE [{field}]=?", (new_val, old_val))
-
-                # When context changes, clear subcontexts that don't exist under the new context
-                if field == 'context' and new_val is not None and new_subcontexts is not None:
-                    valid_subs = set(new_subcontexts.get(new_val, []))
-                    if valid_subs:
-                        # Clear subcontext if it's not valid under the new context
-                        cursor.execute(
-                            "SELECT name, subcontext FROM Nodes WHERE context=? AND subcontext IS NOT NULL",
-                            (new_val,)
-                        )
-                        for name, sub in cursor.fetchall():
-                            if sub not in valid_subs:
-                                cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (name,))
-                    else:
-                        # New context has no subcontexts — clear them all
-                        cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE context=?", (new_val,))
-
-            conn.commit()
-        # Every field these migrations accept (context / subcontext / type) is
-        # scoring-relevant, so a bulk remap must invalidate the scoring caches.
-        # Keying off the field set keeps this honest if the accepted fields grow.
-        self._bump_version(scoring=field in _SCORING_RELEVANT_FIELDS)
-        if field == 'type':
-            self.recompute_all_statuses()
-
-    @database.atomic
-    def apply_node_migration(self, node_name: str, field: str, new_val: str,
-                             new_subcontexts: Optional[Dict] = None):
-        """Remap a single node's attribute value.
-
-        Args:
-            node_name: name (primary key) of the node to update
-            field: 'context', 'subcontext', or 'type'
-            new_val: the new value, or '__clear__' to set NULL
-            new_subcontexts: when field is 'context', used to check if subcontexts are still valid
-        """
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            actual_val = None if new_val == '__clear__' else new_val
-
-            cursor.execute(f"UPDATE Nodes SET [{field}]=? WHERE name=?", (actual_val, node_name))
-
-            # When context changes, clear subcontext if invalid under the new context
-            if field == 'context' and actual_val is not None and new_subcontexts is not None:
-                valid_subs = set(new_subcontexts.get(actual_val, []))
-                cursor.execute("SELECT subcontext FROM Nodes WHERE name=?", (node_name,))
-                row = cursor.fetchone()
-                if row and row[0] and row[0] not in valid_subs:
-                    cursor.execute("UPDATE Nodes SET subcontext=NULL WHERE name=?", (node_name,))
-
-            conn.commit()
-        # Every field these migrations accept (context / subcontext / type) is
-        # scoring-relevant, so a bulk remap must invalidate the scoring caches.
-        # Keying off the field set keeps this honest if the accepted fields grow.
-        self._bump_version(scoring=field in _SCORING_RELEVANT_FIELDS)
-        if field == 'type':
-            self.recompute_all_statuses()
+    def apply_node_migration(self, node_name: str, field: str, new_val: str, new_subcontexts: Optional[Dict]=None):
+        return graph_taxonomy.apply_node_migration(self, node_name, field, new_val, new_subcontexts)
 
     @database.consistent_read
     def name_community(self, community: Set[str]) -> str:

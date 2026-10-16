@@ -124,7 +124,7 @@ def intrinsic_value(node: Node, w_v: float, w_i: float,
 # It MUST stay a hardcoded constant. Deriving it from the live graph would
 # make every node's cost depend on the whole graph, so long tasks would get
 # quietly cheaper as work is completed, and the scoring cache keyed on
-# _SCORING_RELEVANT_FIELDS would no longer be sound.
+# SCORING_RELEVANT_FIELDS would no longer be sound.
 TIME_REF_HOURS = 40.0  # a typical substantial Learn node
 
 

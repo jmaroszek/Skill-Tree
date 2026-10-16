@@ -69,7 +69,6 @@ KNOWN_VIOLATIONS = {
     'deferred: skilltree.store.events -> skilltree.domain.rules',
     'deferred: skilltree.store.events -> skilltree.store.graph.manager',
     'deferred: skilltree.store.events -> skilltree.store.settings',
-    'deferred: skilltree.store.graph.manager -> skilltree.domain.contexts',
     'deferred: skilltree.store.graph.manager -> skilltree.store.events',
     'deferred: skilltree.store.graph.manager -> skilltree.store.settings',
     'deferred: skilltree.store.graph.queries -> skilltree.domain.communities',

@@ -391,7 +391,7 @@ def test_priority_normalizer_tracks_the_top_scorable_node():
 def test_priority_normalizer_invalidated_when_a_node_is_flipped_to_now():
     """Flipping Now on an existing node must drop the cached 0-100 base.
 
-    Regression: `now` was missing from _SCORING_RELEVANT_FIELDS, so update_node
+    Regression: `now` was missing from SCORING_RELEVANT_FIELDS, so update_node
     bumped _graph_version but not _scoring_version. get_priority_normalizer
     excludes Now nodes yet keys its cache on _scoring_version, so the base stayed
     pinned to the node that had just been hidden and every bar on the Home tab

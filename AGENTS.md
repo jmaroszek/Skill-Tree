@@ -119,4 +119,4 @@ Tests use a `temp_database` fixture that gives each test its own copy of a new d
 - Behavior that belongs on every canvas loops over `CANVASES` in [`skilltree/ui/canvas/registry.py`](skilltree/ui/canvas/registry.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.
-- When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).
+- When you add a scoring-relevant field to `Node`, also add it to `SCORING_RELEVANT_FIELDS` in `skilltree/store/graph/state.py`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).
