@@ -127,7 +127,7 @@ def test_nothing_changes_when_the_editor_already_agrees(monkeypatch, manager):
         dash.no_update, dash.no_update)
 
 
-@pytest.mark.parametrize("trigger", ["btn-save", "btn-save-close", "btn-unsaved-save"])
+@pytest.mark.parametrize("trigger", ["btn-save", "btn-unsaved-save"])
 def test_an_editor_save_keeps_its_own_form(monkeypatch, manager, trigger):
     """sync_original_name_after_save snapshots the form after a save."""
     state = _editing("Basics", done=False)

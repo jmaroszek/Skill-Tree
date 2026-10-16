@@ -38,7 +38,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
         # loaded node (mirrors the Goals/Events toggles). The close half falls
         # through to the btn-close-editor branch below.
         next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id in ('btn-new-node', 'btn-editor-new'):
+    elif trigger_id == 'btn-editor-new':
         next_ed_style['transform'] = "translateX(0px)"
     elif trigger_id == 'search-node' and not search_val:
         # Search bar was cleared (e.g. by populate_editor resetting after btn-add) — don't
@@ -52,8 +52,8 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     elif trigger_id == 'btn-save':
         # Save only — keep editor open, don't change transform
         next_ed_style['transform'] = "translateX(0px)"
-    elif trigger_id in ('btn-save-close', 'btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save', 'btn-add'):
-        # btn-save-close and unsaved-save close it after saving.
+    elif trigger_id in ('btn-node-delete-confirm', 'btn-close-editor', 'btn-unsaved-discard', 'btn-unsaved-save', 'btn-add'):
+        # btn-unsaved-save closes it after saving.
         # btn-unsaved-discard closes without saving.
         # btn-close-editor / btn-add (toggle-close) only silently close if the
         # form is clean; otherwise toggle_unsaved_modal pops the save/discard modal.
@@ -62,7 +62,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
             next_ed_style['transform'] = SIDEBAR_TRANSLATE_CLOSED
         elif trigger_id in ('btn-unsaved-save', 'btn-unsaved-discard') and pending_nav_store:
             pass  # Keep editor open — pending navigation will load the next node
-        elif trigger_id in ('btn-save-close', 'btn-unsaved-save') and (not form_state.get('name') or not form_state.get('n_type')):
+        elif trigger_id == 'btn-unsaved-save' and (not form_state.get('name') or not form_state.get('n_type')):
             pass  # Keep sidebar open — validation error shown below
         elif trigger_id in ('btn-close-editor', 'btn-add'):
             form_has_content = is_form_dirty_vs_snapshot(

@@ -75,7 +75,7 @@ def resolve_community(f_community, rows, memory):
 
 def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info, community_memory=None):
     # --- Visual Generation ---
-    ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-new-node', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
+    ui_only_triggers = ('btn-edit-node', 'btn-add', 'btn-editor-new', 'edit-trigger-input', 'details-edit-trigger-input', 'cytoscape-graph', 'btn-close-editor', 'btn-goals-toggle')
     if trigger_id in ui_only_triggers:
         # We bypass full graph recreation and list evaluation
         elements = dash.no_update

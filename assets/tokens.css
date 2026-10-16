@@ -90,6 +90,12 @@
     --st-ghost-hover-light: rgba(0, 0, 0, 0.06);
     --st-ghost-active-light: rgba(0, 0, 0, 0.10);
 
+    /* ---- Side-pane form actions (.form-actions) -------------------------- */
+    /* The one filled button in a row: a neutral step above bg-raised. */
+    --st-action-fill: #3a4047;
+    --st-action-fill-hover: #454c54;
+    --st-action-fill-active: #4f5760;
+
     /* ---- Type scale ------------------------------------------------------
        Eight steps replacing 28 ad-hoc literals. The old near-duplicates
        (0.72/0.78/0.82/0.88rem and a px cluster of 11-20px) collapse onto the

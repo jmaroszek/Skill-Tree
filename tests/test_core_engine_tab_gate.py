@@ -79,8 +79,9 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     # core_engine accepts positional args from Inputs + States; supply Nones and
     # let the guard fire before any of them are used.
     args = _core_engine_args()
-    # active_tab sits at positional index 38
-    args[38] = tab
+    # Looked up by name: removing an Input ahead of it shifts the index.
+    import inspect
+    args[list(inspect.signature(cb).parameters).index("active_tab")] = tab
     result = cb(*args)
     assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
     assert all(r is dash.no_update for r in result), (

@@ -73,7 +73,7 @@ def _statuses(manager):
     return {n.name: n.status for n in manager.get_all_nodes()}
 
 
-@pytest.mark.parametrize("trigger", ["btn-save", "btn-save-close", "btn-unsaved-save"])
+@pytest.mark.parametrize("trigger", ["btn-save", "btn-unsaved-save"])
 def test_saving_it_un_marked_asks_and_keeps_it_done(monkeypatch, manager, trigger):
     response = _save(monkeypatch, "Basics", trigger, desc="new notes", status_done=[])
 

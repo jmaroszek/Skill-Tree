@@ -368,7 +368,7 @@ Build every action button through [`ui_kit.py`](ui_kit.py), which names the
 | Helper | Colour | Usage |
 |--------|--------|-------|
 | `primary_action` | `primary` | Commits the form: Save, Apply, View Details |
-| `confirm_action` | `success` | Commits *and* finishes: Save & Close, Trigger, Add |
+| `confirm_action` | `success` | Commits *and* finishes: Trigger, Add |
 | `cancel_action` | `secondary` | Dismisses without committing: Cancel, Revert, Dismiss |
 | `danger_action` | `danger` | Destructive: Delete, Discard |
 
@@ -376,6 +376,37 @@ Do **not** hand-paint a button's background. `custom.css` already restyles
 `.btn-danger` to the tamed red app-wide; repeating `get_danger_color()` inline
 only creates a second place for the value to drift, which is what six delete
 buttons used to do — three of them with their own extra padding on top.
+
+### Side-pane form actions
+
+The node editor and the Events editor wrap their action row in
+`.form-actions` (`theme.css`). It restyles the same helpers into a calmer row:
+
+- **One soft fill, on the routine commit.** `primary_action` (Save) takes
+  `--st-action-fill`, a neutral step above `--st-bg-raised`. No accent colour:
+  hierarchy comes from fill and brighter text, not hue. Give the fill to the
+  action clicked most, not the most consequential one. Events' Save runs after
+  every edit; Trigger fires once, so Trigger is quiet.
+- **Everything else is ghost text.** `cancel_action` and `confirm_action` lose
+  their fill and take `--st-text-soft`, lifting on hover like the icon ghosts.
+- **Delete is red text, set apart at one end** by a `flex-grow-1` spacer,
+  with a danger wash on hover. Distance guards against a misclick better than
+  a loud red slab does. Its text lines up with the edge of the fields above.
+- **Text labels only.** No icon on one button and not the others; red already
+  marks Delete.
+- **Save goes where the eye goes.** A footer with no label above it (the node
+  editor) reads to the end, so Save sits on the far right and Delete on the
+  left. A labelled inline section (Events' Actions) is read from the label
+  down, so Save comes first under it and Delete takes the far right. Otherwise
+  Delete would be the first thing under "Actions" and read as the only action.
+
+The node editor's bottom bar holds only Delete, Revert and Save. New node
+(`+`) and Close (`x`) live in its sticky header, so they stay in reach from
+anywhere in the form. Close with unsaved changes opens the Discard/Edit/Save
+dialog; Ctrl+S saves.
+
+Modal footers keep Bootstrap's filled buttons. In a confirm, Delete *is* the
+main action.
 
 A "Cancel" that actually reverts should say Revert. The unsaved-changes modal
 calls that choice Discard/Edit/Save; keep those verbs consistent.

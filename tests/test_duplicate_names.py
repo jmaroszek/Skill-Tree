@@ -93,7 +93,7 @@ def _save(monkeypatch, trigger, **form):
     return callbacks.CoreResponse(*call(fn, **values))
 
 
-@pytest.mark.parametrize("trigger", ["btn-save", "btn-save-close"])
+@pytest.mark.parametrize("trigger", ["btn-save"])
 def test_new_node_cannot_overwrite_an_existing_one(monkeypatch, manager, trigger):
     response = _save(monkeypatch, trigger, name="Sleep", original_name=None)
 

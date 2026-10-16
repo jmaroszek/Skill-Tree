@@ -2129,6 +2129,77 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
 
+/* --- Side-pane form actions --------------------------------------------- */
+/* The node editor's and the Events editor's action rows. One soft neutral
+   fill marks the routine commit (Save); every other action is ghost text.
+   Delete is red text, set apart on the left, rather than a filled red slab.
+   Modal footers keep Bootstrap's filled buttons: there a confirm's Delete is
+   the main action. */
+
+.form-actions .btn {
+    --bs-btn-border-color: transparent;
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-active-border-color: transparent;
+    --bs-btn-disabled-border-color: transparent;
+    --bs-btn-focus-shadow-rgb: 173, 181, 189;
+    font-weight: 400;
+}
+
+.form-actions .btn-primary {
+    --bs-btn-bg: var(--st-action-fill);
+    --bs-btn-color: var(--st-text-strong);
+    --bs-btn-hover-bg: var(--st-action-fill-hover);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-bg: var(--st-action-fill-active);
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-bg: var(--st-action-fill);
+    --bs-btn-disabled-color: var(--st-text-soft);
+}
+
+.form-actions .btn-secondary,
+.form-actions .btn-success {
+    --bs-btn-bg: transparent;
+    --bs-btn-color: var(--st-text-soft);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-color: var(--st-text-strong);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-color: #fff;
+    --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-color: var(--st-text-dim);
+}
+
+/* The node editor's full-size row. Labels set the width, not flex-fill. */
+.form-actions.form-actions-lg .btn {
+    --bs-btn-padding-x: 14px;
+    --bs-btn-padding-y: 6px;
+}
+
+/* custom.css paints .btn-danger with !important, so this must too. */
+.form-actions .btn-danger {
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: var(--st-danger-text);
+}
+/* Pulled out by its own padding at whichever end of the row it sits: with no
+   fill, the text is what lines up with the edge of the fields above it. */
+.form-actions > .btn-danger:first-child,
+.form-actions > :first-child > .btn-danger {
+    margin-left: calc(-1 * var(--bs-btn-padding-x));
+}
+.form-actions > .btn-danger:last-child,
+.form-actions > :last-child > .btn-danger {
+    margin-right: calc(-1 * var(--bs-btn-padding-x));
+}
+.form-actions .btn-danger:hover,
+.form-actions .btn-danger:focus-visible {
+    background-color: var(--st-danger-wash) !important;
+    color: var(--st-danger-text);
+}
+.form-actions .btn-danger:active {
+    background-color: var(--st-danger-wash-strong) !important;
+    color: var(--st-danger-text);
+}
+
 /* --- Shared small affordances (ui_kit.py) ------------------------------- */
 /* Close, add, info and restore each existed in several sizes and two element
    types before ui_kit consolidated them. One ghost treatment, one icon family,

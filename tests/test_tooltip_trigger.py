@@ -85,8 +85,7 @@ def test_editor_action_tooltips_dismiss_when_sidebar_closes():
             if getattr(tip, 'id', None) and tip.id.startswith('editor-')}
     expected = {
         'editor-revert-tooltip', 'editor-save-tooltip',
-        'editor-save-close-tooltip', 'editor-delete-tooltip',
-        'editor-new-node-tooltip',
+        'editor-delete-tooltip',
     }
     assert set(tips) == expected
     assert all(tip.trigger == 'hover' for tip in tips.values())
@@ -111,11 +110,11 @@ global.document = {getElementById: id => ({
 })};
 require(process.argv[1]);
 const dismiss = window.dash_clientside.editor.dismiss_tooltips;
-assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(5).fill('NO'));
+assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(3).fill('NO'));
 assert.deepEqual(events, []);
-assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(5).fill(false));
-assert.deepEqual(events, ['btn-revert', 'btn-save', 'btn-save-close',
-    'btn-delete', 'btn-new-node'].map(id => [id, 'mouseout']));
+assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(3).fill(false));
+assert.deepEqual(events, ['btn-revert', 'btn-save', 'btn-delete']
+    .map(id => [id, 'mouseout']));
 '''
     result = subprocess.run([node, '-e', script, str(asset)], capture_output=True,
                             text=True, timeout=10)
