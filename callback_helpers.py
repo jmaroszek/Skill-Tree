@@ -2225,8 +2225,7 @@ def render_resource_sections(links):
                      className='d-flex align-items-center mt-2 mb-1'),
             html.Div(rows),
         ], **{'data-resource-root': section['root_path'],
-              'data-resource-id': section_id,
-              'data-resource-kind': section['kind']}))
+              'data-resource-id': section_id}))
     return blocks
 
 

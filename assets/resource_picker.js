@@ -34,7 +34,6 @@
         var picked = await window.skillTreeDesktop.pickFile({
             title: 'Select ' + (label ? label.textContent : 'Resource') + ' file',
             defaultPath: section && section.dataset.resourceRoot || undefined,
-            markdown: !!section && section.dataset.resourceKind === 'obsidian',
         });
         if (!picked) return;
         var input = document.getElementById('electron-file-picked-input');

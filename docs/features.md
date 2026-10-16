@@ -279,7 +279,7 @@ When a book, course, or article is substantial enough that you want to track and
 
 The editor has one field for each kind of resource you keep. A new graph starts with one kind, **Links**; the editor above has three. You can rename, remove or add kinds under Settings → Resources, up to five in all. Every field takes a web URL or a local file.
 
-A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. After importing a graph, choose the root folder on the new computer; imported device paths are cleared. A kind can also open its notes in Obsidian instead of your default app. Give that kind your vault as its root folder.
+A kind can have a root folder. Files inside it are saved relative to that folder, so the links survive a move to another computer. After importing a graph, choose the root folder on the new computer; imported device paths are cleared. If you use Obsidian, notes inside your vault open in the Obsidian app on their own. There is nothing to turn on. Other files open in your default app.
 
 For local paths, the file icon beside the field opens a file explorer, so you can browse to the file instead of typing the path by hand.
 
@@ -1021,7 +1021,7 @@ The sections are listed down the left side. The modal keeps one size, so switchi
 | **Recommendations** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and set the maximum number of Now nodes. |
 | **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year, plus the time estimates and unit pre-filled for new nodes. Choose whether completing a node opens a reflection prompt. |
 | **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
-| **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
+| **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Removing a kind that holds links shows how many; they are deleted when you save. |
 | **Appearance** | Customize node shapes and colors by type, and set status colors. |
 | **App** | View the installed version, control automatic update checks in the desktop app, and optionally show the startup graph summary on the Home tab. Back up, restore, export or import your graph, and choose an extra backup folder. |
 

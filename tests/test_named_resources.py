@@ -1,5 +1,6 @@
 """Named Resource sections: storage, opening, the editor rows and Settings cards."""
 
+import os
 import sys
 
 import pytest
@@ -99,32 +100,35 @@ def _vault(tmp_path):
     return vault
 
 
-def test_an_obsidian_section_opens_vault_notes_in_the_obsidian_app(tmp_path):
+def test_a_note_in_a_vault_opens_in_the_obsidian_app(tmp_path):
     vault = _vault(tmp_path)
-    (vault / "notes" / "a.md").write_text("note")
-    section = {"kind": "obsidian", "root_path": str(vault)}
+    note = vault / "notes" / "a.md"
+    note.write_text("note")
+    section = {"root_path": str(vault)}
     kind, target = resources.resolve_target("notes/a.md", section)
     assert kind == "uri"
     assert target.startswith("obsidian://open?path=")
+    # Found by being in a vault, whatever the section's root.
+    assert resources.resolve_target(str(note), {"root_path": ""})[0] == "uri"
     # A web link in the same section still goes to the browser.
     assert resources.resolve_target("https://example.com", section)[0] == "web"
 
 
-def test_an_obsidian_link_to_a_missing_file_says_so(tmp_path):
-    section = {"kind": "obsidian", "root_path": str(_vault(tmp_path))}
+def test_a_vault_link_to_a_missing_file_says_so(tmp_path):
+    section = {"root_path": str(_vault(tmp_path))}
     with pytest.raises(FileNotFoundError):
-        resources.resolve_target("notes/gone.md", section)
+        resources.open_resource("notes/gone.md", section)
 
 
-def test_obsidian_hands_other_files_to_the_default_app(tmp_path):
+def test_files_obsidian_cannot_open_go_to_the_default_app(tmp_path):
     vault = _vault(tmp_path)
     (vault / "notes" / "report.docx").write_bytes(b"doc")
     outside = tmp_path / "loose.md"
     outside.write_text("not in a vault")
-    section = {"kind": "obsidian", "root_path": str(vault)}
+    section = {"root_path": str(vault)}
     # Obsidian can't open a Word file, even inside the vault.
     assert resources.resolve_target("notes/report.docx", section) == (
-        "path", str(vault / "notes" / "report.docx"))
+        "path", os.path.join(str(vault), "notes", "report.docx"))
     # Nor a note outside every vault.
     assert resources.resolve_target(str(outside), section) == ("path", str(outside))
 
@@ -173,7 +177,6 @@ def test_editor_renders_every_section_with_its_links():
     from callback_helpers import render_resource_sections
     blocks = render_resource_sections({'drive': ['a.pdf', 'b.pdf']})
     assert [getattr(b, 'data-resource-id') for b in blocks] == ['obsidian', 'drive', 'website']
-    assert getattr(blocks[0], 'data-resource-kind') == 'obsidian'
     drive_inputs = [c for c in _flatten(blocks[1])
                     if getattr(c, 'id', None) and c.id.get('type') == 'resource-link']
     assert sorted(c.value for c in drive_inputs) == ['a.pdf', 'b.pdf']
@@ -259,12 +262,8 @@ def test_settings_cards_carry_their_switches_and_a_removed_card_holds():
     obsidian, drive, website = cards
     for card in (obsidian, website):
         assert {'resource-section-name', 'resource-section-remove',
-                'resource-section-root-enabled', 'resource-section-obsidian',
+                'resource-section-root-enabled',
                 'resource-section-root'} <= _component_types(card)
-    switch = next(c for c in _flatten(obsidian)
-                  if getattr(c, 'id', None) == {'type': 'resource-section-obsidian',
-                                                'index': 'obsidian'})
-    assert switch.value == ['obsidian']
     root_switch = next(c for c in _flatten(website)
                        if getattr(c, 'id', None) == {'type': 'resource-section-root-enabled',
                                                      'index': 'website'})
@@ -276,17 +275,13 @@ def test_settings_cards_carry_their_switches_and_a_removed_card_holds():
 
 def test_section_draft_reads_switches_from_the_cards():
     from settings_callbacks import _section_form_rows
-    store = [{'id': 'books', 'name': 'Books', 'kind': 'mixed',
+    store = [{'id': 'books', 'name': 'Books',
               'root_path': 'C:/Library', 'position': 0}]
     ids = [{'type': 'x', 'index': 'books'}]
-    rows = _section_form_rows(store, None, None, ['C:/Library'], ids,
-                              [[]], ids, [['obsidian']], ids)
+    rows = _section_form_rows(store, None, None, ['C:/Library'], ids, [[]], ids)
     assert rows[0]['root_path'] == ''
-    assert rows[0]['kind'] == 'obsidian'
-    rows = _section_form_rows(store, None, None, ['C:/Library'], ids,
-                              [['enabled']], ids, [[]], ids)
+    rows = _section_form_rows(store, None, None, ['C:/Library'], ids, [['enabled']], ids)
     assert rows[0]['root_path'] == 'C:/Library'
-    assert rows[0]['kind'] == 'mixed'
 
 
 def test_a_new_database_starts_with_one_neutral_links_section(tmp_path, monkeypatch):
@@ -297,5 +292,5 @@ def test_a_new_database_starts_with_one_neutral_links_section(tmp_path, monkeypa
     monkeypatch.setattr(database, "get_db_path", lambda: path)
     database._initialized = False
     database.init_db()
-    assert [(s["id"], s["name"], s["kind"]) for s in resources.get_sections()] == [
-        ("links", "Links", "mixed")]
+    assert [(s["id"], s["name"]) for s in resources.get_sections()] == [
+        ("links", "Links")]

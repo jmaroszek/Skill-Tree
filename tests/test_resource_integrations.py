@@ -54,8 +54,7 @@ def _reopen_at(version):
 
 
 def test_a_fresh_database_starts_with_three_plain_sections():
-    assert [(s["id"], s["kind"]) for s in resources.get_sections()] == [
-        ("obsidian", "obsidian"), ("drive", "mixed"), ("website", "mixed")]
+    assert [s["id"] for s in resources.get_sections()] == ["obsidian", "drive", "website"]
     with database.get_connection() as conn:
         assert "obsidian_path" not in _columns(conn, "Nodes")
         assert "enabled" not in _columns(conn, "ResourceSections")
@@ -117,27 +116,22 @@ def _save(store, cards):
         section_roots=[card.get("root_path", "") for card in cards], section_root_ids=ids,
         section_use_roots=[["enabled"] if card.get("use_root", True) else []
                            for card in cards],
-        section_use_root_ids=ids,
-        section_obsidian=[["obsidian"] if card.get("kind") == "obsidian" else []
-                          for card in cards],
-        section_obsidian_ids=ids)
+        section_use_root_ids=ids)
     return save(**args)
 
 
-def test_settings_save_renames_switches_and_clears_an_unused_root():
+def test_settings_save_renames_and_clears_an_unused_root():
     store = resources.get_sections()
     cards = [
-        {"id": "obsidian", "name": "Notes", "kind": "obsidian", "root_path": "C:/Vault"},
-        {"id": "drive", "name": "Drive", "kind": "mixed", "root_path": "G:/Drive",
-         "use_root": False},
-        {"id": "website", "name": "Web", "kind": "obsidian", "root_path": ""},
+        {"id": "obsidian", "name": "Notes", "root_path": "C:/Vault"},
+        {"id": "drive", "name": "Drive", "root_path": "G:/Drive", "use_root": False},
+        {"id": "website", "name": "Web", "root_path": ""},
     ]
     assert _save(store, cards)[0] == "Settings saved"
     saved = {s["id"]: s for s in resources.get_sections()}
     assert saved["obsidian"]["name"] == "Notes"
     assert saved["obsidian"]["root_path"] == "C:/Vault"
     assert saved["drive"]["root_path"] == ""
-    assert saved["website"]["kind"] == "obsidian"
 
 
 def test_settings_save_removes_a_held_section_with_its_links():

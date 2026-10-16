@@ -187,7 +187,7 @@ def test_resources_tab_holds_resource_rows_under_column_heads():
             "btn-resource-section-add"} <= set(ids)
     assert " Add resource" in ids["btn-resource-section-add"].children
     copy = _text(resources_tab)
-    assert "Root folder" in copy and "Obsidian" in copy
+    assert "Root folder" in copy and "Obsidian" not in copy
 
 
 def test_type_and_status_colors_show_their_hex():

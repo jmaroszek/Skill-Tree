@@ -26,19 +26,13 @@
         // Menu items are clicked through menus.onItem; these are the ones
         // whose label or visibility depends on the node.
         // The icon says where the first link will open: a globe for the
-        // browser, a journal for Obsidian, and a plain arrow for the default
-        // app. This mirrors resource_links.resolve_target closely enough for
-        // an icon; the server still decides on click.
-        var OBSIDIAN_SUFFIXES = ['md', 'canvas', 'base', 'pdf', 'png', 'jpg', 'jpeg',
-            'gif', 'bmp', 'svg', 'webp', 'avif', 'mp3', 'wav', 'm4a', 'ogg', 'flac',
-            '3gp', 'webm', 'mp4', 'ogv', 'mov', 'mkv'];
-        function _resourceIcon(link, kind) {
+        // browser and a plain arrow for a file. This mirrors
+        // resource_links.resolve_target closely enough for an icon; the
+        // server still decides on click.
+        function _resourceIcon(link) {
             link = (link || '').trim();
             if (/^(https?:\/\/|www\.)/i.test(link)) return 'globe';
             var isPath = /^[a-z]:[\\/]|^[\\/]/i.test(link) || link.indexOf('\\') >= 0;
-            var suffix = /\.([a-z0-9]+)$/i.exec(link);
-            suffix = suffix ? suffix[1].toLowerCase() : '';
-            if (kind === 'obsidian' && OBSIDIAN_SUFFIXES.indexOf(suffix) >= 0) return 'journal-text';
             if (!isPath && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(link) &&
                     !/\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|png|jpe?g|gif|zip)$/i.test(link)) {
                 return 'globe';
@@ -198,7 +192,7 @@
                 item.querySelector('.ctx-menu-label').textContent =
                     'Open ' + (label ? label.textContent : 'Resource');
                 item.querySelector('.ctx-menu-icon').className = 'bi bi-' +
-                    _resourceIcon(resourceLinks[id][0], section.dataset.resourceKind) +
+                    _resourceIcon(resourceLinks[id][0]) +
                     ' ctx-menu-icon';
             });
 

@@ -78,10 +78,9 @@ def register_resource_link_callbacks(app, services=None):
             section = next((s for s in get_sections() if s['id'] == section_id), None)
             if section is None:
                 return dash.no_update
-            filetypes = ([("Markdown files", "*.md"), ("All files", "*.*")]
-                         if section['kind'] == 'obsidian' else [("All files", "*.*")])
             picked = spawn_local_file_picker(section['root_path'],
-                                             f"Select {section['name']} file", filetypes)
+                                             f"Select {section['name']} file",
+                                             [("All files", "*.*")])
             if not picked:
                 return dash.no_update
             items[index] = store_path(picked, section['root_path'])

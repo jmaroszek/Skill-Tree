@@ -77,9 +77,11 @@ manager reads one database per process, and the revision counters in
 
 Resource links live only in `NodeResourceLinks`, keyed by node and section
 ([resource_links.py](../resource_links.py)); `GraphRepository` attaches them to
-each `Node` as `resource_links`. Every section is ordinary: its `kind` says how
-links open (`obsidian` or the OS default), and its optional root makes paths
-relative. The editor renders every section with one set of pattern-matched
+each `Node` as `resource_links`. Every section is ordinary: its optional root
+makes paths relative. A file that Obsidian opens and that sits inside a vault (a
+folder above it holds `.obsidian`) opens in Obsidian through an `obsidian://`
+URI; everything else goes to the browser or the OS default. The
+`ResourceSections.kind` column is unused and waits for the next schema change. The editor renders every section with one set of pattern-matched
 callbacks (`resource-link`, index `"<section>:<row>"`, in
 [resource_link_callbacks.py](../resource_link_callbacks.py)) and saves them through
 `handle_save` in the node transaction. Settings removes a section with its

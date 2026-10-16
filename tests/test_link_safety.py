@@ -95,9 +95,8 @@ def test_a_network_root_folder_asks_too(opened, no_network_touch):
     section = {**MIXED, "root_path": "\\\\evil.example\\share"}
     with pytest.raises(NeedsConfirmation, match="evil.example"):
         resources.open_resource("notes/a.pdf", section)
-    obsidian = {**section, "kind": "obsidian"}
     with pytest.raises(NeedsConfirmation, match="evil.example"):
-        resources.open_resource("notes/a.md", obsidian)
+        resources.open_resource("notes/a.md", section)
     assert opened == []
 
 
@@ -139,6 +138,7 @@ def test_a_runnable_file_opens_once_agreed(opened, tmp_path):
 
 
 def test_runnable_files_under_a_root_folder_or_in_a_vault_ask_too(opened, tmp_path):
+    (tmp_path / ".obsidian").mkdir()
     (tmp_path / "tools").mkdir()
     (tmp_path / "tools" / "setup.lnk").write_bytes(b"L")
     (tmp_path / "sync.sh").write_text("echo hi")
@@ -146,7 +146,7 @@ def test_runnable_files_under_a_root_folder_or_in_a_vault_ask_too(opened, tmp_pa
     with pytest.raises(NeedsConfirmation, match=r"\.lnk file"):
         resources.open_resource("tools/setup.lnk", section)
     with pytest.raises(NeedsConfirmation, match=r"\.sh file"):
-        resources.open_resource("sync.sh", {**section, "kind": "obsidian"})
+        resources.open_resource("sync.sh", section)
     assert opened == []
 
 

@@ -39,7 +39,7 @@ manager = GraphManager()
 
 
 def _section_form_rows(store, names, name_ids, roots, root_ids,
-                       use_roots, use_root_ids, obsidian, obsidian_ids):
+                       use_roots, use_root_ids):
     """Overlay mounted form values on the ordered section draft.
 
     Only live cards mount their fields, so a removed section keeps its stored
@@ -50,16 +50,13 @@ def _section_form_rows(store, names, name_ids, roots, root_ids,
     by_id = {row["id"]: row for row in rows}
     for values, ids, field in ((names, name_ids, "name"),
                                (roots, root_ids, "root_path"),
-                               (use_roots, use_root_ids, "use_root"),
-                               (obsidian, obsidian_ids, "kind")):
+                               (use_roots, use_root_ids, "use_root")):
         for value, component_id in zip(values or [], ids or []):
             row = by_id.get(component_id["index"])
             if row is None:
                 continue
             if field == "use_root":
                 row[field] = "enabled" in (value or [])
-            elif field == "kind":
-                row[field] = "obsidian" if "obsidian" in (value or []) else "mixed"
             else:
                 row[field] = value
     for row in rows:
@@ -72,7 +69,7 @@ def _section_form_rows(store, names, name_ids, roots, root_ids,
 # reads the draft passes to _section_form_rows (after the store).
 _SECTION_FORM_STATES = [
     State({'type': f'resource-section-{field}', 'index': ALL}, prop)
-    for field in ('name', 'root', 'root-enabled', 'obsidian')
+    for field in ('name', 'root', 'root-enabled')
     for prop in ('value', 'id')
 ]
 
@@ -190,7 +187,6 @@ def _changed_settings(draft):
 
 def _normalized_sections(rows):
     return [{'id': row['id'], 'name': (row.get('name') or '').strip(),
-             'kind': row.get('kind', 'mixed'),
              'root_path': (row.get('root_path') or '').strip(), 'position': i}
             for i, row in enumerate(live_sections(rows))]
 
@@ -593,8 +589,7 @@ def register_settings_callbacks(app, services=None):
             while name.casefold() in used_names:
                 name = f'New Resource {suffix}'
                 suffix += 1
-            rows.append({'id': uuid.uuid4().hex, 'name': name, 'kind': 'mixed',
-                         'root_path': '', 'position': len(rows), 'new': True})
+            rows.append({'id': uuid.uuid4().hex, 'name': name, 'root_path': '', 'position': len(rows), 'new': True})
             return rows, dash.no_update
         if not isinstance(trigger, dict):
             return dash.no_update, dash.no_update
@@ -770,7 +765,6 @@ def register_settings_callbacks(app, services=None):
                        section_store=None, section_names=None, section_name_ids=None,
                        section_roots=None, section_root_ids=None,
                        section_use_roots=None, section_use_root_ids=None,
-                       section_obsidian=None, section_obsidian_ids=None,
                        backup_extra_dir=None, show_hour_equivalents_val=None):
         if not n_clicks:
             return (dash.no_update,) * 7
@@ -788,8 +782,7 @@ def register_settings_callbacks(app, services=None):
                 sections = _section_form_rows(
                     section_store, section_names, section_name_ids,
                     section_roots, section_root_ids,
-                    section_use_roots, section_use_root_ids,
-                    section_obsidian, section_obsidian_ids)
+                    section_use_roots, section_use_root_ids)
                 try:
                     validate_sections(sections)
                 except ValueError as exc:

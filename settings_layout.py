@@ -339,11 +339,6 @@ def _build_resources_tab():
             html.Div([
                 html.Span("Name", className="resource-head-name"),
                 html.Span(hover_label(
-                    "Obsidian", "resource-head-obsidian",
-                    "Open this resource's notes in the Obsidian app instead of "
-                    "the default one.", component=html.Span),
-                    className="resource-head-center"),
-                html.Span(hover_label(
                     "Root folder", "resource-head-root",
                     "Links to files under this folder are saved with paths "
                     "relative to it.", component=html.Span)),
@@ -483,10 +478,8 @@ def _removed_resource_card(section, link_count):
 def build_resource_setting_rows(sections, link_counts=None):
     """One row per Resource section, in order, under the page's column heads.
 
-    A row holds the name, the Open in Obsidian switch (which sends the
-    section's notes to the Obsidian app instead of the default one), the Root
-    folder switch with the folder field it reveals, and remove. Obsidian comes
-    first so a row never has a switch on both sides of its folder field. A removed
+    A row holds the name, the Root folder switch with the folder field it
+    reveals, and remove. A removed
     section stays as a struck row until Save, naming the links it will take
     along.
     """
@@ -503,12 +496,6 @@ def build_resource_setting_rows(sections, link_counts=None):
             dbc.Input(id={"type": "resource-section-name", "index": section_id},
                       value=section["name"], type="text", maxLength=60,
                       placeholder="Resource name", className="settings-name-input"),
-            dbc.Checklist(id={"type": "resource-section-obsidian", "index": section_id},
-                          options=[{"label": html.Span("Open in Obsidian",
-                                                       className="visually-hidden"),
-                                    "value": "obsidian"}],
-                          value=["obsidian"] if section.get("kind") == "obsidian" else [],
-                          switch=True, className="resource-head-center"),
             html.Div([
                 dbc.Checklist(id={"type": "resource-section-root-enabled", "index": section_id},
                               options=[{"label": html.Span("Root folder",

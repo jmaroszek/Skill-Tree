@@ -47,7 +47,7 @@ class ReadSnapshot:
             self.edges = [dict(row) for row in conn.execute("SELECT * FROM Edges")]
             self.settings = dict(conn.execute("SELECT key, value FROM Settings").fetchall())
             self.resource_sections = [dict(row) for row in conn.execute(
-                "SELECT id, name, kind, root_path, position "
+                "SELECT id, name, root_path, position "
                 "FROM ResourceSections ORDER BY position")]
             self.resource_links = {}
             for row in conn.execute(

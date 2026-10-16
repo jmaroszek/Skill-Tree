@@ -18,11 +18,11 @@ test('native picker accepts only the local app and returns the selected file', a
     () => 8051,
   );
   const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
-  assert.equal(await handler(event, { markdown: true, defaultPath: '/Library' }),
+  assert.equal(await handler(event, { defaultPath: '/Library' }),
                '/Library/file.md');
   assert.equal(calls[0][0], window);
   assert.deepEqual(calls[0][1].properties, ['openFile']);
-  assert.deepEqual(calls[0][1].filters[0].extensions, ['md']);
+  assert.equal(calls[0][1].filters, undefined);
   assert.equal(calls[0][1].defaultPath,
                process.platform === 'win32' ? undefined : '/Library');
   await assert.rejects(() => handler(
@@ -78,9 +78,8 @@ test('native picker can choose a folder', async () => {
     () => 8051,
   );
   const event = { senderFrame: { url: 'http://127.0.0.1:8051/' } };
-  assert.equal(await handler(event, { directory: true, markdown: true }), '/Library/Notes');
+  assert.equal(await handler(event, { directory: true }), '/Library/Notes');
   assert.deepEqual(calls[0][1].properties, ['openDirectory']);
-  assert.equal(calls[0][1].filters, undefined);
 });
 
 test('cancelled native picker returns an empty path', async () => {

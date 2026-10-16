@@ -892,16 +892,14 @@ is ordinary: Obsidian, Google Drive and Website are just the three a new graph
 starts with, and any of them can be renamed or removed.
 
 - **One row each.** A section is a `.resource-row` under column heads (Name,
-  Obsidian, Root folder), the same anatomy as the Contexts row editor. Obsidian
-  comes before Root folder, so a row never has a switch on both sides of its
-  folder field. The heads take no side padding, so each sits over its control. The name
+  Root folder), the same anatomy as the Contexts row editor. The heads take no side padding, so each sits over its control. The name
   is a `settings-name-input`, text until hovered or focused. The row's remove
   `×` is a progressive-disclosure row action.
 - **Root folder.** Its switch starts on only when a root is set, reveals the
   folder field beside it, and saves no root when off; the empty cell then says
   links keep full paths. A folder field ends in a folder-browse icon: the native
-  folder dialog in the desktop window, tkinter in a browser. The column heads
-  explain both switches on hover. There is no show/hide switch; a section you
+  folder dialog in the desktop window, tkinter in a browser. The Root folder
+  head explains it on hover. There is no show/hide switch; a section you
   don't want is removed.
 - **Removal is held.** Removing a saved section turns its row into a struck
   `.resource-card-removed` on `--st-danger-wash`, naming how many links it

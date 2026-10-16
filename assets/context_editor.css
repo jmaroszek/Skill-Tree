@@ -417,12 +417,12 @@ body.ctx-dragging * {
 /* --- Settings ▸ Resources: the row list --------------------------------- */
 
 /* One row per resource under column heads, the same anatomy as the Contexts
-   editor: name, the Obsidian switch, root folder (its switch and the field it
-   reveals), and a remove that shows on hover. */
+   editor: name, root folder (its switch and the field it reveals), and a
+   remove that shows on hover. */
 .resource-head,
 .resource-row {
     display: grid;
-    grid-template-columns: 180px 72px minmax(0, 1fr) 28px;
+    grid-template-columns: 180px minmax(0, 1fr) 28px;
     align-items: center;
     column-gap: 16px;
 }
@@ -437,9 +437,6 @@ body.ctx-dragging * {
 }
 .resource-head-name {
     padding-left: calc(0.5rem + 1px);
-}
-.resource-head-center {
-    justify-self: center;
 }
 .resource-row {
     min-height: calc(var(--st-control-height) + 16px);

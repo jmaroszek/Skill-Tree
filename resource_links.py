@@ -15,9 +15,6 @@ import webbrowser
 import database
 
 MAX_SECTIONS = 5
-# How a section opens its links: "obsidian" sends Markdown notes to the
-# Obsidian app by URI; "mixed" hands URLs to the browser and files to the OS.
-KINDS = ("obsidian", "mixed")
 _WEB = re.compile(r"^https?://", re.IGNORECASE)
 # Any "scheme:" prefix of two or more characters. One letter is a Windows
 # drive, and a digit after the colon is a port (example.com:8080).
@@ -47,8 +44,8 @@ RUNNABLE_SUFFIXES = frozenset({
     "py", "pyw", "pyz", "jar", "pl", "rb",
 })
 # What Obsidian itself opens: notes, canvases, bases, PDFs, and the image,
-# audio and video formats it embeds. Anything else in an Obsidian section
-# goes to the default app instead.
+# audio and video formats it embeds. A file of one of these types inside a
+# vault opens in Obsidian; anything else goes to the default app.
 OBSIDIAN_SUFFIXES = {"md", "canvas", "base", "pdf",
                      "png", "jpg", "jpeg", "gif", "bmp", "svg", "webp", "avif",
                      "mp3", "wav", "m4a", "ogg", "flac", "3gp", "webm",
@@ -65,6 +62,15 @@ def in_obsidian_vault(path):
         if parent == folder:
             return False
         folder = parent
+
+
+def obsidian_file(path):
+    """True when Obsidian can open `path`: an existing file of a type it
+    opens, inside a vault."""
+    name = os.path.basename(path)
+    suffix = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return (suffix in OBSIDIAN_SUFFIXES and os.path.isfile(path)
+            and in_obsidian_vault(path))
 
 
 def parse_links(value):
@@ -86,7 +92,7 @@ def get_sections():
     with database.get_connection() as conn:
         conn.row_factory = database.sqlite3.Row
         return [dict(row) for row in conn.execute(
-            "SELECT id, name, kind, root_path, position FROM ResourceSections ORDER BY position")]
+            "SELECT id, name, root_path, position FROM ResourceSections ORDER BY position")]
 
 
 def get_node_links(node_name):
@@ -221,25 +227,18 @@ def resolve_target(value, section, confirmed=False):
     root = (section.get("root_path") or "").strip()
     if root and not absolute_path(value):
         _ask_before_network(root, confirmed)
-    if section.get("kind") == "obsidian":
-        if not root and not absolute_path(value):
-            raise ValueError("Set this resource's root folder to your Obsidian vault in Settings.")
-        path = os.path.normpath(value if absolute_path(value)
-                                else os.path.join(root, value.replace("/", os.sep)))
-        if not os.path.exists(path):
-            raise FileNotFoundError(path)
-        # Obsidian can only open its own file types, and only inside a vault
-        # it knows. Anything else still opens, in the default app.
-        suffix = path.rsplit(".", 1)[-1].lower() if "." in os.path.basename(path) else ""
-        if suffix in OBSIDIAN_SUFFIXES and in_obsidian_vault(path):
-            return "uri", "obsidian://open?path=" + urllib.parse.quote(path, safe="")
-        _ask_before_running(path, confirmed)
-        return "path", path
     if absolute_path(value) or os.path.exists(value):
-        _ask_before_running(value, confirmed)
-        return "path", value
-    if root:
+        path = value
+    elif root:
         path = os.path.join(root, value.replace("/", os.sep))
+    else:
+        path = None
+    if path is not None:
+        # A vault holds `.obsidian`, so a vault file opens in Obsidian when
+        # it is a type Obsidian opens. Without Obsidian there is no vault.
+        if obsidian_file(path):
+            full = os.path.normpath(os.path.abspath(path))
+            return "uri", "obsidian://open?path=" + urllib.parse.quote(full, safe="")
         _ask_before_running(path, confirmed)
         return "path", path
     suffix = value.rsplit('.', 1)[-1].lower() if '.' in value else ''
@@ -336,13 +335,14 @@ def save_sections(rows):
         for i, row in enumerate(rows):
             saved_row = {"id": row.get("id") or uuid.uuid4().hex,
                          "name": (row.get("name") or "").strip(),
-                         "kind": row.get("kind") if row.get("kind") in KINDS else "mixed",
                          "root_path": (row.get("root_path") or "").strip(),
                          "position": i}
+            # The kind column is unused since vault files open in Obsidian
+            # on their own; it waits for the next schema change to go.
             conn.execute(
                 "INSERT INTO ResourceSections(id, name, kind, root_path, position) "
-                "VALUES (:id, :name, :kind, :root_path, :position) ON CONFLICT(id) DO UPDATE SET "
-                "name=excluded.name, kind=excluded.kind, root_path=excluded.root_path, "
+                "VALUES (:id, :name, 'mixed', :root_path, :position) ON CONFLICT(id) DO UPDATE SET "
+                "name=excluded.name, root_path=excluded.root_path, "
                 "position=excluded.position", saved_row)
             saved.append(saved_row)
     return saved
