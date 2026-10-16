@@ -6,9 +6,9 @@ Tests pure functions that don't require a database.
 
 from dash import html
 import dash
-from config import BADGE_PALETTE
-from models import STATUS_DONE, STATUS_BLOCKED
-from callback_helpers import (
+from skilltree.store.settings import BADGE_PALETTE
+from skilltree.domain.models import STATUS_DONE, STATUS_BLOCKED
+from skilltree.ui.callback_helpers import (
     get_all_triggered_ids, should_open_editor, resolve_active_node_id,
     _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
@@ -18,7 +18,7 @@ from callback_helpers import (
     format_value_rank, format_priority_rank, _ordinal, _contributor_hover,
     alias_rows_label, update_alias_rows, sync_time_fields,
 )
-from styles import stylesheet, mini_stylesheet
+from skilltree.ui.styles import stylesheet, mini_stylesheet
 import pytest
 
 # Written around the Resource sections new databases used to start with.
@@ -414,7 +414,7 @@ class TestIsFormDirtyVsSnapshot:
 
     @staticmethod
     def _seed(mgr, **overrides):
-        from models import Node
+        from skilltree.domain.models import Node
         defaults = dict(
             name='Alpha', type='Learn', description='hello', value=5,
             time_o=40.0, time_m=80.0, time_p=160.0, interest=5, difficulty=5,
@@ -431,7 +431,7 @@ class TestIsFormDirtyVsSnapshot:
         return dict(snapshot)
 
     def test_pristine_form_is_not_dirty(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -439,7 +439,7 @@ class TestIsFormDirtyVsSnapshot:
 
     def test_edge_change_detected(self):
         """Adding a prerequisite must count as dirty."""
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         self._seed(mgr, name='Target')
         node = self._seed(mgr, name='Alpha')
@@ -449,7 +449,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_link_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -458,7 +458,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_time_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -467,7 +467,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_context_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -476,7 +476,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_type_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -485,7 +485,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_status_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -494,7 +494,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_alias_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -503,7 +503,7 @@ class TestIsFormDirtyVsSnapshot:
         assert is_form_dirty_vs_snapshot(snap, form)
 
     def test_description_change_detected(self):
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr)
         snap = build_editor_snapshot(mgr, node.name)
@@ -531,7 +531,7 @@ class TestIsFormDirtyVsSnapshot:
 
     def test_resource_link_change_detected(self):
         """Adding a link in any section counts as dirty; an empty row does not."""
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
         mgr = GraphManager()
         node = self._seed(mgr, name='WithLinks', resource_links={'drive': ['a.pdf']})
         snap = build_editor_snapshot(mgr, node.name)
@@ -546,8 +546,8 @@ class TestIsFormDirtyVsSnapshot:
         """Regression: set_aliases title-case-lints aliases on save. After the
         post-save snapshot refresh, a form holding the linted alias must not
         flag as dirty."""
-        from graph_manager import GraphManager
-        from config import NAME_FORMAT_TITLE, ConfigManager
+        from skilltree.store.graph.manager import GraphManager
+        from skilltree.store.settings import NAME_FORMAT_TITLE, ConfigManager
         ConfigManager.set_name_formatting({'mode': NAME_FORMAT_TITLE})
         mgr = GraphManager()
         node = self._seed(mgr)
@@ -562,8 +562,8 @@ class TestIsFormDirtyVsSnapshot:
 
     def test_dormant_prereq_is_included_in_editor_snapshot(self):
         """The pristine snapshot mirrors dormant relationships shown in the form."""
-        from graph_manager import GraphManager
-        from models import EDGE_NEEDS_HARD
+        from skilltree.store.graph.manager import GraphManager
+        from skilltree.domain.models import EDGE_NEEDS_HARD
         mgr = GraphManager()
         target = self._seed(mgr, name='Target Goal', type='Goal')
         # Active prereq — visible in dropdown, will appear in form State.
@@ -772,8 +772,8 @@ class TestEditorFormValues:
         assert set(produced.keys()) == set(NEW_NODE_SNAPSHOT.keys())
 
     def test_keys_match_built_snapshot_schema(self):
-        from graph_manager import GraphManager
-        from models import Node
+        from skilltree.store.graph.manager import GraphManager
+        from skilltree.domain.models import Node
         mgr = GraphManager()
         mgr.add_node(Node(name='Alpha', type='Learn', description='x',
                           value=5, interest=5, difficulty=5, status='Open',
@@ -794,7 +794,7 @@ class TestEditorFormValues:
     def test_new_node_starts_without_an_estimate(self):
         """The estimate is the user's own call: nothing is pre-filled, and an
         empty bracket is refused on save."""
-        from callback_helpers import time_estimate_problem
+        from skilltree.ui.callback_helpers import time_estimate_problem
         bracket = [NEW_NODE_SNAPSHOT[k] for k in ('time_o', 'time_m', 'time_p')]
         assert bracket == [None, None, None]
         assert time_estimate_problem(*bracket)
@@ -803,8 +803,8 @@ class TestEditorFormValues:
         """A caller with no habit state (the historical modal-gate case) gets
         the same habit defaults the editor components emit — so an unchanged
         non-habit node does not falsely register dirty."""
-        from graph_manager import GraphManager
-        from models import Node
+        from skilltree.store.graph.manager import GraphManager
+        from skilltree.domain.models import Node
         mgr = GraphManager()
         mgr.add_node(Node(name='Alpha', type='Learn', description='hello',
                           value=5, interest=5, difficulty=5, status='Open',
@@ -827,8 +827,8 @@ class TestEditorFormValues:
     def test_unchanged_loaded_node_not_dirty(self):
         """End-to-end: a loaded node's form (mirroring its snapshot) routed
         through the helper is not dirty — the core false-positive case."""
-        from graph_manager import GraphManager
-        from models import Node
+        from skilltree.store.graph.manager import GraphManager
+        from skilltree.domain.models import Node
         mgr = GraphManager()
         mgr.add_node(Node(name='Habit Node', type='Action', description='d',
                           value=5, interest=5, difficulty=5, status='Open',

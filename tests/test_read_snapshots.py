@@ -3,11 +3,11 @@ import sqlite3
 
 import pytest
 
-import database
-from callback_helpers import format_suggestions_table
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD as HARD
+from skilltree.store import database
+from skilltree.ui.callback_helpers import format_suggestions_table
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD as HARD
 from test_atomic_saves import graph, node
 
 
@@ -44,7 +44,7 @@ def test_snapshot_is_detached_and_node_objects_are_not_shared():
 
 
 def test_now_snapshot_materializes_only_awake_now_nodes_and_detaches_links(monkeypatch):
-    from models import Node
+    from skilltree.domain.models import Node
 
     m = graph(*(f'N{i}' for i in range(30)))
     m.add_node(node('First', now=1, resource_links={'links': ['https://example.com']}))
@@ -71,7 +71,7 @@ def test_now_snapshot_materializes_only_awake_now_nodes_and_detaches_links(monke
 
 
 def test_snapshot_normalizes_rows_once_and_keeps_templates_private(monkeypatch):
-    from models import Node
+    from skilltree.domain.models import Node
 
     m = graph('A', 'B')
     built = []
@@ -190,7 +190,7 @@ def _trace_connections(monkeypatch):
 
 @pytest.mark.parametrize('count', [1, 25])
 def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
-    import analyze_callbacks
+    from skilltree.features.analyze import callbacks as analyze_callbacks
     from dash._utils import to_json
 
     graph(*(f'N{i}' for i in range(count)))
@@ -218,7 +218,7 @@ def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
 
 def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
     import dash
-    import details_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
     from dash._utils import to_json
     from types import SimpleNamespace
 

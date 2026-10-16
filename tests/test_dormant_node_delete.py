@@ -11,10 +11,10 @@ import dash
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import event_callbacks
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _callbacks():

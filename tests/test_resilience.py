@@ -12,8 +12,8 @@ import sys
 import textwrap
 from pathlib import Path
 
-import database
-from graph_manager import GraphManager
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,11 +22,11 @@ ROOT = Path(__file__).resolve().parents[1]
 _KILLED_MID_SAVE = textwrap.dedent("""
     import os, sys
     sys.path.insert(0, {root!r})
-    import database
+    from skilltree.store import database
     database.get_db_path = lambda: {path!r}
     database.init_db()
-    from graph_manager import GraphManager
-    from models import Node, EDGE_NEEDS_HARD
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.domain.models import Node, EDGE_NEEDS_HARD
     def node(name):
         return Node(name=name, type="Learn", description="", value=5, time_o=1.0,
                     time_m=2.0, time_p=4.0, interest=5, difficulty=5, status="Open",

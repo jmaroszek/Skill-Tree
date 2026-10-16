@@ -14,6 +14,17 @@ Task-prioritization app. A directed graph of nodes (tasks/goals) and typed edges
 - **Access token:** the server answers only requests carrying its per-launch token. Use the tab it opens, or run with `--no-browser` and use the link it prints (also in `<Data>/sandbox_skilltree.instance.json`). For throwaway data, set `SKILLTREE_HOME` to an absolute folder.
 - **Showing the sandbox to the user:** don't hand them the `?token=` link, and don't let the server open a browser tab. A browser launched from the agent's terminal hangs the user's Chrome on that link and it never finishes loading. Start the server yourself with `python app.py --sandbox --port 8051 --dev --no-browser` (from a worktree if you're in one), then tell them to run `C:\Users\jonah\Documents\Code\Terminal\Batch\skill_tree_sandbox.bat`. That opens the Electron window, which attaches to the sandbox server already running, so they see your worktree's code. A server restart issues a new token: if the window says "This link is out of date", they close it and rerun the `.bat`. To look at it yourself, use the in-app browser pane.
 
+## Package layout
+
+The app is the `skilltree/` package. The root `app.py` only launches it.
+
+- `skilltree/domain/`: pure logic, such as models, scoring, time math and graph rules. No SQLite, no Dash.
+- `skilltree/store/`: SQLite and everything that reads or writes it: the database, settings, the graph and event managers, commands.
+- `skilltree/ui/`: Dash pieces that two or more features share: tokens, the kit, components, canvases.
+- `skilltree/features/<name>/`: one feature's layout and callbacks.
+- `skilltree/runtime/`: paths, the version, the server.
+- `skilltree/app.py`, `services.py`, `shell.py` and `engine/` compose the features, so they may import any of them. Features don't import each other.
+
 ## Domain model
 
 The conceptual guide (how to build a good graph) is [`docs/modeling.md`](docs/modeling.md); the scoring math is [`docs/scoring.md`](docs/scoring.md). Read those before editing node/edge/scoring machinery or doing a hands-on graph review. The node type changes scoring behavior, so it isn't just a label.
@@ -50,7 +61,7 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 - **`Needs_Hard`** — must-do prerequisite. Blocks eligibility (a node with an incomplete hard prereq is automatically Blocked). Strongest transitive value flow (`d_H` per hop). Scoring reads the transitive reduction (`build_adjacency` drops Hard edges a longer Hard path implies), so redundant shortcuts never change a score; `Hard_in` keeps every edge for eligibility.
 - **`Needs_Soft`** — helpful but not blocking. Weaker transitive value flow (`d_S` per hop).
-- **`Helps`** (Synergy) — *mutual reinforcement*, not a lesser Soft. Bidirectional and non-transitive. Each direct partner reinforces the candidate's synergy-free DAG value, capped at the profile's maximum intrinsic node value. Unfinished partners have partial exposure, discounted by their remaining Hard work; Done partners have exposure 1. Cross-context preference raises unfinished exposure without exceeding 1. All partners share one saturation curve: one Done partner gives `d_Syn_mul * capped_value`, and arbitrarily many approach twice that. Partner ratings and partner DAGs are never imported. `d_Syn_pair / d_Syn_mul` sets baseline anticipation; legacy custom settings with pair above completed strength raise completed strength to pair. See [`docs/scoring.md`](docs/scoring.md) and [`scoring.py`](scoring.py)'s `_value_contributions`, shared by ranking and Explain.
+- **`Helps`** (Synergy) — *mutual reinforcement*, not a lesser Soft. Bidirectional and non-transitive. Each direct partner reinforces the candidate's synergy-free DAG value, capped at the profile's maximum intrinsic node value. Unfinished partners have partial exposure, discounted by their remaining Hard work; Done partners have exposure 1. Cross-context preference raises unfinished exposure without exceeding 1. All partners share one saturation curve: one Done partner gives `d_Syn_mul * capped_value`, and arbitrarily many approach twice that. Partner ratings and partner DAGs are never imported. `d_Syn_pair / d_Syn_mul` sets baseline anticipation; legacy custom settings with pair above completed strength raise completed strength to pair. See [`docs/scoring.md`](docs/scoring.md) and [`skilltree/domain/scoring.py`](skilltree/domain/scoring.py)'s `_value_contributions`, shared by ranking and Explain.
 
 **Edge direction — easy to get backwards.** `A --Needs_Hard/Soft--> B` means **A unlocks B**: A is the prerequisite, B is the dependent, and B stays Blocked until A is Done. Read the arrow as "leads to / unlocks," *not* "depends on." Value cascades **forward** along arrows (completing A flows discounted value to everything it unlocks); **eligibility runs backward** (a node is Blocked by its *incoming* hard prereqs). Mixing up these two directions has caused repeated bugs. [`docs/scoring.md`](docs/scoring.md) has the forward cascade (The DAG Cascade) and how a Goal is ranked by the hard subtree that leads into it (Goal Scoring).
 
@@ -74,10 +85,10 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 
 ## Non-obvious conventions
 
-- Every tab module exposes exactly one public function: `register_*_callbacks(app)`. `app.py` imports and calls each. New tab = one more `register_*` call.
+- Every tab module exposes exactly one public function: `register_*_callbacks(app, services)`. `skilltree/app.py` imports and calls each. New tab = one more `register_*` call.
 - Node `name` is the primary key; edges have composite PK `(source, target, type)` so the same pair can carry both a prerequisite and a synergy.
-- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`callbacks.py`](callbacks.py). That function is the single source of truth for what the Nodes canvas shows.
-- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set. Milestones can be marked Done before their hard prereqs, and a Done Milestone never re-blocks (`_KEEPS_DONE_TYPES` in `graph_manager.py`).
+- Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`skilltree/engine/callbacks.py`](skilltree/engine/callbacks.py). That function is the single source of truth for what the Nodes canvas shows.
+- Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set. Milestones can be marked Done before their hard prereqs, and a Done Milestone never re-blocks (`_KEEPS_DONE_TYPES` in `skilltree/store/graph/manager.py`).
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
 - `ConfigManager` is classmethod-only and round-trips everything through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
 
@@ -102,10 +113,10 @@ Tests use a `temp_database` fixture that gives each test its own copy of a new d
 ## Key patterns to follow when editing
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
-- Prefer extracting pure logic to [`callback_helpers.py`](callback_helpers.py) (stateless) or [`graph_manager.py`](graph_manager.py) (DB-backed) rather than growing the already-large `*_callbacks.py` files further.
-- The node editor's fields are declared once, as `EDITOR_FORM` in [`callback_helpers.py`](callback_helpers.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
-- Build canvas elements with `build_node_element` / `build_edge_element` in [`callback_helpers.py`](callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
-- Behavior that belongs on every canvas loops over `CANVASES` in [`canvases.py`](canvases.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
+- Put new code in the layer it belongs to (see Package layout above). Don't add to `skilltree/ui/callback_helpers.py`, `skilltree/ui/sidebars_layout.py` or `skilltree/engine/callbacks.py`: they are being broken up.
+- The node editor's fields are declared once, as `EDITOR_FORM` in [`skilltree/ui/callback_helpers.py`](skilltree/ui/callback_helpers.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
+- Build canvas elements with `build_node_element` / `build_edge_element` in [`skilltree/ui/callback_helpers.py`](skilltree/ui/callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
+- Behavior that belongs on every canvas loops over `CANVASES` in [`skilltree/ui/canvas/registry.py`](skilltree/ui/canvas/registry.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.
 - When you add a scoring-relevant field to `Node`, also add it to `graph_manager._SCORING_RELEVANT_FIELDS`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).

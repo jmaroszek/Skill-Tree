@@ -9,10 +9,10 @@
 """
 import pytest
 
-import graph_rules
-import node_commands
-from graph_manager import GraphManager
-from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_BLOCKED, STATUS_DONE, Node
+from skilltree.domain import rules as graph_rules
+from skilltree.store import commands as node_commands
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_BLOCKED, STATUS_DONE, Node
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -80,7 +80,7 @@ def test_completing_a_whole_chain_at_once_works_in_any_order(chain):
 
 def test_one_transaction_in_completion_order_completes_the_chain(chain):
     """What the bulk Toggle Done does with a selection picked out of order."""
-    import database
+    from skilltree.store import database
     with database.transaction():
         for name in chain.completion_order(["Mastery", "Practice", "Theory"]):
             node = chain.get_node(name)

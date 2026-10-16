@@ -5,7 +5,7 @@ says so only in the browser console ("ID not found in layout"). A component
 that comes and goes, like a button inside a card that's only sometimes
 shown, needs a pattern-matching id instead.
 """
-import app as app_module
+from skilltree import app as app_module
 
 
 def _ids(component, found):

@@ -20,13 +20,13 @@ TOKENS_CSS = ASSETS / "tokens.css"
 
 # UI modules: everything that builds Dash components.
 UI_MODULES = [
-    "layout.py", "details_layout.py", "events_layout.py", "sidebars_layout.py",
-    "settings_layout.py", "review_hub_layout.py", "analyze_layout.py",
-    "callback_helpers.py", "callbacks.py", "details_callbacks.py",
-    "event_callbacks.py", "settings_callbacks.py", "sidebars_callbacks.py",
-    "review_hub_callbacks.py", "next_view.py", "canvas_view.py",
-    "list_toolbar.py", "duration_ui.py", "context_picker.py", "ui_kit.py",
-    "sidebar_state.py",
+    "skilltree/shell.py", "skilltree/features/details/layout.py", "skilltree/features/events/layout.py", "skilltree/ui/sidebars_layout.py",
+    "skilltree/features/settings/layout.py", "skilltree/features/review/layout.py", "skilltree/features/analyze/layout.py",
+    "skilltree/ui/callback_helpers.py", "skilltree/engine/callbacks.py", "skilltree/features/details/callbacks.py",
+    "skilltree/features/events/callbacks.py", "skilltree/features/settings/callbacks.py", "skilltree/features/goals/callbacks.py",
+    "skilltree/features/review/callbacks.py", "skilltree/features/home/view.py", "skilltree/ui/canvas/view.py",
+    "skilltree/ui/components/list_toolbar.py", "skilltree/ui/components/duration.py", "skilltree/ui/components/context_picker.py", "skilltree/ui/kit.py",
+    "skilltree/engine/sidebars.py",
 ]
 
 # Modules that legitimately hold real values rather than references:
@@ -36,7 +36,7 @@ UI_MODULES = [
 # analyze_callbacks builds Plotly figures, which read computed values and
 # cannot resolve a CSS variable; its chart constants stay literal and are
 # pinned to the tokens by test_plotly_chart_colours_match_their_tokens below.
-VALUE_OWNERS = {"config.py", "styles.py", "style_tokens.py", "analyze_callbacks.py"}
+VALUE_OWNERS = {"skilltree/store/settings.py", "skilltree/ui/styles.py", "skilltree/ui/tokens.py", "skilltree/features/analyze/callbacks.py"}
 
 # Lines that legitimately hold a real value even inside a UI module. Each is a
 # renderer that reads computed values and cannot resolve a CSS variable:
@@ -108,7 +108,7 @@ def test_every_python_token_resolves_to_a_real_css_variable():
     css = TOKENS_CSS.read_text(encoding="utf-8")
     defined = set(re.findall(r"(--st-[a-z0-9-]+)\s*:", css))
     referenced = set(re.findall(r"var\((--st-[a-z0-9-]+)\)",
-                                _source("style_tokens.py")))
+                                _source("skilltree/ui/tokens.py")))
     missing = sorted(referenced - defined)
     assert not missing, (
         f"style_tokens references CSS variables that tokens.css does not "
@@ -157,7 +157,7 @@ def test_plotly_chart_colours_match_their_tokens():
     used to paint Blocked in stock Bootstrap red while the rest of the app used
     the palette's darker red.
     """
-    import analyze_callbacks
+    from skilltree.features.analyze import callbacks as analyze_callbacks
 
     css = TOKENS_CSS.read_text(encoding="utf-8")
     for const, token in [("_BG", "--st-bg-canvas"),
@@ -177,8 +177,8 @@ def test_the_three_data_tables_share_one_definition():
     (0.82 / 0.85 / unset) and on whether to clear DARKLY's per-cell background
     tint (only one did).
     """
-    for module in ("details_layout.py", "events_layout.py",
-                   "review_hub_callbacks.py"):
+    for module in ("skilltree/features/details/layout.py", "skilltree/features/events/layout.py",
+                   "skilltree/features/review/callbacks.py"):
         src = _source(module)
         assert "tokens.TABLE_PROPS" in src, f"{module} builds a table by hand"
         assert "tokens.TABLE_STYLE" in src, f"{module} sets its own table style"
@@ -214,7 +214,7 @@ def test_component_builders_never_return_a_bare_list():
     correct; this only shows up in a browser. ui_kit hit exactly this, and the
     fix is a wrapper with `display: contents`.
     """
-    tree = ast.parse(_source("ui_kit.py"))
+    tree = ast.parse(_source("skilltree/ui/kit.py"))
     offenders = []
     for fn in [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]:
         for node in ast.walk(fn):
@@ -234,7 +234,7 @@ def test_the_badge_table_in_the_style_guide_matches_the_palette():
     SoftRelPri matched the subtasks-table Soft tile when the two had different
     values. This holds the documentation to the code.
     """
-    from config import BADGE_PALETTE
+    from skilltree.store.settings import BADGE_PALETTE
 
     guide = (ROOT / "STYLE_GUIDE.md").read_text(encoding="utf-8")
     rows = re.findall(r"^\|\s*(\w+)\s*\|\s*`(#[0-9a-fA-F]{6})`\s*\|\s*`(#[0-9a-fA-F]{3,6})`",

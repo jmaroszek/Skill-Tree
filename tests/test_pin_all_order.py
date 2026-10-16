@@ -4,10 +4,10 @@ When an event wakes more nodes than Now has room for, the ones that made it
 were chosen alphabetically, passing over the nodes flagged Add to Now. Now
 they go first, then the rest in recommendation order.
 """
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name, value):

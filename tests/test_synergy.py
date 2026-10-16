@@ -5,12 +5,12 @@ import random
 
 import pytest
 
-from callback_helpers import _contributor_hover
-from config import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
-from graph_manager import GraphManager
-from models import Node
-from scoring import explain_score, focus_route_data, score_nodes
-from synergy import partner_exposure, synergy_parameters
+from skilltree.ui.callback_helpers import _contributor_hover
+from skilltree.store.settings import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import explain_score, focus_route_data, score_nodes
+from skilltree.domain.synergy import partner_exposure, synergy_parameters
 
 
 def node(name, hours=40, **fields):

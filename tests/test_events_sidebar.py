@@ -7,7 +7,7 @@ import subprocess
 import dash
 import pytest
 
-from event_callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_event_callbacks
 
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "events_sidebar.js"

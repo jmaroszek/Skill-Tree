@@ -8,14 +8,14 @@ Save that only changed the description.
 import dash
 import pytest
 
-import callbacks
-from callback_helpers import (NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS,
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import (NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS,
                               build_editor_snapshot, follow_relationships,
                               merge_relationships, resolve_relationship_intent)
 from editor_forms import call
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN
-from node_commands import change_link
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN
+from skilltree.store.commands import change_link
 
 
 def _node(name):

@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-import app_paths
-import callback_helpers
-import resource_links
+from skilltree.runtime import paths as app_paths
+from skilltree.ui import callback_helpers
+from skilltree.store import resources as resource_links
 
 ROOT = Path(__file__).resolve().parents[1]
 unused = runpy.run_path(str(ROOT / "packaging" / "unused_files.py"))["unused"]
@@ -31,7 +31,7 @@ def test_files_shipped_with_the_app_resolve_inside_a_frozen_bundle(frozen):
 
 
 def test_the_app_serves_assets_from_the_resource_path(monkeypatch):
-    import app as app_module
+    from skilltree import app as app_module
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     dash_app = app_module.create_app(app_module.AppSettings(
         environment="sandbox", configure_logging=False))
@@ -42,7 +42,7 @@ def test_the_frozen_build_keeps_every_file_the_app_serves(monkeypatch):
     """The spec leaves development builds out of the bundle
     (packaging/unused_files.py). Every file the page loads, at once or on
     demand, must stay: a missing one would break only the installed app."""
-    import app as app_module
+    from skilltree import app as app_module
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     dash_app = app_module.create_app(app_module.AppSettings(
         environment="sandbox", configure_logging=False))

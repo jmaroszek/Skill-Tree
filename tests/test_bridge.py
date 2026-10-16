@@ -7,14 +7,14 @@ bridge replaces (finish_bridge, run inside core_engine's transaction).
 import dash
 import pytest
 
-import bridge_callbacks
-import bridge_payloads
-import callbacks
-from callback_helpers import NEW_NODE_SNAPSHOT
+from skilltree.features.links import bridge as bridge_callbacks
+from skilltree.ui import payloads as bridge_payloads
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import NEW_NODE_SNAPSHOT
 from editor_forms import call
-from graph_manager import GraphManager
-from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
-from node_commands import bridge_form, finish_bridge, plan_bridge
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
+from skilltree.store.commands import bridge_form, finish_bridge, plan_bridge
 
 
 def _node(name, **overrides):
@@ -350,4 +350,4 @@ def test_a_new_node_clears_the_pending_bridge(monkeypatch, manager):
 
 def test_every_hard_and_soft_edge_type_has_a_bridge_kind():
     assert {EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS} == set(
-        __import__("node_commands").BRIDGE_KINDS.values())
+        __import__("importlib").import_module("skilltree.store.commands").BRIDGE_KINDS.values())

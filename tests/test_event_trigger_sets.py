@@ -13,11 +13,11 @@ import sqlite3
 from typing import Any
 import pytest
 
-import database
-from models import Node, Event, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
-from graph_manager import GraphManager
-from event_manager import EventManager
-from config import ConfigManager
+from skilltree.store import database
+from skilltree.domain.models import Node, Event, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
+from skilltree.store.settings import ConfigManager
 
 
 @pytest.fixture(autouse=True)

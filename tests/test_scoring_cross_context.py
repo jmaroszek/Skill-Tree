@@ -2,8 +2,8 @@
 
 import math
 
-from models import Node, EDGE_HELPS, EDGE_NEEDS_HARD
-from scoring import total_value, build_adjacency, explain_score
+from skilltree.domain.models import Node, EDGE_HELPS, EDGE_NEEDS_HARD
+from skilltree.domain.scoring import total_value, build_adjacency, explain_score
 
 
 def _node(name, ctx="Mind", **kw):

@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
-import backup
-import database
-from graph_manager import GraphManager
+from skilltree.store import backup
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
 
 FIXTURES = sorted(Path(__file__).parent.glob("fixtures/schema_v*.db"),
                   key=lambda p: int(p.stem.split("_v")[1]))

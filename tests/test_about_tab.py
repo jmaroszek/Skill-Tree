@@ -5,13 +5,13 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-import about
-import app_paths
-import database
-from graph_manager import GraphManager
-from layout import build_app_layout
-from models import Node
-from version import __version__
+from skilltree.features.settings import about
+from skilltree.runtime import paths as app_paths
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.shell import build_app_layout
+from skilltree.domain.models import Node
+from skilltree.runtime.version import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -15,12 +15,12 @@ from pathlib import Path
 
 import pytest
 
-import app as app_module
-import backup
-import database
-import server_runtime
-from graph_manager import GraphManager
-from models import Node
+from skilltree import app as app_module
+from skilltree.store import backup
+from skilltree.store import database
+from skilltree.runtime import server as server_runtime
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _node(name):

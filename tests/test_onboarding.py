@@ -5,13 +5,13 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import database
-import onboarding
-import onboarding_callbacks
-from config import DEFAULT_CONTEXTS, ConfigManager
-from graph_manager import GraphManager
-from layout import build_app_layout
-from models import EDGE_NEEDS_HARD, STATUS_DONE, Node
+from skilltree.store import database
+from skilltree.features.onboarding import steps as onboarding
+from skilltree.features.onboarding import callbacks as onboarding_callbacks
+from skilltree.store.settings import DEFAULT_CONTEXTS, ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.shell import build_app_layout
+from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -169,7 +169,7 @@ def test_the_card_can_be_dismissed(card):
 # --- Empty states ------------------------------------------------------------
 
 def test_an_empty_graph_says_how_to_begin():
-    from callback_helpers import format_suggestions_table
+    from skilltree.ui.callback_helpers import format_suggestions_table
     empty = str(format_suggestions_table([], GraphManager()))
     assert "Add a goal" in empty and "No suggestions found" not in empty
 
@@ -183,7 +183,7 @@ def test_an_empty_graph_says_how_to_begin():
 
 
 def test_a_disabled_save_says_why():
-    from callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_callbacks
     validate = _callbacks(register_callbacks)["validate_time_estimates"]
     message, _style, disabled, title = validate(None, None, None, [], [])
     assert disabled is True and "Expected" in title

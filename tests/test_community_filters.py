@@ -7,9 +7,9 @@ made orphans of the nodes linked only to them.
 """
 import pytest
 
-from graph_manager import GraphManager
-from event_manager import EventManager
-from models import Event, Node, EDGE_NEEDS_SOFT, STATUS_DONE
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
+from skilltree.domain.models import Event, Node, EDGE_NEEDS_SOFT, STATUS_DONE
 
 
 def _node(name, **overrides):

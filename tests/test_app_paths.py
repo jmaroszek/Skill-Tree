@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-import app_paths
+from skilltree.runtime import paths as app_paths
 
 
 @pytest.fixture(autouse=True)

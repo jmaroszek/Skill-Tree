@@ -2,8 +2,8 @@
 
 import json
 
-from callback_helpers import normalize_name_for_comparison
-from config import ConfigManager
+from skilltree.ui.callback_helpers import normalize_name_for_comparison
+from skilltree.store.settings import ConfigManager
 
 
 def test_default_name_formatting_keeps_names_as_entered():

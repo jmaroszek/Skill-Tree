@@ -29,13 +29,13 @@ import networkx as nx
 from hypothesis import HealthCheck, settings, strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
 
-import database
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE,
+from skilltree.store import database
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE,
                     Event, Node)
-import node_commands
+from skilltree.store import commands as node_commands
 
 # Half the draws come from a few plain names, so operations keep meeting the
 # same nodes; the rest are hostile ("sleep" collides with "Sleep" by case).

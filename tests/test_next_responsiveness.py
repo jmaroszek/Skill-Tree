@@ -7,13 +7,13 @@ import subprocess
 import dash
 import pytest
 
-from next_callbacks import register_next_callbacks
-from next_view import _initial_next_view, _components_by_id
+from skilltree.features.home.callbacks import register_next_callbacks
+from skilltree.features.home.view import _initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
 
 def test_selection_has_no_server_subscribers():
-    from callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_callbacks
     app = dash.Dash(__name__)
     register_callbacks(app)
     register_next_callbacks(app)
@@ -29,8 +29,8 @@ def test_selection_has_no_server_subscribers():
 
 
 def test_initial_next_is_populated_and_reads_the_sidebar_controls():
-    from layout import build_next_view
-    from sidebars_layout import build_all_sidebars
+    from skilltree.shell import build_next_view
+    from skilltree.ui.sidebars_layout import build_all_sidebars
     # Built once and reused: the assertion below checks that hydration does not
     # mutate the template it was handed, so both uses must be the same object.
     next_view = build_next_view()
@@ -122,8 +122,8 @@ def test_home_tables_are_not_rebuilt_on_page_load():
 def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
     """The table's rebuild on load used to be the caption's first update, so
     without it the corner of Home stayed blank until the next refresh."""
-    from graph_manager import GraphManager
-    from layout import build_app_layout
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.shell import build_app_layout
 
     monkeypatch.setattr(GraphManager, "_last_perf_timings",
                         {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4})
@@ -134,8 +134,8 @@ def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
 
 
 def test_no_caption_before_any_timing_is_recorded(monkeypatch):
-    from graph_manager import GraphManager
-    from next_view import perf_stats_text
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.features.home.view import perf_stats_text
 
     monkeypatch.setattr(GraphManager, "_last_perf_timings", None)
     assert perf_stats_text() is None

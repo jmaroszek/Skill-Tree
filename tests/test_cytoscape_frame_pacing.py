@@ -15,7 +15,7 @@ import subprocess
 
 import pytest
 
-from canvases import client_registry
+from skilltree.ui.canvas.registry import client_registry
 
 ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'cytoscape_frame_pacing.js'
 

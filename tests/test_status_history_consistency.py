@@ -1,8 +1,8 @@
 """A Done node that stops being Done drops its completion date and records a
 reopen, whichever path un-marks it: the cascade or the startup repair."""
-import database
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 
 
 def _node(name, **overrides):

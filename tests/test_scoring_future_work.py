@@ -6,9 +6,9 @@ import random
 import networkx as nx
 import pytest
 
-from config import ConfigManager, DEFAULT_HYPERPARAMS, PROFILES
-from models import Node
-from scoring import explain_score, score_nodes
+from skilltree.store.settings import ConfigManager, DEFAULT_HYPERPARAMS, PROFILES
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import explain_score, score_nodes
 
 
 def node(name, hours=10, **kw):
@@ -111,7 +111,7 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
 
 
 def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
-    from goal_ranking import _rank_goals, explain_goal
+    from skilltree.domain.goals import _rank_goals, explain_goal
     ns = [node('A'), node('D', type='Goal'), node('Optional', 10000)]
     es = [edge('A','D')]
     hp = dict(PROFILES['Sage'], future_work_half_credit_hours=1)
@@ -139,7 +139,7 @@ def test_an_older_stored_bundle_gives_way_to_the_profile(schema):
 
 
 def test_cached_required_work_updates_after_remote_prerequisite_edit():
-    from graph_manager import GraphManager
+    from skilltree.store.graph.manager import GraphManager
     manager = GraphManager()
     ConfigManager.set_show_scoring_perf(False)
     for n in [node('A'),node('B',100),node('D')]: manager.add_node(n)
@@ -159,7 +159,7 @@ def test_cached_required_work_updates_after_remote_prerequisite_edit():
 def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_policy():
     import inspect
     from dash import Input, State, Output
-    from settings_callbacks import register_settings_callbacks
+    from skilltree.features.settings.callbacks import register_settings_callbacks
 
     class Registry:
         def __init__(self): self.callbacks = {}

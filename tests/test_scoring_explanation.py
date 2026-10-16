@@ -7,8 +7,8 @@ is display metadata derived from the same weights.
 
 import math
 
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from scoring import (explain_score, total_value, build_adjacency,
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from skilltree.domain.scoring import (explain_score, total_value, build_adjacency,
                      focus_route_data)
 
 

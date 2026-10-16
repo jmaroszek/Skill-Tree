@@ -6,9 +6,9 @@ pair a second time.
 """
 import pytest
 
-import database
-from graph_manager import GraphManager
-from models import Node, EDGE_HELPS
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_HELPS
 
 
 def _node(name):

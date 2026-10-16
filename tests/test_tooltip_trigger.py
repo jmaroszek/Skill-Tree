@@ -14,11 +14,11 @@ import subprocess
 import dash
 import pytest
 
-from events_layout import build_dormant_nodes_table
-from models import Node
-from sidebars_callbacks import register_sidebars_callbacks
-from sidebars_layout import build_node_editor_content
-from ui_kit import Tooltip, add_button, edit_button, info_button
+from skilltree.features.events.layout import build_dormant_nodes_table
+from skilltree.domain.models import Node
+from skilltree.features.goals.callbacks import register_sidebars_callbacks
+from skilltree.ui.sidebars_layout import build_node_editor_content
+from skilltree.ui.kit import Tooltip, add_button, edit_button, info_button
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -72,8 +72,9 @@ def test_dormant_node_row_actions_are_hover_only():
 def test_no_module_builds_a_raw_dbc_tooltip():
     """A raw ``dbc.Tooltip(`` silently brings the focus trigger back."""
     offenders = [
-        path.name for path in sorted(ROOT.glob("*.py"))
-        if path.name != "ui_kit.py"
+        path.relative_to(ROOT).as_posix()
+        for path in sorted((ROOT / "skilltree").rglob("*.py"))
+        if path.relative_to(ROOT).as_posix() != "skilltree/ui/kit.py"
         and "dbc.Tooltip(" in path.read_text(encoding="utf8")
     ]
 

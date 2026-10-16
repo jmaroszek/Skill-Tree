@@ -13,11 +13,11 @@ from pathlib import Path
 
 import dash
 
-from callbacks import register_callbacks
-from canvases import CANVASES, client_registry, install_client_registry
-from details_callbacks import register_details_callbacks
-from event_callbacks import register_event_callbacks
-from layout import build_app_layout
+from skilltree.engine.callbacks import register_callbacks
+from skilltree.ui.canvas.registry import CANVASES, client_registry, install_client_registry
+from skilltree.features.details.callbacks import register_details_callbacks
+from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.shell import build_app_layout
 
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 

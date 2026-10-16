@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-import app as app_module
+from skilltree import app as app_module
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"

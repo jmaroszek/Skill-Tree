@@ -9,9 +9,9 @@ import math
 
 import pytest
 
-from config import ConfigManager, PROFILES
-from models import Node
-from scoring import build_adjacency, explain_score, focus_route_data, score_nodes, total_value
+from skilltree.store.settings import ConfigManager, PROFILES
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import build_adjacency, explain_score, focus_route_data, score_nodes, total_value
 
 HP = PROFILES['Sage']
 
@@ -95,7 +95,7 @@ def test_focus_does_not_draw_a_route_through_a_done_node():
 
 
 def test_goal_ranking_counts_only_the_work_left():
-    from goal_ranking import _rank_goals, explain_goal
+    from skilltree.domain.goals import _rank_goals, explain_goal
     nodes = [node('A', status='Done'), node('B'), node('G', type='Goal')]
     edges = [edge('A', 'G'), edge('B', 'G')]
     comp = _rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]
@@ -106,7 +106,7 @@ def test_goal_ranking_counts_only_the_work_left():
 
 
 def test_marking_a_dependent_done_rescores_through_the_cache():
-    from graph_manager import GraphManager
+    from skilltree.store.graph.manager import GraphManager
     manager = GraphManager()
     ConfigManager.set_show_scoring_perf(False)
     for n in [node('A'), node('D', value=9)]:

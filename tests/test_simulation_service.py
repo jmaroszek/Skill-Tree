@@ -6,10 +6,10 @@ import subprocess
 import numpy as np
 import pytest
 
-import simulation_service as service_module
-from simulation import simulate_task_chain, SimulationCancelled, _sample_node
-from simulation_service import SimulationService, effective_trials, MAX_SAMPLE_WORK
-from duration_ui import simulation_figure
+from skilltree.features.details import simulation_service as service_module
+from skilltree.domain.simulation import simulate_task_chain, SimulationCancelled, _sample_node
+from skilltree.features.details.simulation_service import SimulationService, effective_trials, MAX_SAMPLE_WORK
+from skilltree.ui.components.duration import simulation_figure
 from test_atomic_saves import node
 
 
@@ -262,7 +262,7 @@ def test_day_scale_chains_read_in_days():
 
 
 def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
-    import details_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
     manager = details_callbacks.graph_manager
     manager.add_node(node('Goal', type='Goal'))
     for name in ('A', 'B'):
@@ -283,7 +283,7 @@ def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
 def test_details_says_so_when_nothing_is_left_to_estimate():
     """A chart of zero hours told the user nothing; a sentence does."""
     import pytest
-    import details_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
     manager = details_callbacks.graph_manager
     manager.add_node(node('Finished', status='Done'))
     manager.add_node(node('Goal', type='Goal', time_mode='inherited'))
@@ -301,7 +301,7 @@ def test_details_says_so_when_nothing_is_left_to_estimate():
 def test_details_says_so_when_no_work_leads_in():
     """A Milestone over only other Milestones has nothing to time."""
     import pytest
-    import details_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
     manager = details_callbacks.graph_manager
     for name in ('$250k', '$500k', '$1M'):
         manager.add_node(node(name, type='Milestone', time_mode='inherited'))

@@ -8,11 +8,11 @@ and (usually empty) relationships replaced the existing node's, silently.
 import dash
 import pytest
 
-import callbacks
+from skilltree.engine import callbacks
 from editor_forms import call
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD
-from node_commands import conflicting_node_name
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD
+from skilltree.store.commands import conflicting_node_name
 
 
 def _node(name, **overrides):
@@ -46,7 +46,7 @@ class TestConflictRule:
     def test_keeping_the_name_never_conflicts(self, manager):
         # Even beside a case-variant duplicate an older database may hold.
         # add_node refuses one now, so write it the way older versions did.
-        import database
+        from skilltree.store import database
         with database.transaction() as conn:
             conn.execute("INSERT INTO Nodes (name, type, description, value, time_o, "
                          "time_m, time_p, interest, difficulty, context, status) "

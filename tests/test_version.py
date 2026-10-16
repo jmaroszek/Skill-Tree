@@ -3,7 +3,7 @@ import json
 import re
 from pathlib import Path
 
-from version import __version__
+from skilltree.runtime.version import __version__
 
 ROOT = Path(__file__).resolve().parents[1]
 

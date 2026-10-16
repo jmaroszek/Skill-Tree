@@ -6,13 +6,13 @@ Uses a temporary database for isolation — does not touch the production skillt
 
 from typing import Any
 import pytest
-import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN, STATUS_BLOCKED
-from graph_manager import GraphManager
-import graph_queries
-from context_rules import compute_orphaned_subcontext_pairs
-from config import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
-from scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
+from skilltree.store import database
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN, STATUS_BLOCKED
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.graph import queries as graph_queries
+from skilltree.domain.contexts import compute_orphaned_subcontext_pairs
+from skilltree.store.settings import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
+from skilltree.domain.scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, explain_score, TIME_REF_HOURS)
 
 # Written around the Resource sections new databases used to start with.
@@ -187,8 +187,8 @@ class TestNodeCRUD:
         """Pinning the implicit FK-CASCADE + ConfigManager.delete_node_references
         contract: every table or settings list that references the deleted node
         must have no trace of it after delete_node returns."""
-        from event_manager import EventManager
-        from models import Event
+        from skilltree.store.events import EventManager
+        from skilltree.domain.models import Event
         em = EventManager()
 
         # Set up X with edges in/out, an alias, an event triggered by X,
@@ -272,7 +272,7 @@ class TestLifecycleDates:
     def _pin_today(monkeypatch, iso):
         """Force graph_manager's date.today() to a fixed day so successive
         flips can land on distinct, assertable dates."""
-        import graph_manager
+        from skilltree.store.graph import manager as graph_manager
         from datetime import date as _real_date
 
         class _FixedDate:
@@ -353,7 +353,7 @@ class TestLifecycleDates:
 class TestLifecycleEvents:
     @staticmethod
     def _pin_times(monkeypatch, *timestamps):
-        import graph_manager
+        from skilltree.store.graph import manager as graph_manager
         remaining = iter(timestamps)
         monkeypatch.setattr(graph_manager, "_utc_now_ts", lambda: next(remaining))
 
@@ -691,8 +691,8 @@ class TestNodeRename:
 
     def test_rename_event_trigger_reference_updated(self, mgr):
         """If an Event's trigger set references the renamed node, it is updated."""
-        from event_manager import EventManager
-        from models import Event
+        from skilltree.store.events import EventManager
+        from skilltree.domain.models import Event
 
         mgr.add_node(_make_node("TriggerNode"))
         em = EventManager()
@@ -705,7 +705,7 @@ class TestNodeRename:
         mgr.rename_node("TriggerNode", "TriggerRenamed")
 
         # Read the trigger table directly to verify the reference moved
-        import database
+        from skilltree.store import database
         with database.get_connection() as conn:
             rows = conn.execute(
                 "SELECT node_name FROM EventTriggerNodes WHERE event_name='TestEvent'"
@@ -1585,7 +1585,7 @@ class TestConfigManager:
 
     def test_subcontexts_invalid_json_returns_empty(self):
         # Manually write bad data
-        from database import get_connection
+        from skilltree.store.database import get_connection
         with get_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)", ("SUBCONTEXTS", "not valid json"))
             conn.commit()
@@ -1597,11 +1597,11 @@ class TestConfigManager:
         assert ConfigManager.get_subcontexts() == {}
 
     def test_subcontext_sort_mode_default_is_definition(self):
-        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_round_trip(self):
-        from config import (
+        from skilltree.store.settings import (
             SUBCONTEXT_SORT_LENGTH,
             SUBCONTEXT_SORT_ALPHABETICAL,
             SUBCONTEXT_SORT_DEFINITION,
@@ -1611,22 +1611,22 @@ class TestConfigManager:
             assert ConfigManager.get_subcontext_sort_mode() == mode
 
     def test_subcontext_sort_mode_invalid_falls_back_to_default(self):
-        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
         ConfigManager._set_db_value("SUBCONTEXT_SORT_MODE", "garbage")
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_setter_rejects_invalid(self):
-        from config import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
         ConfigManager.set_subcontext_sort_mode("not-a-mode")
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_sort_subcontexts_definition_preserves_order(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_DEFINITION
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_DEFINITION
         items = ["Rational", "Sensory", "Judgment"]
         assert sort_subcontexts(items, SUBCONTEXT_SORT_DEFINITION) == items
 
     def test_sort_subcontexts_length_orders_short_first(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
         items = ["Engineering", "Math", "Data Science", "Physics"]
         # Stable: 'Math' (4) < 'Physics' (7) < 'Engineering' (11) == 'Data Science' (12)
         # Length-only key keeps relative order of equal-length entries.
@@ -1635,23 +1635,23 @@ class TestConfigManager:
         ]
 
     def test_sort_subcontexts_alphabetical_case_insensitive(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
         items = ["banana", "Apple", "cherry"]
         assert sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL) == ["Apple", "banana", "cherry"]
 
     def test_sort_subcontexts_uses_configured_mode_when_none(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
         ConfigManager.set_subcontext_sort_mode(SUBCONTEXT_SORT_ALPHABETICAL)
         assert sort_subcontexts(["zeta", "alpha"]) == ["alpha", "zeta"]
 
     def test_sort_subcontexts_does_not_mutate_input(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
         items = ["zeta", "alpha"]
         sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL)
         assert items == ["zeta", "alpha"]
 
     def test_sort_subcontexts_empty(self):
-        from config import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
         assert sort_subcontexts([], SUBCONTEXT_SORT_LENGTH) == []
 
     def test_set_and_get_hyperparams(self):
@@ -1831,7 +1831,7 @@ class TestBuildMigrationContent:
         return SimpleNamespace(name=name, **attrs)
 
     def _build(self, **kwargs):
-        from layout import build_migration_content
+        from skilltree.shell import build_migration_content
         return build_migration_content(**kwargs)
 
     # --- Pure-rename smart defaults -----------------------------------------
@@ -2077,7 +2077,7 @@ class TestApplyPerNodeMigrations:
     actual DB writes can be observed."""
 
     def _apply(self, manager, entries, ctx_vals, sub_vals, new_subcontexts=None):
-        from settings_callbacks import _apply_per_node_migrations
+        from skilltree.features.settings.callbacks import _apply_per_node_migrations
         _apply_per_node_migrations(manager, entries, ctx_vals, sub_vals,
                                     new_subcontexts or {})
 
@@ -3861,7 +3861,7 @@ class TestEstimateCorrelationSetting:
     """The one free parameter in the duration model — guard its bounds."""
 
     def _with(self, stored, temp_database):
-        from config import ConfigManager, DEFAULT_ESTIMATE_CORRELATION
+        from skilltree.store.settings import ConfigManager, DEFAULT_ESTIMATE_CORRELATION
         settings = dict(ConfigManager.get_time_settings())
         if stored is not None:
             settings['estimate_correlation'] = stored

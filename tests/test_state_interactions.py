@@ -4,15 +4,15 @@ from datetime import date
 import dash
 import pytest
 
-import callbacks
-import database
-import event_callbacks
-import event_manager
-from config import ConfigManager
+from skilltree.engine import callbacks
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store import events as event_manager
+from skilltree.store.settings import ConfigManager
 from editor_forms import call
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event
 from test_atomic_saves import graph, node, save
 
 
@@ -483,7 +483,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     """The form still says Dormant in its event. Saving that used to ask to
     put the awake node back to sleep, which was refused, and every other
     edit with it."""
-    from callback_helpers import build_dormancy_snapshot
+    from skilltree.ui.callback_helpers import build_dormancy_snapshot
     manager = graph('A')
     events = EventManager()
     events.add_event(Event('Later'))
@@ -503,7 +503,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
 def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch):
     """Only an untouched section gives way to the wake. Asking to sleep in
     another event is a real request, refused with its own reason."""
-    from callback_helpers import build_dormancy_snapshot
+    from skilltree.ui.callback_helpers import build_dormancy_snapshot
     manager = graph('A')
     events = EventManager()
     for name in ('Later', 'Other'):

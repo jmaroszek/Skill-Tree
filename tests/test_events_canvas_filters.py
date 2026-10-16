@@ -7,10 +7,10 @@ filtering them would hide the very nodes the canvas exists to check.
 import dash
 import pytest
 
-from event_callbacks import register_event_callbacks
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
+from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 
 
 def _node(name, **overrides):

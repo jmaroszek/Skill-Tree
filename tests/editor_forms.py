@@ -8,7 +8,7 @@ test can't set something nothing reads.
 """
 import inspect
 
-from callback_helpers import EDITOR_FORM
+from skilltree.ui.callback_helpers import EDITOR_FORM
 
 
 def editor_form(**fields):

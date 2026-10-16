@@ -18,8 +18,8 @@ import os
 import dash
 import pytest
 
-import resource_links as resources
-from resource_links import NeedsConfirmation
+from skilltree.store import resources
+from skilltree.store.resources import NeedsConfirmation
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -179,9 +179,9 @@ def test_a_bare_domain_with_a_port_is_a_web_address_not_a_scheme(opened):
 # --- The two ways a link is opened ------------------------------------------
 
 def test_the_context_menu_route_relays_the_question(monkeypatch, opened):
-    import app as app_module
-    from graph_manager import GraphManager
-    from models import Node
+    from skilltree import app as app_module
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.domain.models import Node
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     GraphManager().add_node(Node(
         name="Reading", type="Learn", description="", value=5, time_o=1, time_m=2,
@@ -201,7 +201,7 @@ def test_the_context_menu_route_relays_the_question(monkeypatch, opened):
 
 
 def _callbacks():
-    from resource_link_callbacks import register_resource_link_callbacks
+    from skilltree.features.editor.resources import register_resource_link_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     register_resource_link_callbacks(app)
@@ -219,7 +219,7 @@ def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):
     from dash._callback_context import context_value
     from dash._utils import AttributeDict
     monkeypatch.setattr(resources, "get_sections", lambda: [dict(MIXED, id="website")])
-    import resource_link_callbacks
+    from skilltree.features.editor import resources as resource_link_callbacks
     monkeypatch.setattr(resource_link_callbacks, "get_sections",
                         lambda: [dict(MIXED, id="website")])
     found = _callbacks()

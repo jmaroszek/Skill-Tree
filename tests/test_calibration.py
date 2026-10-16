@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 
-from models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
-from graph_manager import GraphManager
-from node_commands import handle_save, prior_node_for_completion
-from config import ConfigManager
-from editor_values import (
+from skilltree.domain.models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.commands import handle_save, prior_node_for_completion
+from skilltree.store.settings import ConfigManager
+from skilltree.features.editor.values import (
     _calibration_prepop,
     _calibration_review_queue,
     _calibration_unit_for,
@@ -383,7 +383,7 @@ class TestPriorNodeForCompletion:
 
 class TestCalibrationModalLayout:
     def test_ratings_come_before_time_then_notes(self):
-        from layout import build_time_calibration_modal
+        from skilltree.shell import build_time_calibration_modal
         text = repr(build_time_calibration_modal())
         order = [text.index(marker) for marker in
                  ("calibration-value", "time-calibration-lower", "calibration-notes")]
@@ -400,12 +400,12 @@ class TestCalibrationModalLayout:
     (("", None, float("nan")), (None, None, None)),
 ])
 def test_actual_bracket_hours(entered, expected):
-    from callback_helpers import actual_bracket_hours
+    from skilltree.ui.callback_helpers import actual_bracket_hours
     assert actual_bracket_hours(entered, 1.0) == expected
 
 
 def test_an_unchanged_submit_keeps_the_stored_hours():
-    from callback_helpers import actual_bracket_hours
+    from skilltree.ui.callback_helpers import actual_bracket_hours
     stored = (20 / 7, 40 / 7, None)   # shown in days as 1.0 and 2.0 at 20/7 h a day
     shown = tuple(None if h is None else round(h / (20 / 7), 2) for h in stored)
 
@@ -430,7 +430,7 @@ def test_recorded_zeros_are_no_actual_time():
 @pytest.fixture
 def calibration_handlers(monkeypatch):
     import dash
-    import calibration_callbacks
+    from skilltree.features.review import calibration as calibration_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     calibration_callbacks.register_calibration_callbacks(app)
@@ -446,7 +446,7 @@ def calibration_handlers(monkeypatch):
 
 class TestMilestoneReflection:
     def test_milestone_reflects_in_notes_only(self, mgr):
-        from editor_values import reflects_in_notes_only
+        from skilltree.features.editor.values import reflects_in_notes_only
         assert reflects_in_notes_only(_make_node("M", type="Milestone", time_mode='inherited'))
         assert not reflects_in_notes_only(_make_node("A", type="Action"))
         assert not reflects_in_notes_only(None)
@@ -464,7 +464,7 @@ class TestMilestoneReflection:
         assert "project" in placeholder
 
     def test_submit_saves_only_the_notes(self, mgr, calibration_handlers, monkeypatch):
-        import calibration_callbacks
+        from skilltree.features.review import calibration as calibration_callbacks
         mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
         monkeypatch.setattr(calibration_callbacks, 'get_trigger_id',
                             lambda: 'btn-time-calibration-submit')

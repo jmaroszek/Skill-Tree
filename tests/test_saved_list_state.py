@@ -10,12 +10,12 @@ import dash
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import event_callbacks
-import list_toolbar
-from config import ConfigManager
-from event_manager import EventManager
-from list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
-from models import Event
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.ui.components import list_toolbar
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
+from skilltree.domain.models import Event
 
 
 def _callbacks(register):
@@ -93,7 +93,7 @@ def test_manual_event_list_uses_the_saved_order():
 # every hidden item back in database order once the search was cleared.
 
 def test_a_drag_reorders_the_shown_names_within_the_saved_order():
-    from callback_helpers import merge_manual_order
+    from skilltree.ui.callback_helpers import merge_manual_order
 
     saved = ["A", "B", "C", "D", "E"]
     # A search shows B and D, and D is dragged above B.
@@ -121,7 +121,7 @@ def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
 
 
 def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
-    import sidebars_callbacks
+    from skilltree.features.goals import callbacks as sidebars_callbacks
     from test_atomic_saves import graph, node
 
     manager = graph()

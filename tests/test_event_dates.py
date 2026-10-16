@@ -7,10 +7,10 @@ still said Manual.
 """
 import dash
 
-import database
-import event_callbacks
-from event_manager import EventManager
-from models import Event, Node
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.events import EventManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name):

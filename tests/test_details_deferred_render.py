@@ -8,13 +8,13 @@ import dash
 from dash import html
 from dash.development.base_component import Component
 
-import details_callbacks
-from config import ConfigManager
-from details_callbacks import register_details_callbacks
-from event_callbacks import register_event_callbacks
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, Node
-import style_tokens as tokens
+from skilltree.features.details import callbacks as details_callbacks
+from skilltree.store.settings import ConfigManager
+from skilltree.features.details.callbacks import register_details_callbacks
+from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, Node
+from skilltree.ui import tokens
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -109,7 +109,7 @@ def _suggestion_node(**overrides):
 
 
 def test_details_suggestion_is_a_native_button_with_name_and_context():
-    from details_layout import _build_suggestion_row
+    from skilltree.features.details.layout import _build_suggestion_row
 
     row = _build_suggestion_row(_suggestion_node())
 
@@ -126,7 +126,7 @@ def test_details_suggestion_is_a_native_button_with_name_and_context():
 
 
 def test_every_subtask_row_has_edit_action_and_no_remove_action():
-    from details_layout import build_details_subtasks_table
+    from skilltree.features.details.layout import build_details_subtasks_table
 
     manager = GraphManager()
     parent = _suggestion_node(name="Parent")
@@ -160,7 +160,7 @@ def test_every_subtask_row_has_edit_action_and_no_remove_action():
 
 
 def test_subtask_name_column_is_capped_and_keeps_full_name_on_hover():
-    from details_layout import build_details_subtasks_table
+    from skilltree.features.details.layout import build_details_subtasks_table
 
     manager = GraphManager()
     parent = _suggestion_node(name="Parent")
@@ -191,7 +191,7 @@ def test_subtask_name_column_is_capped_and_keeps_full_name_on_hover():
 
 
 def test_subtasks_header_leaves_a_block_gap_before_the_table():
-    from details_layout import build_details_tab_content
+    from skilltree.features.details.layout import build_details_tab_content
 
     content = build_details_tab_content()
     header = next(
@@ -229,7 +229,7 @@ def test_subtask_pencil_opens_that_node_in_editor(monkeypatch):
 
 
 def test_details_suggestion_without_context_keeps_an_empty_second_line():
-    from details_layout import _build_suggestion_row
+    from skilltree.features.details.layout import _build_suggestion_row
 
     row = _build_suggestion_row(_suggestion_node(context=None, subcontext=None),
                                 priority=12)
@@ -241,7 +241,7 @@ def test_details_suggestion_without_context_keeps_an_empty_second_line():
 
 def test_priority_rank_badges_share_the_orange_rank_color():
     """Regression: the Details rank badge once borrowed the Goal yellow."""
-    from details_layout import _build_suggestion_row, build_goal_card
+    from skilltree.features.details.layout import _build_suggestion_row, build_goal_card
 
     row = _build_suggestion_row(_suggestion_node(), priority_rank=2)
     badge = row.children[-1]
@@ -255,7 +255,7 @@ def test_priority_rank_badges_share_the_orange_rank_color():
 
 
 def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
-    from details_layout import _build_suggestion_row, build_goal_card
+    from skilltree.features.details.layout import _build_suggestion_row, build_goal_card
 
     row = _build_suggestion_row(_suggestion_node(), priority=54)
     badge = row.children[-1]
@@ -268,7 +268,7 @@ def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
 
 
 def test_details_suggestions_use_explore_copy_and_filter_aware_empty_state():
-    from details_layout import build_details_suggestions
+    from skilltree.features.details.layout import build_details_suggestions
 
     row = html.Div("Area")
     section = build_details_suggestions([], [row])[0]
@@ -350,8 +350,8 @@ def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore()
 
 def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
     from types import SimpleNamespace
-    import event_callbacks
-    from models import Event
+    from skilltree.features.events import callbacks as event_callbacks
+    from skilltree.domain.models import Event
 
     app = _app_with(register_event_callbacks)
     monkeypatch.setattr(event_callbacks, 'ctx', SimpleNamespace(
@@ -375,7 +375,7 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
 
 
 def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
-    import event_callbacks
+    from skilltree.features.events import callbacks as event_callbacks
 
     node = Node(
         name="Dormant", type="Action", description="A future action",
@@ -534,7 +534,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
 
 
 def test_details_layout_declares_settled_trigger():
-    from details_layout import build_details_tab_content
+    from skilltree.features.details.layout import build_details_tab_content
 
     def collect_ids(component):
         found = set()
@@ -561,7 +561,7 @@ def test_details_layout_declares_settled_trigger():
 
 
 def test_explain_chart_starts_hidden_behind_a_quiet_placeholder():
-    from details_layout import build_details_tab_content
+    from skilltree.features.details.layout import build_details_tab_content
 
     def by_id(component, component_id):
         stack = [component]
@@ -652,7 +652,7 @@ def test_refresh_does_not_rewrite_an_unchanged_selection(monkeypatch):
 def test_subtask_priority_reads_as_on_home_under_a_priority_goal():
     """The table scored without the priority Goals, so a task under one read
     lower here than on Home whenever the goal boost was above 1."""
-    from details_layout import build_details_subtasks_table
+    from skilltree.features.details.layout import build_details_subtasks_table
 
     manager = GraphManager()
     manager.add_node(_suggestion_node(name="Focus"))

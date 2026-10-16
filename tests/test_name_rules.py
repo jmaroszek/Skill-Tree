@@ -6,11 +6,11 @@ into the name field, made a node that no list could show properly.
 """
 import pytest
 
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from graph_rules import NAME_MAX_LENGTH, name_problem
-from models import Event, Node
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.rules import NAME_MAX_LENGTH, name_problem
+from skilltree.domain.models import Event, Node
 
 
 def _node(name):

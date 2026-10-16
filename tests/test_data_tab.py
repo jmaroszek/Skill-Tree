@@ -7,15 +7,15 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import backup
-import data_callbacks
-import data_transfer
-import database
-import settings_callbacks
-from config import ConfigManager
-from graph_manager import GraphManager
-from layout import build_app_layout
-from models import Node
+from skilltree.store import backup
+from skilltree.features.settings import data as data_callbacks
+from skilltree.store import transfer as data_transfer
+from skilltree.store import database
+from skilltree.features.settings import callbacks as settings_callbacks
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.shell import build_app_layout
+from skilltree.domain.models import Node
 
 
 def _node(name):

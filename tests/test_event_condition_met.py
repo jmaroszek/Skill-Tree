@@ -16,12 +16,12 @@ from unittest.mock import patch
 import dash
 import pytest
 
-import database
-import event_callbacks
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node, STATUS_DONE
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node, STATUS_DONE
 
 
 def _node(name, **overrides):

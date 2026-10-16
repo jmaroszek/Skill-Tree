@@ -6,9 +6,9 @@ editor, a "Saved." for an update that changed nothing.
 """
 import pytest
 
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name):

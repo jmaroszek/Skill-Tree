@@ -9,9 +9,9 @@ The Goal ranker averages the same kind of worth over a Goal's remaining work.
 """
 import pytest
 
-from config import PROFILES
-from models import Node
-from scoring import explain_score, focus_route_data
+from skilltree.store.settings import PROFILES
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import explain_score, focus_route_data
 
 HP = dict(PROFILES['Sage'], future_work_half_credit_hours=0.0)
 D_H, D_S = HP['d_H'], HP['d_S']
@@ -117,7 +117,7 @@ def test_focus_draws_a_real_path_to_a_deep_goal():
 
 
 def test_goal_ranking_counts_a_deep_task_like_a_direct_one():
-    from goal_ranking import _rank_goals
+    from skilltree.domain.goals import _rank_goals
     nodes = [node('A', value=8, interest=8), node('B', value=6, interest=6), goal('G', value=1, interest=1)]
     edges = [edge('A', 'B'), edge('B', 'G')]
     comp = _rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]

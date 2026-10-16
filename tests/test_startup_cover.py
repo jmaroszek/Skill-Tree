@@ -18,8 +18,8 @@ import subprocess
 import dash
 import pytest
 
-from config import LOADING_SPINNER_STYLE
-from layout import build_index_string
+from skilltree.store.settings import LOADING_SPINNER_STYLE
+from skilltree.shell import build_index_string
 
 
 DASH_PLACEHOLDERS = ("{%metas%}", "{%title%}", "{%favicon%}", "{%css%}",
@@ -61,7 +61,7 @@ def test_the_canvas_bridge_reports_the_first_payload_to_the_cover():
     """The core engine's first response carries the canvas payload together
     with the editor's search options and every other dropdown it fills, and
     Dash applies them all at once. So the payload is the sign they're in."""
-    from callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True

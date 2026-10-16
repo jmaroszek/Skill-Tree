@@ -7,8 +7,8 @@ lasted until the next launch repaired them.
 """
 import pytest
 
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 
 
 def _node(name, **overrides):

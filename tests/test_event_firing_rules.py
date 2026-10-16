@@ -17,13 +17,13 @@ import dash
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import database
-import event_callbacks
-import event_manager as event_manager_module
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node, STATUS_DONE
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store import events as event_manager_module
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node, STATUS_DONE
 
 
 def _node(name, **overrides):

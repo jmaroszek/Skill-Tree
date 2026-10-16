@@ -7,12 +7,12 @@ import subprocess
 
 import pytest
 
-from context_picker import (
+from skilltree.ui.components.context_picker import (
     build_context_taxonomy,
     build_multi_context_picker,
     build_single_context_picker,
 )
-from layout import build_app_layout
+from skilltree.shell import build_app_layout
 
 
 def _walk(component):
@@ -82,19 +82,19 @@ def test_every_ordinary_context_selection_surface_uses_the_shared_picker():
 
 def test_taxonomy_keeps_no_subcontext_out_of_user_defined_options(monkeypatch):
     monkeypatch.setattr(
-        "context_picker.ConfigManager.get_contexts",
+        "skilltree.ui.components.context_picker.ConfigManager.get_contexts",
         lambda: ["STEM"],
     )
     monkeypatch.setattr(
-        "context_picker.ConfigManager.get_subcontexts",
+        "skilltree.ui.components.context_picker.ConfigManager.get_subcontexts",
         lambda: {"STEM": ["Math", "Computers"]},
     )
     monkeypatch.setattr(
-        "context_picker.ConfigManager.get_context_sort_mode",
+        "skilltree.ui.components.context_picker.ConfigManager.get_context_sort_mode",
         lambda: "definition",
     )
     monkeypatch.setattr(
-        "context_picker.ConfigManager.get_subcontext_sort_mode",
+        "skilltree.ui.components.context_picker.ConfigManager.get_subcontext_sort_mode",
         lambda: "definition",
     )
 
@@ -183,7 +183,7 @@ def test_empty_single_picker_trigger_is_a_placeholder():
 
 def test_history_filter_keeps_whole_contexts_beside_partial_ones():
     from types import SimpleNamespace
-    from review_hub_callbacks import _filter_history_nodes
+    from skilltree.features.review.callbacks import _filter_history_nodes
 
     nodes = [
         SimpleNamespace(name="a", context="Health", subcontext="Sleep"),

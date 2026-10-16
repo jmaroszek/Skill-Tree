@@ -5,9 +5,9 @@ Settings, not a stretch of the calendar. These pin the places that say so: the
 tooltip text, which quotes the live hour rates, and the heading that carries it.
 """
 
-import duration_ui
-from config import ConfigManager
-from duration_ui import time_estimates_heading, work_time_tooltip, work_time_unit_items
+from skilltree.ui.components import duration as duration_ui
+from skilltree.store.settings import ConfigManager
+from skilltree.ui.components.duration import time_estimates_heading, work_time_tooltip, work_time_unit_items
 
 DEFAULT_RATES = {"hours_per_week": 20, "hours_per_month": 80}
 

@@ -10,11 +10,11 @@ from datetime import date, timedelta
 from typing import Any
 from unittest.mock import patch
 import pytest
-import database
-from models import Node, Event
-from graph_manager import GraphManager
-from event_manager import EventManager
-from config import ConfigManager
+from skilltree.store import database
+from skilltree.domain.models import Node, Event
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
+from skilltree.store.settings import ConfigManager
 
 
 @pytest.fixture(autouse=True)
@@ -214,7 +214,7 @@ class TestNowOnTrigger:
 
 def _sweep_on(em, day):
     """Run the delayed-activation sweep as if today were `day`."""
-    with patch("event_manager.date") as mock_date:
+    with patch("skilltree.store.events.date") as mock_date:
         mock_date.today.return_value = day
         mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
         return em.check_pending_activations()

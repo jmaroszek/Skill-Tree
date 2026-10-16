@@ -4,9 +4,9 @@ Locks in current behavior on empty / seeded / filtered / depth-limited graphs so
 later optimizations cannot silently change the rendered element list.
 """
 
-from callbacks import generate_elements
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD, EDGE_HELPS
+from skilltree.engine.callbacks import generate_elements
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_HELPS
 
 
 def _make_node(name, **kw):
@@ -94,7 +94,7 @@ def test_generate_elements_active_node_marked_selected():
 def test_generate_elements_core_engine_callback_registered_once():
     """Drift guard: renames or duplicate registration of core_engine will surface here."""
     import dash
-    from callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     register_callbacks(app)

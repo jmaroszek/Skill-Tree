@@ -64,13 +64,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: The tag matches version.py
+      - name: The tag matches the app version
         if: env.TAGGED == 'true'
         shell: bash
         run: |
-          version=$(python -c "from version import __version__; print(__version__)")
+          version=$(python -c "from skilltree.runtime.version import __version__; print(__version__)")
           if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME doesn't match version.py ($version)."
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match skilltree/runtime/version.py ($version)."
             exit 1
           fi
 

@@ -10,13 +10,13 @@ can switch back to habit mode without re-typing.
 
 
 
-from callback_helpers import (
+from skilltree.ui.callback_helpers import (
     habit_to_hours, compute_habit_time_omp,
     habit_editor_view, habit_preview_text, parse_habit_days,
 )
-from node_commands import handle_save
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store.commands import handle_save
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 # ============================================================================
@@ -417,7 +417,7 @@ class TestHandleSaveWithHabit:
 
 class TestMigrationIdempotency:
     def test_double_init_db_does_not_raise(self):
-        import database
+        from skilltree.store import database
         database._initialized = False
         database.init_db()
         # Reset the flag so the second call actually runs the DDL/migrations

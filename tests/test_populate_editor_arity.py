@@ -11,12 +11,12 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 
 import dash
 
-import callbacks
-from callback_helpers import NEW_NODE_SNAPSHOT
-from callbacks import register_callbacks
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import NEW_NODE_SNAPSHOT
+from skilltree.engine.callbacks import register_callbacks
 from editor_forms import call
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _populate_editor_fn():
@@ -119,7 +119,7 @@ def test_populate_editor_successful_lookup_returns_all_items(monkeypatch):
 
 def test_populate_editor_includes_dormant_nodes_in_relationship_fields(monkeypatch):
     """Dormant nodes remain selectable and existing dormant edges round-trip."""
-    from models import EDGE_NEEDS_HARD
+    from skilltree.domain.models import EDGE_NEEDS_HARD
     mgr = GraphManager()
     mgr.add_node(Node(
         name="ActivePrereq", type="Learn", description="", value=5,
@@ -173,7 +173,7 @@ def test_populate_editor_writes_its_early_return_filler_once(monkeypatch):
     dozen literals that must all agree. The arity tests above check each path
     returns one value per Output."""
     from pathlib import Path
-    src = (Path(__file__).parent.parent / "callbacks.py").read_text(encoding="utf-8")
+    src = (Path(__file__).parent.parent / "skilltree" / "engine" / "callbacks.py").read_text(encoding="utf-8")
     marker_start = src.index("def populate_editor(")
     marker_end = src.index("\n    # --- Type-adaptive field visibility ---", marker_start)
     body = src[marker_start:marker_end]

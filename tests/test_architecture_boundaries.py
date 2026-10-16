@@ -11,23 +11,28 @@ import pytest
 # Dash UI stack, so callback_helpers (which imports dash, dbc and plotly) is
 # off-limits to them as well as the callback registration modules themselves.
 CORE_MODULES = [
-    'goal_ranking', 'graph_analytics', 'context_rules', 'node_commands',
-    'editor_values', 'graph_manager', 'graph_repository', 'graph_queries',
-    'graph_scoring', 'graph_rules', 'graph_state', 'layout', 'bridge_payloads',
+    'skilltree.domain.goals', 'skilltree.features.analyze.data',
+    'skilltree.domain.contexts', 'skilltree.store.commands',
+    'skilltree.features.editor.values', 'skilltree.store.graph.manager',
+    'skilltree.store.graph.repository', 'skilltree.store.graph.queries',
+    'skilltree.store.graph.scoring', 'skilltree.domain.rules',
+    'skilltree.store.graph.state', 'skilltree.shell', 'skilltree.ui.payloads',
 ]
 
 # View-preparation modules. They legitimately build Dash components, so they may
 # use callback_helpers — but they still must not import callback registration.
-VIEW_MODULES = ['next_view', 'canvas_view', 'sidebar_state']
+VIEW_MODULES = ['skilltree.features.home.view', 'skilltree.ui.canvas.view',
+                'skilltree.engine.sidebars']
 
 
 def _imports_of(module):
-    source = Path(__file__).resolve().parents[1] / f'{module}.py'
+    source = Path(__file__).resolve().parents[1] / (module.replace('.', '/') + '.py')
     tree = ast.parse(source.read_text(encoding='utf-8'))
     imports = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             imports.append(node.module or '')
+            imports.extend(f'{node.module}.{alias.name}' for alias in node.names)
         elif isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
     return imports
@@ -36,7 +41,8 @@ def _imports_of(module):
 @pytest.mark.parametrize('module', CORE_MODULES + VIEW_MODULES)
 def test_shared_modules_do_not_import_callback_modules(module):
     offenders = [name for name in _imports_of(module)
-                 if name == 'callbacks' or name.endswith('_callbacks')]
+                 if any(part == 'callbacks' or part.endswith('_callbacks')
+                        for part in name.split('.'))]
     assert not offenders, f'{module} imports callback modules: {offenders}'
 
 
@@ -48,7 +54,8 @@ def test_core_modules_do_not_depend_on_the_dash_ui_helper_layer(module):
     module that imports it can no longer be used (or tested) without the UI stack,
     which is the coupling this split exists to remove.
     """
-    assert 'callback_helpers' not in _imports_of(module)
+    assert not any('callback_helpers' in name.split('.')
+                   for name in _imports_of(module))
 
 
 def test_importing_application_modules_has_no_database_or_logging_side_effects():
@@ -61,10 +68,13 @@ def forbidden(*args, **kwargs):
 sqlite3.connect = forbidden
 handlers = list(logging.getLogger().handlers)
 for name in (
-    'app', 'app_services', 'layout', 'sidebars_layout', 'callbacks',
-    'details_callbacks', 'analyze_callbacks', 'event_callbacks',
-    'next_callbacks', 'settings_callbacks', 'review_hub_callbacks',
-    'sidebars_callbacks', 'calibration_callbacks', 'resource_link_callbacks',
+    'app', 'skilltree.app', 'skilltree.services', 'skilltree.shell',
+    'skilltree.ui.sidebars_layout', 'skilltree.engine.callbacks',
+    'skilltree.features.details.callbacks', 'skilltree.features.analyze.callbacks',
+    'skilltree.features.events.callbacks', 'skilltree.features.home.callbacks',
+    'skilltree.features.settings.callbacks', 'skilltree.features.review.callbacks',
+    'skilltree.features.goals.callbacks', 'skilltree.features.review.calibration',
+    'skilltree.features.editor.resources',
 ):
     importlib.import_module(name)
 assert logging.getLogger().handlers == handlers
@@ -82,9 +92,11 @@ def test_networkx_loads_only_when_communities_are_detected():
 import importlib
 import sys
 for name in (
-    'app', 'app_services', 'graph_manager', 'graph_queries', 'callbacks',
-    'details_callbacks', 'analyze_callbacks', 'event_callbacks',
-    'next_callbacks', 'settings_callbacks', 'sidebars_callbacks',
+    'app', 'skilltree.app', 'skilltree.services', 'skilltree.store.graph.manager',
+    'skilltree.store.graph.queries', 'skilltree.engine.callbacks',
+    'skilltree.features.details.callbacks', 'skilltree.features.analyze.callbacks',
+    'skilltree.features.events.callbacks', 'skilltree.features.home.callbacks',
+    'skilltree.features.settings.callbacks', 'skilltree.features.goals.callbacks',
 ):
     importlib.import_module(name)
 assert 'networkx' not in sys.modules
@@ -95,9 +107,9 @@ assert 'networkx' not in sys.modules
 
 
 def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
-    from canvas_view import build_canvas_view
-    from callbacks import generate_elements
-    from graph_manager import GraphManager
+    from skilltree.ui.canvas.view import build_canvas_view
+    from skilltree.engine.callbacks import generate_elements
+    from skilltree.store.graph.manager import GraphManager
     from test_atomic_saves import graph
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', 'Needs_Hard')
@@ -114,8 +126,8 @@ def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
 def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, temp_database):
     import sqlite3
     from contextlib import closing
-    import database
-    from graph_manager import GraphManager
+    from skilltree.store import database
+    from skilltree.store.graph.manager import GraphManager
     from test_atomic_saves import graph
 
     manager = graph('A', 'B')

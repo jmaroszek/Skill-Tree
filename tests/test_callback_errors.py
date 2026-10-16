@@ -9,8 +9,8 @@ import logging
 import pytest
 from dash import Input, Output
 
-import app as app_module
-import callbacks
+from skilltree import app as app_module
+from skilltree.engine import callbacks
 
 
 @pytest.fixture

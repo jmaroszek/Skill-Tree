@@ -8,11 +8,11 @@ which hides finished Goals, could not clear that slot either.
 import dash
 import pytest
 
-import database
-import sidebars_callbacks
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import STATUS_DONE, STATUS_OPEN
+from skilltree.store import database
+from skilltree.features.goals import callbacks as sidebars_callbacks
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from test_atomic_saves import node
 
 

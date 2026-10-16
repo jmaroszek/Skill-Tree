@@ -9,10 +9,10 @@ import inspect
 import dash
 import pytest
 
-import callbacks
-from graph_manager import GraphManager
-from models import Node, STATUS_OPEN
-from node_commands import handle_group_delete
+from skilltree.engine import callbacks
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, STATUS_OPEN
+from skilltree.store.commands import handle_group_delete
 
 
 def _node(name):
@@ -78,8 +78,8 @@ def test_group_delete_rolls_back_as_one(monkeypatch, manager):
 
 def test_a_sleeping_node_sits_out_of_a_bulk_done(monkeypatch, manager):
     """It used to refuse the whole action, though the menu offered it."""
-    from event_manager import EventManager
-    from models import Event, STATUS_DONE
+    from skilltree.store.events import EventManager
+    from skilltree.domain.models import Event, STATUS_DONE
     events = EventManager()
     events.add_event(Event(name="Later"))
     events.add_node_to_event("Later", "C")

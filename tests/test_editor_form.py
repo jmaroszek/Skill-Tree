@@ -11,8 +11,8 @@ import inspect
 
 import dash
 
-import callbacks
-from callback_helpers import EDITOR_FORM, editor_form_values, editor_form_values_from
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import EDITOR_FORM, editor_form_values, editor_form_values_from
 
 READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
            "sync_original_name_after_save")

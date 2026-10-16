@@ -12,10 +12,10 @@ import subprocess
 
 import pytest
 
-from canvases import client_registry
-from details_layout import build_details_tab_content
-from events_layout import build_events_tab_content
-from ui_kit import split_handle
+from skilltree.ui.canvas.registry import client_registry
+from skilltree.features.details.layout import build_details_tab_content
+from skilltree.features.events.layout import build_events_tab_content
+from skilltree.ui.kit import split_handle
 
 ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'split_handles.js'
 

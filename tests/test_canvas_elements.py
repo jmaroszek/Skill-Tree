@@ -10,16 +10,16 @@ they share the same fill, classes and tooltip.
 import dash
 import pytest
 
-import callbacks
-from callback_helpers import CanvasNodeStyles, build_node_element, node_fill_color
-from callbacks import generate_elements, register_callbacks
-from canvases import CANVASES
-from config import DEFAULT_NODE_COLORS, ConfigManager
-from details_callbacks import _build_graph_elements
-from event_callbacks import register_event_callbacks
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import CanvasNodeStyles, build_node_element, node_fill_color
+from skilltree.engine.callbacks import generate_elements, register_callbacks
+from skilltree.ui.canvas.registry import CANVASES
+from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
+from skilltree.features.details.callbacks import _build_graph_elements
+from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -159,7 +159,7 @@ def test_no_canvas_lets_a_link_be_selected(canvases):
 
 
 def test_the_nodes_canvas_can_leave_the_selection_alone(canvases):
-    from callbacks import KEEP_SELECTION
+    from skilltree.engine.callbacks import KEEP_SELECTION
     kept = generate_elements(filters={'show_dormant': True}, active_node_id=KEEP_SELECTION)
     nodes = [e for e in kept if 'source' not in e['data']]
     assert nodes and all('selected' not in e for e in nodes)
@@ -194,7 +194,7 @@ def test_elements_carry_every_field_their_readers_use():
     import inspect
     import re
     from pathlib import Path
-    from callback_helpers import CANVAS_NODE_FIELDS
+    from skilltree.ui.callback_helpers import CANVAS_NODE_FIELDS
 
     carried = set(CANVAS_NODE_FIELDS) | {'id', 'label', 'color', 'shape'}
 
@@ -214,7 +214,7 @@ def test_elements_carry_every_field_their_readers_use():
 def test_every_laid_out_canvas_redraws_when_the_graph_changes():
     """A node saved anywhere, such as a bridge linked to an event's node, has
     to reach Details and Events without reopening them."""
-    from details_callbacks import register_details_callbacks
+    from skilltree.features.details.callbacks import register_details_callbacks
     app = _app(register_event_callbacks, register_details_callbacks)
     for canvas in CANVASES:
         if not canvas.lays_out_elements:

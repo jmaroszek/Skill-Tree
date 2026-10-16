@@ -2,9 +2,9 @@
 
 import pytest
 
-import database
-from models import Node, EDGE_NEEDS_HARD
-from scoring import score_nodes, explain_score
+from skilltree.store import database
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD
+from skilltree.domain.scoring import score_nodes, explain_score
 
 
 @pytest.fixture
@@ -205,8 +205,8 @@ def test_memo_survives_alpha_change(temp_database):
     does. GraphManager's cache_key is narrowed to TV-affecting keys so that
     changes to alpha/weights/cost params don't cause needless recomputation.
     """
-    from graph_manager import GraphManager
-    from config import ConfigManager
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.store.settings import ConfigManager
 
     mgr = GraphManager()
     mgr.add_node(_node("A", context="Mind"))
@@ -234,8 +234,8 @@ def test_memo_survives_alpha_change(temp_database):
 
 def test_memo_survives_context_weights_change(temp_database):
     """Same invariant for context_weights changes."""
-    from graph_manager import GraphManager
-    from config import ConfigManager
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.store.settings import ConfigManager
 
     mgr = GraphManager()
     mgr.add_node(_node("A", context="Mind"))

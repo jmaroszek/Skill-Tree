@@ -10,11 +10,11 @@ only link to a downstream cluster leaves the cluster floating as an apparent
 
 from typing import Any
 import pytest
-import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from graph_manager import GraphManager
-from details_callbacks import _build_graph_elements
-import bridge_payloads
+from skilltree.store import database
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from skilltree.store.graph.manager import GraphManager
+from skilltree.features.details.callbacks import _build_graph_elements
+from skilltree.ui import payloads as bridge_payloads
 
 
 @pytest.fixture(autouse=True)
@@ -346,8 +346,8 @@ class TestDependencyViewTraversal:
 # Details-tab Milestones roster
 # ============================================================================
 
-from details_callbacks import _build_milestones_section
-from details_layout import build_milestone_tile
+from skilltree.features.details.callbacks import _build_milestones_section
+from skilltree.features.details.layout import build_milestone_tile
 
 
 class TestBuildMilestonesSection:
@@ -502,6 +502,6 @@ class TestBuildMilestoneTile:
 
 class TestEmptySubtasksMessage:
     def test_says_only_milestones_lead_in(self):
-        from details_layout import build_details_subtasks_table
+        from skilltree.features.details.layout import build_details_subtasks_table
         assert "Only Milestones" in str(build_details_subtasks_table([], milestones_only=True))
         assert "No subtasks found" in str(build_details_subtasks_table([]))

@@ -10,14 +10,14 @@ it. Shared operations sit between the callbacks and the gateway so that graph
 logic has a home of its own, rather than living in whichever tab first needed it.
 
 
-- **Construction and layout** (`app.py`, `app_services.py`, `layout.py`, `*_layout.py`) — explicit startup and fresh component factories. Layout construction reads settings and hydrates Next under one read snapshot; the hidden main canvas starts empty and its initial callback populates it. Imports do not open SQLite or configure logging.
-- **Callbacks and shared operations** (`callbacks.py`, `*_callbacks.py`) — Dash trigger routing and registration through `register_*_callbacks(app, services=None)`. Shared ranking, analytics, commands, and view preparation live outside tab registration modules. The core delegates canvas preparation to `canvas_view.py` and returns named `CoreResponse` fields in the existing Dash output order.
-- **State gateway** (`graph_manager.py`, `event_manager.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `graph_repository.py`, queries to `graph_queries.py`, and scoring orchestration to `graph_scoring.py`. `graph_state.py` owns shared revisions and per-manager caches.
-- **Config** (`config.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
-- **Pure compute** (`scoring.py`, `simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
-- **Persistence** (`database.py`) — resolves the DB path from `config.ENVIRONMENT` and runs `init_db` on first connect.
+- **Construction and layout** (`skilltree/app.py`, `skilltree/services.py`, `skilltree/shell.py`, `*_layout.py`) — explicit startup and fresh component factories. Layout construction reads settings and hydrates Next under one read snapshot; the hidden main canvas starts empty and its initial callback populates it. Imports do not open SQLite or configure logging.
+- **Callbacks and shared operations** (`skilltree/engine/callbacks.py`, `*_callbacks.py`) — Dash trigger routing and registration through `register_*_callbacks(app, services=None)`. Shared ranking, analytics, commands, and view preparation live outside tab registration modules. The core delegates canvas preparation to `skilltree/ui/canvas/view.py` and returns named `CoreResponse` fields in the existing Dash output order.
+- **State gateway** (`skilltree/store/graph/manager.py`, `skilltree/store/events.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `skilltree/store/graph/repository.py`, queries to `skilltree/store/graph/queries.py`, and scoring orchestration to `skilltree/store/graph/scoring.py`. `skilltree/store/graph/state.py` owns shared revisions and per-manager caches.
+- **Config** (`skilltree/store/settings.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
+- **Pure compute** (`skilltree/domain/scoring.py`, `skilltree/domain/simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
+- **Persistence** (`skilltree/store/database.py`) — resolves the DB path from `config.ENVIRONMENT` and runs `init_db` on first connect.
 
-Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `canvases.py` before any asset runs.
+Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `skilltree/ui/canvas/registry.py` before any asset runs.
 
 The one-way rule has a payoff: a tab module sees only `app`, the shared operations
 and the managers it is handed — never another tab's internals. Tabs coordinate
@@ -31,59 +31,59 @@ module may import `callback_helpers`, which would drag in the whole Dash UI stac
 canvas renders through the managers the callbacks mutate. Each module keeps a
 module-level manager as the default for standalone callers and tests. Every
 manager reads one database per process, and the revision counters in
-`graph_state.py` are process-wide, so their caches stay coherent with each other.
+`skilltree/store/graph/state.py` are process-wide, so their caches stay coherent with each other.
 
 ## Module map
 
 | Module | Role |
 |---|---|
-| [app.py](../app.py) | Entry point. Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
-| [models.py](../models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [database.py](../database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
-| [resource_links.py](../resource_links.py) | Named Resource settings, per-node ordered links, relative-path storage, and the shared Windows/macOS/Linux file and URI opener. Web URLs use `webbrowser`. |
-| [config.py](../config.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
-| [graph_manager.py](../graph_manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
-| [app_services.py](../app_services.py) | Graph/event manager ownership for callback registration. |
-| [graph_repository.py](../graph_repository.py) | Row reads and node insert/update/rename SQL, including lifecycle history in the same transaction lease. |
-| [graph_queries.py](../graph_queries.py), [graph_scoring.py](../graph_scoring.py), [graph_rules.py](../graph_rules.py) | Graph queries, scoring orchestration, and pure prerequisite/endpoint rules respectively. |
-| [community_labels.py](../community_labels.py) | Pure labelling and ranking for the Community filter: a context prefix plus hub nodes, ranked by summed priority, capped at 20 rows. |
-| [graph_state.py](../graph_state.py) | Shared commit-published graph/scoring revisions and per-manager `GraphCaches`; compatibility aliases for former private attributes. |
-| [event_manager.py](../event_manager.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
-| [scoring.py](../scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
-| [simulation.py](../simulation.py) | Monte Carlo time simulation. Pure NumPy. |
-| [callbacks.py](../callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
-| [calibration_callbacks.py](../calibration_callbacks.py), [resource_link_callbacks.py](../resource_link_callbacks.py) | Split out of the core engine and registered beside the tab modules: the time-calibration and reflection modal (after a completion, a review, or an edit from the Review Hub), and the node editor's Resources section. |
-| [callback_helpers.py](../callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. `EDITOR_FORM` declares the node editor's fields once; a callback that reads the form takes it as one grouped State and receives a dict. `FILTER_INPUTS` and `FILTER_STATES` do the same for the filters sidebar, and `filters_from` turns their values into a filter dict. |
+| [skilltree/app.py](../skilltree/app.py) | Entry point (the root `app.py` only launches it). Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
+| [skilltree/domain/models.py](../skilltree/domain/models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
+| [skilltree/store/database.py](../skilltree/store/database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
+| [skilltree/store/resources.py](../skilltree/store/resources.py) | Named Resource settings, per-node ordered links, relative-path storage, and the shared Windows/macOS/Linux file and URI opener. Web URLs use `webbrowser`. |
+| [skilltree/store/settings.py](../skilltree/store/settings.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
+| [skilltree/store/graph/manager.py](../skilltree/store/graph/manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
+| [skilltree/services.py](../skilltree/services.py) | Graph/event manager ownership for callback registration. |
+| [skilltree/store/graph/repository.py](../skilltree/store/graph/repository.py) | Row reads and node insert/update/rename SQL, including lifecycle history in the same transaction lease. |
+| [skilltree/store/graph/queries.py](../skilltree/store/graph/queries.py), [skilltree/store/graph/scoring.py](../skilltree/store/graph/scoring.py), [skilltree/domain/rules.py](../skilltree/domain/rules.py) | Graph queries, scoring orchestration, and pure prerequisite/endpoint rules respectively. |
+| [skilltree/domain/communities.py](../skilltree/domain/communities.py) | Pure labelling and ranking for the Community filter: a context prefix plus hub nodes, ranked by summed priority, capped at 20 rows. |
+| [skilltree/store/graph/state.py](../skilltree/store/graph/state.py) | Shared commit-published graph/scoring revisions and per-manager `GraphCaches`; compatibility aliases for former private attributes. |
+| [skilltree/store/events.py](../skilltree/store/events.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
+| [skilltree/domain/scoring.py](../skilltree/domain/scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
+| [skilltree/domain/simulation.py](../skilltree/domain/simulation.py) | Monte Carlo time simulation. Pure NumPy. |
+| [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
+| [skilltree/features/review/calibration.py](../skilltree/features/review/calibration.py), [skilltree/features/editor/resources.py](../skilltree/features/editor/resources.py) | Split out of the core engine and registered beside the tab modules: the time-calibration and reflection modal (after a completion, a review, or an edit from the Review Hub), and the node editor's Resources section. |
+| [skilltree/ui/callback_helpers.py](../skilltree/ui/callback_helpers.py) | Shared component, filter, link, and form-state helpers, plus compatibility exports. `EDITOR_FORM` declares the node editor's fields once; a callback that reads the form takes it as one grouped State and receives a dict. `FILTER_INPUTS` and `FILTER_STATES` do the same for the filters sidebar, and `filters_from` turns their values into a filter dict. |
 
-| [goal_ranking.py](../goal_ranking.py), [graph_analytics.py](../graph_analytics.py) | Shared goal ranking/explanations and analytics data preparation. |
-| [node_commands.py](../node_commands.py), [context_rules.py](../context_rules.py), [editor_values.py](../editor_values.py), [next_view.py](../next_view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
-| [canvas_view.py](../canvas_view.py), [sidebar_state.py](../sidebar_state.py), [core_response.py](../core_response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (26 fields). |
-| [server_runtime.py](../server_runtime.py) | How the server runs: launch options, the per-database instance lock, the `SKILLTREE_READY`/`RUNNING`/`DAMAGED` lines the shell reads, the access guard, and the stdin watchdog. See How the server runs, under Startup. |
-| [app_paths.py](../app_paths.py), [version.py](../version.py) | The per-user Data and Logs folders on each OS, the `SKILLTREE_HOME` override, and `resource_path` for frozen builds; and the one version number. |
-| [backup.py](../backup.py), [data_transfer.py](../data_transfer.py) | Backups in `Data/Backups` by kind, with keep counts, and mending a damaged database from the newest good one; JSON export and import, the database-file export, and restore. Settings → App drives both ([data_callbacks.py](../data_callbacks.py)). |
-| [about.py](../about.py), [onboarding.py](../onboarding.py) | Standalone diagnostic and notices helpers; the Settings App page's desktop update preference; the welcome and the Getting Started steps. Their callbacks are [about_callbacks.py](../about_callbacks.py) and [onboarding_callbacks.py](../onboarding_callbacks.py). |
-| [bridge_callbacks.py](../bridge_callbacks.py), [bridge_layout.py](../bridge_layout.py) | The Create Bridge dialog (see Bridges below). `bridge_callbacks` opens it, keeps its Start and End and plans the bridge; Create hands off to `populate_editor`. |
-| [link_menu_callbacks.py](../link_menu_callbacks.py) | The link menu's changes: Make Hard or Soft, Reverse Direction and Remove Link. `node_commands.change_link` applies one in a transaction, and `details-refresh-trigger` redraws the canvases. A change that would reopen Done nodes asks first: `link_change_reopens` runs it in a transaction it rolls back and compares the Done sets, so it agrees with the status cascade in every case. An editor save does the same inside its own transaction: `core_engine` compares the Done sets before and after, raises `ReopensDoneNodes` to roll back, and holds the Save button that was pressed in `editor-reopen-pending-store`. The dialog's Save (`btn-editor-reopen-confirm`, a `core_engine` Input) runs that save again, confirmed. |
-| [bridge_payloads.py](../bridge_payloads.py) | The values page scripts write into hidden inputs (`value|timestamp`, JSON name lists, edge keys) and how to read them, so a name containing `|` reads back whole. |
-| [perf.py](../perf.py) | The scoring timings log behind the Graph Statistics readout (toggled in Settings → App). |
-| [layout.py](../layout.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `layout.py` also builds the page template, which carries the startup cover. |
-| [styles.py](../styles.py), [style_tokens.py](../style_tokens.py), [ui_kit.py](../ui_kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore, and the split handles that resize neighbouring panels). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
-| [context_picker.py](../context_picker.py), [list_toolbar.py](../list_toolbar.py), [duration_ui.py](../duration_ui.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
-| [prerender.py](../prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
-| [canvases.py](../canvases.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
+| [skilltree/domain/goals.py](../skilltree/domain/goals.py), [skilltree/features/analyze/data.py](../skilltree/features/analyze/data.py) | Shared goal ranking/explanations and analytics data preparation. |
+| [skilltree/store/commands.py](../skilltree/store/commands.py), [skilltree/domain/contexts.py](../skilltree/domain/contexts.py), [skilltree/features/editor/values.py](../skilltree/features/editor/values.py), [skilltree/features/home/view.py](../skilltree/features/home/view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
+| [skilltree/ui/canvas/view.py](../skilltree/ui/canvas/view.py), [skilltree/engine/sidebars.py](../skilltree/engine/sidebars.py), [skilltree/engine/response.py](../skilltree/engine/response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (26 fields). |
+| [skilltree/runtime/server.py](../skilltree/runtime/server.py) | How the server runs: launch options, the per-database instance lock, the `SKILLTREE_READY`/`RUNNING`/`DAMAGED` lines the shell reads, the access guard, and the stdin watchdog. See How the server runs, under Startup. |
+| [skilltree/runtime/paths.py](../skilltree/runtime/paths.py), [skilltree/runtime/version.py](../skilltree/runtime/version.py) | The per-user Data and Logs folders on each OS, the `SKILLTREE_HOME` override, and `resource_path` for frozen builds; and the one version number. |
+| [skilltree/store/backup.py](../skilltree/store/backup.py), [skilltree/store/transfer.py](../skilltree/store/transfer.py) | Backups in `Data/Backups` by kind, with keep counts, and mending a damaged database from the newest good one; JSON export and import, the database-file export, and restore. Settings → App drives both ([skilltree/features/settings/data.py](../skilltree/features/settings/data.py)). |
+| [skilltree/features/settings/about.py](../skilltree/features/settings/about.py), [skilltree/features/onboarding/steps.py](../skilltree/features/onboarding/steps.py) | Standalone diagnostic and notices helpers; the Settings App page's desktop update preference; the welcome and the Getting Started steps. Their callbacks are [skilltree/features/settings/about_callbacks.py](../skilltree/features/settings/about_callbacks.py) and [skilltree/features/onboarding/callbacks.py](../skilltree/features/onboarding/callbacks.py). |
+| [skilltree/features/links/bridge.py](../skilltree/features/links/bridge.py), [skilltree/features/links/bridge_layout.py](../skilltree/features/links/bridge_layout.py) | The Create Bridge dialog (see Bridges below). `bridge_callbacks` opens it, keeps its Start and End and plans the bridge; Create hands off to `populate_editor`. |
+| [skilltree/features/links/menu.py](../skilltree/features/links/menu.py) | The link menu's changes: Make Hard or Soft, Reverse Direction and Remove Link. `node_commands.change_link` applies one in a transaction, and `details-refresh-trigger` redraws the canvases. A change that would reopen Done nodes asks first: `link_change_reopens` runs it in a transaction it rolls back and compares the Done sets, so it agrees with the status cascade in every case. An editor save does the same inside its own transaction: `core_engine` compares the Done sets before and after, raises `ReopensDoneNodes` to roll back, and holds the Save button that was pressed in `editor-reopen-pending-store`. The dialog's Save (`btn-editor-reopen-confirm`, a `core_engine` Input) runs that save again, confirmed. |
+| [skilltree/ui/payloads.py](../skilltree/ui/payloads.py) | The values page scripts write into hidden inputs (`value|timestamp`, JSON name lists, edge keys) and how to read them, so a name containing `|` reads back whole. |
+| [skilltree/runtime/perf.py](../skilltree/runtime/perf.py) | The scoring timings log behind the Graph Statistics readout (toggled in Settings → App). |
+| [skilltree/shell.py](../skilltree/shell.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `skilltree/shell.py` also builds the page template, which carries the startup cover. |
+| [skilltree/ui/styles.py](../skilltree/ui/styles.py), [skilltree/ui/tokens.py](../skilltree/ui/tokens.py), [skilltree/ui/kit.py](../skilltree/ui/kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore, and the split handles that resize neighbouring panels). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
+| [skilltree/ui/components/context_picker.py](../skilltree/ui/components/context_picker.py), [skilltree/ui/components/list_toolbar.py](../skilltree/ui/components/list_toolbar.py), [skilltree/ui/components/duration.py](../skilltree/ui/components/duration.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
+| [skilltree/ui/prerender.py](../skilltree/ui/prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
+| [skilltree/ui/canvas/registry.py](../skilltree/ui/canvas/registry.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
 | `tools/`, `packaging/` | Developer tools: the synthetic graph and benchmark for performance checks, and the server launcher the browser journeys share (`tools/`). The server's PyInstaller spec and the package files it leaves out, its smoke test, the packaged-app journey and the third-party notices (`packaging/`). |
 | [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. Third-party files live in `assets/vendor/` (the DARKLY theme and its Lato font, Bootstrap Icons, SortableJS), each with its license, so the app makes no network requests. Dash's automatic includes skip that folder; `app.VENDOR_STYLESHEETS` loads its CSS ahead of the app's own, and the sortables load `Sortable.min.js` on demand. |
-| Tab modules | [next_callbacks.py](../next_callbacks.py), [details_callbacks.py](../details_callbacks.py), [analyze_callbacks.py](../analyze_callbacks.py), [event_callbacks.py](../event_callbacks.py), [settings_callbacks.py](../settings_callbacks.py), [review_hub_callbacks.py](../review_hub_callbacks.py), [sidebars_callbacks.py](../sidebars_callbacks.py), [data_callbacks.py](../data_callbacks.py), [about_callbacks.py](../about_callbacks.py), [onboarding_callbacks.py](../onboarding_callbacks.py). Each exposes one `register_*_callbacks(app)`; [app.py](../app.py) calls each once. Adding a tab = one module + one `register_*` line. |
+| Tab modules | [skilltree/features/home/callbacks.py](../skilltree/features/home/callbacks.py), [skilltree/features/details/callbacks.py](../skilltree/features/details/callbacks.py), [skilltree/features/analyze/callbacks.py](../skilltree/features/analyze/callbacks.py), [skilltree/features/events/callbacks.py](../skilltree/features/events/callbacks.py), [skilltree/features/settings/callbacks.py](../skilltree/features/settings/callbacks.py), [skilltree/features/review/callbacks.py](../skilltree/features/review/callbacks.py), [skilltree/features/goals/callbacks.py](../skilltree/features/goals/callbacks.py), [skilltree/features/settings/data.py](../skilltree/features/settings/data.py), [skilltree/features/settings/about_callbacks.py](../skilltree/features/settings/about_callbacks.py), [skilltree/features/onboarding/callbacks.py](../skilltree/features/onboarding/callbacks.py). Each exposes one `register_*_callbacks(app)`; [skilltree/app.py](../skilltree/app.py) calls each once. Adding a tab = one module + one `register_*` line. |
 
 Resource links live only in `NodeResourceLinks`, keyed by node and section
-([resource_links.py](../resource_links.py)); `GraphRepository` attaches them to
+([skilltree/store/resources.py](../skilltree/store/resources.py)); `GraphRepository` attaches them to
 each `Node` as `resource_links`. Every section is ordinary: its optional root
 makes paths relative. A file that Obsidian opens and that sits inside a vault (a
 folder above it holds `.obsidian`) opens in Obsidian through an `obsidian://`
 URI; everything else goes to the browser or the OS default. The
 `ResourceSections.kind` column is unused and waits for the next schema change. The editor renders every section with one set of pattern-matched
 callbacks (`resource-link`, index `"<section>:<row>"`, in
-[resource_link_callbacks.py](../resource_link_callbacks.py)) and saves them through
+[skilltree/features/editor/resources.py](../skilltree/features/editor/resources.py)) and saves them through
 `handle_save` in the node transaction. Settings removes a section with its
 links only on Save. Electron uses a context-isolated preload/IPC bridge for its
 native file and folder dialogs; the standalone-browser mode retains a tkinter
@@ -103,7 +103,7 @@ and the like; `RUNNABLE_SUFFIXES`), the opener asks first.
 
 ## Key flows
 
-### 1. Startup ([app.py](../app.py))
+### 1. Startup ([skilltree/app.py](../skilltree/app.py))
 
 `main()` parses the launch flags (`server_runtime.parse_args`), takes this
 database's instance lock, and calls `create_app(AppSettings(...))`. The factory
@@ -151,7 +151,7 @@ backup in beside the database and swaps it into place in one step, so the
 database never goes missing on the way. A restore that fails exits 4 again,
 without a second offer.
 
-**How the server runs** ([server_runtime.py](../server_runtime.py)):
+**How the server runs** ([skilltree/runtime/server.py](../skilltree/runtime/server.py)):
 
 - **One server per database.** `InstanceLock` holds an OS lock on `<db>.lock` for
   the life of the process, and the OS drops it even on a crash. The lock is taken
@@ -209,7 +209,7 @@ close without rewriting settings, resources or scoring overrides.
 
 This is the path almost every edit takes. Get it wrong and the canvas either doesn't update or jumps around.
 
-1. A callback (node editor in [sidebars_callbacks.py](../sidebars_callbacks.py), node ops in [callbacks.py](../callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).
+1. A callback (node editor in [skilltree/features/goals/callbacks.py](../skilltree/features/goals/callbacks.py), node ops in [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).
 2. The mutator writes SQLite, runs the status cascade if the change is status-affecting, and calls `_bump_version(scoring=…)`.
 3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
 4. A clientside callback (`freeze_positions.js`) consumes the pending elements (a hidden canvas holds them until its tab opens; see Hidden canvases) and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
@@ -226,9 +226,9 @@ flowchart TD
     V --> D["Downstream callbacks<br/>recompute — only on<br/>a real mutation"]
 ```
 
-`generate_elements` ([callbacks.py](../callbacks.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`. Both redraw on `graph-version-store`, so an edit anywhere reaches them. Events also redraws on `events-refresh-trigger`, since its roster isn't part of the graph.
+`generate_elements` ([skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`. Both redraw on `graph-version-store`, so an edit anywhere reaches them. Events also redraws on `events-refresh-trigger`, since its roster isn't part of the graph.
 
-All three canvases build their elements with `build_node_element` and `build_edge_element` in [callback_helpers.py](../callback_helpers.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. Edges are not selectable: nothing acts on a selected link.
+All three canvases build their elements with `build_node_element` and `build_edge_element` in [skilltree/ui/callback_helpers.py](../skilltree/ui/callback_helpers.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. Edges are not selectable: nothing acts on a selected link.
 
 The browser owns the selection. Cytoscape selects on a click and adds or removes a node on a click with Ctrl, Cmd or Shift held; `context_menu.js` only records the order. dash-cytoscape changes a node's selection when its `selected` differs from the previous render's, so a render that sets it overrides the user's picks. The Nodes canvas sets it only when asked to show one node (a search, a save, entering focus). Every other render passes `KEEP_SELECTION`, which leaves `selected` out. Details marks its view root, and a held click there leaves the view where it is (`SkillTree.additiveTap`). The data fields are the list `CANVAS_NODE_FIELDS`, which names each field's reader. Elements used to carry every `Node` field so that no canvas could miss one, but nothing read most of them, and a test now checks the list covers the tooltip and the context menu. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
 
@@ -287,8 +287,8 @@ A bridge puts a new node between two existing ones. The node itself is made in t
 
 Dormant is a form field of the one node editor, saved with Save.
 
-- `populate_node_dormancy` ([event_callbacks.py](../event_callbacks.py)) fills the Dormant switch and the Event section from the database whenever `node-original-name` changes or `events-refresh-trigger` fires. It also writes the `dormancy` key of `editor-pristine-snapshot`, so the unsaved-changes check compares against what it just drew.
-- A clientside callback collects the switch, the event and its wake settings into `node-dormancy-form`. `core_engine`, `populate_editor`, `toggle_unsaved_modal` and `sync_original_name_after_save` read that one store. Its shape is documented beside `NEW_NODE_DORMANCY` in [callback_helpers.py](../callback_helpers.py).
+- `populate_node_dormancy` ([skilltree/features/events/callbacks.py](../skilltree/features/events/callbacks.py)) fills the Dormant switch and the Event section from the database whenever `node-original-name` changes or `events-refresh-trigger` fires. It also writes the `dormancy` key of `editor-pristine-snapshot`, so the unsaved-changes check compares against what it just drew.
+- A clientside callback collects the switch, the event and its wake settings into `node-dormancy-form`. `core_engine`, `populate_editor`, `toggle_unsaved_modal` and `sync_original_name_after_save` read that one store. Its shape is documented beside `NEW_NODE_DORMANCY` in [skilltree/ui/callback_helpers.py](../skilltree/ui/callback_helpers.py).
 - On Save, `core_engine` runs `handle_save`, then `node_commands.apply_dormancy`, in one transaction. A refusal (no event chosen, a node its event already woke) raises `ValueError` and rolls back the whole save. Choosing a different event for a dormant node calls `move_node_to_event`.
 - `refresh_events_after_save` bumps `events-refresh-trigger` once the save message appears, which is after the commit. That redraws the Events tab table and refills the section from the database.
 - `sync_original_name_after_save` rewrites `node-original-name` only on a rename or a new node. A rewrite on every save would refill the section from the database, and after a refused save that would throw away the user's Dormant switch.
@@ -306,9 +306,9 @@ Marking a node Done (or changing a hard prereq) calls `update_node`, which detec
 
 ### 5. Scoring → Next ranking
 
-[next_view.py](../next_view.py), shared by layout and Next callbacks, calls
+[skilltree/features/home/view.py](../skilltree/features/home/view.py), shared by layout and Next callbacks, calls
 `GraphManager.calculate_priority_scores(now_nodes, priority_goals)`. The gateway
-delegates to `graph_scoring.py`, whose memo key includes database identity, scoring
+delegates to `skilltree/store/graph/scoring.py`, whose memo key includes database identity, scoring
 revision, and hyperparameters. On a miss it calls pure `scoring.score_nodes(...)`
 (adjacency → value propagation → cost/eligibility → variety → ranking).
 `score_nodes` scores the whole graph even for a requested subset so filtering cannot
@@ -384,7 +384,7 @@ React never re-renders it. `assets/startup_cover.js` makes the app beneath it
 - The core engine's first response has landed. It writes the Nodes canvas's
   pending store: the elements once that canvas has loaded, a deferred marker
   before. Dash applies every output of a response together, so the dropdowns
-  it fills are in place. The canvas bridge in `callbacks.py` reports it.
+  it fills are in place. The canvas bridge in `skilltree/engine/callbacks.py` reports it.
 - Dash has then had nothing pending for 150 ms, confirmed once the browser is
   idle. Dash renders `._dash-loading-callback` as a child of the entry point
   while any callback is requested, blocked or in flight. That marker is the
@@ -413,7 +413,7 @@ run is worth removing even when it is fast on the server.
 
 Everything the cover waits for adds to the wait, so startup work changed:
 
-- Callbacks marked `@prerendered` ([prerender.py](../prerender.py)) run their
+- Callbacks marked `@prerendered` ([skilltree/ui/prerender.py](../skilltree/ui/prerender.py)) run their
   page-load call on the server while the layout is built. Each is called as
   Dash would call it on load, with the layout's own values and nothing
   triggered, and its outputs go into the layout. They register with
@@ -489,7 +489,7 @@ Because the layout carries both, their refresh callbacks don't run on page load.
 The layout fills the Home tab's scoring-time caption too, since that load-time
 rebuild was its first update.
 
-`next_callbacks.py` owns recommendation refreshes for graph versions, filters,
+`skilltree/features/home/callbacks.py` owns recommendation refreshes for graph versions, filters,
 row count and settings. The core callback's legacy table output returns
 `no_update`; it no longer scores and renders Next during unrelated graph work.
 Descriptions travel with visible rows as text. `assets/next_selection.js` handles
@@ -552,7 +552,7 @@ worse than any transition it could hide.
 
 Filter changes make dash-cytoscape re-run whatever `layout` prop the canvas
 holds, on every `add` or `remove`. The graph-settings callback only rewrites
-that prop once a control is touched, and the prop in `layout.py` said
+that prop once a control is touched, and the prop in `skilltree/shell.py` said
 `animate: False` while the Animate switch said on. So Animate did nothing until a
 slider moved, and every filter change also re-randomized the whole graph.
 
@@ -645,7 +645,7 @@ slot at `no_update` unless the selection actually moved. Without that guard a
 plain graph refresh looks like a fresh selection, and the simulation goes back
 to waiting with no root transition left to release it. The same rule
 applies wherever a deferred render is keyed off a store: write the store only
-when its value changes. `handle_edit_trigger` in `callbacks.py` guards
+when its value changes. `handle_edit_trigger` in `skilltree/engine/callbacks.py` guards
 `main-tabs.active_tab` for the same reason.
 
 ### The Details opening animation
@@ -756,7 +756,7 @@ it draws every tick. A Settle of the 567-node sandbox graph draws in about
 ## Layout requests
 
 Every canvas's `layout` prop comes from `assets/layout_requests.js`.
-`callbacks.py` registers one clientside callback per canvas in `CANVASES`, and
+`skilltree/engine/callbacks.py` registers one clientside callback per canvas in `CANVASES`, and
 the module builds the prop each one returns. The canvases share its rules and
 differ only in a small policy table.
 
@@ -852,7 +852,7 @@ relayout there, with one hard-coded set of physics for every canvas.
 `assets/simulation_requests.js` assigns a browser-session ID and increasing
 sequence to each Details simulation request. The server reads a detached graph
 and settings snapshot, releases database coordination, then calls
-`simulation_service.py`. At most two calculations sample concurrently; newer
+`skilltree/features/details/simulation_service.py`. At most two calculations sample concurrently; newer
 requests cancel older work between chunks. The client only displays a response
 matching its current request, including when server responses arrive out of order.
 

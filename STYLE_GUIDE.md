@@ -11,9 +11,9 @@ Status columns beside it. The names are real now:
 | Layer | Where | What it holds |
 |-------|-------|---------------|
 | CSS | [`assets/tokens.css`](assets/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
-| Python | [`style_tokens.py`](style_tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
-| Badges | [`config.py`](config.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
-| Components | [`ui_kit.py`](ui_kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
+| Python | [`skilltree/ui/tokens.py`](skilltree/ui/tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
+| Badges | [`skilltree/store/settings.py`](skilltree/store/settings.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
+| Components | [`skilltree/ui/kit.py`](skilltree/ui/kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
 
 Read `assets/tokens.css` for the values. It is commented, and it is the only
 place any of them appear.
@@ -124,7 +124,7 @@ the window edge, and 48px sits between the two. The Now cards sit 32px above the
 drops under the table instead of squeezing it. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
 chart and the link dots sit 38px apart. The first gap is the looser one so the
 bar's end edge does not crowd the time. These are constants in
-`callback_helpers.py` and `layout.py`.
+`skilltree/ui/callback_helpers.py` and `skilltree/shell.py`.
 
 Under the description, with no header, **Supports** lists the nodes that name
 the selected one as a hard or soft prerequisite, Goals included, and **Synergy**
@@ -195,7 +195,7 @@ different numbers of lines.
 A selected node takes a thick **white** border and keeps its own fill. This
 guide used to document a cyan `#0dcaf0` background, which was abandoned because
 it was nearly indistinguishable from the Milestone type colour; a border-only
-indicator works over any fill. See the comment in [`styles.py`](styles.py).
+indicator works over any fill. See the comment in [`skilltree/ui/styles.py`](skilltree/ui/styles.py).
 
 ### Redundant context on a derived row
 
@@ -270,7 +270,7 @@ Dividers are focusable separators and resize with their axis's arrow keys.
 | Section title in a flex row | `html.H5` | `mb-0` | Where a bottom margin would break the row's centring |
 | Major section in a modal | `html.H5` | `mt-3 mb-2` | The migration modal's blocks |
 | Settings page title | `html.H4` | `settings-page-title` | Added by `_titled` from the nav label |
-| Settings section title | `html.H5` | `settings-section-title` | Built by `_section` in `settings_layout.py` |
+| Settings section title | `html.H5` | `settings-section-title` | Built by `_section` in `skilltree/features/settings/layout.py` |
 | Inline heading | `html.H6` | `style=tokens.SECTION_TITLE_STYLE` | Home-tab section headings |
 
 **Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
@@ -338,7 +338,7 @@ targeting it, in a `display: contents` wrapper so it lays out as its two parts. 
 `.hover-hint` class, which shows the help cursor (a pointer with a question
 mark), so it reads as explainable before it is hovered. Give each label a unique
 id. The node editor's hover copy lives in `_EDITOR_HINTS` in
-`sidebars_layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
+`skilltree/ui/sidebars_layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
 tooltip enumerates is a bullet list (`ui_kit.bullet_hint(intro, *items)`), not
 a run-on sentence. Any label, heading or table cell whose tooltip only explains takes the
 `hover-hint` class too. Explain a group of switches on their section heading, not
@@ -361,7 +361,7 @@ stay calendar.
 
 ## Buttons
 
-Build every action button through [`ui_kit.py`](ui_kit.py), which names the
+Build every action button through [`skilltree/ui/kit.py`](skilltree/ui/kit.py), which names the
 **action** rather than the Bootstrap colour:
 
 | Helper | Colour | Usage |
@@ -452,7 +452,7 @@ variants, several of them `html.Span` and therefore not keyboard-reachable.
 The icon font is vendored at 1.11.3 in `assets/vendor/bootstrap-icons/`, so an
 icon added in a later release renders blank until that copy is updated.
 
-Build them through [`ui_kit.py`](ui_kit.py). Each returns a real `<button>` with
+Build them through [`skilltree/ui/kit.py`](skilltree/ui/kit.py). Each returns a real `<button>` with
 the icon, a visually-hidden label, and a tooltip carrying the shared delay:
 
 | Helper | Icon | Usage |
@@ -584,20 +584,20 @@ When a bar is split by node type, the segments take the type's `BADGE_PALETTE` c
 ## Borders & Dividers
 
 - Panel dividers: `1px solid var(--st-border-panel)` (`tokens.BORDER_PANEL`)
-- **Resizable dividers**: `split_handle()` in `ui_kit.py`, placed between the two panels it resizes. `assets/split_handles.js` drags every handle, and the `.split-handle` rules in `theme.css` draw it, hover included. Don't wire a drag or a hover color per handle.
+- **Resizable dividers**: `split_handle()` in `skilltree/ui/kit.py`, placed between the two panels it resizes. `assets/split_handles.js` drags every handle, and the `.split-handle` rules in `theme.css` draw it, hover included. Don't wire a drag or a hover color per handle.
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
 - **Settings sections**: `_section` draws a `--st-border-hairline` rule above each section but the first; no `html.Hr` inside Settings
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
-- **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
+- **Context menu dividers**: `_menu_divider()` in `skilltree/shell.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
 - Context menu panel: the `.ctx-menu` class in `theme.css` (`--st-radius`, `--st-shadow-panel`)
 
 ## Context Menus
 
 Build every right-click menu and popover from `_floating_menu`, `_menu_item`,
-`_menu_divider` and `_menu_heading` in `layout.py`, and open it through
+`_menu_divider` and `_menu_heading` in `skilltree/shell.py`, and open it through
 `assets/menus.js`, which positions, dismisses and runs submenus for all of them.
 Don't hand-build a menu or give one its own inline panel style.
 
@@ -607,7 +607,7 @@ A right-click menu doesn't need one, since its target is the thing you clicked.
 
 A node has exactly one menu, `#node-context-menu`, wherever it appears:
 canvases, Next rows, Now cards and Goals sidebar cards. Rows and cards opt in
-with `node_menu_attributes` (`callback_helpers.py`). An option that fits only
+with `node_menu_attributes` (`skilltree/ui/callback_helpers.py`). An option that fits only
 some nodes is hidden for the rest rather than living in a separate menu:
 external links appear only when set, and Set Priority only for a single Goal.
 
@@ -713,7 +713,7 @@ The app has three dropdown implementations and cannot reasonably have fewer:
 |----------------|----------|
 | `dbc.Select` — a native `<select>` | short, fixed choices (type, unit, rank) |
 | `dcc.Dropdown` — Dash 4's Radix popover | long or searchable lists, multi-select |
-| [`context_picker.py`](context_picker.py) | context / subcontext, which cascade |
+| [`skilltree/ui/components/context_picker.py`](skilltree/ui/components/context_picker.py) | context / subcontext, which cascade |
 
 **They all open the same panel.** [`assets/dropdowns.css`](assets/dropdowns.css)
 owns every rule for all three, built from the tokens. The reference look is the
@@ -762,7 +762,7 @@ four picked up a 100px width the others never got.
 
 ### Context / subcontext pickers
 
-Use the shared builders in `context_picker.py`; do not add a new pair of visible
+Use the shared builders in `skilltree/ui/components/context_picker.py`; do not add a new pair of visible
 Context and Subcontext dropdowns.
 
 - Node editing uses the single-path cascading picker. A context opens a
@@ -923,7 +923,7 @@ When the user edits a list of named things that other data refers to by name,
 give each item a row that remembers the name it was loaded under, rather than
 a free-text field. The row's identity is what turns an edit into a rename
 instead of a delete plus an add. The Contexts tab is the example; its model is
-in `context_rules.py` and its rows in `build_context_editor_rows`.
+in `skilltree/domain/contexts.py` and its rows in `build_context_editor_rows`.
 
 - **One row, one centre line.** The rows sit straight on the page, unboxed
   and unfilled, divided by hairlines like the page's sections. `--st-bg-panel`
@@ -1084,7 +1084,7 @@ the plot. `assets/sim_label_rows.js` lifts a label a row only when it would
 overlap one already placed, measured after every draw. That way the rows
 follow the panel's real width.
 
-Analyze charts follow the same rule. `_graph` in `analyze_callbacks.py` turns
+Analyze charts follow the same rule. `_graph` in `skilltree/features/analyze/callbacks.py` turns
 drag-zoom off by default, so the cursor stays a plain arrow. Only a chart
 whose points crowd together opts back in with `zoom=True`: today, the two
 Time Estimation Accuracy charts.

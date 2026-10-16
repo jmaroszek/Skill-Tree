@@ -1,0 +1,1225 @@
+"""
+Priority scoring algorithm based on Return on Investment (ROI).
+
+Each node's priority is: P = eligibility * (TotalValue / PerceivedCost)
+- TotalValue: intrinsic value + cascaded value from dependent nodes
+- PerceivedCost: sub-linear combination of difficulty and time
+- Eligibility: 1 if all hard prerequisites are Done, 0 otherwise
+
+See docs/scoring.md for the full mathematical specification and the
+hyperparameter profiles.
+"""
+
+import heapq
+from skilltree.domain.synergy import synergy_parameters, partner_exposure
+import math
+import time
+from collections import Counter, deque
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
+from typing import List, Dict, Tuple, Optional, Union
+
+
+def build_adjacency(edges: List[Dict], node_names: set) -> Tuple[dict, dict, dict, dict]:
+    """Build the four adjacency maps the scoring algorithm consumes.
+
+    Returns (H_out, S_out, Syn, Hard_in) where:
+      - H_out[n]   : nodes that depend on n via a hard prerequisite, less
+                     redundant shortcuts (see _drop_redundant_hard)
+      - S_out[n]   : nodes that depend on n via a soft prerequisite
+      - Syn[n]     : nodes synergistic with n (symmetric set)
+      - Hard_in[n] : the hard prerequisites of n (incoming), every edge kept
+                     because eligibility reads it
+    """
+    H_out = {n: [] for n in node_names}
+    S_out = {n: [] for n in node_names}
+    Syn = {n: set() for n in node_names}
+    Hard_in = {n: [] for n in node_names}
+
+    for e in edges:
+        src, trg, etype = e['source'], e['target'], e['type']
+        if src not in node_names or trg not in node_names:
+            continue
+
+        if etype == EDGE_NEEDS_HARD:
+            H_out[src].append(trg)
+            Hard_in[trg].append(src)
+        elif etype == EDGE_NEEDS_SOFT:
+            S_out[src].append(trg)
+        elif etype == EDGE_HELPS:
+            Syn[src].add(trg)
+            Syn[trg].add(src)
+
+    return _drop_redundant_hard(H_out), S_out, Syn, Hard_in
+
+
+def _drop_redundant_hard(H_out: dict) -> dict:
+    """H_out without Hard edges that a longer Hard path already implies.
+
+    With A -> B -> C, an extra A -> C adds no ordering: C already waits on A.
+    Kept, it would raise A's route weight for C from d_H**2 to d_H, and let a
+    task skip its sub-Goal to credit the parent Goal at d_H. So scoring sees
+    the transitive reduction, and a redundant edge never changes a score.
+    Reachability is unchanged, so required-work closures and Goal subtrees
+    are too. A cyclic (invalid) Hard graph is returned unreduced.
+    """
+    in_degree = {n: 0 for n in H_out}
+    for children in H_out.values():
+        for c in children:
+            in_degree[c] += 1
+    order = [n for n, d in in_degree.items() if d == 0]
+    for n in order:  # Kahn's algorithm; `order` grows as it is walked
+        for c in H_out[n]:
+            in_degree[c] -= 1
+            if in_degree[c] == 0:
+                order.append(c)
+    if len(order) < len(H_out):
+        return H_out
+    bit = {n: 1 << i for i, n in enumerate(order)}
+    below = {}  # bitmask of every node strictly downstream of n
+    for n in reversed(order):
+        mask = 0
+        for c in H_out[n]:
+            mask |= below[c] | bit[c]
+        below[n] = mask
+    reduced = {}
+    for n, children in H_out.items():
+        implied = 0
+        for c in children:
+            implied |= below[c]
+        reduced[n] = [c for c in children if not implied & bit[c]]
+    return reduced
+
+
+def intrinsic_value(node: Node, w_v: float, w_i: float,
+                    value_exponent: float = 1.0) -> float:
+    """Weighted sum of a node's Value and Interest.
+
+    Returns 0 when `value_mode='inherited'`: the node is a pure structural
+    conduit and shouldn't inject its own ratings as an IV bump into its
+    descendants via the cascade. Mirrors the `time_mode='inherited'`
+    short-circuit on `Node.time`.
+
+    `value_exponent` raises ratings before weighting. This is a preference
+    transform, not objective utility. With equal weights, 10/1 at exponent 2
+    outweighs 7/7 (101 versus 98). Graph relationships represent downstream
+    leverage separately from the node's own intrinsic benefit.
+
+    Defaults to 1.0 (plain linear weighting) so direct callers that pass only
+    the two weights keep the original behaviour.
+    """
+    if node.value_mode == 'inherited':
+        return 0.0
+    if value_exponent == 1.0:
+        return (w_v * node.value) + (w_i * node.interest)
+    return (w_v * (node.value ** value_exponent)) + (w_i * (node.interest ** value_exponent))
+
+
+# Reference scale for the time term. `t` is divided by it before
+# the beta exponent is applied, so beta is a pure *curvature* knob and w_t is
+# the only *magnitude* knob. Under the older `w_t * t**beta` form the two were
+# entangled: lowering beta silently shrank the whole time term (5.7x between
+# beta 0.85 and 0.45 at the median node), which handed the denominator to
+# difficulty instead of rebalancing toward value. See docs/scoring.md.
+#
+# It MUST stay a hardcoded constant. Deriving it from the live graph would
+# make every node's cost depend on the whole graph, so long tasks would get
+# quietly cheaper as work is completed, and the scoring cache keyed on
+# _SCORING_RELEVANT_FIELDS would no longer be sound.
+TIME_REF_HOURS = 40.0  # a typical substantial Learn node
+
+
+def time_cost_term(t: float, w_t: float, beta: float,
+                   ref: float = TIME_REF_HOURS) -> float:
+    """The time contribution to a cost denominator: `w_t * (t / ref)**beta`.
+
+    Used by `perceived_cost`, which also prices the tasks the Goal ranker
+    averages over.
+    """
+    if t <= 0:
+        return 0.0
+    return w_t * ((t / ref) ** beta)
+
+
+def perceived_cost(node: Node, w_e: float, w_t: float, beta: float,
+                   time_override: float = None, effort_override: float = None) -> float:
+    """Sub-linear cost combining Difficulty and expected time.
+
+    `time_override` substitutes for `node.time` when provided (used for
+    `time_mode='inherited'` containers — see _compute_priority_score).
+    `effort_override` substitutes for `node.difficulty` similarly when the
+    node has no work of its own (`has_no_own_work`). Effort belongs to the
+    node's own hours, not its ratings: a node with inherited ratings but its
+    own hours still pays its Effort.
+
+    Time enters as `w_t * (t / TIME_REF_HOURS)**beta`. Note the scale change
+    from the pre-normalization form: a `w_t` from that form must be
+    multiplied by `TIME_REF_HOURS**beta` to mean the same thing.
+    """
+    t = time_override if time_override is not None else node.time
+    e = effort_override if effort_override is not None else node.difficulty
+    return 1.0 + (w_e * e) + time_cost_term(t, w_t, beta)
+
+
+def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
+    """True if all hard prerequisites are satisfied.
+
+    All prereqs are satisfied when Done.
+    """
+    for req in hard_in.get(node_name, []):
+        req_node = all_nodes.get(req)
+        if not req_node:
+            return False
+        if req_node.status != STATUS_DONE:
+            return False
+    return True
+
+
+def _done_names(all_nodes, memo):
+    """Names of Done nodes, cached in `memo` like the other status-derived maps."""
+    key = ('done',)
+    if key not in memo:
+        memo[key] = frozenset(name for name, node in all_nodes.items()
+                              if node.status == STATUS_DONE)
+    return memo[key]
+
+
+def _milestone_names(all_nodes, memo):
+    """Names of Milestones, which scoring treats as free hops."""
+    key = ('milestones',)
+    if key not in memo:
+        memo[key] = frozenset(name for name, node in all_nodes.items()
+                              if node.type == 'Milestone')
+    return memo[key]
+
+
+_ROUTE_PREFERENCE = {'Self': 0, 'Hard': 1, 'Soft': 2}
+
+
+def _better_route(candidate, old):
+    """Stronger wins; ties prefer fewer steps, then a Hard first hop."""
+    return old is None or ((-candidate[0], candidate[1], _ROUTE_PREFERENCE[candidate[2]])
+                           < (-old[0], old[1], _ROUTE_PREFERENCE[old[2]]))
+
+
+def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
+                      free=frozenset()):
+    """One strongest route per beneficiary; deterministic ties prefer fewer hops.
+
+    Cache route maps separately from value and completion work. Invalid graphs
+    fail closed at their cyclic portion rather than enumerating cyclic paths.
+
+    Nodes in `skip` are left out entirely: they neither benefit nor pass value
+    on. Scoring skips Done nodes, whose value is already banked. A route
+    through a Done node leads nowhere new, because whatever lies past it no
+    longer waits on anything upstream of it. `start` itself is never skipped.
+
+    Edges leaving a node in `free` carry no discount and add no step. Scoring
+    frees Milestones: a Milestone tracks progress and holds no work, so it
+    isn't a step between the work before it and the work after it.
+
+    Each entry is (weight, depth, via, step). `step` is the last hop into the
+    beneficiary as (previous node, 'Hard' or 'Soft'), or None for `start`, so
+    Explain's Focus can draw the exact route the score credited rather than
+    re-deriving one.
+    """
+    key = ('routes', start, d_H, d_S, skip, free)
+    if key in memo:
+        return memo[key]
+    routes = {start: (1.0, 0, 'Self', None)}
+    order = _reachable_topo(start, H_out, S_out)
+    for name in order:
+        if name not in routes:
+            continue
+        weight, depth, via, _ = routes[name]
+        passes_free = name in free and name != start
+        for adjacency, discount, kind in ((H_out, d_H, 'Hard'), (S_out, d_S, 'Soft')):
+            for target in adjacency.get(name, []):
+                if target in skip and target != start:
+                    continue
+                candidate = (weight * (1.0 if passes_free else discount),
+                             depth + (0 if passes_free else 1),
+                             kind if name == start else via, (name, kind))
+                if _better_route(candidate, routes.get(target)):
+                    routes[target] = candidate
+    memo[key] = routes
+    return routes
+
+
+def _goals_above(H_out, all_nodes, memo, skip):
+    """For each node, the nearest Goals it leads to along Hard edges alone.
+
+    A walk stops at the first Goal on each path, so a task under a sub-Goal
+    lists the sub-Goal, not the Goals above it. Routes stop at skipped nodes,
+    as they do in _strongest_routes, except at a skipped (Done) Goal: the walk
+    goes on past it. A sub-Goal can be marked Done with work still unfinished
+    under it, and the Goal ranker still counts that work toward the Goals
+    above, so the parent credits it. Returns (nearest,
+    order): the map, and every Goal in an order where a sub-Goal comes before
+    its parents.
+    """
+    key = ('goals_above', skip)
+    if key in memo:
+        return memo[key]
+    above: Dict[str, frozenset] = {}
+    order: List[str] = []
+
+    def visit(name):
+        if name in above:
+            return above[name]
+        above[name] = frozenset()  # cycle guard; the Hard graph is a DAG
+        found = set()
+        for target in H_out.get(name, []):
+            if target not in all_nodes:
+                continue
+            is_goal = all_nodes[target].type == 'Goal'
+            if target in skip and not is_goal:
+                continue
+            if is_goal and target not in skip:
+                found.add(target)
+            else:
+                found |= visit(target)
+        above[name] = frozenset(found)
+        return above[name]
+
+    def place(goal, placed):
+        # Parents after children: a Goal is placed once every sub-Goal is.
+        if goal in placed:
+            return
+        placed.add(goal)
+        for parent in visit(goal):
+            place(parent, placed)
+        order.append(goal)
+
+    for name in all_nodes:
+        visit(name)
+    placed: set = set()
+    for name in all_nodes:
+        if all_nodes[name].type == 'Goal':
+            place(name, placed)
+    memo[key] = (above, order[::-1])
+    return memo[key]
+
+
+def _passed_path(start, goal, H_out, passable):
+    """A Hard path from `start` to `goal` whose inner nodes are all
+    `passable`: the way _goals_above reached `goal` past Done Goals."""
+    previous = {start: None}
+    queue = deque([start])
+    while queue:
+        name = queue.popleft()
+        for target in H_out.get(name, []):
+            if target in previous:
+                continue
+            if target == goal or target in passable:
+                previous[target] = name
+                if target == goal:
+                    path = [goal]
+                    while previous[path[-1]] is not None:
+                        path.append(previous[path[-1]])
+                    return path[::-1]
+                queue.append(target)
+    return [start, goal]
+
+
+def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
+                     skip=frozenset(), flat_goals=True):
+    """The routes scoring credits: strongest routes, with Milestones free and,
+    under `flat_goals`, every Goal credited through its whole hard subtree.
+
+    A Goal's rating pays out as its work gets done, so every task in its hard
+    subtree counts as a direct prerequisite of it, however deep the task sits.
+    A route that reaches the subtree from outside, say through a Soft edge,
+    keeps the discounts it paid on the way in: its weight is the route to the
+    first subtree member it reaches, times d_H.
+
+    A sub-Goal is a step, though. A parent Goal's rating mostly restates what
+    its sub-Goals are worth, so a task under a sub-Goal earns the parent one
+    d_H further on: d_H for the sub-Goal, d_H**2 for its parent, and so on.
+    Nesting Goals deeper therefore adds less each level instead of a full
+    share. Entries keep the step of the ordinary strongest route to the Goal,
+    so Focus draws a real path. A Goal reached only past Done nodes (see
+    _goals_above) has no such route. Its step leads back through them, and
+    memo[('passed', ...)] holds the steps into those Done Goals for Focus.
+    """
+    free = _milestone_names(all_nodes, memo)
+    routes = _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip, free)
+    if not flat_goals:
+        return routes
+    key = ('credited', start, d_H, d_S, skip)
+    if key in memo:
+        return memo[key]
+    nearest, goal_order = _goals_above(H_out, all_nodes, memo, skip)
+    credited = dict(routes)
+    passed = {}
+    done_goals = {name for name in skip if all_nodes[name].type == 'Goal'}
+
+    def offer(goal, weight, depth, via, member):
+        old = credited.get(goal)
+        if goal in routes:
+            step = routes[goal][3]
+        else:
+            path = _passed_path(member, goal, H_out, done_goals)
+            for before, inner in zip(path, path[1:-1]):
+                passed.setdefault(inner, (before, 'Hard'))
+            step = (path[-2], 'Hard')
+        candidate = (weight * d_H, depth + 1, via, step)
+        if _better_route(candidate, old):
+            credited[goal] = candidate
+
+    for member, (weight, depth, via, _) in routes.items():
+        if all_nodes[member].type == 'Goal' and member != start:
+            continue  # Goals pass credit upward below, once their own is final
+        for goal in nearest.get(member, ()):
+            offer(goal, weight, depth, 'Hard' if member == start else via, member)
+    for goal in goal_order:
+        if goal in credited and goal != start:
+            weight, depth, via, _ = credited[goal]
+            for parent in nearest.get(goal, ()):
+                offer(parent, weight, depth, via, goal)
+    memo[key] = credited
+    memo[('passed',) + key[1:]] = passed
+    return credited
+
+
+def _remaining_hours(target, source, all_nodes, H_out, memo):
+    """Unique unfinished hard closure, including target, excluding today's work."""
+    if target == source:
+        return 0.0
+    if ('hard_in',) not in memo:
+        incoming = {name: [] for name in all_nodes}
+        for name, dependents in H_out.items():
+            for dependent in dependents:
+                incoming.setdefault(dependent, []).append(name)
+        memo[('hard_in',)] = incoming
+    key = ('work', target)
+    if key not in memo:
+        seen, stack = set(), [target]
+        while stack:
+            name = stack.pop()
+            if name in seen:
+                continue
+            seen.add(name)
+            stack.extend(memo[('hard_in',)].get(name, []))
+        work = frozenset(name for name in seen if name in all_nodes
+                         and all_nodes[name].status != STATUS_DONE
+                         and not all_nodes[name].has_no_own_work)
+        memo[key] = (work, math.fsum(all_nodes[name].time for name in work))
+    work, hours = memo[key]
+    return max(0.0, hours - (all_nodes[source].time if source in work else 0.0))
+
+
+def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
+                         d_H, d_S, d_Syn_pair, cross_context_mult=1.0,
+                         value_exponent=1.0, memo=None,
+                         future_work_half_credit_hours=0.0,
+                         future_work_exponent=0.6, skip_done=True,
+                         flat_goals=True, *, with_attribution=True,
+                         d_Syn_mul=0.4):
+    """Unique DAG benefits plus bounded reinforcement from direct partners.
+
+    Ranking and Explain use the same arithmetic and per-name summation. A
+    partner reinforces the candidate's capped DAG value; its own ratings and
+    downstream beneficiaries are never imported. Completed and unfinished
+    partners share one saturation curve, with exposures 1 and <=1 respectively.
+    Explain allocates the shared bonus in proportion to partner evidence, not
+    independent marginal bonuses (which would double-count saturation).
+    """
+    memo = {} if memo is None else memo
+    if start not in all_nodes:
+        return [] if with_attribution else 0.0
+    strength, anticipation, cross_context_mult = synergy_parameters(
+        d_Syn_pair, d_Syn_mul, cross_context_mult)
+    skip = _done_names(all_nodes, memo) if skip_done else frozenset()
+    values, rows = {}, {}
+
+    def required_work(name):
+        hours = (_remaining_hours(name, start, all_nodes, H_out, memo)
+                 if future_work_half_credit_hours > 0 else 0.0)
+        discount = (1.0 / (1.0 + (hours / future_work_half_credit_hours) ** future_work_exponent)
+                    if future_work_half_credit_hours > 0 else 1.0)
+        return hours, discount
+
+    def row_for(name, iv, hours, discount):
+        return dict(name=name, type=all_nodes[name].type, depth=1, via='Synergy',
+                    iv=iv, weight=0.0, remaining_hours=hours, future_discount=discount,
+                    contribution=0.0,
+                    channels={'Self': 0.0, 'Hard': 0.0, 'Soft': 0.0, 'Synergy': 0.0})
+
+    # Exactly one strongest ordinary route per beneficiary.
+    for name, (weight, depth, via, _) in _credited_routes(
+            start, all_nodes, H_out, S_out, d_H, d_S, memo, skip, flat_goals).items():
+        hours, discount = required_work(name)
+        iv = intrinsic_value(all_nodes[name], w_v, w_i, value_exponent)
+        amount = weight * iv * discount
+        values[name] = amount
+        if with_attribution:
+            row = row_for(name, iv, hours, discount)
+            row.update(weight=weight, depth=depth, via=via, contribution=amount)
+            row['channels'][via] = amount
+            rows[name] = row
+
+    base = math.fsum(values.values())
+    anchor = min(max(base, 0.0), (w_v + w_i) * 10 ** value_exponent)
+    partners = []
+    if strength > 0 and anchor > 0:
+        context = all_nodes[start].context
+        for name in sorted(Syn.get(start, set()) - {start}):
+            other = all_nodes.get(name)
+            if other is None:
+                continue
+            done = other.status == STATUS_DONE
+            if done:
+                hours, discount, exposure = 0.0, 1.0, 1.0
+            else:
+                hours, discount = required_work(name)
+                cross = (cross_context_mult if context is not None and other.context is not None
+                         and context != other.context else 1.0)
+                exposure = partner_exposure(anticipation, cross, discount)
+            evidence = exposure / (2.0 - exposure)
+            if evidence > 0:
+                partners.append((name, done, hours, discount, exposure, evidence))
+    evidence_sum = math.fsum(p[5] for p in partners)
+    for name, done, hours, discount, exposure, evidence in partners:
+        # Sum is strength * anchor * 2X/(1+X), always <= 2*strength*anchor.
+        weight = strength * (2.0 * evidence / (1.0 + evidence_sum))
+        amount = anchor * weight
+        values[name] = values.get(name, 0.0) + amount
+        if with_attribution:
+            if name not in rows:
+                rows[name] = row_for(name, intrinsic_value(all_nodes[name], w_v, w_i,
+                                                         value_exponent), hours, discount)
+            row = rows[name]
+            row['contribution'] += amount
+            row['channels']['Synergy'] = amount
+            row['synergy_detail'] = dict(base=anchor, exposure=exposure,
+                weight=weight, done=done, contribution=amount,
+                remaining_hours=hours, future_discount=discount)
+            # Mixed relationships keep both channel amounts. Focus traces the
+            # largest channel, and a synergy route is always the direct edge.
+            row['via'] = max(row['channels'], key=row['channels'].get)
+            if row['via'] == 'Synergy':
+                row['depth'] = 1
+    return list(rows.values()) if with_attribution else math.fsum(values.values())
+
+
+def total_value(node_name, visited, all_nodes, H_out, S_out, Syn,
+                w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo=None,
+                cross_context_mult=1.0, value_exponent=1.0,
+                future_work_half_credit_hours=0.0, future_work_exponent=0.6,
+                skip_done=True, flat_goals=True):
+    """Unique DAG value and one bounded synergy bonus, shared with Explain.
+
+    A zero half-credit scale disables the future-work discount.
+    """
+    if node_name in visited or node_name not in all_nodes:
+        return 0.0
+    # Structural maps and these scalar totals share the manager's scoring
+    # revision. Include every value parameter and the excluded partners so
+    # direct callers can also reuse a memo across parameter variants safely.
+    key = ('total_value', node_name, frozenset(visited), w_v, w_i, d_H, d_S,
+           d_Syn_pair, d_Syn_mul, cross_context_mult, value_exponent,
+           future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals)
+    if memo is not None and key in memo:
+        return memo[key]
+    partners = {node_name: Syn.get(node_name, set()) - visited}
+    value = _value_contributions(node_name, all_nodes, H_out, S_out, partners,
+        w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent, memo,
+        future_work_half_credit_hours, future_work_exponent, skip_done, flat_goals,
+        with_attribution=False, d_Syn_mul=d_Syn_mul)
+    result = value
+    if memo is not None:
+        memo[key] = result
+    return result
+
+
+def _compute_priority_score(
+    node: Node,
+    *,
+    all_nodes_dict: dict,
+    H_out: dict, S_out: dict, Syn: dict,
+    hyperparams: dict,
+    node_to_boost: Dict[str, float],
+    memo: Optional[dict] = None,
+) -> Tuple[float, float, float]:
+    """Single source of truth for the per-node ROI formula.
+
+    Used by batch ranking. Explain shares _value_contributions and perceived_cost
+    and reconstructs the same adjustments for display. Callers handle
+    ineligibility / Goal / Done / Blocked filtering before calling this.
+
+    Returns (rounded priority score, raw total_value, exact priority score).
+    The rounded figure is what the UI displays and what callers store on the
+    node; the exact one exists purely so `score_nodes` can order nodes that
+    round to the same 2dp value. Both apply the identical boost, context
+    weight multipliers — they differ only in rounding.
+    """
+    w_v = hyperparams.get('w_v', 1.0)
+    w_i = hyperparams.get('w_i', 1.0)
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.40)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
+    w_e = hyperparams.get('w_e', 2.5)
+    w_t = hyperparams.get('w_t', 1.0)
+    beta = hyperparams.get('beta', 0.85)
+    context_weights = hyperparams.get('context_weights', {}) or {}
+
+    # Inherited-time containers have no work of their own, so they carry no
+    # marginal time or effort cost. Inherited ratings leave Effort in place:
+    # it describes the node's own hours. The base `1.0 +` keeps the
+    # denominator positive.
+    t_override = 0.0 if node.time_mode == 'inherited' else None
+    e_override = 0.0 if node.has_no_own_work else None
+    cost = perceived_cost(node, w_e, w_t, beta,
+                          time_override=t_override, effort_override=e_override)
+    tv = total_value(
+        node.name, set(), all_nodes_dict, H_out, S_out, Syn,
+        w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+        cross_context_mult=cross_context_mult,
+        value_exponent=value_exponent,
+        future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+        future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
+    )
+    ratio = (tv / cost) if cost > 0 else 0.0
+    score = round(ratio, 2)
+    exact = ratio
+
+    if node.name in node_to_boost:
+        boost = node_to_boost[node.name]
+        score = round(score * boost, 2)
+        exact *= boost
+
+    weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+    if weight != 1.0:
+        score = round(score * weight, 2)
+        exact *= weight
+
+    return score, tv, exact
+
+
+def variety_exponents(hyperparams: dict) -> Tuple[float, float]:
+    """The (a, b) repetition exponents from the configured premiums.
+
+    Settings store percentages of extra merit a node must carry to earn a
+    second recommendation in a context (`suggestion_context_premium`) or in
+    a subcontext (`suggestion_subcontext_premium`). The subcontext figure is
+    the *total*, so it is clamped to at least the context figure and `b`
+    carries only the difference between them. Both zero disables variety.
+    """
+    def premium(key, default):
+        try:
+            value = float(hyperparams.get(key, default))
+            return max(0.0, min(100.0, value)) if math.isfinite(value) else default
+        except (TypeError, ValueError):
+            return default
+
+    context = premium('suggestion_context_premium', 5.0)
+    subcontext = max(context, premium('suggestion_subcontext_premium', 15.0))
+    a = math.log2(1 + context / 100)
+    b = math.log2((1 + subcontext / 100) / (1 + context / 100))
+    return a, b
+
+
+def variety_divisors(pool: List[Tuple[str, Optional[str], Optional[str], float]],
+                     hyperparams: dict) -> Dict[str, dict]:
+    """Hierarchical-variety divisors for an entire pool of scorable nodes.
+
+    Variety is part of a node's score rather than a re-ordering applied to a
+    finished list: the Home tab prints the number it sorts on, so anything
+    that moves a row has to move its number too. Computing the divisors over
+    the whole pool — every scorable non-Now node in the graph — is what makes
+    the number a property of the node instead of a property of one list. A
+    filter then narrows which rows appear without altering any of them.
+
+    The walk itself is the original greedy: repeatedly take the node with the
+    best merit-after-divisor, then charge its context and subcontext one more
+    repetition. Merit ties break toward the higher raw merit, then the
+    alphabetically earlier name. Because a divisor only ever grows, a heap
+    entry can be revalidated lazily — a stale key is always too optimistic,
+    so it is re-pushed rather than trusted.
+
+    `pool` is (name, context, subcontext, exact merit). Returns name -> dict
+    with the divisor and the 1-based repetition ranks behind it, which the
+    Explain modal reports, in the order the walk selected them. Empty when
+    both premiums are zero, which restores plain merit ordering.
+    """
+    a, b = variety_exponents(hyperparams)
+    if a <= 0.0 and b <= 0.0:
+        return {}
+
+    contexts: Counter = Counter()
+    pairs: Counter = Counter()
+
+    def divisor_for(context, subcontext) -> float:
+        if context is None:
+            return 1.0
+        return ((1 + contexts[context]) ** a
+                * (1 + pairs[context, subcontext]) ** b)
+
+    # Every node starts on an empty board, so its first key uses divisor 1.0.
+    heap = [(-merit, -merit, name, context, subcontext, 1.0)
+            for name, context, subcontext, merit in pool]
+    heapq.heapify(heap)
+
+    out: Dict[str, dict] = {}
+    while heap:
+        _, neg_merit, name, context, subcontext, charged = heapq.heappop(heap)
+        current = divisor_for(context, subcontext)
+        if current != charged:
+            heapq.heappush(heap, (neg_merit / current, neg_merit, name,
+                                  context, subcontext, current))
+            continue
+        out[name] = {
+            'divisor': current,
+            'context': context,
+            'subcontext': subcontext,
+            'context_rank': contexts[context] + 1,
+            'subcontext_rank': pairs[context, subcontext] + 1,
+        }
+        if context is not None:
+            contexts[context] += 1
+            pairs[context, subcontext] += 1
+    return out
+
+
+def _get_goal_subtree_from_adjacency(goal_name: str, Hard_in: dict) -> set:
+    """BFS over Hard_in to find all prerequisite descendants of a goal."""
+    visited = set()
+    queue = list(Hard_in.get(goal_name, []))
+    while queue:
+        node = queue.pop()
+        if node in visited:
+            continue
+        visited.add(node)
+        for prereq in Hard_in.get(node, []):
+            if prereq not in visited:
+                queue.append(prereq)
+    return visited
+
+
+def score_nodes(
+    nodes_to_score: List[Node], all_nodes: List[Node],
+    edges: List[Dict], hyperparams: dict,
+    priority_goals: Optional[List[str]] = None,
+    external_memo: Optional[dict] = None,
+    time_phases: bool = False,
+) -> Union[List[Node], Tuple[List[Node], Dict[str, float]]]:
+    """Scores nodes by priority (TV / Cost) and returns them sorted descending.
+
+    When `time_phases` is True, also returns a dict of per-phase timings
+    (adj_ms, goals_ms, score_ms, rank_ms, total_ms, n_nodes, n_edges). The
+    node ordering and priority_score values are identical in both modes.
+    """
+    w_v = hyperparams.get('w_v', 1.0)
+    w_i = hyperparams.get('w_i', 1.0)
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.40)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
+    goal_boost = hyperparams.get('goal_boost', 1.5)
+
+    all_nodes_dict = {n.name: n for n in all_nodes}
+
+    t0 = time.perf_counter() if time_phases else 0.0
+    H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+    t1 = time.perf_counter() if time_phases else 0.0
+
+    # Outer-call memo for total_value. When external_memo is supplied (by
+    # GraphManager), reuse its cached values across score_nodes invocations
+    # — safe because GraphManager invalidates on _scoring_version / hyperparam
+    # changes, which are the only inputs outer total_value depends on.
+    # Direct callers (tests) without a memo get fresh per-call state.
+    # Maps contain unique beneficiaries and required hard work; scalar totals
+    # retain the result of aggregating those maps for each source.
+    memo: dict = external_memo if external_memo is not None else {}
+
+    # Pre-compute per-node boost from ranked priority goals
+    # Index 0 = rank 1 (full boost), index 1 = rank 2 (66%), index 2 = rank 3 (33%)
+    rank_multipliers = [
+        goal_boost,
+        1 + (goal_boost - 1) * 0.66,
+        1 + (goal_boost - 1) * 0.33,
+    ]
+    node_to_boost = {}
+    if priority_goals:
+        for rank_idx, g in enumerate(priority_goals[:3]):
+            multiplier = rank_multipliers[rank_idx]
+            subtree = _get_goal_subtree_from_adjacency(g, Hard_in)
+            for n in subtree:
+                # Highest rank wins if node appears in multiple goal subtrees
+                if n not in node_to_boost or multiplier > node_to_boost[n]:
+                    node_to_boost[n] = multiplier
+
+    t2 = time.perf_counter() if time_phases else 0.0
+
+    def _tv_for(name: str) -> float:
+        return total_value(
+            name, set(), all_nodes_dict, H_out, S_out, Syn,
+            w_v, w_i, d_H, d_S, d_Syn_pair, d_Syn_mul, memo,
+            cross_context_mult=cross_context_mult,
+            value_exponent=value_exponent,
+            future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+            future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
+        )
+
+    def _is_scorable(node: Node) -> bool:
+        """Whether the ROI formula applies to this node at all.
+
+        Everything else carries a flat -1.0. The one non-obvious exclusion is
+        `has_no_own_work`: such a node's cost carries no time term, so it
+        undercuts the pool on price while still collecting the full cascade in
+        the numerator — on a real graph it lands in the top five the moment it
+        unblocks, despite having nothing left to do. `time_mode='inherited'`
+        draws time from the hard prerequisites that eligibility already
+        requires to be Done, so by the time it ranks, its inherited hours are
+        spent. See Node.has_no_own_work. Their prerequisites competed on their
+        own hours; cascade still flows through these nodes untouched.
+        """
+        return (node.type not in ('Goal', 'Milestone')
+                and not node.has_no_own_work
+                and node.status not in (STATUS_DONE, STATUS_BLOCKED)
+                and is_eligible(node.name, Hard_in, all_nodes_dict))
+
+    # Merit is computed for the whole graph, not just the caller's slice,
+    # because the variety divisor below ranks a node against every peer it
+    # could be recommended alongside. A caller's own objects win over the
+    # graph's copy of the same name: they may carry edits not yet written
+    # back, and scoring them as they are is what the old per-node pass did.
+    merit_inputs = {n.name: n for n in all_nodes}
+    merit_inputs.update({n.name: n for n in nodes_to_score})
+    merits = {
+        name: _compute_priority_score(
+            node,
+            all_nodes_dict=all_nodes_dict,
+            H_out=H_out, S_out=S_out, Syn=Syn,
+            hyperparams=hyperparams,
+            node_to_boost=node_to_boost,
+            memo=memo,
+        )
+        for name, node in merit_inputs.items() if _is_scorable(node)
+    }
+
+    # Now nodes are pulled out of the suggestion list entirely (see
+    # next_callbacks.get_suggestions), so they neither earn a divisor nor
+    # spend a repetition against their context.
+    variety = variety_divisors(
+        [(name, merit_inputs[name].context, merit_inputs[name].subcontext,
+          merits[name][2])
+         for name in merits if not getattr(merit_inputs[name], 'now', 0)],
+        hyperparams,
+    )
+
+    scored_nodes = []
+    # name -> unrounded priority, used only for ordering (see the sort below).
+    exact_scores: Dict[str, float] = {}
+    for node in nodes_to_score:
+        if node.name not in merits:
+            node.priority_score = -1.0
+            node.total_value = _tv_for(node.name)
+            scored_nodes.append(node)
+            continue
+
+        score, node.total_value, exact = merits[node.name]
+        adjustment = variety.get(node.name)
+        node.variety = adjustment
+        if adjustment is not None and adjustment['divisor'] != 1.0:
+            score = round(score / adjustment['divisor'], 2)
+            exact /= adjustment['divisor']
+        node.priority_score = score
+        node.priority_score_exact = exact_scores[node.name] = exact
+        scored_nodes.append(node)
+
+    t3 = time.perf_counter() if time_phases else 0.0
+
+    # Sort on the unrounded ratio, falling back to the rounded score for nodes
+    # that never went through _compute_priority_score (Goals, Milestones, Done,
+    # Blocked and ineligible nodes all carry a flat -1.0).
+    #
+    # `priority_score` is rounded to 2dp for display, which collapses ~440
+    # distinct scores into ~170 on a real graph: past about rank 30 the large
+    # majority of nodes share a score with a neighbour, and the tie then breaks
+    # on list order, which carries no meaning. Ordering on the exact value
+    # keeps the displayed number stable while making the sequence meaningful.
+    #
+    # Remaining ties break toward the higher pre-variety merit and then the
+    # earlier name, matching the order the variety walk itself resolved them
+    # in. Without that, two nodes whose adjusted scores coincide could rank
+    # here in a different order than the divisors were assigned in.
+    ranked = sorted(
+        scored_nodes,
+        key=lambda n: (-exact_scores.get(n.name, getattr(n, 'priority_score', -1.0)),
+                       -merits.get(n.name, (0.0, 0.0, -1.0))[2],
+                       n.name),
+    )
+
+    if not time_phases:
+        return ranked
+
+    t4 = time.perf_counter()
+    timings = {
+        'adj_ms': (t1 - t0) * 1000.0,
+        'goals_ms': (t2 - t1) * 1000.0,
+        'score_ms': (t3 - t2) * 1000.0,
+        'rank_ms': (t4 - t3) * 1000.0,
+        'total_ms': (t4 - t0) * 1000.0,
+        'n_nodes': len(ranked),
+        'n_edges': len(edges),
+    }
+    return ranked, timings
+
+
+def _reachable_topo(start: str, H_out: dict, S_out: dict) -> List[str]:
+    """Topological order of the nodes `start` reaches along Hard and Soft edges.
+
+    _strongest_routes relaxes routes in this order, so each node is processed
+    only after all its Hard/Soft predecessors. The DAG property of Hard+Soft
+    makes the order well defined; a cyclic portion is left out.
+    """
+    reachable = set()
+    stack = [start]
+    while stack:
+        n = stack.pop()
+        if n in reachable:
+            continue
+        reachable.add(n)
+        for c in H_out.get(n, []):
+            if c not in reachable:
+                stack.append(c)
+        for c in S_out.get(n, []):
+            if c not in reachable:
+                stack.append(c)
+
+    in_degree = {n: 0 for n in reachable}
+    for n in reachable:
+        for c in H_out.get(n, []):
+            if c in reachable:
+                in_degree[c] += 1
+        for c in S_out.get(n, []):
+            if c in reachable:
+                in_degree[c] += 1
+
+    queue = deque(n for n in reachable if in_degree[n] == 0)
+    topo = []
+    while queue:
+        n = queue.popleft()
+        topo.append(n)
+        for c in H_out.get(n, []):
+            if c in reachable:
+                in_degree[c] -= 1
+                if in_degree[c] == 0:
+                    queue.append(c)
+        for c in S_out.get(n, []):
+            if c in reachable:
+                in_degree[c] -= 1
+                if in_degree[c] == 0:
+                    queue.append(c)
+    return topo
+
+
+def explain_score(
+    node_name: str,
+    all_nodes: List[Node],
+    edges: List[Dict],
+    hyperparams: dict,
+    priority_goals: Optional[List[str]] = None,
+    variety: Optional[dict] = None,
+    skip_done: bool = True,
+    flat_goals: bool = True,
+) -> Optional[Dict]:
+    """Decomposes a node's priority score into its constituent parts.
+
+    Returns a dict describing intrinsic value, perceived cost, the
+    breakdown of TotalValue by edge type (hard/soft/synergy cascades), a
+    goal-boost entry if applicable, and a list of top contributors —
+    every descendant whose IV propagates into this node's TV, sorted by
+    contribution.
+
+    Handles ineligible, Done, Blocked, and Goal nodes gracefully: the
+    breakdown is still computed but `eligible=False` and `block_reason`
+    is set.
+
+    `variety` is the node's entry from `variety_divisors` — the repetition
+    adjustment already folded into its ranked score. It is passed in rather
+    than recomputed because it depends on the whole pool: the caller has the
+    ranked list to hand, and reproducing it here would mean scoring the graph
+    a second time and risking a number that disagrees with the ranking.
+
+    `skip_done` and `flat_goals` must match the ranking being explained:
+    True for ordinary nodes, False for a Goal (see _value_contributions).
+
+    Returns None if the node is not in `all_nodes`.
+    """
+    w_v = hyperparams.get('w_v', 1.0)
+    w_i = hyperparams.get('w_i', 1.0)
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.40)
+    d_Syn_pair = hyperparams.get('d_Syn_pair', 0.10)
+    d_Syn_mul = hyperparams.get('d_Syn_mul', 0.40)
+    cross_context_mult = hyperparams.get('cross_context_mult', 1.0)
+    value_exponent = hyperparams.get('value_exponent', 1.0)
+    w_e = hyperparams.get('w_e', 2.5)
+    w_t = hyperparams.get('w_t', 1.0)
+    beta = hyperparams.get('beta', 0.85)
+    goal_boost = hyperparams.get('goal_boost', 1.5)
+    context_weights = hyperparams.get('context_weights', {}) or {}
+
+    all_nodes_dict = {n.name: n for n in all_nodes}
+    node = all_nodes_dict.get(node_name)
+    if node is None:
+        return None
+
+    H_out, S_out, Syn, Hard_in = build_adjacency(edges, set(all_nodes_dict.keys()))
+
+    iv = intrinsic_value(node, w_v, w_i, value_exponent)
+    time_overridden = (node.time_mode == 'inherited')
+    value_overridden = (node.value_mode == 'inherited')
+    t_override = 0.0 if time_overridden else None
+    e_override = 0.0 if node.has_no_own_work else None
+    cost = perceived_cost(node, w_e, w_t, beta,
+                          time_override=t_override, effort_override=e_override)
+
+    contributors = _value_contributions(node_name, all_nodes_dict, H_out, S_out, Syn,
+        w_v, w_i, d_H, d_S, d_Syn_pair, cross_context_mult, value_exponent,
+        future_work_half_credit_hours=hyperparams.get('future_work_half_credit_hours', 0.0),
+        future_work_exponent=hyperparams.get('future_work_exponent', 0.6),
+        skip_done=skip_done, flat_goals=flat_goals, d_Syn_mul=d_Syn_mul)
+
+    hard_cascade = math.fsum(c['channels']['Hard'] for c in contributors)
+    soft_cascade = math.fsum(c['channels']['Soft'] for c in contributors)
+    synergy_bonus = math.fsum(c['channels']['Synergy'] for c in contributors)
+    tv_full = math.fsum(c['contribution'] for c in contributors)
+    done_syn_count = sum(all_nodes_dict[z].status == STATUS_DONE
+                        for z in Syn.get(node_name, set()) - {node_name})
+    for c in contributors:
+        c['pct_of_tv'] = 100.0 * c['contribution'] / tv_full if tv_full > 0 else 0.0
+
+    contributors.sort(key=lambda c: c['contribution'], reverse=True)
+
+    # Goal boost
+    goal_boost_info = None
+    if priority_goals:
+        rank_multipliers = [
+            goal_boost,
+            1 + (goal_boost - 1) * 0.66,
+            1 + (goal_boost - 1) * 0.33,
+        ]
+        best = None  # (multiplier, goal_name, rank)
+        for rank_idx, g in enumerate(priority_goals[:3]):
+            multiplier = rank_multipliers[rank_idx]
+            subtree = _get_goal_subtree_from_adjacency(g, Hard_in)
+            if node_name in subtree and (best is None or multiplier > best[0]):
+                best = (multiplier, g, rank_idx + 1)
+        if best is not None:
+            goal_boost_info = {
+                'multiplier': best[0], 'goal': best[1], 'rank': best[2],
+            }
+
+    # Eligibility / block reason
+    eligible = True
+    block_reason: Optional[str] = None
+    if node.type in ('Goal', 'Milestone'):
+        eligible = False
+        block_reason = f"{node.type}s are not ranked"
+    elif node.has_no_own_work:
+        eligible = False
+        block_reason = "Its children are recommended instead"
+    elif node.status == STATUS_DONE:
+        eligible = False
+        block_reason = STATUS_DONE
+    elif node.status == STATUS_BLOCKED:
+        eligible = False
+        block_reason = STATUS_BLOCKED
+    else:
+        missing = [
+            req for req in Hard_in.get(node_name, [])
+            if all_nodes_dict.get(req) is None
+            or all_nodes_dict[req].status != STATUS_DONE
+        ]
+        if missing:
+            eligible = False
+            block_reason = "Waiting on " + ", ".join(sorted(missing))
+
+    raw_score = tv_full / cost if cost > 0 else 0.0
+
+    # Context-aware adjustments (mirrors score_nodes).
+    ctx_weight = context_weights.get(node.context, 1.0) if node.context else 1.0
+    combined_ctx_mult = ctx_weight
+
+    variety_divisor = (variety or {}).get('divisor', 1.0)
+
+    if eligible:
+        score = round(raw_score, 2)
+        if goal_boost_info is not None:
+            score = round(score * goal_boost_info['multiplier'], 2)
+        if combined_ctx_mult != 1.0:
+            score = round(score * combined_ctx_mult, 2)
+        if variety_divisor != 1.0:
+            score = round(score / variety_divisor, 2)
+    else:
+        score = -1.0
+
+    return {
+        'node': node_name,
+        'context': node.context,
+        'subcontext': node.subcontext,
+        'score': score,
+        'raw_score': raw_score,
+        'eligible': eligible,
+        'block_reason': block_reason,
+        'hyperparams': {
+            'w_v': w_v, 'w_i': w_i, 'w_e': w_e, 'w_t': w_t, 'beta': beta,
+            'd_H': d_H, 'd_S': d_S,
+            'd_Syn_pair': d_Syn_pair, 'd_Syn_mul': d_Syn_mul,
+            'cross_context_mult': cross_context_mult,
+            'goal_boost': goal_boost,
+            'alpha': 0.0,  # Compatibility for older Explain consumers.
+            'value_exponent': value_exponent,
+            'future_work_half_credit_hours': hyperparams.get('future_work_half_credit_hours', 0.0),
+            'future_work_exponent': hyperparams.get('future_work_exponent', 0.6),
+        },
+        'intrinsic': {
+            'value': node.value,
+            'interest': node.interest,
+            'iv': iv,
+            'value_overridden': value_overridden,
+        },
+        'cost': {
+            'difficulty': node.difficulty,
+            'time': 0.0 if time_overridden else node.time,
+            'time_overridden': time_overridden,
+            'effort_overridden': node.has_no_own_work,
+            'cost': cost,
+        },
+        'composition': {
+            'iv': iv,
+            'done_synergy_count': done_syn_count,
+            'hard_cascade': hard_cascade,
+            'soft_cascade': soft_cascade,
+            'synergy': synergy_bonus,
+            'total_value': tv_full,
+        },
+        'goal_boost': goal_boost_info,
+        'variety': variety,
+        'context_adjustment': {
+            'weight': ctx_weight,
+            'n_bucket': 1,
+            'alpha': 0.0,  # Compatibility for older Explain consumers.
+            'density_mult': 1.0,
+            'combined_multiplier': combined_ctx_mult,
+        },
+        'contributors': contributors,
+    }
+
+
+def focus_route_data(
+    source: str,
+    contributors: List[Dict],
+    k: int,
+    all_nodes: List[Node],
+    edges: List[Dict],
+    hyperparams: dict,
+    skip_done: bool = True,
+    flat_goals: bool = True,
+) -> Dict:
+    """Canvas highlighting for Explain's Focus: up to `k` distinct value routes.
+
+    Each contributor is drawn along the route its credit travelled: its
+    strongest Hard/Soft route from `source`, or, when most of its credit
+    is reinforcement, the direct Helps edge to that partner (including Done
+    partners). Synergy never draws a route into a partner's downstream graph.
+
+    `k` counts routes, not contributors. Top contributors often sit on one
+    another's routes. A node's second-largest beneficiary is frequently the
+    Goal just past its largest, and tracing both would draw one line twice.
+    So contributors are walked from the largest down:
+
+      * one already on a drawn route adds nothing;
+      * one whose route runs on past the end of a drawn route extends it;
+      * any other starts a new route, until `k` routes exist.
+
+    `contributors` is explain_score's list (or its dcc.Store copy), sorted by
+    contribution. `edges`, `hyperparams`, `skip_done` and `flat_goals` must be
+    the ones that list came from; for a Goal that means the inverted Hard edges
+    and both flags False.
+
+    Returns a dict with:
+      - 'subtree':       every node on a route, plus `source`, sorted
+      - 'node_rank':     {name: route number}; `source` is 1
+      - 'edge_rank':     {(source_name, target_name, edge_type): route number}
+      - 'target_labels': {name: '#<n>'} on the contributor that started route n
+    """
+    all_nodes_dict = {n.name: n for n in all_nodes}
+    if source not in all_nodes_dict:
+        return {'subtree': [], 'node_rank': {}, 'edge_rank': {},
+                'target_labels': {}}
+
+    d_H = hyperparams.get('d_H', 0.6)
+    d_S = hyperparams.get('d_S', 0.40)
+    H_out, S_out, _, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
+    memo: dict = {}
+    skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
+    hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
+
+    # A Helps edge is stored one way round, and the canvas matches that one.
+    helps_edge = {frozenset((e['source'], e['target'])): (e['source'], e['target'], EDGE_HELPS)
+                  for e in edges if e['type'] == EDGE_HELPS}
+
+    def route_steps(routes, target, seed):
+        """The route to `target` as [(node, edge into it)], seed excluded.
+        Done nodes a Goal's credit passed have their steps in `passed`."""
+        passed = memo.get(('passed', seed, d_H, d_S, skip), {}) if flat_goals else {}
+        steps = []
+        cur = target
+        while True:
+            step = routes[cur][3] if cur in routes else passed.get(cur)
+            if step is None:
+                break
+            parent, kind = step
+            steps.append((cur, (parent, cur, hop_type[kind])))
+            cur = parent
+        return steps[::-1]
+
+    def route_to(row):
+        name = row.get('name')
+        if row.get('via') == 'Synergy':
+            edge = helps_edge.get(frozenset((source, name)))
+            return [(name, edge)] if edge is not None else None
+        routes = _credited_routes(source, all_nodes_dict, H_out, S_out, d_H, d_S,
+                                  memo, skip, flat_goals)
+        return route_steps(routes, name, source) if name in routes else None
+
+    node_rank: Dict[str, int] = {source: 1}
+    edge_rank: Dict[Tuple[str, str, str], int] = {}
+    target_labels: Dict[str, str] = {}
+    ends: Dict[str, int] = {}  # the node each route currently ends at -> route
+    for row in contributors:
+        name = row.get('name')
+        if name == source or name in node_rank or not row.get('contribution', 0) > 0:
+            continue
+        steps = route_to(row)
+        if not steps:
+            continue
+        drawn = [i for i, (node, _) in enumerate(steps) if node in node_rank]
+        last_drawn = steps[drawn[-1]][0] if drawn else None
+        if last_drawn in ends:
+            rank = ends.pop(last_drawn)
+        elif len(target_labels) < k:
+            rank = len(target_labels) + 1
+            target_labels[name] = f"#{rank}"
+        else:
+            break
+        ends[name] = rank
+        for node, edge in steps:
+            node_rank.setdefault(node, rank)
+            edge_rank.setdefault(edge, rank)
+
+    return {
+        'subtree': sorted(node_rank),
+        'node_rank': node_rank,
+        'edge_rank': edge_rank,
+        'target_labels': target_labels,
+    }

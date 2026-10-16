@@ -7,7 +7,7 @@ added manually — adding a redundant source-side index would just duplicate
 storage without improving query plans.
 """
 
-import database
+from skilltree.store import database
 
 
 def test_idx_edges_target_type_present():

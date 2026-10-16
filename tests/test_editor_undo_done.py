@@ -8,12 +8,12 @@ same confirmation: Un-mark reopens it, Cancel leaves it Done.
 import dash
 import pytest
 
-import callbacks
-from callback_helpers import NEW_EVENT_OPTION
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import NEW_EVENT_OPTION
 from editor_forms import call
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 
 
 def _node(name, **overrides):

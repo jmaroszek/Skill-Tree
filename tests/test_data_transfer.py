@@ -4,15 +4,15 @@ import sqlite3
 
 import pytest
 
-import backup
-import data_transfer
-import database
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from graph_state import revisions
-from models import Event, Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
-from resource_links import save_node_links
+from skilltree.store import backup
+from skilltree.store import transfer as data_transfer
+from skilltree.store import database
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.graph.state import revisions
+from skilltree.domain.models import Event, Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
+from skilltree.store.resources import save_node_links
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")

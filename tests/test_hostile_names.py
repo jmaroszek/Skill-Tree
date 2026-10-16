@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-import bridge_payloads
-import data_transfer
-import database
-import graph_rules
-import node_commands
-from callback_helpers import CanvasNodeStyles, build_node_element
-from config import DEFAULT_NODE_COLORS
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, STATUS_DONE
+from skilltree.ui import payloads as bridge_payloads
+from skilltree.store import transfer as data_transfer
+from skilltree.store import database
+from skilltree.domain import rules as graph_rules
+from skilltree.store import commands as node_commands
+from skilltree.ui.callback_helpers import CanvasNodeStyles, build_node_element
+from skilltree.store.settings import DEFAULT_NODE_COLORS
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
 
 ROOT = Path(__file__).resolve().parents[1]
 

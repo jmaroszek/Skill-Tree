@@ -8,10 +8,10 @@ without a word. The save now rolls back and asks; Save finishes it.
 import dash
 import pytest
 
-import callbacks
+from skilltree.engine import callbacks
 from editor_forms import call
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, Node, STATUS_DONE, STATUS_OPEN
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_DONE, STATUS_OPEN
 
 
 def _node(name, **overrides):

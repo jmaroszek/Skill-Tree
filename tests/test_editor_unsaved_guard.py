@@ -8,10 +8,10 @@ reloaded it, which dropped the edits too.
 import dash
 import pytest
 
-import callbacks
+from skilltree.engine import callbacks
 from editor_forms import call
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 OPEN = {"transform": "translateX(0px)"}
 

@@ -7,11 +7,11 @@ Uses a temporary database for isolation — does not touch the production skillt
 from datetime import date
 from typing import Any
 import pytest
-import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from graph_manager import GraphManager
-from config import ConfigManager
-from analyze_callbacks import (
+from skilltree.store import database
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.settings import ConfigManager
+from skilltree.features.analyze.callbacks import (
     _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
     _compute_goal_progress,
     _compute_throughput, _compute_reflection_drift,
@@ -183,7 +183,7 @@ class TestComputeBottlenecks:
         assert result[0]['own_hours'] == pytest.approx(nodes[0].time + nodes[1].time)
 
     def test_chart_draws_own_time_before_what_is_unlocked(self):
-        from analyze_callbacks import _render_bottleneck_chart
+        from skilltree.features.analyze.callbacks import _render_bottleneck_chart
         nodes = [_make_node("A", status="Open", time_o=5, time_m=5, time_p=5),
                  _make_node("B", status="Blocked", time_o=40, time_m=40, time_p=40)]
         hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
@@ -281,7 +281,7 @@ class TestComputeGoalProgress:
         assert row['share'] == pytest.approx(0.4)
 
     def test_rows_put_the_priority_badge_after_the_name(self, mgr):
-        from analyze_callbacks import _render_goal_progress
+        from skilltree.features.analyze.callbacks import _render_goal_progress
         _setup_graph(mgr, [
             _make_node("Goal1", type="Goal", time_mode='inherited'),
             _make_node("Done1", status="Done", done_date="2026-05-01", time_o=1, time_m=1, time_p=1),
@@ -338,7 +338,7 @@ class TestComputeGoalProgress:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        from goal_ranking import _rank_goals
+        from skilltree.domain.goals import _rank_goals
         hp = ConfigManager.get_hyperparams()
         ranked = _rank_goals(
             [n for n in nodes if n.type == 'Goal'],
@@ -372,7 +372,7 @@ class TestComputeGoalProgress:
         edges = mgr.get_edges()
         hp = ConfigManager.get_hyperparams()
 
-        from goal_ranking import _rank_goals
+        from skilltree.domain.goals import _rank_goals
         ranked = _rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
@@ -408,7 +408,7 @@ class TestComputeGoalProgress:
         hp = ConfigManager.get_hyperparams()
         pgoals = ConfigManager.get_priority_goals()
 
-        from goal_ranking import _rank_goals, explain_goal
+        from skilltree.domain.goals import _rank_goals, explain_goal
         ranked = dict(
             (g.name, c) for g, c in _rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
@@ -432,7 +432,7 @@ class TestComputeGoalProgress:
         """explain_goal returns None for a non-Goal node."""
         _setup_graph(mgr, [_make_node("L", type="Learn")])
         nodes = mgr.get_all_nodes()
-        from goal_ranking import explain_goal
+        from skilltree.domain.goals import explain_goal
         assert explain_goal("L", nodes, mgr.get_edges(),
                             ConfigManager.get_hyperparams(),
                             ConfigManager.get_priority_goals()) is None
@@ -457,7 +457,7 @@ class TestGoalDensityNormalization:
         hp = ConfigManager.get_hyperparams()
         if hp_overrides:
             hp = {**hp, **hp_overrides}
-        from goal_ranking import _rank_goals
+        from skilltree.domain.goals import _rank_goals
         return {
             g.name: c for g, c in _rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
@@ -608,7 +608,7 @@ class TestGoalDensityNormalization:
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
         hp = ConfigManager.get_hyperparams()
-        from goal_ranking import explain_goal
+        from skilltree.domain.goals import explain_goal
         bd, _ = explain_goal("G1", nodes, edges, hp,
                              ConfigManager.get_priority_goals())
         ca = bd['context_adjustment']
@@ -701,7 +701,7 @@ class TestComputeRatingDistribution:
 class TestRenderRatingDistribution:
     def test_contexts_fold_and_cells_carry_definitions(self, mgr):
         from dash import html
-        from analyze_callbacks import _render_rating_distribution
+        from skilltree.features.analyze.callbacks import _render_rating_distribution
         nodes = [_make_node("A", context="Mind", subcontext="Logic", value=4),
                  _make_node("B", context="Mind", subcontext="Memory", value=6)]
         card = _render_rating_distribution(_compute_rating_distribution(nodes))
@@ -725,7 +725,7 @@ class TestRenderRatingDistribution:
 
     @staticmethod
     def _parts(nodes):
-        from analyze_callbacks import _render_rating_distribution
+        from skilltree.features.analyze.callbacks import _render_rating_distribution
         card = _render_rating_distribution(_compute_rating_distribution(nodes))
 
         def walk(c):
@@ -779,7 +779,7 @@ class TestRenderRatingDistribution:
         assert len(segs) == 3   # Mind's two, Body's one
 
     def test_empty_graph_message(self, mgr):
-        from analyze_callbacks import _render_rating_distribution
+        from skilltree.features.analyze.callbacks import _render_rating_distribution
         card = _render_rating_distribution(_compute_rating_distribution([]))
         assert "No open rated nodes." in str(card)
 
@@ -901,7 +901,7 @@ class TestThroughputCapacity:
 
     def test_chart_is_html_with_no_capacity_line(self):
         from dash import dcc
-        from analyze_callbacks import _render_throughput_chart
+        from skilltree.features.analyze.callbacks import _render_throughput_chart
 
         def _classes(card):
             return [getattr(p, 'className', None) for p in _walk(card)]
@@ -922,7 +922,7 @@ class TestThroughputCapacity:
         assert 'gp-legend' in _classes(by_type)
 
     def test_a_segment_carries_its_tooltip_text(self):
-        from analyze_callbacks import _render_throughput_chart
+        from skilltree.features.analyze.callbacks import _render_throughput_chart
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
         rows = _compute_throughput(nodes, granularity='month', today=date(2026, 1, 31))
         seg = next(p for p in _walk(_render_throughput_chart(rows, granularity='month'))
@@ -938,7 +938,7 @@ class TestReflectionDriftChart:
 
     @staticmethod
     def _chart(reflect):
-        from analyze_callbacks import _render_reflection_drift_chart
+        from skilltree.features.analyze.callbacks import _render_reflection_drift_chart
         nodes = [_make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
                  for n, v in zip("ABCD", reflect)]
         return list(_walk(_render_reflection_drift_chart(_compute_reflection_drift(nodes))))
@@ -1014,7 +1014,7 @@ class TestAnalyzeRefreshGate:
     def refresh(self, monkeypatch):
         import types
         import dash
-        import analyze_callbacks
+        from skilltree.features.analyze import callbacks as analyze_callbacks
 
         monkeypatch.setattr(analyze_callbacks, '_last_render', None)
         app = dash.Dash(__name__)
@@ -1042,7 +1042,7 @@ class TestAnalyzeRefreshGate:
             assert refresh(store, 'tab-next', None, value=None) == (no_update,) * 10
 
     def test_click_after_hover_reuses_the_prewarm_render(self, refresh, monkeypatch):
-        import analyze_callbacks
+        from skilltree.features.analyze import callbacks as analyze_callbacks
         GraphManager().add_node(_make_node("A"))
         calls = []
         real = analyze_callbacks._render_analyze_sections
@@ -1056,7 +1056,7 @@ class TestAnalyzeRefreshGate:
 
     def test_save_on_the_tab_always_rerenders(self, refresh, monkeypatch):
         """A reflection edit changes the charts without moving the signature."""
-        import analyze_callbacks
+        from skilltree.features.analyze import callbacks as analyze_callbacks
         GraphManager().add_node(_make_node("A"))
         signature = refresh('analyze-prewarm-store', 'tab-next', None)[-1]
         calls = []
@@ -1093,7 +1093,7 @@ class TestAnalyzeRefreshGate:
         assert refresh('save-output', 'tab-next', None) == (no_update,) * 10
 
     def test_failed_render_uncovers_and_retries(self, refresh, monkeypatch):
-        import analyze_callbacks
+        from skilltree.features.analyze import callbacks as analyze_callbacks
         def boom(*_args):
             raise RuntimeError("boom")
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections', boom)

@@ -3,8 +3,8 @@ import copy
 
 import pytest
 
-import config
-from config import ConfigManager
+from skilltree.store import settings as config
+from skilltree.store.settings import ConfigManager
 
 
 # Every getter whose default is a mutable list or dict. On the fresh test

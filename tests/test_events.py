@@ -8,10 +8,10 @@ from datetime import date, timedelta
 from typing import Any
 from unittest.mock import patch
 import pytest
-import database
-from models import Node, Event, EDGE_NEEDS_HARD, EDGE_HELPS
-from graph_manager import GraphManager
-from event_manager import EventManager
+from skilltree.store import database
+from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD, EDGE_HELPS
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
 
 
 # --- Fixtures ---
@@ -240,7 +240,7 @@ class TestEventNodeAssociation:
         # because handle_save's form-built Node defaulted dormant=0 and
         # update_node wrote that over the stored value. The node editor saves
         # dormant nodes through handle_save, so this is the main path now.
-        from node_commands import handle_save
+        from skilltree.store.commands import handle_save
 
         em.add_event(Event(name="E1"))
         em.create_dormant_node(_make_node("N1", description="orig"), "E1")
@@ -317,7 +317,7 @@ class TestEventActivation:
 
         # Mock date to 7 days in the future
         future_date = date.today() + timedelta(days=7)
-        with patch('event_manager.date') as mock_date:
+        with patch('skilltree.store.events.date') as mock_date:
             mock_date.today.return_value = future_date
             mock_date.side_effect = lambda *args, **kw: date(*args, **kw)
             activated = em.check_pending_activations()
@@ -448,7 +448,7 @@ class TestScheduledTriggers:
         mgr.add_node(node)
         em.add_node_to_event("Due", "DueNode")
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             mock_date.fromisoformat.side_effect = date.fromisoformat
@@ -464,7 +464,7 @@ class TestScheduledTriggers:
         mgr.add_node(node)
         em.add_node_to_event("Past", "PastNode")
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             mock_date.fromisoformat.side_effect = date.fromisoformat
@@ -475,7 +475,7 @@ class TestScheduledTriggers:
     def test_check_scheduled_triggers_skips_future(self, em):
         em.add_event(Event(name="Future", trigger_date="2027-01-01"))
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             triggered = em.check_scheduled_triggers()
@@ -491,7 +491,7 @@ class TestScheduledTriggers:
         em.add_node_to_event("Done", "DoneNode")
         em.trigger_event("Done")
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             triggered = em.check_scheduled_triggers()
@@ -501,7 +501,7 @@ class TestScheduledTriggers:
     def test_check_scheduled_triggers_skips_no_date(self, em):
         em.add_event(Event(name="Manual"))
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date(2026, 3, 25)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             triggered = em.check_scheduled_triggers()
@@ -946,7 +946,7 @@ class TestSetNodeWakeDate:
         em.trigger_event("E1")
         em.set_node_wake_date("E1", "Later", (date.today() + timedelta(days=1)).isoformat())
 
-        with patch("event_manager.date") as mock_date:
+        with patch("skilltree.store.events.date") as mock_date:
             mock_date.today.return_value = date.today() + timedelta(days=1)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
             assert em.check_pending_activations() == ["Later"]

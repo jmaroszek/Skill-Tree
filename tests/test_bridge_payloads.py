@@ -10,15 +10,15 @@ from contextvars import copy_context
 import dash
 import pytest
 
-import bridge_payloads as bridge
-import callbacks
-import details_callbacks
-import sidebars_callbacks
-from callback_helpers import resolve_active_node_id
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import Node, STATUS_DONE, STATUS_OPEN
-from node_commands import handle_group_delete
+from skilltree.ui import payloads as bridge
+from skilltree.engine import callbacks
+from skilltree.features.details import callbacks as details_callbacks
+from skilltree.features.goals import callbacks as sidebars_callbacks
+from skilltree.ui.callback_helpers import resolve_active_node_id
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN
+from skilltree.store.commands import handle_group_delete
 
 STAMP = "1700000000000"
 

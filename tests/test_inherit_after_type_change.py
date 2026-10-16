@@ -12,7 +12,7 @@ import subprocess
 import dash
 import pytest
 
-import callbacks
+from skilltree.engine import callbacks
 
 
 def _lock(output):

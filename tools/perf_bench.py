@@ -65,21 +65,21 @@ def _median(action, repeats):
 
 def server_timings(db_path, repeats=5):
     """Time the server's share of each interaction, in this process."""
-    import database
+    from skilltree.store import database
     database.get_db_path = lambda: str(db_path)
     database._initialized = False
     database.init_db()
 
-    import backup
-    import callbacks
-    import data_transfer
-    import next_view
-    import node_commands
-    from callback_helpers import format_suggestions_table
-    from config import ConfigManager
-    from graph_manager import GraphManager
-    from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
-    from simulation_service import simulation_service
+    from skilltree.store import backup
+    from skilltree.engine import callbacks
+    from skilltree.store import transfer as data_transfer
+    from skilltree.features.home import view as next_view
+    from skilltree.store import commands as node_commands
+    from skilltree.ui.callback_helpers import format_suggestions_table
+    from skilltree.store.settings import ConfigManager
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
+    from skilltree.features.details.simulation_service import simulation_service
 
     manager = GraphManager()
     nodes = {n.name: n for n in manager.get_all_nodes(include_dormant=True)}

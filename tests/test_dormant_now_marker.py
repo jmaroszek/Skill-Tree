@@ -4,8 +4,8 @@ The flag is only a promise while the node is asleep. Once it wakes the intent is
 spent, and the Awake badge is the honest report.
 """
 
-from events_layout import _wakes_cell
-from models import Node
+from skilltree.features.events.layout import _wakes_cell
+from skilltree.domain.models import Node
 
 
 def _en(*, dormant=1, now_on_trigger=False, activated=False, delay_days=0,

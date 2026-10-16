@@ -8,8 +8,8 @@ to no_update when the trigger is `main-tabs` and the destination is one of them.
 import dash
 import pytest
 
-import callbacks
-from callbacks import (
+from skilltree.engine import callbacks
+from skilltree.engine.callbacks import (
     _CORE_ENGINE_NUM_OUTPUTS,
     _NON_GRAPH_TABS,
     _EDITOR_UI_ONLY_TRIGGERS,
@@ -229,7 +229,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
     """The layout already holds the empty message and the closed undo and
     calibration modals. Restating them on load woke six startup callbacks
     that only reset again."""
-    from core_response import CoreResponse
+    from skilltree.engine.response import CoreResponse
 
     cb, _ = _core_engine_fn()
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "")
@@ -247,7 +247,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
 def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
     """Run core_engine for one trigger, with the Nodes tab state given."""
     import inspect
-    from core_response import CoreResponse
+    from skilltree.engine.response import CoreResponse
 
     cb, _ = _core_engine_fn()
     names = list(inspect.signature(cb).parameters)
@@ -264,7 +264,7 @@ def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
 def test_the_nodes_canvas_loads_on_its_first_visit(monkeypatch):
     """Its ingest and cold layout used to hold up the startup cover for about
     a second. Until the canvas loads, a render sends a marker instead."""
-    from canvas_view import CANVAS_DEFERRED
+    from skilltree.ui.canvas.view import CANVAS_DEFERRED
 
     assert _render(monkeypatch, "", "tab-next").elements == CANVAS_DEFERRED
     assert isinstance(_render(monkeypatch, "", "tab-canvas").elements, list)

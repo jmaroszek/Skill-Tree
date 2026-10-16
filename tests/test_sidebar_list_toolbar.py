@@ -4,10 +4,10 @@ import dash
 import pytest
 from dash.development.base_component import Component
 
-import database
-from event_manager import EventManager
-from list_toolbar import EVENTS_SORT, GOALS_SORT, SORT_MENUS
-from models import Event
+from skilltree.store import database
+from skilltree.store.events import EventManager
+from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, SORT_MENUS
+from skilltree.domain.models import Event
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +64,7 @@ def _has_class(component, class_name):
 
 @pytest.fixture
 def layout():
-    from layout import build_app_layout
+    from skilltree.shell import build_app_layout
     return build_app_layout([], env="sandbox")
 
 
@@ -105,7 +105,7 @@ def test_hide_triggered_switch_is_gone(layout):
 
 
 def _render_events_list():
-    from event_callbacks import register_event_callbacks
+    from skilltree.features.events.callbacks import register_event_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     register_event_callbacks(app)
@@ -175,8 +175,8 @@ def test_no_divider_without_triggered_events(render):
 def test_a_fired_event_with_nodes_still_waiting_stays_in_the_list():
     """Status alone used to decide, so an event with three nodes waking in
     March vanished the moment it triggered. Finished, not merely fired."""
-    from graph_manager import GraphManager
-    from models import Node
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.domain.models import Node
 
     em, gm = EventManager(), GraphManager()
     em.add_event(Event(name="Staged"))

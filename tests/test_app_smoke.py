@@ -25,7 +25,7 @@ def isolated_app_import(monkeypatch):
     for modname in ("app",):
         sys.modules.pop(modname, None)
 
-    import app as app_module
+    from skilltree import app as app_module
     importlib.reload(app_module)
     app_module.app = app_module.create_app(
         app_module.AppSettings(environment="sandbox", configure_logging=False))
@@ -61,8 +61,8 @@ def test_the_served_page_opens_behind_the_startup_cover(isolated_app_import):
 
 
 def test_app_records_the_version_that_opened_the_database(isolated_app_import):
-    from config import ConfigManager
-    from version import __version__
+    from skilltree.store.settings import ConfigManager
+    from skilltree.runtime.version import __version__
 
     assert ConfigManager.get_last_app_version() == __version__
 

@@ -5,12 +5,12 @@ import subprocess
 import sys
 from types import SimpleNamespace
 
-import database
-from callback_helpers import spawn_local_file_picker
-import resource_links as resources
-from graph_manager import GraphManager
-from models import Node
-from settings_callbacks import register_settings_callbacks
+from skilltree.store import database
+from skilltree.ui.callback_helpers import spawn_local_file_picker
+from skilltree.store import resources
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
+from skilltree.features.settings.callbacks import register_settings_callbacks
 import pytest
 
 # Written around the Resource sections new databases used to start with.

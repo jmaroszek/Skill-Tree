@@ -8,12 +8,12 @@ hangs off the Now list instead.
 
 import pytest
 
-import database
+from skilltree.store import database
 
-from callback_helpers import format_suggestions_table
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from skilltree.ui.callback_helpers import format_suggestions_table
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 
 
 @pytest.fixture

@@ -11,15 +11,15 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import database
-import event_callbacks
-from callback_helpers import (NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT,
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.ui.callback_helpers import (NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT,
                               build_dormancy_snapshot, build_editor_snapshot,
                               dormancy_for_save, is_form_dirty_vs_snapshot)
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
-from node_commands import apply_dormancy, handle_save
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
+from skilltree.store.commands import apply_dormancy, handle_save
 
 
 @pytest.fixture

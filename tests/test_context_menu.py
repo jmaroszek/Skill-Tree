@@ -5,11 +5,11 @@ import json
 import dash
 from dash.development.base_component import Component
 
-import callbacks
-from callback_helpers import format_now_nodes_section, format_suggestions_table
-from graph_manager import GraphManager
-from models import Node
-import style_tokens as tokens
+from skilltree.engine import callbacks
+from skilltree.ui.callback_helpers import format_now_nodes_section, format_suggestions_table
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
+from skilltree.ui import tokens
 import pytest
 
 # Written around the Resource sections new databases used to start with.
@@ -70,7 +70,7 @@ def _callback(app, name):
 
 
 def _layout():
-    from layout import build_app_layout
+    from skilltree.shell import build_app_layout
     return build_app_layout([], env="sandbox")
 
 
@@ -184,7 +184,7 @@ def test_every_floating_menu_shares_one_panel_class():
 
 
 def test_event_cards_say_whether_they_can_still_trigger():
-    from events_layout import build_event_card
+    from skilltree.features.events.layout import build_event_card
 
     card = build_event_card("Trip", "", "Triggered", {"total": 1, "activated": 0})
     assert getattr(card, "data-event-status") == "Triggered"
@@ -237,7 +237,7 @@ def test_now_card_context_uses_readable_body_size():
 
 
 def test_goal_cards_open_the_shared_node_menu():
-    import sidebars_callbacks
+    from skilltree.features.goals import callbacks as sidebars_callbacks
 
     manager = GraphManager()
     manager.add_node(_node("Fitness", type="Goal",
@@ -258,7 +258,7 @@ def test_goal_cards_open_the_shared_node_menu():
 
 
 def test_view_details_leaves_the_tab_alone_when_already_there():
-    import details_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True

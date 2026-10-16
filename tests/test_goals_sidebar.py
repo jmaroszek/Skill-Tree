@@ -12,13 +12,13 @@ from dash._utils import AttributeDict
 import dash_bootstrap_components as dbc
 import pytest
 
-import callbacks
-import database
-import sidebars_callbacks
-from config import SIDEBAR_TRANSLATE_CLOSED
-from graph_manager import GraphManager
-from models import Node
-from sidebars_layout import build_goals_sidebar
+from skilltree.engine import callbacks
+from skilltree.store import database
+from skilltree.features.goals import callbacks as sidebars_callbacks
+from skilltree.store.settings import SIDEBAR_TRANSLATE_CLOSED
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
+from skilltree.ui.sidebars_layout import build_goals_sidebar
 
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "goals_sidebar.js"
@@ -248,7 +248,7 @@ def test_analyze_does_not_render_at_startup():
     """Its charts cost about 0.6 s of browser work, and the startup cover
     waited for them. Only the Analyze tab's own hover prewarm writes the
     store now."""
-    import analyze_callbacks
+    from skilltree.features.analyze import callbacks as analyze_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True

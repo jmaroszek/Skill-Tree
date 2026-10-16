@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 from flask import Flask
 
-import server_runtime
-from server_runtime import AccessGuard, InstanceLock, LaunchOptions, parse_args
+from skilltree.runtime import server as server_runtime
+from skilltree.runtime.server import AccessGuard, InstanceLock, LaunchOptions, parse_args
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,7 +94,7 @@ def _hold_lock_in_another_process(db_path):
     script = textwrap.dedent(f"""
         import sys, time
         sys.path.insert(0, {str(ROOT)!r})
-        from server_runtime import InstanceLock
+        from skilltree.runtime.server import InstanceLock
         lock = InstanceLock({str(db_path)!r})
         print("held" if lock.acquire() else "refused", flush=True)
         time.sleep(60)
@@ -221,7 +221,7 @@ def test_a_read_without_a_header_is_refused(guarded):
 
 
 def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
-    import app as app_module
+    from skilltree import app as app_module
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     dash_app = app_module.create_app(app_module.AppSettings(
         environment="sandbox", configure_logging=False))
@@ -242,7 +242,7 @@ def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
 
 @pytest.mark.parametrize("dev", [False, True])
 def test_the_restart_poller_ships_only_in_dev(monkeypatch, dev):
-    import app as app_module
+    from skilltree import app as app_module
     monkeypatch.setenv("WERKZEUG_RUN_MAIN", "true")
     dash_app = app_module.create_app(app_module.AppSettings(
         environment="sandbox", configure_logging=False, dev=dev))

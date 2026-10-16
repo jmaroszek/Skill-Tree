@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-import backup
-import database
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store import backup
+from skilltree.store import database
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _node(name):

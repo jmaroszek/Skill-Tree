@@ -179,7 +179,7 @@ The point for this document is that nothing downstream changes. Habit mode is a 
 
 # Monte Carlo Simulation
 
-One number per node is enough to rank tasks. It is not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`simulation.py`](../simulation.py) answers it. It walks the full prerequisite chain, draws thousands of samples, and plots the result as a histogram marked with the $P_{10}$, $P_{50}$ and $P_{90}$ percentiles on the Details tab. Now you can say "I am 90% confident this lands under 200 hours," instead of trusting one fragile number.
+One number per node is enough to rank tasks. It is not enough to answer a question like "if I commit to this Goal today, how long until I finish?" The Monte Carlo simulator in [`skilltree/domain/simulation.py`](../skilltree/domain/simulation.py) answers it. It walks the full prerequisite chain, draws thousands of samples, and plots the result as a histogram marked with the $P_{10}$, $P_{50}$ and $P_{90}$ percentiles on the Details tab. Now you can say "I am 90% confident this lands under 200 hours," instead of trusting one fragile number.
 
 ## Sampling One Task
 
@@ -280,5 +280,5 @@ flowchart LR
 
 | Resource | What's there |
 |---|---|
-| [models.py](../models.py) | The module that implements `expected_time_estimate` — the weighting rule and its one- and two-number fallbacks |
-| [simulation.py](../simulation.py) | The module that implements the Monte Carlo sampler — the log-normal marginal, the shared-error draw, the chain-collection BFS, and the container exclusion logic |
+| [skilltree/domain/models.py](../skilltree/domain/models.py) | The module that implements `expected_time_estimate` — the weighting rule and its one- and two-number fallbacks |
+| [skilltree/domain/simulation.py](../skilltree/domain/simulation.py) | The module that implements the Monte Carlo sampler — the log-normal marginal, the shared-error draw, the chain-collection BFS, and the container exclusion logic |

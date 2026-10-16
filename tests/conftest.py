@@ -3,7 +3,7 @@
 import shutil
 
 import pytest
-import database
+from skilltree.store import database
 
 
 @pytest.fixture(scope="session")

@@ -9,10 +9,10 @@ how its work is drawn.
 """
 import pytest
 
-from config import PROFILES
-from goal_ranking import _rank_goals, explain_goal
-from models import EDGE_NEEDS_HARD, Node
-from scoring import focus_route_data, intrinsic_value, perceived_cost
+from skilltree.store.settings import PROFILES
+from skilltree.domain.goals import _rank_goals, explain_goal
+from skilltree.domain.models import EDGE_NEEDS_HARD, Node
+from skilltree.domain.scoring import focus_route_data, intrinsic_value, perceived_cost
 
 HP = dict(PROFILES['Sage'])
 D_H = HP['d_H']

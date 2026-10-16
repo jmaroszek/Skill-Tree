@@ -13,14 +13,14 @@ import json
 
 import pytest
 
-from config import (
+from skilltree.store.settings import (
     ConfigManager,
     DEFAULT_HYPERPARAMS,
     HYPERPARAMS_SCHEMA_VERSION,
     PROFILES,
 )
-from models import Node
-from scoring import (
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import (
     TIME_REF_HOURS,
     intrinsic_value,
     perceived_cost,
@@ -286,7 +286,7 @@ class TestValueExponent:
 
     def test_exponent_is_in_the_tv_cache_key(self):
         """A profile switch must refresh a previously populated value memo."""
-        from graph_manager import GraphManager
+        from skilltree.store.graph.manager import GraphManager
 
         manager = GraphManager()
         nodes, edges = self._chain('P', 9)

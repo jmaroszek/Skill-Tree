@@ -7,15 +7,15 @@ global `manager` instance).
 
 from typing import Any
 import pytest
-import database
-from models import Node, EDGE_NEEDS_HARD
-from callbacks import generate_elements, manager
-from callback_helpers import (build_filters, empty_canvas_detail, is_filters_active,
+from skilltree.store import database
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD
+from skilltree.engine.callbacks import generate_elements, manager
+from skilltree.ui.callback_helpers import (build_filters, empty_canvas_detail, is_filters_active,
                               node_options)
-from node_commands import (
+from skilltree.store.commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
-from config import ConfigManager, DEFAULT_NODE_COLORS
+from skilltree.store.settings import ConfigManager, DEFAULT_NODE_COLORS
 
 
 @pytest.fixture(autouse=True)

@@ -9,9 +9,9 @@ import inspect
 import dash
 import pytest
 
-from callback_helpers import capacity_hours
-from config import ConfigManager, DEFAULT_TIME_SETTINGS
-import settings_layout
+from skilltree.ui.callback_helpers import capacity_hours
+from skilltree.store.settings import ConfigManager, DEFAULT_TIME_SETTINGS
+from skilltree.features.settings import layout as settings_layout
 
 STORED = {'hours_per_week': 20, 'hours_per_month': 80}
 
@@ -32,7 +32,7 @@ def test_capacity_hours(hpw, hpm, expected):
 
 
 def _save_settings():
-    from settings_callbacks import register_settings_callbacks
+    from skilltree.features.settings.callbacks import register_settings_callbacks
 
     class Registry:
         def __init__(self):

@@ -3,11 +3,11 @@ remove it (node_commands.change_link, link_menu_callbacks)."""
 import dash
 import pytest
 
-import details_callbacks
-import link_menu_callbacks
-from graph_manager import GraphManager
-from models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
-from node_commands import change_link, link_change_reopens
+from skilltree.features.details import callbacks as details_callbacks
+from skilltree.features.links import menu as link_menu_callbacks
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
+from skilltree.store.commands import change_link, link_change_reopens
 
 
 def _node(name, **overrides):

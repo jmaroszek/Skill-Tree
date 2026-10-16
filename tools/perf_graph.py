@@ -42,15 +42,15 @@ def build(path, nodes=1000, seed=7):
     # Anything else the app writes along the way (a log, a backup) goes to a
     # throwaway folder, never to the real data folder.
     os.environ.setdefault("SKILLTREE_HOME", tempfile.mkdtemp(prefix="skilltree-perf-"))
-    import database
+    from skilltree.store import database
     database.get_db_path = lambda: str(path)
     database._initialized = False
     database.init_db()
 
-    from config import ConfigManager, DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
-    from event_manager import EventManager
-    from graph_manager import GraphManager
-    from models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node,
+    from skilltree.store.settings import ConfigManager, DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
+    from skilltree.store.events import EventManager
+    from skilltree.store.graph.manager import GraphManager
+    from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node,
                         STATUS_DONE, STATUS_OPEN)
 
     rng = random.Random(seed)

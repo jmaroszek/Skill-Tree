@@ -3,9 +3,9 @@ from types import SimpleNamespace
 import json
 import pytest
 
-from config import ConfigManager, PROFILES
-from models import Node
-from scoring import score_nodes, variety_divisors
+from skilltree.store.settings import ConfigManager, PROFILES
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import score_nodes, variety_divisors
 
 SAGE = PROFILES['Sage']
 
@@ -127,7 +127,7 @@ def test_unblocking_steps_lead_the_list_and_now_nodes_are_dropped(monkeypatch):
     The steps are additive — they don't spend a slot from the count the user
     asked for — they bypass the filter, and they never repeat below.
     """
-    import next_callbacks
+    from skilltree.features.home import callbacks as next_callbacks
     step = SimpleNamespace(name='Step', priority_score=1, now=0)
     repeat = SimpleNamespace(name='Repeat', priority_score=110, now=0)
     outsider = SimpleNamespace(name='Outside', priority_score=100, now=0)
@@ -154,7 +154,7 @@ def test_unblocking_steps_lead_the_list_and_now_nodes_are_dropped(monkeypatch):
 
 def test_an_actionable_now_node_pins_nothing(monkeypatch):
     """No steps means the table is exactly the ranking, and Now stays out of it."""
-    import next_callbacks
+    from skilltree.features.home import callbacks as next_callbacks
     top = SimpleNamespace(name='Top', priority_score=110, now=0)
     busy = SimpleNamespace(name='Busy', priority_score=1000, now=1)
     manager = SimpleNamespace(

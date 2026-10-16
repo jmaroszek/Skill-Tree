@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from models import Node
-from review_hub_callbacks import (
+from skilltree.domain.models import Node
+from skilltree.features.review.callbacks import (
     _build_history_table,
     _rating_change_magnitude,
     _sort_history_nodes,
@@ -11,8 +11,8 @@ from review_hub_callbacks import (
     _pager,
     _visible_history_count,
 )
-from review_hub_layout import build_review_hub_modal
-from callback_helpers import build_calibration_dismissed_view
+from skilltree.features.review.layout import build_review_hub_modal
+from skilltree.ui.callback_helpers import build_calibration_dismissed_view
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -143,8 +143,8 @@ def test_history_sorts_numeric_time_and_rating_change_with_missing_last():
 
 def test_a_bracket_without_a_best_estimate_has_an_actual_time():
     # History showed a dash for it, while Analyze plotted it.
-    from graph_analytics import _compute_estimation_accuracy
-    from review_hub_callbacks import _fmt_delta_hours, _fmt_hours
+    from skilltree.features.analyze.data import _compute_estimation_accuracy
+    from skilltree.features.review.callbacks import _fmt_delta_hours, _fmt_hours
     bracket = _reviewed_node("Bracket")
     bracket.time_o = bracket.time_m = bracket.time_p = 80
     bracket.actual_time_point = None

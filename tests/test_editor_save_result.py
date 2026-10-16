@@ -12,10 +12,10 @@ core_engine now reports a committed save in editor-save-result-store.
 import dash
 import pytest
 
-import callbacks
+from skilltree.engine import callbacks
 from editor_forms import call
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _node(name, **overrides):

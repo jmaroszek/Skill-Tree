@@ -11,11 +11,11 @@ import types
 import dash
 import pytest
 
-import event_callbacks
-from callback_helpers import NEW_NODE_DORMANCY, build_dormancy_snapshot
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.ui.callback_helpers import NEW_NODE_DORMANCY, build_dormancy_snapshot
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name):

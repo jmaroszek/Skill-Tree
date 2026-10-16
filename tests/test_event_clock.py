@@ -8,11 +8,11 @@ from datetime import date, timedelta
 
 import dash
 
-import event_callbacks
-from event_manager import EventManager
-from graph_manager import GraphManager
-from layout import build_app_layout
-from models import Event, Node
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.shell import build_app_layout
+from skilltree.domain.models import Event, Node
 
 
 def _clock():
@@ -70,7 +70,7 @@ def test_with_nothing_due_the_sweeps_only_read(monkeypatch):
     they only read, so another program holding the write lock (a backup or
     sync tool) doesn't hold up the page."""
     import sqlite3
-    import database
+    from skilltree.store import database
     monkeypatch.setattr(database, "BUSY_TIMEOUT_S", 0.1)
     other = sqlite3.connect(database.get_db_path())
     other.execute("BEGIN IMMEDIATE")

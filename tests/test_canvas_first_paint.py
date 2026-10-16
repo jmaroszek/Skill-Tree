@@ -24,8 +24,8 @@ import subprocess
 
 import pytest
 
-from callbacks import register_callbacks
-from layout import build_app_layout, create_graph_view
+from skilltree.engine.callbacks import register_callbacks
+from skilltree.shell import build_app_layout, create_graph_view
 
 
 def _walk(component):

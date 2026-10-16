@@ -5,9 +5,9 @@ it sits one step apart, in both node scoring and the Goal ranker.
 """
 import pytest
 
-from config import PROFILES
-from models import Node
-from scoring import explain_score
+from skilltree.store.settings import PROFILES
+from skilltree.domain.models import Node
+from skilltree.domain.scoring import explain_score
 
 HP = dict(PROFILES['Sage'], future_work_half_credit_hours=0.0)
 D_H, D_S = HP['d_H'], HP['d_S']
@@ -71,7 +71,7 @@ def test_a_learn_container_still_counts_as_a_step():
 # --------------------------------------------------------------- Goal ranking
 
 def test_goal_ranking_frees_milestones_too():
-    from goal_ranking import _rank_goals
+    from skilltree.domain.goals import _rank_goals
     hp = dict(HP)
     nodes = [node('A', value=8, interest=8), milestone('M'), node('B', value=6, interest=6),
              goal('G', value=1, interest=1)]

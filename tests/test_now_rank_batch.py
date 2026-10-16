@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 import pytest
 
-from config import ConfigManager
-from event_manager import EventManager
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.store.settings import ConfigManager
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name, value):

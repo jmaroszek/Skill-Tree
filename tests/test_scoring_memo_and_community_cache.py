@@ -3,9 +3,9 @@
 import pytest
 import networkx as nx
 
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
-from scoring import total_value, score_nodes, build_adjacency
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
+from skilltree.domain.scoring import total_value, score_nodes, build_adjacency
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +277,7 @@ def test_scoring_memo_invalidated_on_scoring_field_edit():
 def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
     """Changing hyperparameters must invalidate the scoring memo even when
     the graph is untouched."""
-    from config import ConfigManager
+    from skilltree.store.settings import ConfigManager
     mgr = GraphManager()
     mgr.add_node(_make_node("A"))
 
@@ -436,7 +436,7 @@ def test_scoring_memo_survives_a_now_reorder():
 
 
 def test_priority_normalizer_cache_invalidated_on_hyperparam_change(monkeypatch):
-    from config import ConfigManager
+    from skilltree.store.settings import ConfigManager
     mgr = GraphManager()
     mgr.add_node(_make_node("A"))
 

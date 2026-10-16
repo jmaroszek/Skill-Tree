@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from config import ConfigManager
-from details_layout import build_graph_settings_panel, build_details_tab_content
-from layout import build_app_layout
-from sidebars_layout import build_filters_content
+from skilltree.store.settings import ConfigManager
+from skilltree.features.details.layout import build_graph_settings_panel, build_details_tab_content
+from skilltree.shell import build_app_layout
+from skilltree.ui.sidebars_layout import build_filters_content
 
 
 def _walk(component):
@@ -94,7 +94,7 @@ def test_search_leads_the_filters_sidebar_and_applies_on_enter():
 
 
 def test_the_editor_separates_search_from_general_like_every_other_section():
-    from sidebars_layout import build_node_editor_content
+    from skilltree.ui.sidebars_layout import build_node_editor_content
 
     items = list(_walk(build_node_editor_content()))
     kinds = [type(item).__name__ for item in items]
@@ -279,7 +279,7 @@ def test_events_layout_panel_has_smooth_and_freeze():
 
 
 def test_events_tab_content_graph_settings_include_smooth_toggle():
-    from events_layout import build_events_tab_content
+    from skilltree.features.events.layout import build_events_tab_content
 
     content = build_events_tab_content()
     ids = _ids(content)

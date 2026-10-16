@@ -3,16 +3,16 @@
 from datetime import date
 from pathlib import Path
 
-from events_layout import (
+from skilltree.features.events.layout import (
     build_events_tab_content,
     DORMANT_COL_WIDTHS,
     build_dormant_nodes_table,
     build_event_card,
     dormant_delete_confirmation_body,
 )
-from models import Node
-from config import BADGE_PALETTE
-from models import STATUS_DONE
+from skilltree.domain.models import Node
+from skilltree.store.settings import BADGE_PALETTE
+from skilltree.domain.models import STATUS_DONE
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -209,7 +209,7 @@ def test_a_projected_wake_date_is_muted_and_a_committed_one_is_not():
 def test_a_wake_date_carries_its_year_after_a_comma():
     """This year needs no year at all; another year gets one, punctuated the
     way a date is normally written."""
-    from events_layout import _format_wake_date
+    from skilltree.features.events.layout import _format_wake_date
 
     this_year = date.today().replace(month=10, day=1)
     assert _format_wake_date(this_year.isoformat()) == "Oct 1"

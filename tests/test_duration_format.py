@@ -8,7 +8,7 @@ pin the shared rule from both directions so the pair cannot drift apart again.
 
 import pytest
 
-from duration_ui import duration_to_days, days_to_duration, format_duration_days
+from skilltree.ui.components.duration import duration_to_days, days_to_duration, format_duration_days
 
 
 # (days, form pair, display text)

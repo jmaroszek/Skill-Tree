@@ -2,7 +2,7 @@
 
 import dash
 import pytest
-from event_callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_event_callbacks
 
 
 TAB_IDS = ["tab-next", "tab-canvas", "tab-details", "tab-events", "tab-analyze"]

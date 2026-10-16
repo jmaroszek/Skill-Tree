@@ -10,10 +10,10 @@ from unittest.mock import patch
 
 import pytest
 
-import database
-from event_manager import EventManager, MAX_DELAY_DAYS
-from graph_manager import GraphManager
-from models import Event, Node
+from skilltree.store import database
+from skilltree.store.events import EventManager, MAX_DELAY_DAYS
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event, Node
 
 
 def _node(name):

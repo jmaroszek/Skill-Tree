@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import dash
 
-from community_labels import MAX_LISTED, build_listing, label_communities
+from skilltree.domain.communities import MAX_LISTED, build_listing, label_communities
 
 
 def _n(name, type="Learn", context="Mind", subcontext=None):
@@ -192,8 +192,8 @@ class TestListing:
 class TestCanvasOptions:
     @staticmethod
     def _view(manager, f_community, method="components"):
-        from canvas_view import build_canvas_view
-        from callbacks import generate_elements
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.engine.callbacks import generate_elements
         return build_canvas_view(manager, generate_elements, 'filter-community',
                                  None, method, {}, f_community, None, None, None)
 
@@ -256,8 +256,8 @@ class TestCanvasOptions:
         return manager
 
     def _render(self, manager, f_community, memory=None):
-        from canvas_view import build_canvas_view
-        from callbacks import generate_elements
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.engine.callbacks import generate_elements
         return build_canvas_view(manager, generate_elements, 'filter-community',
                                  None, "components", {'hide_done': True},
                                  f_community, None, None, None,
@@ -300,7 +300,7 @@ class TestCanvasOptions:
         assert view.community_options == [{"label": "All", "value": "All"}]
 
     def test_the_empty_orphans_view_says_why(self, temp_database):
-        import callbacks
+        from skilltree.engine import callbacks
         app = dash.Dash(__name__)
         app.config.suppress_callback_exceptions = True
         callbacks.register_callbacks(app)
@@ -320,8 +320,8 @@ class TestCanvasOptions:
         assert detail(['Body']) == "Widen the filters, or clear them."
 
     def _view_with(self, manager, f_community, memory):
-        from canvas_view import build_canvas_view
-        from callbacks import generate_elements
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.engine.callbacks import generate_elements
         return build_canvas_view(manager, generate_elements, 'filter-community',
                                  None, "components", {}, f_community, None, None,
                                  None, community_memory=memory)
@@ -333,7 +333,7 @@ class TestResolveCommunity:
 
     @staticmethod
     def _resolve(f_community, memory=None, rows=None):
-        from canvas_view import resolve_community
+        from skilltree.ui.canvas.view import resolve_community
         return resolve_community(f_community, rows or TestResolveCommunity.ROWS, memory)
 
     def test_all_selects_nothing(self):

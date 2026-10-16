@@ -416,7 +416,7 @@ The status function covers the three lifecycle values: Open, Blocked, and Done. 
 
 **Dormant** nodes are excluded from every read path in the scoring pipeline. When an Event triggers a Dormant node, the flag clears. The status cascade then runs to settle whether the newly-live node is Open or Blocked.
 
-The flag is one bit per node, stored apart from the node's event row. That is why it is re-derived on every write to the event-node table rather than set by whichever caller happened to arrive. [event_manager.py](../event_manager.py) owns the rule and the paths that maintain it.
+The flag is one bit per node, stored apart from the node's event row. That is why it is re-derived on every write to the event-node table rather than set by whichever caller happened to arrive. [skilltree/store/events.py](../skilltree/store/events.py) owns the rule and the paths that maintain it.
 
 **Now** nodes still cascade and still receive a final score, which the Explain modal uses. But the Home tab keeps them out of the Suggestions ranking, surfacing them in a separate Now panel instead.
 
@@ -518,6 +518,6 @@ flowchart LR
 
 | Resource | What's there |
 |---|---|
-| [scoring.py](../scoring.py) | The functions behind this document: `build_adjacency`, `total_value`, `score_nodes`, `explain_score`. |
-| [graph_manager.py](../graph_manager.py) | The state gateway that runs the status cascade and caches scores. |
+| [skilltree/domain/scoring.py](../skilltree/domain/scoring.py) | The functions behind this document: `build_adjacency`, `total_value`, `score_nodes`, `explain_score`. |
+| [skilltree/store/graph/manager.py](../skilltree/store/graph/manager.py) | The state gateway that runs the status cascade and caches scores. |
 | [app_architecture.md](app_architecture.md) | Where scoring sits in the app. The layering, the state gateway, and the mutation-to-rerank flow. |

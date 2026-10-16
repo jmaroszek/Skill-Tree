@@ -28,18 +28,18 @@ from typing import List, Dict, Optional
 
 import pytest
 
-import backup
-import database
-from app_paths import get_data_dir
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import (
+from skilltree.store import backup
+from skilltree.store import database
+from skilltree.runtime.paths import get_data_dir
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import (
     Node,
     EDGE_NEEDS_HARD,
     EDGE_NEEDS_SOFT,
     EDGE_HELPS,
 )
-from scoring import (
+from skilltree.domain.scoring import (
     total_value,
     score_nodes,
     build_adjacency,

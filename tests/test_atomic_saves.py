@@ -6,12 +6,12 @@ from threading import Barrier
 import networkx as nx
 import pytest
 
-import database
-from config import ConfigManager
-from graph_manager import GraphManager
-from event_manager import EventManager
-from models import Node, Event, EDGE_NEEDS_HARD as HARD
-from node_commands import handle_save
+from skilltree.store import database
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
+from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD as HARD
+from skilltree.store.commands import handle_save
 
 
 def node(name, **kwargs):

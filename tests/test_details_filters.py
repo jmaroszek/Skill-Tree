@@ -8,10 +8,10 @@ They now take the controls as one group (callback_helpers.SIDEBAR_FILTERS).
 import dash
 import pytest
 
-import details_callbacks
-from callback_helpers import SIDEBAR_FILTERS, build_filters, filters_from
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, Node
+from skilltree.features.details import callbacks as details_callbacks
+from skilltree.ui.callback_helpers import SIDEBAR_FILTERS, build_filters, filters_from
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 
 APPLIES_THE_FILTERS = ("select_detail_node", "render_details_subtasks",
                        "toggle_details_subtask_filters", "update_details_graph")

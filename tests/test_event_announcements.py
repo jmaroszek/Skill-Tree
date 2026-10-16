@@ -9,8 +9,8 @@ announcement was open, unread.
 import dash
 import pytest
 
-import event_callbacks
-from config import ConfigManager
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.settings import ConfigManager
 
 
 @pytest.fixture

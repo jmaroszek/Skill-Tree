@@ -3,9 +3,9 @@ import inspect
 
 import dash
 
-import database
-import settings_callbacks
-from config import ConfigManager
+from skilltree.store import database
+from skilltree.features.settings import callbacks as settings_callbacks
+from skilltree.store.settings import ConfigManager
 
 
 def _callbacks():

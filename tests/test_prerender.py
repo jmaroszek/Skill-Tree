@@ -10,8 +10,8 @@ import dash
 import pytest
 from dash import Input, Output, dcc, html, no_update
 
-import prerender
-from prerender import prerender_layout, prerendered, prerendered_specs
+from skilltree.ui import prerender
+from skilltree.ui.prerender import prerender_layout, prerendered, prerendered_specs
 
 
 def _app():
@@ -115,7 +115,7 @@ def test_pattern_matching_ids_are_refused():
 
 @pytest.fixture
 def real_app():
-    import app as app_module
+    from skilltree import app as app_module
     return app_module.create_app(
         app_module.AppSettings(environment='sandbox', configure_logging=False))
 

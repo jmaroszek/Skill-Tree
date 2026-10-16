@@ -8,8 +8,8 @@ wake a node that is already awake.
 
 from datetime import date, timedelta
 
-from events_layout import trigger_confirmation_body
-from models import Node
+from skilltree.features.events.layout import trigger_confirmation_body
+from skilltree.domain.models import Node
 
 
 def _node(name, dormant=1):

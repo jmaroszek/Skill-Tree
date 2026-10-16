@@ -4,10 +4,10 @@ import os
 import sys
 
 import pytest
-import resource_links as resources
-from callback_helpers import build_editor_snapshot, is_form_dirty_vs_snapshot
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store import resources
+from skilltree.ui.callback_helpers import build_editor_snapshot, is_form_dirty_vs_snapshot
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 from dash.development.base_component import Component
 
 # Written around the Resource sections new databases used to start with.
@@ -160,7 +160,7 @@ def test_web_url_uses_browser(monkeypatch):
 
 
 def test_home_dots_use_named_section_labels():
-    from callback_helpers import format_suggestions_table
+    from skilltree.ui.callback_helpers import format_suggestions_table
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     rows = resources.get_sections()
@@ -174,7 +174,7 @@ def test_home_dots_use_named_section_labels():
 
 
 def test_editor_renders_every_section_with_its_links():
-    from callback_helpers import render_resource_sections
+    from skilltree.ui.callback_helpers import render_resource_sections
     blocks = render_resource_sections({'drive': ['a.pdf', 'b.pdf']})
     assert [getattr(b, 'data-resource-id') for b in blocks] == ['obsidian', 'drive', 'website']
     drive_inputs = [c for c in _flatten(blocks[1])
@@ -187,7 +187,7 @@ def test_editor_renders_every_section_with_its_links():
 
 
 def test_mounted_inputs_are_the_editor_links():
-    from callback_helpers import resource_link_values
+    from skilltree.ui.callback_helpers import resource_link_values
     ids = [{'type': 'resource-link', 'index': index}
            for index in ('drive:1', 'drive:0', 'books:0')]
     assert resource_link_values(['b.pdf', 'a.pdf', ''], ids) == {
@@ -195,8 +195,8 @@ def test_mounted_inputs_are_the_editor_links():
 
 
 def test_saved_resource_route_uses_shared_opener(monkeypatch):
-    import app as app_module
-    import config
+    from skilltree import app as app_module
+    from skilltree.store import settings as config
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     # Build the app before patching. Its first import of a module that does
@@ -222,7 +222,7 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
 
 
 def test_browser_picker_passes_a_local_root_as_an_argument(monkeypatch):
-    import callback_helpers
+    from skilltree.ui import callback_helpers
     import subprocess
     calls = []
 
@@ -241,7 +241,7 @@ def test_browser_picker_passes_a_local_root_as_an_argument(monkeypatch):
 
 
 def test_browser_picker_can_choose_a_folder(monkeypatch):
-    import callback_helpers
+    from skilltree.ui import callback_helpers
     import subprocess
     calls = []
 
@@ -258,7 +258,7 @@ def test_browser_picker_can_choose_a_folder(monkeypatch):
 
 
 def test_settings_cards_carry_their_switches_and_a_removed_card_holds():
-    from settings_layout import build_resource_setting_rows
+    from skilltree.features.settings.layout import build_resource_setting_rows
     rows = resources.get_sections()
     rows[1]['deleted'] = True
     cards = build_resource_setting_rows(rows, {'drive': 3})
@@ -277,7 +277,7 @@ def test_settings_cards_carry_their_switches_and_a_removed_card_holds():
 
 
 def test_section_draft_reads_switches_from_the_cards():
-    from settings_callbacks import _section_form_rows
+    from skilltree.features.settings.callbacks import _section_form_rows
     store = [{'id': 'books', 'name': 'Books',
               'root_path': 'C:/Library', 'position': 0}]
     ids = [{'type': 'x', 'index': 'books'}]
@@ -290,7 +290,7 @@ def test_section_draft_reads_switches_from_the_cards():
 def test_a_new_database_starts_with_one_neutral_links_section(tmp_path, monkeypatch):
     """Not the author's Obsidian and Google Drive (P5.2). A brand-new file, so
     the legacy fixture this module uses doesn't apply."""
-    import database
+    from skilltree.store import database
     path = str(tmp_path / "brand_new.db")
     monkeypatch.setattr(database, "get_db_path", lambda: path)
     database._initialized = False

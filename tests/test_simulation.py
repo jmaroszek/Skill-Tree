@@ -7,9 +7,9 @@ task-chain simulation, chain correlation, and statistics computation.
 
 import numpy as np
 import pytest
-from models import Node
-from models import expected_time_estimate
-from simulation import (duration_sample, _sample_node, simulate_task_chain,
+from skilltree.domain.models import Node
+from skilltree.domain.models import expected_time_estimate
+from skilltree.domain.simulation import (duration_sample, _sample_node, simulate_task_chain,
                         _compute_stats)
 
 

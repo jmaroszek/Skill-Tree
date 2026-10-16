@@ -8,10 +8,10 @@ when an event's dormant-node table rendered its edit buttons.
 
 import dash
 
-import details_callbacks
-import event_callbacks
-from graph_manager import GraphManager
-from models import Node
+from skilltree.features.details import callbacks as details_callbacks
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _callbacks(register):

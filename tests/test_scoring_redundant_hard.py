@@ -4,9 +4,9 @@ A Hard edge that a longer Hard path already implies adds no ordering, so
 scoring reads the transitive reduction (scoring._drop_redundant_hard).
 Eligibility still reads every edge.
 """
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
-from scoring import _drop_redundant_hard, build_adjacency, explain_score, score_nodes
-from goal_ranking import _rank_goals
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from skilltree.domain.scoring import _drop_redundant_hard, build_adjacency, explain_score, score_nodes
+from skilltree.domain.goals import _rank_goals
 
 HP = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.3, 'w_e': 1.5, 'w_t': 6.0,
       'beta': 0.6, 'value_exponent': 2.0, 'goal_boost': 1.0}

@@ -9,11 +9,11 @@ import sqlite3
 
 import pytest
 
-import app as app_module
-import data_transfer
-import database
-from graph_manager import GraphManager
-from models import Node
+from skilltree import app as app_module
+from skilltree.store import transfer as data_transfer
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 def _node(name):
@@ -66,7 +66,7 @@ def test_a_database_that_cant_be_written_is_named_as_such(monkeypatch):
     # Force the upgrade path, which has to write.
     monkeypatch.setattr(database, "SCHEMA_VERSION", database.SCHEMA_VERSION + 1)
     monkeypatch.setattr(database, "_migrate", lambda cursor, version: None)
-    monkeypatch.setattr("backup.create_backup", lambda kind: None)
+    monkeypatch.setattr("skilltree.store.backup.create_backup", lambda kind: None)
 
     with pytest.raises(database.DatabaseError) as refused:
         database.init_db()
@@ -94,7 +94,7 @@ def test_the_integrity_check_of_a_busy_file_is_in_use_not_damaged(
 
 def test_restoring_a_backup_another_program_holds_says_so(
         tmp_path, fast_busy_timeout):
-    import backup
+    from skilltree.store import backup
     GraphManager().add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
     blocker = sqlite3.connect(saved)
@@ -110,7 +110,7 @@ def test_restoring_a_backup_another_program_holds_says_so(
 
 
 def test_restoring_into_a_busy_database_changes_nothing(fast_busy_timeout):
-    import backup
+    from skilltree.store import backup
     manager = GraphManager()
     manager.add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
@@ -151,7 +151,7 @@ def test_every_refusal_has_its_own_exit_code():
 
 
 def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
-    import backup
+    from skilltree.store import backup
     GraphManager().add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
     real_init = database.init_db
@@ -168,7 +168,7 @@ def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
 def test_an_unwritable_app_folder_is_refused_with_a_reason(monkeypatch, tmp_path, capsys):
     """The Logs and Data folders can't be created: say so, exit 7, no traceback."""
     import logging
-    import app_paths
+    from skilltree.runtime import paths as app_paths
     blocker = tmp_path / "not-a-folder"
     blocker.write_text("a file where the app folder should be")
     monkeypatch.setenv(app_paths.HOME_ENV, str(blocker))

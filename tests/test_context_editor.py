@@ -15,12 +15,12 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-import context_rules as cr
-import settings_callbacks
-from callback_helpers import build_context_editor_rows
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import Node
+from skilltree.domain import contexts as cr
+from skilltree.features.settings import callbacks as settings_callbacks
+from skilltree.ui.callback_helpers import build_context_editor_rows
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 CONTEXTS = ["Health", "People", "Wisdom"]
@@ -682,7 +682,7 @@ def test_the_editors_plain_ids_are_in_the_static_layout():
     "Add context" first lived inside the rendered rows and did exactly that;
     only pattern-matched ids may live there.
     """
-    from settings_layout import build_settings_modal
+    from skilltree.features.settings.layout import build_settings_modal
 
     static = {c.id for c in _walk(build_settings_modal())
               if isinstance(getattr(c, "id", None), str)}

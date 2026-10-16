@@ -2,12 +2,12 @@
 
 import pytest
 
-from callback_helpers import (BAR_FILL_PERCENT, BAR_MIN_WIDTH, BAR_ROW_GAP, META_GAP,
+from skilltree.ui.callback_helpers import (BAR_FILL_PERCENT, BAR_MIN_WIDTH, BAR_ROW_GAP, META_GAP,
                               NAME_MAX_WIDTH, NAME_MIN_WIDTH, RANK_TRACK_WIDTH,
                               format_suggestions_table)
-from config import BADGE_PALETTE
-from graph_manager import GraphManager
-from models import Node
+from skilltree.store.settings import BADGE_PALETTE
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def test_the_row_spaces_its_columns_and_its_meta_items(mgr):
 
 def _relations(mgr, name):
     import json
-    from callback_helpers import _relations_lookup
+    from skilltree.ui.callback_helpers import _relations_lookup
     return json.loads(_relations_lookup(mgr)(name))
 
 

@@ -10,11 +10,11 @@ from typing import Any
 import dash
 from dash.development.base_component import Component
 
-from goal_ranking import _rank_goals, explain_goal, normalize_goal_scores
-from callback_helpers import select_explore_goals
-from config import ConfigManager
-from graph_manager import GraphManager
-from models import EDGE_NEEDS_HARD, STATUS_DONE, Node
+from skilltree.domain.goals import _rank_goals, explain_goal, normalize_goal_scores
+from skilltree.ui.callback_helpers import select_explore_goals
+from skilltree.store.settings import ConfigManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
 
 
 def _node(name: str, **overrides: Any) -> Node:
@@ -170,8 +170,8 @@ def _callback(app, name):
 
 
 def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
-    import details_callbacks
-    import sidebars_callbacks
+    from skilltree.features.details import callbacks as details_callbacks
+    from skilltree.features.goals import callbacks as sidebars_callbacks
 
     manager = GraphManager()
     _add_graph(manager, [

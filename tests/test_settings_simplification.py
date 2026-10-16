@@ -1,7 +1,7 @@
 """The Settings modal exposes user decisions, not implementation tuning."""
 
-from settings_layout import build_settings_modal
-from models import STATUS_BLOCKED
+from skilltree.features.settings.layout import build_settings_modal
+from skilltree.domain.models import STATUS_BLOCKED
 
 
 def _walk(component):
@@ -191,7 +191,7 @@ def test_resources_tab_holds_resource_rows_under_column_heads():
 
 
 def test_type_and_status_colors_show_their_hex():
-    from settings_callbacks import _build_status_color_rows, _build_type_color_rows
+    from skilltree.features.settings.callbacks import _build_status_color_rows, _build_type_color_rows
 
     colors = {"Done": "#123456", "Learn": "#abcdef"}
     rows = [
@@ -206,7 +206,7 @@ def test_type_and_status_colors_show_their_hex():
     # A colour the user has set shows that colour; one they have not falls back
     # to that key's shipped default rather than a single generic grey, which is
     # what every unset swatch used to show regardless of what it was for.
-    from config import DEFAULT_NODE_COLORS
+    from skilltree.store.settings import DEFAULT_NODE_COLORS
 
     values = {component.value for component in inputs}
     assert {"#123456", "#abcdef"} <= values

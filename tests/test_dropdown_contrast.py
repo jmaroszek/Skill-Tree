@@ -7,7 +7,7 @@ dropdown shipped without one: picking a backup left the field looking empty.
 """
 from dash import dcc
 
-from layout import build_app_layout
+from skilltree.shell import build_app_layout
 
 
 def _dropdowns(component, ancestors=()):

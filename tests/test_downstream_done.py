@@ -6,8 +6,8 @@ Goal and everything beyond it as nodes that would be re-blocked.
 """
 import pytest
 
-from graph_manager import GraphManager
-from models import Node, EDGE_NEEDS_HARD, STATUS_DONE
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Node, EDGE_NEEDS_HARD, STATUS_DONE
 
 
 def _node(name, **overrides):

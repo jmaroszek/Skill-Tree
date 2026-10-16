@@ -11,7 +11,7 @@ import subprocess
 import dash
 import pytest
 
-from details_callbacks import register_details_callbacks
+from skilltree.features.details.callbacks import register_details_callbacks
 
 
 def _history_source():

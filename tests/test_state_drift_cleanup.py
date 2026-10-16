@@ -14,11 +14,11 @@ Plus a regression for the unaffected rename path.
 from typing import Any
 import pytest
 
-import database
-from models import Node, Event, EDGE_NEEDS_HARD
-from graph_manager import GraphManager
-from event_manager import EventManager
-from config import ConfigManager
+from skilltree.store import database
+from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.events import EventManager
+from skilltree.store.settings import ConfigManager
 
 
 @pytest.fixture(autouse=True)
@@ -137,7 +137,7 @@ class TestC2PriorityGoalsCleanup:
     def test_remaining_goals_shift_up_in_rank(self, mgr):
         # After G1 is deleted, G2 should now be the rank-1 goal — verify by
         # checking the boost it receives in score_nodes.
-        from scoring import score_nodes
+        from skilltree.domain.scoring import score_nodes
 
         mgr.add_node(_make_node("G1", type="Goal"))
         mgr.add_node(_make_node("G2", type="Goal"))
