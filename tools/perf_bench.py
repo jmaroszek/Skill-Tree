@@ -27,7 +27,6 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(__file__).resolve().parent
@@ -66,7 +65,7 @@ def _median(action, repeats):
 
 def server_timings(db_path, repeats=5):
     """Time the server's share of each interaction, in this process."""
-    from skilltree.store import database
+    from skilltree.store import database, schema
     database.get_db_path = lambda: str(db_path)
     schema.init_db(recheck=True)
 

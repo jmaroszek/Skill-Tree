@@ -21,7 +21,6 @@ import random
 import sys
 import tempfile
 from pathlib import Path
-from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -43,7 +42,7 @@ def build(path, nodes=1000, seed=7):
     # Anything else the app writes along the way (a log, a backup) goes to a
     # throwaway folder, never to the real data folder.
     os.environ.setdefault("SKILLTREE_HOME", tempfile.mkdtemp(prefix="skilltree-perf-"))
-    from skilltree.store import database
+    from skilltree.store import database, schema
     database.get_db_path = lambda: str(path)
     schema.init_db(recheck=True)
 
