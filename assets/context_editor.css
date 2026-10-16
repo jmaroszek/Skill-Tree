@@ -382,7 +382,6 @@
 }
 
 #ctx-editor-summary {
-    min-height: 1.2rem;
     font-size: var(--st-fs-cap);
     color: var(--st-text-secondary);
 }

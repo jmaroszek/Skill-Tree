@@ -294,7 +294,7 @@ def _build_contexts_tab():
                 dbc.Button([html.I(className="bi bi-plus"), " Add context"],
                            id="btn-ctx-row-add", className="ctx-row-adder"),
             ], className="ctx-editor-box"),
-            html.Div(id="ctx-editor-summary", className="mt-1"),
+            html.Div(id="ctx-editor-summary"),
 
             # Hidden input: assets/context_editor_sortable.js writes the DOM
             # order here after a drag so Dash can fold it into the store.
@@ -392,17 +392,15 @@ def _build_data_tab():
 
         _section(
             "Backups",
-            "Skill Tree copies your graph once a day when it has changed, "
-            f"and keeps the last {backup.KEEP['daily']} copies.",
+            "When automatic backup is on, Skill Tree copies your graph once a day "
+            f"when it has changed, and keeps the last {backup.KEEP['daily']} copies. "
+            "Turn it off to save disk space.",
             dbc.Switch(id="setting-auto-backup", value=True,
                        label="Back up automatically"),
-            _switch_help("Takes effect at once. Turn it off to save disk space; "
-                         "Back up now still works, and your graph is still "
-                         "backed up before a restore or an upgrade."),
             html.Div([
                 primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
                 cancel_action("Open backups folder", "btn-open-backup-folder", size="sm"),
-            ], className="d-flex align-items-center"),
+            ], className="d-flex align-items-center settings-subblock"),
             html.Div([
                 dbc.Label("Also copy each backup to", html_for="setting-backup-extra-dir",
                           className="settings-field-label"),
