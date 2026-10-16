@@ -783,10 +783,10 @@ def build_filters_content():
         # Settle in the graph-settings panel of the canvas on screen, so it
         # behaves exactly like that one, Freeze included.
         html.Div([
-            dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
             dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
             Tooltip("Re-run layout physics on the graph on screen",
                     target="btn-sidebar-relayout", placement="top"),
+            dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
         ], className="d-flex gap-2 mb-3"),
     ], className="px-3 pb-2 pt-0", style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX})
 
