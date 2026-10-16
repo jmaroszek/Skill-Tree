@@ -14,11 +14,11 @@ from skilltree.domain.models import Node, expected_time_estimate, STATUS_DONE, S
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.commands import handle_save, prior_node_for_completion
 from skilltree.store.settings import ConfigManager
-from skilltree.features.editor.values import (
-    _calibration_prepop,
-    _calibration_review_queue,
-    _calibration_unit_for,
-    _calibration_modal_text,
+from skilltree.features.review.values import (
+    calibration_prepop as calibration_prepop,
+    calibration_review_queue as calibration_review_queue,
+    calibration_unit_for as calibration_unit_for,
+    calibration_modal_text as calibration_modal_text,
 )
 from skilltree.domain.time import HOURS_PER_YEAR_MULT
 
@@ -204,46 +204,46 @@ class TestTimeCalibrationFlag:
 
 
 # ============================================================================
-# _calibration_review_queue — eligibility for the review cycle
+# calibration_review_queue — eligibility for the review cycle
 # ============================================================================
 
 class TestCalibrationReviewQueue:
     def test_done_unrated_node_is_eligible(self, mgr):
         mgr.add_node(_make_node("DoneA", status=STATUS_DONE))
-        assert _calibration_review_queue(mgr) == ["DoneA"]
+        assert calibration_review_queue(mgr) == ["DoneA"]
 
     def test_open_node_excluded(self, mgr):
         mgr.add_node(_make_node("OpenA", status=STATUS_OPEN))
-        assert _calibration_review_queue(mgr) == []
+        assert calibration_review_queue(mgr) == []
 
     def test_node_with_actual_time_excluded(self, mgr):
         node = _make_node("Rated", status=STATUS_DONE)
         node.actual_time_point = 12.0
         mgr.add_node(node)
-        assert _calibration_review_queue(mgr) == []
+        assert calibration_review_queue(mgr) == []
 
     def test_dismissed_node_excluded(self, mgr):
         node = _make_node("Dismissed", status=STATUS_DONE)
         node.calibration_dismissed = 1
         mgr.add_node(node)
-        assert _calibration_review_queue(mgr) == []
+        assert calibration_review_queue(mgr) == []
 
     def test_inherited_time_node_excluded(self, mgr):
         # Inherited-time nodes have no own estimate (time == 0) — nothing to
         # calibrate against.
         mgr.add_node(_make_node("Container", status=STATUS_DONE,
                                 type="Goal", time_mode="inherited"))
-        assert _calibration_review_queue(mgr) == []
+        assert calibration_review_queue(mgr) == []
 
     def test_queue_sorted_by_name(self, mgr):
         mgr.add_node(_make_node("Zeta", status=STATUS_DONE))
         mgr.add_node(_make_node("Alpha", status=STATUS_DONE))
         mgr.add_node(_make_node("Mu", status=STATUS_DONE))
-        assert _calibration_review_queue(mgr) == ["Alpha", "Mu", "Zeta"]
+        assert calibration_review_queue(mgr) == ["Alpha", "Mu", "Zeta"]
 
 
 # ============================================================================
-# _calibration_unit_for — default Unit dropdown value
+# calibration_unit_for — default Unit dropdown value
 # ============================================================================
 
 class TestCalibrationUnitFor:
@@ -260,47 +260,47 @@ class TestCalibrationUnitFor:
 
     def test_small_estimate_is_hours(self):
         hw, _, _ = self._bands()
-        assert _calibration_unit_for(hw / 14) == "hours"
+        assert calibration_unit_for(hw / 14) == "hours"
 
     def test_day_scale_estimate_is_days(self):
         hw, _, _ = self._bands()
-        assert _calibration_unit_for(hw / 2) == "days"
+        assert calibration_unit_for(hw / 2) == "days"
 
     def test_week_scale_estimate_is_weeks(self):
         hw, hm, _ = self._bands()
-        assert _calibration_unit_for((hw + hm) / 2) == "weeks"
+        assert calibration_unit_for((hw + hm) / 2) == "weeks"
 
     def test_month_scale_estimate_is_months(self):
         _, hm, hy = self._bands()
-        assert _calibration_unit_for((hm + hy) / 2) == "months"
+        assert calibration_unit_for((hm + hy) / 2) == "months"
 
     def test_year_scale_capped_to_months(self):
         # The dropdown offers only hours/weeks/months — years cap to months.
         _, _, hy = self._bands()
-        assert _calibration_unit_for(hy * 2) == "months"
+        assert calibration_unit_for(hy * 2) == "months"
 
     def test_zero_estimate_is_hours(self):
-        assert _calibration_unit_for(0) == "hours"
+        assert calibration_unit_for(0) == "hours"
 
 
 # ============================================================================
-# _calibration_modal_text — (title, prompt) for the modal
+# calibration_modal_text — (title, prompt) for the modal
 # ============================================================================
 
 class TestCalibrationModalText:
     def test_title_is_node_name(self):
-        title, _ = _calibration_modal_text(_make_node("Stoicism"))
+        title, _ = calibration_modal_text(_make_node("Stoicism"))
         assert title == "Stoicism"
 
     def test_prompt_recalls_estimate(self):
         node = _make_node("Estimated", time_o=0, time_m=80, time_p=0)
-        _, prompt = _calibration_modal_text(node)
+        _, prompt = calibration_modal_text(node)
         assert "You estimated" in prompt
         assert "How long did it actually take?" in prompt
 
     def test_prompt_without_estimate_is_plain(self):
         node = _make_node("Container", type="Goal", time_mode="inherited")
-        _, prompt = _calibration_modal_text(node)
+        _, prompt = calibration_modal_text(node)
         assert prompt == "How long did it actually take?"
 
 
@@ -317,17 +317,17 @@ class TestCalibrationPrepopulation:
         )
 
         lower, point, upper, unit, value, interest, difficulty, notes = (
-            _calibration_prepop(node)
+            calibration_prepop(node)
         )
 
         assert (lower, point, upper) == (None, None, None)
-        assert unit == _calibration_unit_for(node.time)
+        assert unit == calibration_unit_for(node.time)
         assert (value, interest, difficulty) == (5, 5, 5)
         assert notes == ""
 
     def test_saved_notes_come_back(self):
         node = _make_node("Rated", status=STATUS_DONE, reflect_notes="Slower than hoped.")
-        assert _calibration_prepop(node)[-1] == "Slower than hoped."
+        assert calibration_prepop(node)[-1] == "Slower than hoped."
 
     def test_saved_ratings_come_back_instead_of_the_estimates(self):
         # A ratings-only reflection stays in the review queue. Prefilled with
@@ -335,12 +335,12 @@ class TestCalibrationPrepopulation:
         node = _make_node("Units", status=STATUS_DONE, value=7, interest=6,
                           difficulty=4, reflect_value=9, reflect_interest=3,
                           reflect_difficulty=8)
-        assert _calibration_prepop(node)[4:7] == (9, 3, 8)
+        assert calibration_prepop(node)[4:7] == (9, 3, 8)
 
     def test_a_rating_left_unsaved_starts_at_the_estimate(self):
         node = _make_node("Units", status=STATUS_DONE, value=7, interest=6,
                           difficulty=4, reflect_value=9)
-        assert _calibration_prepop(node)[4:7] == (9, 6, 4)
+        assert calibration_prepop(node)[4:7] == (9, 6, 4)
 
     def test_saved_actual_times_come_back_in_a_fitting_unit(self):
         # A node reopened and finished again keeps its first finish's times.
@@ -348,9 +348,9 @@ class TestCalibrationPrepopulation:
         node = _make_node("Again", status=STATUS_DONE, time_o=1, time_m=2, time_p=4,
                           actual_time_lower=40.0, actual_time_point=56.0)
 
-        lower, point, upper, unit = _calibration_prepop(node)[:4]
+        lower, point, upper, unit = calibration_prepop(node)[:4]
 
-        assert unit == _calibration_unit_for(56.0) == "weeks"
+        assert unit == calibration_unit_for(56.0) == "weeks"
         assert (lower, point, upper) == (2.0, 2.8, None)
 
 
@@ -447,7 +447,7 @@ def calibration_handlers(monkeypatch):
 
 class TestMilestoneReflection:
     def test_milestone_reflects_in_notes_only(self, mgr):
-        from skilltree.features.editor.values import reflects_in_notes_only
+        from skilltree.features.review.values import reflects_in_notes_only
         assert reflects_in_notes_only(_make_node("M", type="Milestone", time_mode='inherited'))
         assert not reflects_in_notes_only(_make_node("A", type="Action"))
         assert not reflects_in_notes_only(None)

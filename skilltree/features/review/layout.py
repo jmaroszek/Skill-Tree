@@ -21,7 +21,7 @@ import dash_bootstrap_components as dbc
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import restore_button
-from skilltree.features.editor.values import PROJECT_NOTES_PLACEHOLDER
+from skilltree.features.review.values import PROJECT_NOTES_PLACEHOLDER
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import unit_select

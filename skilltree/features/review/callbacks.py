@@ -22,6 +22,7 @@ from skilltree.features.review.layout import (
     history_sort_key_class,
 )
 from skilltree.ui.components.duration import format_time_friendly
+from skilltree.features.review.values import calibration_modal_text, calibration_prepop, calibration_review_queue
 
 
 _manager = GraphManager()
@@ -385,7 +386,7 @@ def register_review_hub_callbacks(app, services=None):
         return not is_open
 
     # --- Refresh the Pending tab's count when the hub opens ---
-    # Reuses _calibration_review_queue from editor_values.py (the same function
+    # Reuses calibration_review_queue from editor_values.py (the same function
     # the queue-launch callback uses) so the count is always consistent with
     # what "Start review" would actually iterate through.
     @app.callback(
@@ -400,8 +401,7 @@ def register_review_hub_callbacks(app, services=None):
     def refresh_pending_count(is_open, _excluded_list):
         if not is_open:
             return (no_update,) * 4
-        from skilltree.features.editor.values import _calibration_review_queue
-        count = len(_calibration_review_queue(_manager))
+        count = len(calibration_review_queue(_manager))
         shown = {"display": "block"}
         hidden = {"display": "none"}
         return str(count), (shown if count else hidden), (hidden if count else shown), (shown if count else hidden)
@@ -544,10 +544,9 @@ def register_review_hub_callbacks(app, services=None):
         # as the queue and single flows. Times show in the unit that suits
         # them (e.g. "2.8w" instead of "56h"), and a slider with no saved
         # rating starts at the node's estimate.
-        from skilltree.features.editor.values import _calibration_modal_text, _calibration_prepop
-        title, reference = _calibration_modal_text(node)
+        title, reference = calibration_modal_text(node)
         (time_lower, time_point, time_upper, unit,
-         val, interest, diff, notes) = _calibration_prepop(node)
+         val, interest, diff, notes) = calibration_prepop(node)
 
         store = {'mode': 'edit', 'node': node_name}
         return (False, True, store, title, reference,

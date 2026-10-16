@@ -2,9 +2,9 @@
 Callback definitions for the Skill Tree Dash application.
 """
 
-from skilltree.features.editor.values import (
-    _calibration_modal_text,
-    _calibration_unit_for,
+from skilltree.features.review.values import (
+    calibration_modal_text,
+    calibration_unit_for,
 )
 
 import functools
@@ -915,9 +915,9 @@ def register_callbacks(app, services=None):
             _tc_node = manager.get_node(completion_check_node)
             if _tc_node is not None and _tc_node.status == STATUS_DONE and not _tc_node.dormant:
                 tc_modal_open = True
-                tc_title, tc_reference = _calibration_modal_text(_tc_node)
+                tc_title, tc_reference = calibration_modal_text(_tc_node)
                 tc_pending = {'mode': 'single', 'node': completion_check_node}
-                tc_unit = _calibration_unit_for(_tc_node.time)
+                tc_unit = calibration_unit_for(_tc_node.time)
 
         if (isinstance(view.elements, list)
                 and not canvas_wanted(active_tab, canvas_stamp)):

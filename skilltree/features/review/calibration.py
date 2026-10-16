@@ -11,10 +11,12 @@ from skilltree.ui import tokens
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.domain.time import actual_bracket_hours
 from skilltree.store.settings import ConfigManager
-from skilltree.features.editor.values import (PROJECT_NOTES_PLACEHOLDER, _calibration_modal_text,
-                           _calibration_prepop,
-                           _calibration_review_queue, _calibration_unit_for,
-                           reflects_in_notes_only)
+from skilltree.features.review.values import (
+    PROJECT_NOTES_PLACEHOLDER, calibration_modal_text,
+    calibration_prepop,
+    calibration_review_queue,
+    calibration_unit_for, reflects_in_notes_only,
+)
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.prerender import prerendered
 
@@ -145,13 +147,13 @@ def register_calibration_callbacks(app, services=None):
         if next_idx < n:
             nxt = manager.get_node(queue[next_idx])
             if nxt is not None:
-                next_title, ref = _calibration_modal_text(nxt)
+                next_title, ref = calibration_modal_text(nxt)
             else:
                 next_title, ref = "", ""
             new_store = {'mode': 'review', 'queue': queue, 'index': next_idx}
             human = next_idx + 1  # 1-based node number now showing
             pct = round(human / n * 100)
-            next_unit = _calibration_unit_for(nxt.time) if nxt else 'hours'
+            next_unit = calibration_unit_for(nxt.time) if nxt else 'hours'
             return (True, new_store, no_update,
                     None, None, None, next_unit, 5, 5, 5, '',
                     ref, pct, f"{human} / {n}", no_update, next_title,
@@ -192,7 +194,7 @@ def register_calibration_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def launch_calibration_review(_n):
-        queue = _calibration_review_queue(manager)
+        queue = calibration_review_queue(manager)
         if not queue:
             # Leave the hub open so the user sees the toast without losing
             # their place in the hub.
@@ -200,10 +202,10 @@ def register_calibration_callbacks(app, services=None):
                     True, "All completed nodes are already reflected on or excluded.",
                     no_update, no_update, no_update)
         first = manager.get_node(queue[0])
-        title, ref = _calibration_modal_text(first) if first else ("", "")
+        title, ref = calibration_modal_text(first) if first else ("", "")
         store = {'mode': 'review', 'queue': queue, 'index': 0}
         n = len(queue)
-        unit = _calibration_unit_for(first.time) if first else 'hours'
+        unit = calibration_unit_for(first.time) if first else 'hours'
         return (True, store, ref, round(1 / n * 100), f"1 / {n}", False,
                 no_update, unit, title, False)
 
@@ -302,7 +304,7 @@ def register_calibration_callbacks(app, services=None):
         node = manager.get_node(node_name) if node_name else None
         if not node:
             return (no_update,) * 8
-        return _calibration_prepop(node)
+        return calibration_prepop(node)
 
     # --- Estimated-rating ticks: tell theme.css where each slider's tick goes ---
     # The ratings the node was given before the work. Each is written as a CSS

@@ -1,4 +1,5 @@
-"""Named node resources and one platform-neutral opener."""
+"""Named node resources: the sections, each node's ordered links, and storing
+a path relative to its section's root."""
 
 from __future__ import annotations
 
