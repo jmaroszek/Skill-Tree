@@ -59,6 +59,10 @@ Because a Milestone holds no work, scoring doesn't count it as a step. Put one b
 
 Finishing the work before a Milestone doesn't mean you hit it. So the app never suggests marking a Milestone Done. You mark it Done yourself, once you've passed the test. If you finish the work and miss the target, the Milestone stays open, and so does everything it unlocks. Add another round of work in front of it and try again.
 
+It works the other way too. Sometimes you hit the target before the planned work is done. You can mark a Milestone Done at any time. The work before it stays open, so you can finish it or delete it.
+
+When you mark a Milestone Done, the reflection asks only for notes. A Milestone has no hours or ratings of its own to compare. Use the notes for what got you there. They are also a good place to record a test you missed.
+
 ## Node Size
 
 Choosing the right node type is half the battle. The other half is choosing the right node **size** — its level of abstraction. For Skill Tree to rank and sequence your work well, each node should be a high-level project, typically spanning at least a couple of weeks. Skill Tree's job is to tell you which project deserves your attention this month, not to track every step within it.

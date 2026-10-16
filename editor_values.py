@@ -2,6 +2,20 @@
 from config import ConfigManager
 from models import STATUS_DONE
 
+# The Reflection notes box's prompt for any node that holds work.
+PROJECT_NOTES_PLACEHOLDER = "Anything worth remembering about this project?"
+
+
+def reflects_in_notes_only(node):
+    """Whether the Reflection modal asks `node` for notes alone.
+
+    A Milestone holds no work of its own, so it has no actual time or
+    actual ratings to compare with an estimate. What's worth keeping is what
+    got you there, or how a test went.
+    """
+    return node is not None and node.type == 'Milestone'
+
+
 def _calibration_modal_text(node):
     """Returns (title, prompt) for the time-calibration modal: the node name
     goes in the modal title, the prompt recalls its original estimate so the

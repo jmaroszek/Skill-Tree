@@ -7,7 +7,7 @@ Uses a temporary database for isolation — does not touch the production skillt
 from typing import Any
 import pytest
 import database
-from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN
+from models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE, STATUS_OPEN, STATUS_BLOCKED
 from graph_manager import GraphManager
 import graph_queries
 from context_rules import compute_orphaned_subcontext_pairs
@@ -3031,6 +3031,61 @@ class TestAutoDoneCandidates:
         mgr.update_node(p)
 
         assert mgr.pop_auto_done_candidates() == ["G"]
+
+
+class TestMilestoneHitEarly:
+    """A Milestone is a result. It can be hit before the work planned for it
+    is finished, and reopening that work doesn't take the result back."""
+
+    def _chain(self, mgr):
+        # Program → Squat 1.5x BW → Heavier Program
+        mgr.add_node(_make_node("Program", type="Action"))
+        mgr.add_node(_make_node("Squat 1.5x BW", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Heavier Program", type="Action"))
+        mgr.add_edge("Program", "Squat 1.5x BW", EDGE_NEEDS_HARD)
+        mgr.add_edge("Squat 1.5x BW", "Heavier Program", EDGE_NEEDS_HARD)
+
+    def _set_status(self, mgr, name, status):
+        node = mgr.get_node(name)
+        node.status = status
+        mgr.update_node(node)
+
+    def test_milestone_done_before_its_work(self, mgr):
+        self._chain(mgr)
+        assert mgr.get_node("Squat 1.5x BW").status == STATUS_BLOCKED
+
+        self._set_status(mgr, "Squat 1.5x BW", STATUS_DONE)
+
+        assert mgr.get_node("Squat 1.5x BW").status == STATUS_DONE
+        assert mgr.get_node("Program").status == STATUS_OPEN
+        assert mgr.get_node("Heavier Program").status == STATUS_OPEN
+        assert mgr.recompute_all_statuses() == 0
+
+    def test_reopening_the_work_keeps_the_milestone(self, mgr):
+        self._chain(mgr)
+        self._set_status(mgr, "Program", STATUS_DONE)
+        self._set_status(mgr, "Squat 1.5x BW", STATUS_DONE)
+        self._set_status(mgr, "Heavier Program", STATUS_DONE)
+
+        assert mgr.get_downstream_done_dependents("Program") == []
+        self._set_status(mgr, "Program", STATUS_OPEN)
+
+        assert mgr.get_node("Squat 1.5x BW").status == STATUS_DONE
+        assert mgr.get_node("Heavier Program").status == STATUS_DONE
+        assert mgr.recompute_all_statuses() == 0
+
+    def test_other_types_still_wait_for_their_work(self, mgr):
+        self._chain(mgr)
+        with pytest.raises(ValueError, match="can't be Done yet"):
+            self._set_status(mgr, "Heavier Program", STATUS_DONE)
+
+    def test_done_milestone_turned_action_must_meet_the_action_rule(self, mgr):
+        self._chain(mgr)
+        self._set_status(mgr, "Squat 1.5x BW", STATUS_DONE)
+        node = mgr.get_node("Squat 1.5x BW")
+        node.type = "Action"
+        with pytest.raises(ValueError, match="can't be Done yet"):
+            mgr.update_node(node)
 
 
 # ============================================================================

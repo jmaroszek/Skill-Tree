@@ -52,7 +52,8 @@ makes a backup of the current state first, so it can be undone the same way.
 
 **A node won't let me mark it Done.** It needs something first: a node is Done
 only once every hard prerequisite leading to it is. Finish those, or remove the
-requirement.
+requirement. Goals and Milestones are the exceptions. Mark a Goal Done when you
+judge it met, and a Milestone when you hit it.
 
 **Un-marking a node asks me first.** Nodes after it that are already Done would
 become Blocked again, since they need it. The question lists them.

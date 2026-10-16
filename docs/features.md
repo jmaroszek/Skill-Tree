@@ -884,6 +884,8 @@ The top of this tab is the queue. Click **Start Reflection** to open a step-by-s
 
 Below the ratings is a notes box. Use it for what you learned, what was hard, and why your ratings or time estimates were off. The node's Description is for the plan you made before starting. The notes are for what happened.
 
+A Milestone's reflection is the notes box alone. It holds no work of its own, so there are no hours or ratings to compare.
+
 <p align="center">
   <img src="../images/reflection-focused-node.png" width=500>
   <br>

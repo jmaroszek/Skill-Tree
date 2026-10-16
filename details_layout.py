@@ -1028,7 +1028,7 @@ def build_no_selection_subtasks():
 
 def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                   parent_name=None, include_soft=True,
-                                  include_synergies=False):
+                                  include_synergies=False, milestones_only=False):
     """Builds the subtasks table for any node's detail view.
 
     Columns: Name | Status | Relationship | Type | Context | Subcontext |
@@ -1044,11 +1044,15 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         parent_name: The root node name, used to compute need types.
         include_soft: If False, only hard-need subtasks are shown.
         include_synergies: If True, Helps-linked nodes get a "Synergy" relationship label.
+        milestones_only: True when the node's only prerequisites are the
+            Milestones shown in the strip above, so the empty table says that.
     """
     if not subtask_nodes:
+        message = ("Only Milestones lead into this node so far. Add the work "
+                   "that gets you there to see it here." if milestones_only
+                   else "No subtasks found. Add prerequisite nodes to see them here.")
         return html.Div(
-            html.P("No subtasks found. Add prerequisite nodes to see them here.",
-                   className="text-muted"),
+            html.P(message, className="text-muted"),
             className="text-center py-3"
         )
 

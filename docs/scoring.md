@@ -402,6 +402,8 @@ In short, the cascade proceeds only as far as it needs to.
 
 Once a node is Done, the cascade will never silently flip it back to Open. A Done node moves only when one of its hard prereqs stops being Done. That happens when the user un-completes a prereq, or gives the node a new hard prereq that isn't Done (in the node editor, or from the link menu). Either way it goes to Blocked, not Open, and the app warns before the change.
 
+A Done Milestone never moves at all. A Milestone records a result, not work. You can mark one Done while the work before it is unfinished, because you hit the target early. And reopening that work later doesn't take the result back. Whatever the Milestone unlocks stays unlocked.
+
 ## Startup Safety Net
 
 On every app launch, the graph manager walks every non-Goal node. It re-derives each status from the current Hard prereqs, corrects any drift, and logs what it fixed. Drift can only happen if you add nodes directly with SQL, bypassing the app's safety mechanisms.

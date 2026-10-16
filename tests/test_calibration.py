@@ -421,3 +421,59 @@ def test_recorded_zeros_are_no_actual_time():
                 context="Mind", actual_time_lower=0, actual_time_point=0,
                 actual_time_upper=0)
     assert item.actual_time is None
+
+
+# ============================================================================
+# Milestones reflect in notes alone
+# ============================================================================
+
+@pytest.fixture
+def calibration_handlers(monkeypatch):
+    import dash
+    import calibration_callbacks
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    calibration_callbacks.register_calibration_callbacks(app)
+    handlers = {}
+    for spec in app.callback_map.values():
+        fn = spec.get('callback')
+        while hasattr(fn, '__wrapped__'):
+            fn = fn.__wrapped__
+        if fn is not None:
+            handlers[fn.__name__] = fn
+    return handlers
+
+
+class TestMilestoneReflection:
+    def test_milestone_reflects_in_notes_only(self, mgr):
+        from editor_values import reflects_in_notes_only
+        assert reflects_in_notes_only(_make_node("M", type="Milestone", time_mode='inherited'))
+        assert not reflects_in_notes_only(_make_node("A", type="Action"))
+        assert not reflects_in_notes_only(None)
+
+    def test_modal_hides_ratings_and_time_for_a_milestone(self, mgr, calibration_handlers):
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
+        mgr.add_node(_make_node("A", type="Action", status=STATUS_DONE))
+        show = calibration_handlers['show_estimated_ratings']
+        hidden = {"display": "none"}
+        ratings, time_section, placeholder = show({'mode': 'single', 'node': 'M'})
+        assert (ratings, time_section) == (hidden, hidden)
+        assert "project" not in placeholder
+        ratings, time_section, placeholder = show({'mode': 'single', 'node': 'A'})
+        assert ratings != hidden and time_section == {}
+        assert "project" in placeholder
+
+    def test_submit_saves_only_the_notes(self, mgr, calibration_handlers, monkeypatch):
+        import calibration_callbacks
+        mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
+        monkeypatch.setattr(calibration_callbacks, 'get_trigger_id',
+                            lambda: 'btn-time-calibration-submit')
+        result = calibration_handlers['handle_time_calibration'](
+            1, 0, 0, 3, 4, 5, 'hours', 5, 5, 5, "  Hit it in week 4.  ",
+            {'mode': 'single', 'node': 'M'})
+        saved = mgr.get_node("M")
+        assert saved.reflect_notes == "Hit it in week 4."
+        assert saved.reflect_value is None and saved.reflect_interest is None
+        assert saved.reflect_difficulty is None
+        assert saved.actual_time is None
+        assert result[2] == "Logged reflection for 'M'."

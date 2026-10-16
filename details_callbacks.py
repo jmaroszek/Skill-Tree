@@ -553,7 +553,8 @@ def register_details_callbacks(app, services=None):
         return build_details_subtasks_table(
             non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
-            include_synergies=include_synergies)
+            include_synergies=include_synergies,
+            milestones_only=bool(subtask_nodes) and not non_milestone_subtasks)
 
     # A frozen canvas starts no layout, so nothing would release a new
     # selection's table. Send the settle signal once the selection lands.
@@ -1173,14 +1174,13 @@ def register_details_callbacks(app, services=None):
             False,
         )
 
-    # --- Details Tab: Node Count Canvas Overlay ---
+    # --- Details Tab: Filter Chip ---
     # The Details canvas honors the global Context/Subcontext/Type/Done/
     # ratings/time filters but ignores Goal and Community (those only narrow
-    # the main canvas), so the indicator only checks the filters that
-    # actually affect the subtree being rendered here. Show Done is not among
-    # them — see is_filters_active on why a reveal is not a filter.
+    # the main canvas), so the chip only lists the filters that actually
+    # affect the subtree being rendered here. Show Done is not among them —
+    # see is_filters_active on why a reveal is not a filter.
     @app.callback(
-        Output('details-filters-active-store', 'data'),
         Output('details-filter-chip-text', 'children'),
         Output('details-filter-chip', 'title'),
         Output('details-filter-chip', 'hidden'),
@@ -1191,7 +1191,6 @@ def register_details_callbacks(app, services=None):
         Input('filter-interest', 'value'),
         Input('filter-difficulty', 'value'),
         Input('filter-time', 'value'),
-        Input('details-max-depth', 'value'),
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         Input('filter-time-unit', 'value'),
@@ -1201,27 +1200,28 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     @prerendered
-    def update_details_filters_active(f_type, f_ctx, f_sub, f_val, f_int,
-                                      f_diff, f_time, max_depth_val, f_time_min,
-                                      f_search, f_time_unit,
-                                      chip_text, chip_title, chip_class):
+    def update_details_filter_chip(f_type, f_ctx, f_sub, f_val, f_int,
+                                   f_diff, f_time, f_time_min, f_search,
+                                   f_time_unit, chip_text, chip_title,
+                                   chip_class):
+        # The depth limit is a graph setting, not a filter: Clear Filters
+        # leaves it, so the chip leaves it out and the node count shows it.
         shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
                       value=f_val, interest=f_int, difficulty=f_diff,
                       time=f_time, time_min=f_time_min, search=f_search)
-        active = bool(_normalize_max_depth(max_depth_val) is not None
-                      or is_filters_active(**shared))
-        # The depth limit is a graph setting, not a filter: Clear Filters
-        # leaves it, so the chip leaves it out and the count still marks it.
         chip = filter_chip_state(filter_summary(time_unit=f_time_unit, **shared))
-        return (active, *filter_chip_updates(chip, (chip_text, chip_title, chip_class)))
+        return filter_chip_updates(chip, (chip_text, chip_title, chip_class))
 
+    # --- Details Tab: Node Count Canvas Overlay ---
     # The count itself is read in the browser from the payload on its way to
     # Cytoscape. Reading it from the canvas's elements sent the whole graph to
     # the server twice per selection, once for the payload and once for
     # dash-cytoscape's positional echo, both inside the opening animation.
+    # A depth limit is named after it, since the filter chip leaves it out;
+    # the slider's 6 means All, as in _normalize_max_depth.
     app.clientside_callback(
         """
-        function(pending, filtered) {
+        function(pending, maxDepth) {
             if (!Array.isArray(pending)) return window.dash_clientside.no_update;
             var n = 0;
             for (var i = 0; i < pending.length; i++) {
@@ -1229,12 +1229,12 @@ def register_details_callbacks(app, services=None):
                 if (data && data.source === undefined) n += 1;
             }
             var text = n + (n === 1 ? ' node' : ' nodes');
-            return filtered ? text + ' · filtered' : text;
+            return maxDepth && maxDepth !== 6 ? text + ' · depth ' + maxDepth : text;
         }
         """,
         Output('details-canvas-node-count', 'children'),
         Input('details-elements-pending-store', 'data'),
-        Input('details-filters-active-store', 'data'),
+        State('details-max-depth', 'value'),
         prevent_initial_call=True,
     )
 

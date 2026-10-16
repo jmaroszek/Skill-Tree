@@ -32,6 +32,7 @@ import style_tokens as tokens
 from styles import stylesheet
 from duration_ui import unit_select, work_time_tooltip
 from resource_links import MAX_SECTIONS
+from editor_values import PROJECT_NOTES_PLACEHOLDER
 from ui_kit import (Tooltip, cancel_action, edit_button, filter_chip,
                     info_button, panel_close_button, primary_action,
                     step_button)
@@ -668,43 +669,47 @@ def build_time_calibration_modal():
                                id="calibration-difficulty", className="calibration-slider",
                                marks={i: str(i) for i in range(1, 11)}),
                 ]),
-                html.Hr(className="my-4"),
-                # d-inline-block: the hover target is the words, not the whole
-                # row, so the tooltip opens beside them instead of off-screen.
-                html.H5("Actual time", id="time-calibration-heading",
-                        className="mb-2 d-inline-block hover-hint"),
-                Tooltip(work_time_tooltip("actual"),
-                        target="time-calibration-heading", placement="bottom",
-                        id="time-calibration-heading-tooltip"),
-                html.Div(id="time-calibration-reference", className="text-muted small mb-2"),
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Label("Lower Bound"),
-                        dbc.Input(id="time-calibration-lower", type="number", min=0),
-                        html.Small(id="time-calibration-lower-hours",
-                                   className="time-hour-hint text-muted mt-1",
-                                   style={"display": "none"}),
-                    ], width=3),
-                    dbc.Col([
-                        dbc.Label("Best Estimate"),
-                        dbc.Input(id="time-calibration-point", type="number", min=0),
-                        html.Small(id="time-calibration-point-hours",
-                                   className="time-hour-hint text-muted mt-1",
-                                   style={"display": "none"}),
-                    ], width=3),
-                    dbc.Col([
-                        dbc.Label("Upper Bound"),
-                        dbc.Input(id="time-calibration-upper", type="number", min=0),
-                        html.Small(id="time-calibration-upper-hours",
-                                   className="time-hour-hint text-muted mt-1",
-                                   style={"display": "none"}),
-                    ], width=3),
-                    dbc.Col([
-                        dbc.Label("Unit"),
-                        unit_select("time-calibration-unit", value="hours"),
-                    ], width=3),
+                # A Milestone holds no work, so it reflects in notes alone: a
+                # callback hides the ratings above and this time section.
+                html.Div(id="calibration-time-section", children=[
+                    html.Hr(className="my-4"),
+                    # d-inline-block: the hover target is the words, not the whole
+                    # row, so the tooltip opens beside them instead of off-screen.
+                    html.H5("Actual time", id="time-calibration-heading",
+                            className="mb-2 d-inline-block hover-hint"),
+                    Tooltip(work_time_tooltip("actual"),
+                            target="time-calibration-heading", placement="bottom",
+                            id="time-calibration-heading-tooltip"),
+                    html.Div(id="time-calibration-reference", className="text-muted small mb-2"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Lower Bound"),
+                            dbc.Input(id="time-calibration-lower", type="number", min=0),
+                            html.Small(id="time-calibration-lower-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Best Estimate"),
+                            dbc.Input(id="time-calibration-point", type="number", min=0),
+                            html.Small(id="time-calibration-point-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Upper Bound"),
+                            dbc.Input(id="time-calibration-upper", type="number", min=0),
+                            html.Small(id="time-calibration-upper-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Unit"),
+                            unit_select("time-calibration-unit", value="hours"),
+                        ], width=3),
+                    ]),
+                    html.Hr(className="my-4"),
                 ]),
-                html.Hr(className="my-4"),
                 # Written afterthoughts. The node's Description is the plan
                 # made before starting; this is what the work taught.
                 # A label, so it names the box for assistive tech, sized as an H5.
@@ -712,7 +717,7 @@ def build_time_calibration_modal():
                           className="h5 mb-2"),
                 dbc.Textarea(
                     id="calibration-notes", rows=4,
-                    placeholder="Anything worth remembering about this project?",
+                    placeholder=PROJECT_NOTES_PLACEHOLDER,
                     style={"resize": "vertical"}),
             ]),
             # Completion screen — shown only after the last node of a review cycle.

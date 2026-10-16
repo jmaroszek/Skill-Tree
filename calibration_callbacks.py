@@ -10,8 +10,10 @@ from dash import html, Input, Output, State, no_update
 import style_tokens as tokens
 from callback_helpers import actual_bracket_hours, get_trigger_id
 from config import ConfigManager
-from editor_values import (_calibration_modal_text, _calibration_prepop,
-                           _calibration_review_queue, _calibration_unit_for)
+from editor_values import (PROJECT_NOTES_PLACEHOLDER, _calibration_modal_text,
+                           _calibration_prepop,
+                           _calibration_review_queue, _calibration_unit_for,
+                           reflects_in_notes_only)
 from graph_manager import GraphManager
 from prerender import prerendered
 
@@ -94,7 +96,12 @@ def register_calibration_callbacks(app, services=None):
 
         # Apply the chosen action to the current node.
         if node is not None:
-            if trig == 'btn-time-calibration-submit':
+            if trig == 'btn-time-calibration-submit' and reflects_in_notes_only(node):
+                # The hidden sliders still hold their defaults. Saving them
+                # would invent ratings the user never gave.
+                node.reflect_notes = (notes or '').strip() or None
+                manager.update_node(node)
+            elif trig == 'btn-time-calibration-submit':
                 stored = (node.actual_time_lower, node.actual_time_point,
                           node.actual_time_upper)
                 (node.actual_time_lower, node.actual_time_point,
@@ -113,7 +120,8 @@ def register_calibration_callbacks(app, services=None):
             # Skip / Cancel: no write.
 
         if mode == 'single':
-            msg = (f"Logged actuals for '{node.name}'."
+            logged = "reflection" if reflects_in_notes_only(node) else "actuals"
+            msg = (f"Logged {logged} for '{node.name}'."
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
@@ -123,7 +131,8 @@ def register_calibration_callbacks(app, services=None):
             # Submit or Cancel both close the modal and bounce the user back
             # to the History tab. Submit emits a save-output toast so the
             # change is visible even after the hub re-opens.
-            msg = (f"Updated actuals for '{node.name}'."
+            updated = "reflection" if reflects_in_notes_only(node) else "actuals"
+            msg = (f"Updated {updated} for '{node.name}'."
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
@@ -298,14 +307,18 @@ def register_calibration_callbacks(app, services=None):
     # The ratings the node was given before the work. Each is written as a CSS
     # variable on the sliders' section; a rating the node doesn't carry (an
     # inherited container) leaves its variable off, and its slider shows no tick.
+    # A Milestone reflects in notes alone, so both sections hide for it and
+    # the notes ask about the result rather than a project.
     @app.callback(
         Output('calibration-vie-section', 'style'),
+        Output('calibration-time-section', 'style'),
+        Output('calibration-notes', 'placeholder'),
         Input('time-calibration-pending-store', 'data'),
         prevent_initial_call=True,
     )
     def show_estimated_ratings(pending):
         if not isinstance(pending, dict):
-            return no_update
+            return no_update, no_update, no_update
         mode = pending.get('mode')
         if mode in ('single', 'edit'):
             node_name = pending.get('node')
@@ -314,15 +327,18 @@ def register_calibration_callbacks(app, services=None):
             idx = pending.get('index', 0)
             node_name = queue[idx] if 0 <= idx < len(queue) else None
         else:
-            return no_update
+            return no_update, no_update, no_update
         node = manager.get_node(node_name) if node_name else None
         if node is None:
-            return {}
+            return {}, {}, PROJECT_NOTES_PLACEHOLDER
+        if reflects_in_notes_only(node):
+            return ({"display": "none"}, {"display": "none"},
+                    "What got you there? Anything worth remembering?")
         return {f'--est-{name}': str(rating)
                 for name, rating in (('value', node.value),
                                      ('interest', node.interest),
                                      ('difficulty', node.difficulty))
-                if rating}
+                if rating}, {}, PROJECT_NOTES_PLACEHOLDER
 
     # --- Calibration review button: hidden when the feature is off ---
     # Evaluated as the layout is built and on every tab switch — a tab switch

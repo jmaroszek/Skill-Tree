@@ -498,3 +498,10 @@ class TestBuildMilestoneTile:
         tile_empty = build_milestone_tile(ms, {})
         assert tile_none.id == {"type": "details-milestone-tile", "index": "M"}
         assert tile_empty.id == {"type": "details-milestone-tile", "index": "M"}
+
+
+class TestEmptySubtasksMessage:
+    def test_says_only_milestones_lead_in(self):
+        from details_layout import build_details_subtasks_table
+        assert "Only Milestones" in str(build_details_subtasks_table([], milestones_only=True))
+        assert "No subtasks found" in str(build_details_subtasks_table([]))

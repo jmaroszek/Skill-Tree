@@ -51,6 +51,12 @@ _SCORING_RELEVANT_FIELDS = frozenset({
 })
 
 
+# A Done node of these types stays Done when a prerequisite reopens. A
+# Milestone records a result the world confirmed. Unfinishing the work that
+# was planned for it doesn't take the result back.
+_KEEPS_DONE_TYPES = frozenset({'Milestone'})
+
+
 def _utc_now_ts() -> int:
     """Current UTC instant as Unix seconds for append-only lifecycle history."""
     return int(time.time())
@@ -230,8 +236,13 @@ class GraphManager:
         # A node is Done only once its hard prerequisites are: that is what
         # Blocked means, and the launch repair (recompute_all_statuses) would
         # put it back to Blocked otherwise. Goals are the user's to complete.
-        if (node.status == STATUS_DONE and node.type != "Goal"
-                and (prior is None or prior.status != STATUS_DONE)):
+        # A Milestone is a result, not work: it can be hit before the work
+        # planned for it is finished (see _KEEPS_DONE_TYPES).
+        # A Done Milestone turned into another type has to meet that type's
+        # rule, or the launch repair would block it.
+        if (node.status == STATUS_DONE and node.type not in ("Goal", "Milestone")
+                and (prior is None or prior.status != STATUS_DONE
+                     or prior.type != node.type)):
             blockers = self._unfinished_prerequisites(node.name)
             if blockers:
                 listed = ", ".join(f"'{b}'" for b in blockers[:3])
@@ -934,7 +945,8 @@ class GraphManager:
         Done flips to Blocked, propagating downstream. A Done node whose
         prereqs ARE all Done stays Done — recomputing should never silently
         un-mark work the user said they finished. Goals retain user-set
-        status. Caller owns the connection commit.
+        status, and a Done Milestone stays Done. Caller owns the connection
+        commit.
         """
         queue = deque(dict.fromkeys(seeds))
         pending = set(queue)
@@ -951,6 +963,8 @@ class GraphManager:
                 continue
             node_type, current_status = row
             if node_type == 'Goal':
+                continue
+            if current_status == STATUS_DONE and node_type in _KEEPS_DONE_TYPES:
                 continue
 
             cursor.execute(
@@ -1025,8 +1039,10 @@ class GraphManager:
             pending.discard(name)
             if kind.get(name, 'Goal') == 'Goal':
                 continue
-            blocked = any(status.get(p) != STATUS_DONE for p in prereqs[name])
             current = status[name]
+            if current == STATUS_DONE and kind[name] in _KEEPS_DONE_TYPES:
+                continue
+            blocked = any(status.get(p) != STATUS_DONE for p in prereqs[name])
             if current == STATUS_DONE and not blocked:
                 continue
             new_status = STATUS_BLOCKED if blocked else STATUS_OPEN
@@ -1062,7 +1078,8 @@ class GraphManager:
         every other recompute path). Done nodes ARE re-derived so a
         Done node whose prereqs were un-Done outside the cascade (raw SQL,
         restored backup, etc.) flips to Blocked rather than sitting in an
-        asymmetric state.
+        asymmetric state. Done Milestones are the exception: they keep their
+        Done, as the cascade lets them.
         """
         import logging
         logger = logging.getLogger(__name__)
@@ -1096,7 +1113,8 @@ class GraphManager:
 
         def _derive(name: str) -> str:
             is_blocked = any(derived[p] != STATUS_DONE for p in prereqs_of[name])
-            if derived[name] == STATUS_DONE and not is_blocked:
+            if derived[name] == STATUS_DONE and (
+                    not is_blocked or node_type[name] in _KEEPS_DONE_TYPES):
                 return STATUS_DONE
             return STATUS_BLOCKED if is_blocked else STATUS_OPEN
 
