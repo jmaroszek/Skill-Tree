@@ -419,6 +419,6 @@ class TestHandleSaveWithHabit:
 class TestMigrationIdempotency:
     def test_double_init_db_does_not_raise(self):
         schema.init_db(recheck=True)
-        # Reset the flag so the second call actually runs the DDL/migrations
-        # (init_db short-circuits when _initialized is True).
+        # recheck runs the DDL and migrations again, though the database is
+        # already current.
         schema.init_db(recheck=True)  # should not raise even though columns exist

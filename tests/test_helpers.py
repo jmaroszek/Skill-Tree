@@ -852,7 +852,7 @@ def _minimal_breakdown(**overrides):
         'goal_boost': None,
         'variety': None,
         'context_adjustment': {
-            'weight': 1.0, 'n_bucket': 1, 'alpha': 0.0,
+            'weight': 1.0, 'n_bucket': 1,
             'density_mult': 1.0, 'combined_multiplier': 1.0,
         },
         'contributors': [],
@@ -961,7 +961,7 @@ class TestExplainSummary:
 
     def test_context_weight_reads_as_a_percent_change(self):
         bd = _minimal_breakdown(context_adjustment={
-            'weight': 2.0, 'n_bucket': 5, 'alpha': 0.0,
+            'weight': 2.0, 'n_bucket': 5,
             'density_mult': 1.0, 'combined_multiplier': 2.0,
         })
         text = _render_text(build_explain_summary(bd, normalized=50))

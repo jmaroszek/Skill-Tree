@@ -96,7 +96,7 @@ and the like; `RUNNABLE_SUFFIXES`), the opener asks first.
 
 `dcc.Store` components (declared in the layout layer) are how server callbacks and clientside JS pass data without direct coupling. The load-bearing ones:
 
-- **`graph-version-store`** — mirrors `GraphManager._graph_version`. Downstream callbacks subscribe to it so they recompute only when the graph *actually* changed, not on every cosmetic re-render.
+- **`graph-version-store`** — mirrors `revisions.graph` (`store/graph/state.py`). Downstream callbacks subscribe to it so they recompute only when the graph *actually* changed, not on every cosmetic re-render.
 - **`elements-pending-store`** (+ `details-` / `events-` variants) — mutating callbacks write the new element list **here, not directly to the Cytoscape `elements` prop.** The freeze layer (below) sits in between.
 - **`freeze-rerender-store`** (+ variants) — per-canvas freeze toggle state.
 - **`*-pending-store`, `focus-goal-store`, `selected-suggestion-store`** — carry intermediate state across the steps of confirm/multi-stage flows.
@@ -213,7 +213,7 @@ This is the path almost every edit takes. Get it wrong and the canvas either doe
 2. The mutator writes SQLite, runs the status cascade if the change is status-affecting, and calls `_bump_version(scoring=…)`.
 3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
 4. A clientside callback (`freeze_positions.js`) consumes the pending elements (a hidden canvas holds them until its tab opens; see Hidden canvases) and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
-5. The same pending payload is stamped by a clientside bridge into `canvas-payload-stamp`: whether the canvas has loaded, its node count, and when. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `manager._graph_version` advanced — gating downstream recomputation to real mutations. Server callbacks listen to the stamp, not to the elements, which as an Input would send the whole canvas back to the server on every render.
+5. The same pending payload is stamped by a clientside bridge into `canvas-payload-stamp`: whether the canvas has loaded, its node count, and when. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `revisions.graph` advanced — gating downstream recomputation to real mutations. Server callbacks listen to the stamp, not to the elements, which as an Input would send the whole canvas back to the server on every render.
 
 Until the Nodes canvas loads on its first visit, the core engine writes a deferred marker (`canvas_view.CANVAS_DEFERRED`) in place of the elements. The freeze bridge skips anything that isn't a list, and the stamp still fires, so the graph version stays current. See Nodes-tab first paint.
 
@@ -317,14 +317,14 @@ base for UI scores. Cosmetic edits retain these scoring caches.
 
 ## Versioning & caches
 
-`graph_state.revisions` owns two process-wide counters. `GraphManager` exposes the
-former names as compatibility descriptors, so every manager sees the same revisions.
+`revisions` in `store/graph/state.py` owns two process-wide counters, so every
+manager sees the same revisions.
 Changes publish through deduplicated commit callbacks; rollback publishes neither.
 
-- **`_graph_version`** — bumps on any node/edge mutation. Drives UI-level caches: the `graph-version-store` bridge, the goal-subtree cache, and the community-detection cache (all keyed on it).
-- **`_scoring_version`** — bumps **only** when a scoring-relevant field changes: `type`, `value`, `interest`, `difficulty`, `time_o/m/p`, `time_mode`, `value_mode`, `status`, `dormant`, `now`, `context`, `subcontext`. Drives the scoring memo and the `calculate_priority_scores` cache. `now` earns its place because Now membership is what the variety pool and the priority normalizer are built from — flipping one node moves its context peers' numbers too.
+- **`revisions.graph`** — bumps on any node/edge mutation. Drives UI-level caches: the `graph-version-store` bridge, the goal-subtree cache, and the community-detection cache (all keyed on it).
+- **`revisions.scoring`** — bumps **only** when a scoring-relevant field changes: `type`, `value`, `interest`, `difficulty`, `time_o/m/p`, `time_mode`, `value_mode`, `status`, `dormant`, `now`, `context`, `subcontext`. Drives the scoring memo and the `calculate_priority_scores` cache. `now` earns its place because Now membership is what the variety pool and the priority normalizer are built from — flipping one node moves its context peers' numbers too.
 
-The list is the `SCORING_RELEVANT_FIELDS` constant; `update_node` diffs it against the prior node to decide whether to pass `scoring=True` to `_bump_version`. The bulk remappers (`apply_migration`, `apply_node_migration`) test their `field` against the same constant; `apply_taxonomy_migration`, which carries the Contexts editor's renames and moves onto nodes, only ever writes `context` and `subcontext`, so it always bumps both. The split is the optimization: cosmetic edits (description, paths, aliases) bump `_graph_version` only, so the scoring memo stays warm and the next ranking is near-free. **When you add a new scoring-relevant field, add it to `SCORING_RELEVANT_FIELDS` or scores will silently go stale.**
+The list is the `SCORING_RELEVANT_FIELDS` constant; `update_node` diffs it against the prior node to decide whether to pass `scoring=True` to `_bump_version`. The bulk remappers (`apply_migration`, `apply_node_migration`) test their `field` against the same constant; `apply_taxonomy_migration`, which carries the Contexts editor's renames and moves onto nodes, only ever writes `context` and `subcontext`, so it always bumps both. The split is the optimization: cosmetic edits (description, paths, aliases) bump `revisions.graph` only, so the scoring memo stays warm and the next ranking is near-free. **When you add a new scoring-relevant field, add it to `SCORING_RELEVANT_FIELDS` or scores will silently go stale.**
 
 `ConfigManager` has no persistent settings cache. Hot read operations use
 `database.read_snapshot()` / `@database.snapshot_read` to share detached Nodes,

@@ -10,7 +10,7 @@
  *
  * The CLOSE half is deferred to the server: closing must run the same
  * unsaved-changes guard as btn-close-editor (toggle_unsaved_modal +
- * _compute_sidebar_styles), which the browser can't evaluate. So when the
+ * compute_sidebar_styles), which the browser can't evaluate. So when the
  * editor is already open we return no_update and let core_engine decide.
  *
  * btn-editor-new, btn-close-editor, btn-save, etc. stay

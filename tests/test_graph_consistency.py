@@ -10,6 +10,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, EDGE_NEEDS_HARD as HARD, EDGE_NEEDS_SOFT as SOFT
 from test_atomic_saves import graph, save
+from skilltree.store.graph.state import revisions
 
 
 def scores(manager):
@@ -44,7 +45,7 @@ def test_event_wake_invalidates_all_managers(operation):
     events.add_event(Event(name="Wake"))
     events.add_node_to_event("Wake", "B", delay_days=1 if operation == "delayed" else 0)
     scores(m)
-    before = m._scoring_version
+    before = revisions.scoring
     if operation == "trigger":
         events.trigger_event("Wake")
     elif operation == "detach":
@@ -57,7 +58,7 @@ def test_event_wake_invalidates_all_managers(operation):
             conn.execute("UPDATE EventNodes SET activation_date='2000-01-01'")
         events.check_pending_activations()
     assert not m.get_node("B").dormant
-    assert m._scoring_version > before
+    assert revisions.scoring > before
     assert scores(m) == scores(GraphManager())
 
 
@@ -89,7 +90,7 @@ def test_bulk_migration_invalidates_scores(bulk, field, old_val, new_val):
     Regression: the bump read `scoring=field == 'type'`, so a context or
     subcontext remap moved every score — both pick the context weight, decide
     which cascade hops count as cross-context, and group the variety divisors —
-    while leaving _scoring_version untouched.
+    while leaving the scoring revision untouched.
     """
     m = graph("A", "B")
     m.add_edge("A", "B", SOFT)
@@ -99,12 +100,12 @@ def test_bulk_migration_invalidates_scores(bulk, field, old_val, new_val):
             existing.subcontext = old_val
             m.update_node(existing)
     scores(m)
-    before = m._scoring_version
+    before = revisions.scoring
     if bulk:
         m.apply_migration(field, {old_val: new_val})
     else:
         m.apply_node_migration("B", field, new_val)
-    assert m._scoring_version > before
+    assert revisions.scoring > before
     assert scores(m) == scores(GraphManager())
 
 

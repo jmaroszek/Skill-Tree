@@ -17,7 +17,7 @@ _DEFAULT_EDITOR_SIDEBAR_STYLE = {
 }
 
 
-def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
+def compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
                              ed_style, goal_sidebar_style, events_sidebar_style,
                              pending_nav_store,
                              form_state):

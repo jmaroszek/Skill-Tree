@@ -6,6 +6,7 @@ import networkx as nx
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from skilltree.domain.scoring import total_value, score_nodes, build_adjacency
+from skilltree.store.graph.state import revisions
 
 
 # ---------------------------------------------------------------------------
@@ -163,24 +164,23 @@ def test_detect_communities_cache_invalidated_by_mutation(mutate):
     mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
 
     mgr.detect_communities(method="components")
-    version_before = mgr._graph_version
+    version_before = revisions.graph
     mutate(mgr)
-    version_after = mgr._graph_version
+    version_after = revisions.graph
     assert version_after > version_before, (
         f"mutation {mutate} failed to bump graph version: {version_before}->{version_after}"
     )
 
 
-def test_graph_version_monotonic_across_instances():
-    """Version is class-level (shared across instances) so every GraphManager
-    reading the same DB sees the same cache-invalidation signal. All we can
-    assert is that mutations advance it."""
+def test_a_mutation_through_one_manager_refreshes_another():
+    """Every GraphManager reads the same database, so their caches are keyed
+    on the same graph revision: a write through one refreshes the others."""
     mgr = GraphManager()
-    before = mgr._graph_version
-    mgr.add_node(_make_node("VersionBumpNode"))
-    mgr2 = GraphManager()
-    assert mgr2._graph_version > before
-    assert mgr2._graph_version == mgr._graph_version
+    mgr.add_node(_make_node("A"))
+    other = GraphManager()
+    assert other.detect_communities(method="components") == [{"A"}]
+    mgr.add_node(_make_node("B"))
+    assert sorted(map(sorted, other.detect_communities(method="components"))) == [["A"], ["B"]]
 
 
 def test_community_cache_is_per_instance():
@@ -188,7 +188,7 @@ def test_community_cache_is_per_instance():
     mgr1.add_node(_make_node("X"))
     mgr1.detect_communities()
     mgr2 = GraphManager()  # fresh instance on same DB
-    assert mgr2._community_cache == {}, "community cache should be per-instance, not module-global"
+    assert mgr2.caches.communities == {}, "community cache should be per-instance, not module-global"
 
 
 def test_scoring_memo_reused_across_calls_on_same_version():
@@ -202,12 +202,12 @@ def test_scoring_memo_reused_across_calls_on_same_version():
     mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
 
     mgr.calculate_priority_scores([mgr.get_node("A"), mgr.get_node("B")])
-    memo_after_first = mgr._scoring_memo
+    memo_after_first = mgr.caches.scoring_memo
     assert len(memo_after_first) >= 1, "memo should be populated after scoring"
 
     # Second call with same graph — same dict instance, same contents.
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    assert mgr._scoring_memo is memo_after_first, (
+    assert mgr.caches.scoring_memo is memo_after_first, (
         "memo dict should not be replaced when graph version is unchanged"
     )
 
@@ -220,13 +220,13 @@ def test_scoring_memo_invalidated_on_graph_mutation():
     mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
 
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    first_memo = mgr._scoring_memo
-    first_key = mgr._scoring_memo_key
+    first_memo = mgr.caches.scoring_memo
+    first_key = mgr.caches.scoring_key
 
     mgr.add_node(_make_node("C", value=3))
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    assert mgr._scoring_memo_key != first_key, "cache key should advance on mutation"
-    assert mgr._scoring_memo is not first_memo, "memo dict should be replaced"
+    assert mgr.caches.scoring_key != first_key, "cache key should advance on mutation"
+    assert mgr.caches.scoring_memo is not first_memo, "memo dict should be replaced"
 
 
 def test_scoring_memo_survives_cosmetic_edit():
@@ -239,21 +239,21 @@ def test_scoring_memo_survives_cosmetic_edit():
     mgr.add_edge("A", "B", EDGE_NEEDS_SOFT)
 
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    first_memo = mgr._scoring_memo
-    first_scoring_key = mgr._scoring_memo_key
-    graph_ver_before = mgr._graph_version
+    first_memo = mgr.caches.scoring_memo
+    first_scoring_key = mgr.caches.scoring_key
+    graph_ver_before = revisions.graph
 
     # Cosmetic edit: description change only. graph_version advances
     # (so UI re-renders), but scoring_version must NOT advance.
     cosmetic = _make_node("A", value=5, description="updated")
     mgr.update_node(cosmetic)
-    assert mgr._graph_version > graph_ver_before, "graph version should still bump for UI"
+    assert revisions.graph > graph_ver_before, "graph version should still bump for UI"
 
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    assert mgr._scoring_memo is first_memo, (
+    assert mgr.caches.scoring_memo is first_memo, (
         "cosmetic edit wrongly invalidated the scoring memo"
     )
-    assert mgr._scoring_memo_key == first_scoring_key
+    assert mgr.caches.scoring_key == first_scoring_key
 
 
 def test_scoring_memo_invalidated_on_scoring_field_edit():
@@ -262,14 +262,14 @@ def test_scoring_memo_invalidated_on_scoring_field_edit():
     mgr.add_node(_make_node("A", value=5))
 
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    first_key = mgr._scoring_memo_key
+    first_key = mgr.caches.scoring_key
 
     # Value change → scoring-relevant.
     updated = _make_node("A", value=9)
     mgr.update_node(updated)
 
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    assert mgr._scoring_memo_key != first_key, (
+    assert mgr.caches.scoring_key != first_key, (
         "value edit failed to invalidate the scoring memo"
     )
 
@@ -284,11 +284,11 @@ def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
     base = ConfigManager.get_hyperparams()
     monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=1.0)))
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    first_key = mgr._scoring_memo_key
+    first_key = mgr.caches.scoring_key
 
     monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=2.0)))
     mgr.calculate_priority_scores([mgr.get_node("A")])
-    assert mgr._scoring_memo_key != first_key, "cache key should advance on hyperparam change"
+    assert mgr.caches.scoring_key != first_key, "cache key should advance on hyperparam change"
 
 
 def test_goal_subtree_cache_hit_avoids_db(monkeypatch):
@@ -392,8 +392,8 @@ def test_priority_normalizer_invalidated_when_a_node_is_flipped_to_now():
     """Flipping Now on an existing node must drop the cached 0-100 base.
 
     Regression: `now` was missing from SCORING_RELEVANT_FIELDS, so update_node
-    bumped _graph_version but not _scoring_version. get_priority_normalizer
-    excludes Now nodes yet keys its cache on _scoring_version, so the base stayed
+    bumped the graph revision but not the scoring one. get_priority_normalizer
+    excludes Now nodes yet keys its cache on the scoring revision, so the base stayed
     pinned to the node that had just been hidden and every bar on the Home tab
     read against a stale scale. The test above misses this because it introduces
     its Now node with add_node, which always bumps scoring.
@@ -425,12 +425,12 @@ def test_scoring_memo_survives_a_now_reorder():
     mgr.add_node(_make_node("B", value=8, interest=8, now=2))
     mgr.add_node(_make_node("C", value=4, interest=4))
 
-    before = GraphManager._scoring_version
+    before = revisions.scoring
     base = mgr.get_priority_normalizer()
 
     mgr.reorder_now_nodes(["B", "A"])
 
-    assert GraphManager._scoring_version == before
+    assert revisions.scoring == before
     assert mgr.get_priority_normalizer() == pytest.approx(base)
     assert [n.name for n in mgr.get_now_nodes()] == ["B", "A"]
 

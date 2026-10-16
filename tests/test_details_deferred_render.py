@@ -110,9 +110,9 @@ def _suggestion_node(**overrides):
 
 
 def test_details_suggestion_is_a_native_button_with_name_and_context():
-    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.details.layout import build_suggestion_row
 
-    row = _build_suggestion_row(_suggestion_node())
+    row = build_suggestion_row(_suggestion_node())
 
     assert type(row).__name__ == "Button"
     assert row.type == "button"
@@ -230,9 +230,9 @@ def test_subtask_pencil_opens_that_node_in_editor(monkeypatch):
 
 
 def test_details_suggestion_without_context_keeps_an_empty_second_line():
-    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.details.layout import build_suggestion_row
 
-    row = _build_suggestion_row(_suggestion_node(context=None, subcontext=None),
+    row = build_suggestion_row(_suggestion_node(context=None, subcontext=None),
                                 priority=12)
 
     copy, badge = row.children
@@ -242,10 +242,10 @@ def test_details_suggestion_without_context_keeps_an_empty_second_line():
 
 def test_priority_rank_badges_share_the_orange_rank_color():
     """Regression: the Details rank badge once borrowed the Goal yellow."""
-    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.details.layout import build_suggestion_row
     from skilltree.features.goals.layout import build_goal_card
 
-    row = _build_suggestion_row(_suggestion_node(), priority_rank=2)
+    row = build_suggestion_row(_suggestion_node(), priority_rank=2)
     badge = row.children[-1]
     assert badge.children == "2"
     assert badge.style["backgroundColor"] == "#f39c12"
@@ -257,10 +257,10 @@ def test_priority_rank_badges_share_the_orange_rank_color():
 
 
 def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
-    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.details.layout import build_suggestion_row
     from skilltree.features.goals.layout import build_goal_card
 
-    row = _build_suggestion_row(_suggestion_node(), priority=54)
+    row = build_suggestion_row(_suggestion_node(), priority=54)
     badge = row.children[-1]
     assert badge.children == "54"
     assert getattr(row, "aria-label") == "View Sleep. Priority score 54, Health"

@@ -79,20 +79,6 @@ KNOWN_VIOLATIONS = {
     'deferred: skilltree.store.transfer -> skilltree.store.graph.manager',
     'deferred: skilltree.store.transfer -> skilltree.store.settings',
     'deferred: skilltree.ui.canvas.view -> skilltree.ui.styles',
-    'layer: skilltree.store.commands -> skilltree.ui.payloads',
-    'layer: skilltree.ui.canvas.view -> skilltree.engine.response',
-    'private: skilltree.domain.goals -> skilltree.domain.scoring._done_names',
-    'private: skilltree.domain.goals -> skilltree.domain.scoring._goals_above',
-    'private: skilltree.domain.goals -> skilltree.domain.scoring._milestone_names',
-    'private: skilltree.domain.goals -> skilltree.domain.scoring._strongest_routes',
-    'private: skilltree.engine.callbacks -> skilltree.engine.sidebars._compute_sidebar_styles',
-    'private: skilltree.features.details.callbacks -> skilltree.features.details.layout._build_suggestion_row',
-    'private: skilltree.features.events.callbacks -> skilltree.features.events.layout._event_trigger_type',
-    'private: skilltree.shell -> skilltree.features.home.view._initial_next_view',
-    'private: skilltree.store.graph.manager -> skilltree.domain.rules._canonicalize_edge',
-    'private: skilltree.store.graph.manager -> skilltree.domain.rules._is_prereq_satisfied',
-    'private: skilltree.store.graph.manager -> skilltree.store.graph.queries._build_nx_graph',
-    'private: skilltree.store.transfer -> skilltree.domain.rules._canonicalize_edge',
 }
 
 

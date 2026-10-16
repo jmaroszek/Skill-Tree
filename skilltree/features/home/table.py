@@ -397,7 +397,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
 
 @database.snapshot_read
-def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
+def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
     """Render the 'Now' section for the Home tab as a row of rich cards.
 
     Each Now node gets a wide horizontal card: a left accent bar in the node's
@@ -410,9 +410,6 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
     When there are no Now nodes the section is suppressed entirely —
     return [] so the Next heading sits at the top of the tab.
-
-    The `cap` argument is accepted for forward-compatibility but no longer
-    surfaced — the cap is enforced in the toggle/context-menu callbacks.
     """
     if not now_nodes:
         return []

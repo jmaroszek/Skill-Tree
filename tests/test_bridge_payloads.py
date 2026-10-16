@@ -94,7 +94,7 @@ def test_set_priority_on_a_goal_whose_name_has_a_pipe(manager):
 
 
 def test_group_delete_removes_only_the_named_node(manager):
-    handle_group_delete(manager, f'["A|B"]|{STAMP}')
+    handle_group_delete(manager, bridge.names(f'["A|B"]|{STAMP}'))
 
     assert manager.get_node("A|B") is None
     assert manager.get_node("A") is not None

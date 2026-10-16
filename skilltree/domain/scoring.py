@@ -174,7 +174,7 @@ def is_eligible(node_name: str, hard_in: dict, all_nodes: dict) -> bool:
     return True
 
 
-def _done_names(all_nodes, memo):
+def done_names(all_nodes, memo):
     """Names of Done nodes, cached in `memo` like the other status-derived maps."""
     key = ('done',)
     if key not in memo:
@@ -183,7 +183,7 @@ def _done_names(all_nodes, memo):
     return memo[key]
 
 
-def _milestone_names(all_nodes, memo):
+def milestone_names(all_nodes, memo):
     """Names of Milestones, which scoring treats as free hops."""
     key = ('milestones',)
     if key not in memo:
@@ -201,7 +201,7 @@ def _better_route(candidate, old):
                            < (-old[0], old[1], _ROUTE_PREFERENCE[old[2]]))
 
 
-def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
+def strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
                       free=frozenset()):
     """One strongest route per beneficiary; deterministic ties prefer fewer hops.
 
@@ -245,12 +245,12 @@ def _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip=frozenset(),
     return routes
 
 
-def _goals_above(H_out, all_nodes, memo, skip):
+def goals_above(H_out, all_nodes, memo, skip):
     """For each node, the nearest Goals it leads to along Hard edges alone.
 
     A walk stops at the first Goal on each path, so a task under a sub-Goal
     lists the sub-Goal, not the Goals above it. Routes stop at skipped nodes,
-    as they do in _strongest_routes, except at a skipped (Done) Goal: the walk
+    as they do in strongest_routes, except at a skipped (Done) Goal: the walk
     goes on past it. A sub-Goal can be marked Done with work still unfinished
     under it, and the Goal ranker still counts that work toward the Goals
     above, so the parent credits it. Returns (nearest,
@@ -302,7 +302,7 @@ def _goals_above(H_out, all_nodes, memo, skip):
 
 def _passed_path(start, goal, H_out, passable):
     """A Hard path from `start` to `goal` whose inner nodes are all
-    `passable`: the way _goals_above reached `goal` past Done Goals."""
+    `passable`: the way goals_above reached `goal` past Done Goals."""
     previous = {start: None}
     queue = deque([start])
     while queue:
@@ -338,17 +338,17 @@ def _credited_routes(start, all_nodes, H_out, S_out, d_H, d_S, memo,
     Nesting Goals deeper therefore adds less each level instead of a full
     share. Entries keep the step of the ordinary strongest route to the Goal,
     so Focus draws a real path. A Goal reached only past Done nodes (see
-    _goals_above) has no such route. Its step leads back through them, and
+    goals_above) has no such route. Its step leads back through them, and
     memo[('passed', ...)] holds the steps into those Done Goals for Focus.
     """
-    free = _milestone_names(all_nodes, memo)
-    routes = _strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip, free)
+    free = milestone_names(all_nodes, memo)
+    routes = strongest_routes(start, H_out, S_out, d_H, d_S, memo, skip, free)
     if not flat_goals:
         return routes
     key = ('credited', start, d_H, d_S, skip)
     if key in memo:
         return memo[key]
-    nearest, goal_order = _goals_above(H_out, all_nodes, memo, skip)
+    nearest, goal_order = goals_above(H_out, all_nodes, memo, skip)
     credited = dict(routes)
     passed = {}
     done_goals = {name for name in skip if all_nodes[name].type == 'Goal'}
@@ -429,7 +429,7 @@ def _value_contributions(start, all_nodes, H_out, S_out, Syn, w_v, w_i,
         return [] if with_attribution else 0.0
     strength, anticipation, cross_context_mult = synergy_parameters(
         d_Syn_pair, d_Syn_mul, cross_context_mult)
-    skip = _done_names(all_nodes, memo) if skip_done else frozenset()
+    skip = done_names(all_nodes, memo) if skip_done else frozenset()
     values, rows = {}, {}
 
     def required_work(name):
@@ -730,7 +730,7 @@ def score_nodes(
 
     # Outer-call memo for total_value. When external_memo is supplied (by
     # GraphManager), reuse its cached values across score_nodes invocations
-    # — safe because GraphManager invalidates on _scoring_version / hyperparam
+    # — safe because GraphManager invalidates on the scoring revision / hyperparam
     # changes, which are the only inputs outer total_value depends on.
     # Direct callers (tests) without a memo get fresh per-call state.
     # Maps contain unique beneficiaries and required hard work; scalar totals
@@ -875,7 +875,7 @@ def score_nodes(
 def _reachable_topo(start: str, H_out: dict, S_out: dict) -> List[str]:
     """Topological order of the nodes `start` reaches along Hard and Soft edges.
 
-    _strongest_routes relaxes routes in this order, so each node is processed
+    strongest_routes relaxes routes in this order, so each node is processed
     only after all its Hard/Soft predecessors. The DAG property of Hard+Soft
     makes the order well defined; a cyclic portion is left out.
     """
@@ -1076,7 +1076,6 @@ def explain_score(
             'd_Syn_pair': d_Syn_pair, 'd_Syn_mul': d_Syn_mul,
             'cross_context_mult': cross_context_mult,
             'goal_boost': goal_boost,
-            'alpha': 0.0,  # Compatibility for older Explain consumers.
             'value_exponent': value_exponent,
             'future_work_half_credit_hours': hyperparams.get('future_work_half_credit_hours', 0.0),
             'future_work_exponent': hyperparams.get('future_work_exponent', 0.6),
@@ -1107,7 +1106,6 @@ def explain_score(
         'context_adjustment': {
             'weight': ctx_weight,
             'n_bucket': 1,
-            'alpha': 0.0,  # Compatibility for older Explain consumers.
             'density_mult': 1.0,
             'combined_multiplier': combined_ctx_mult,
         },
@@ -1161,7 +1159,7 @@ def focus_route_data(
     d_S = hyperparams.get('d_S', 0.40)
     H_out, S_out, _, _ = build_adjacency(edges, set(all_nodes_dict.keys()))
     memo: dict = {}
-    skip = _done_names(all_nodes_dict, memo) if skip_done else frozenset()
+    skip = done_names(all_nodes_dict, memo) if skip_done else frozenset()
     hop_type = {'Hard': EDGE_NEEDS_HARD, 'Soft': EDGE_NEEDS_SOFT}
 
     # A Helps edge is stored one way round, and the canvas matches that one.

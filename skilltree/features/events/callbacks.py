@@ -13,7 +13,7 @@ from skilltree.features.events.announcements import register_announcement_callba
 from skilltree.features.events.dormant import register_dormant_callbacks
 from skilltree.features.events.graph import register_event_graph_callbacks
 from skilltree.features.events.layout import (
-    _event_trigger_type,
+    event_trigger_type,
     build_dormant_nodes_table,
     build_event_card,
     build_triggered_divider,
@@ -124,8 +124,8 @@ def register_event_callbacks(app, services=None):
             events = sorted(
                 events,
                 key=lambda e: (
-                    type_order[_event_trigger_type(e)],
-                    e.trigger_date or "" if _event_trigger_type(e) == "date" else "",
+                    type_order[event_trigger_type(e)],
+                    e.trigger_date or "" if event_trigger_type(e) == "date" else "",
                     (e.name or "").lower(),
                 ),
             )
@@ -429,7 +429,7 @@ def register_event_callbacks(app, services=None):
         trigger_style = {"display": "none"} if event.status == "Triggered" else {
             "display": "flex", "alignItems": "center"
         }
-        t_type = _event_trigger_type(event)
+        t_type = event_trigger_type(event)
 
         return (
             event_name,
@@ -474,7 +474,7 @@ def register_event_callbacks(app, services=None):
         trigger_style = {"display": "none"} if event.status == "Triggered" else {
             "display": "flex", "alignItems": "center"
         }
-        t_type = _event_trigger_type(event)
+        t_type = event_trigger_type(event)
 
         detail = (
             event_name,

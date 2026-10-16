@@ -8,7 +8,7 @@ import dash
 import pytest
 
 from skilltree.features.home.callbacks import register_next_callbacks
-from skilltree.features.home.view import _initial_next_view, _components_by_id
+from skilltree.features.home.view import initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
 
@@ -42,7 +42,7 @@ def test_initial_next_is_populated_and_reads_the_sidebar_controls():
     # the sidebar always opens unfiltered, so set the control directly.
     sidebars = build_all_sidebars()
     _components_by_id(sidebars)['filter-value'].value = [4, 10]
-    view = _initial_next_view(next_view, sidebars)
+    view = initial_next_view(next_view, sidebars)
     table = _components_by_id(view)['suggestions-table']
     from plotly.utils import PlotlyJSONEncoder
     payload = json.dumps(table, cls=PlotlyJSONEncoder)

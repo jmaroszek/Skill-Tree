@@ -153,18 +153,18 @@ def test_community_cache_is_bounded_and_discards_old_versions():
         m.add_node(node(f"N{i}", context=f"C{i}"))
     for i in range(40):
         m.detect_communities(filters={'context': [f"C{i}"]})
-    assert len(m._community_cache) <= 32
+    assert len(m.caches.communities) <= 32
     for _ in range(20):
         m._bump_version(scoring=False)
         m.detect_communities()
-        assert len(m._community_cache) == 1
+        assert len(m.caches.communities) == 1
 
 
 def test_subtree_cache_is_bounded():
     m = graph("A")
     for i in range(160):
         m.get_goal_subtree(f"Absent{i}")
-    assert len(m._goal_subtree_cache) <= 128
+    assert len(m.caches.subtrees) <= 128
 
 
 def test_snapshot_scope_is_released_after_exception():

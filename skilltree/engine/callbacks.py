@@ -11,7 +11,7 @@ import functools
 import logging
 import time
 from skilltree.store import database
-from skilltree.engine.sidebars import _compute_sidebar_styles
+from skilltree.engine.sidebars import compute_sidebar_styles
 from skilltree.engine.response import CoreResponse
 from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
 
@@ -56,6 +56,7 @@ from skilltree.features.nodes.callbacks import register_nodes_callbacks
 from skilltree.features.home.now import register_now_callbacks
 from skilltree.features.review.ratings import register_reflection_ratings_callbacks
 from skilltree.ui.tabs import register_tab_callbacks
+from skilltree.store.graph.state import revisions
 
 logger = logging.getLogger(__name__)
 
@@ -293,8 +294,8 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def sync_graph_version(_stamp, _events, _details, _settings, current):
-        if manager._graph_version != current:
-            return manager._graph_version
+        if revisions.graph != current:
+            return revisions.graph
         return dash.no_update
 
 
@@ -491,7 +492,7 @@ def register_callbacks(app, services=None):
         # window in which other callbacks could race with us.
         if (trigger_id in _EDITOR_UI_ONLY_TRIGGERS
                 and all_triggered_ids <= _EDITOR_UI_ONLY_TRIGGERS):
-            ed, goal, events = _compute_sidebar_styles(
+            ed, goal, events = compute_sidebar_styles(
                 trigger_id, all_triggered_ids, search_val,
                 ed_style, goal_sidebar_style, events_sidebar_style,
                 pending_nav_store, form_state,
@@ -516,7 +517,7 @@ def register_callbacks(app, services=None):
         # Editor Sidebar State — delegate to the shared helper so both the
         # short-circuit path above and the full path below compute sidebars
         # identically.
-        next_ed_style, next_goal_style, next_events_sidebar_style = _compute_sidebar_styles(
+        next_ed_style, next_goal_style, next_events_sidebar_style = compute_sidebar_styles(
             trigger_id, all_triggered_ids, search_val,
             ed_style, goal_sidebar_style, events_sidebar_style,
             pending_nav_store, form_state,
@@ -880,7 +881,8 @@ def register_callbacks(app, services=None):
                 msg = _unexpected_error_message("Reopening the nodes")
         elif trigger_id == 'group-delete-input' and group_delete_data:
             try:
-                msg = handle_group_delete(manager, group_delete_data)
+                # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
+                msg = handle_group_delete(manager, bridge_payloads.names(group_delete_data))
             except ValueError as e:
                 msg = f"Error: {e}"
             except Exception:
@@ -898,9 +900,9 @@ def register_callbacks(app, services=None):
         else:
             canvas_selection = KEEP_SELECTION
         with database.read_snapshot():
-            view = build_canvas_view(
+            view = CoreResponse(**build_canvas_view(
                 manager, render_elements, trigger_id, canvas_selection, community_method, filters, f_community, focus_goal, focus_subtree_override, focus_path_info,
-                community_memory=community_memory)
+                community_memory=community_memory)._asdict())
 
         # Time-calibration: when an explicit single-node completion just
         # happened and the feature is enabled, open the modal to capture how

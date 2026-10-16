@@ -354,7 +354,7 @@ def register_editor_callbacks(app, services=None):
             # No unsaved changes — clear and reset, including the search bar so it
             # doesn't keep showing the previously-loaded node. Clearing search-node
             # re-fires core_engine with an empty value, but the editor is already
-            # open here and _compute_sidebar_styles guards that case (search-node +
+            # open here and compute_sidebar_styles guards that case (search-node +
             # no value → leave the editor untouched), so it stays open.
             def_out[27] = None  # search-node value position
             if trigger_id == 'details-add-choice-input':

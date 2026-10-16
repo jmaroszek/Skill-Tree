@@ -20,7 +20,7 @@ from skilltree.store.graph import scoring as graph_scoring
 from skilltree.domain import rules as graph_rules
 from skilltree.store.graph.repository import GraphRepository, record_ledger
 from skilltree.store.graph.state import (
-    SCORING_RELEVANT_FIELDS, CacheValue, GraphCaches, RevisionValue, revisions,
+    SCORING_RELEVANT_FIELDS, GraphCaches, revisions,
 )
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.settings import ConfigManager
@@ -50,23 +50,14 @@ def _utc_now_ts() -> int:
 class GraphManager:
     """Single gateway for all graph state reads and writes.
 
-    Every callback module constructs its own GraphManager instance, but
-    the underlying SQLite file and the invalidation version counters are
-    shared (class-level) so a mutation in one instance is seen by every
-    other instance's cache.
+    Every callback module constructs its own GraphManager instance. They
+    share the SQLite file and the revisions in graph.state that their caches
+    are keyed on, so a mutation through one is seen by every other's cache.
     """
-    # Versions are class-level because every GraphManager instance in this
-    # codebase (one per callback module) reads the same DB. Per-instance
-    # versions would diverge when instance A mutates the DB but instance B's
-    # cache only checks its own unchanged counter. Versions only ever advance,
-    # so the monotonic contract still holds for cache invalidation.
-    _graph_version = RevisionValue("graph")
-    _scoring_version = RevisionValue("scoring")
     # Class-level queue of container names whose hard prereqs just became
     # all Done as a side-effect of an update_node call. Drained by the UI to
-    # surface a "Mark Done?" suggestion modal. Class-level (not instance) for
-    # the same reason as _graph_version: every GraphManager touches the same
-    # DB and needs to see the same pending candidates regardless of which
+    # surface a "Mark Done?" suggestion modal. Class-level (not instance) because
+    # every GraphManager touches the same DB and needs to see the same pending candidates regardless of which
     # instance initiated the mutation.
     _auto_done_candidates: List[str] = []
     # Latest scoring-run timings (dict with adj_ms/goals_ms/score_ms/rank_ms/
@@ -78,21 +69,12 @@ class GraphManager:
     # is on. Reset across test boundaries by the tmp_perf_log fixture.
     _startup_perf_recorded: bool = False
 
-    _community_cache = CacheValue('communities')
-    _scoring_memo = CacheValue('scoring_memo')
-    _scoring_memo_key = CacheValue('scoring_key')
-    _normalizer = CacheValue('normalizer')
-    _normalizer_key = CacheValue('normalizer_key')
-    _goal_subtree_cache = CacheValue('subtrees')
-    _read_cache_epoch = CacheValue('read_epoch')
-    _cache_lock = CacheValue('lock')
-
     def __init__(self):
         self._repository = GraphRepository(lambda: self.get_connection())
         self.caches = GraphCaches()
 
     def _prepare_read_caches(self):
-        epoch = (database.get_db_path(), self._graph_version)
+        epoch = (database.get_db_path(), revisions.graph)
         if epoch != self.caches.read_epoch:
             self.caches.communities.clear()
             self.caches.subtrees.clear()
@@ -286,7 +268,7 @@ class GraphManager:
         self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
-        # (a scoring-relevant field), so it sets _scoring_version directly.
+        # (a scoring-relevant field), so it bumps the scoring revision itself.
         scoring_changed = prior is None or any(
             getattr(prior, f, None) != getattr(node, f, None)
             for f in SCORING_RELEVANT_FIELDS
@@ -481,7 +463,7 @@ class GraphManager:
             stored = set(rows)
             fixed = 0
             for source, target in rows:
-                canonical = self._canonicalize_edge(source, target, EDGE_HELPS)
+                canonical = self.canonicalize_edge(source, target, EDGE_HELPS)
                 if canonical == (source, target):
                     continue
                 conn.execute("DELETE FROM Edges WHERE source=? AND target=? AND type=?",
@@ -664,14 +646,14 @@ class GraphManager:
     # --- Edge Operations ---
 
     @staticmethod
-    def _canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, str]:
+    def canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, str]:
         """Helps is bidirectional: (A,B,Helps) and (B,A,Helps) describe the
         same fact (verified in scoring.build_adjacency, which mirrors Syn for
         either row). Canonicalize so only one row per pair can exist by
         sorting endpoints lexically. Hard/Soft direction is meaningful and
         kept as-is.
         """
-        return graph_rules._canonicalize_edge(source, target, edge_type)
+        return graph_rules.canonicalize_edge(source, target, edge_type)
 
     def _check_pair_conflict(self, cursor, source: str, target: str, edge_type: str) -> None:
         """Raise if a CONFLICTING edge already exists between this pair.
@@ -706,7 +688,7 @@ class GraphManager:
         if source == target:
             raise ValueError("Self-loop edges are not allowed.")
 
-        source, target = self._canonicalize_edge(source, target, edge_type)
+        source, target = self.canonicalize_edge(source, target, edge_type)
 
         if edge_type in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
             if self._will_create_cycle(source, target):
@@ -890,9 +872,9 @@ class GraphManager:
         return False
 
     @staticmethod
-    def _is_prereq_satisfied(p_node) -> bool:
+    def is_prereq_satisfied(p_node) -> bool:
         """Check if a prerequisite node is satisfied (Done)."""
-        return graph_rules._is_prereq_satisfied(p_node)
+        return graph_rules.is_prereq_satisfied(p_node)
 
     @database.atomic
     def _update_node_state(self, node_name: str):
@@ -1162,7 +1144,7 @@ class GraphManager:
         Reuses per-manager route and required-work maps across calls: a filter toggle,
         priority-goal change, or cosmetic edit (description, tags, paths)
         doesn't alter scoring inputs, so the strongest-route and prerequisite maps
-        do not need re-walking. Invalidated only when _scoring_version
+        do not need re-walking. Invalidated only when the scoring revision
         advances (a scoring-relevant node/edge mutation) or a TV-affecting
         hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
         context weights don't affect the
@@ -1293,9 +1275,9 @@ class GraphManager:
     def hidden_by_status(self, nodes: List[Node], filters: Dict) -> Dict[str, int]:
         return graph_queries.hidden_by_status(self, nodes, filters)
 
-    def _build_nx_graph(self, allowed_names: Optional[Set[str]] = None,
+    def build_nx_graph(self, allowed_names: Optional[Set[str]] = None,
                         include_dormant: bool = False) -> "nx.Graph":
-        return graph_queries._build_nx_graph(self, allowed_names, include_dormant)
+        return graph_queries.build_nx_graph(self, allowed_names, include_dormant)
 
     # --- Migration ---
 

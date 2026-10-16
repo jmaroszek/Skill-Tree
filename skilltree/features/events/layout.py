@@ -13,7 +13,6 @@ from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
-pass
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import events_graph_stylesheet
 from skilltree.ui.canvas.settings_panel import (
@@ -445,7 +444,7 @@ def build_events_tab_content():
     })
 
 
-def _event_trigger_type(event):
+def event_trigger_type(event):
     """Returns the trigger type string for an event."""
     if event.trigger_nodes:
         return "node"
@@ -627,7 +626,7 @@ def _projected_wake(event, delay_days: int) -> str:
     redundancy in exchange for the Wakes column always answering its own
     question.
     """
-    if event is not None and _event_trigger_type(event) == "date":
+    if event is not None and event_trigger_type(event) == "date":
         try:
             when = date.fromisoformat(event.trigger_date) + timedelta(days=delay_days)
         except (TypeError, ValueError):

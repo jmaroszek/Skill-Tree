@@ -260,7 +260,7 @@ def _validated_graph(tables) -> dict:
                               "the export doesn't include.")
         if source == target:
             raise _refuse(f"The node {_shown(source)} is related to itself.")
-        source, target = graph_rules._canonicalize_edge(source, target, kind)
+        source, target = graph_rules.canonicalize_edge(source, target, kind)
         edges[source, target, kind] = {**row, "source": source, "target": target}
         if kind != EDGE_HELPS:
             pair = frozenset((source, target))

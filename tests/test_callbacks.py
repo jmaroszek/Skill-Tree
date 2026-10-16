@@ -430,21 +430,15 @@ class TestHandleGroupDelete:
         manager.add_node(_make_node("A"))
         manager.add_node(_make_node("B"))
         manager.add_node(_make_node("C"))
-        msg = handle_group_delete(manager,'["A","B"]')
+        msg = handle_group_delete(manager, ["A", "B"])
         assert manager.get_node("A") is None
         assert manager.get_node("B") is None
         assert manager.get_node("C") is not None
         assert "2" in msg
 
     def test_empty_list_no_error(self):
-        msg = handle_group_delete(manager,"[]")
+        msg = handle_group_delete(manager, [])
         assert msg == ""
-
-    def test_timestamp_suffix_stripped(self):
-        manager.add_node(_make_node("X"))
-        msg = handle_group_delete(manager,'["X"]|1234567890')
-        assert manager.get_node("X") is None
-        assert "1" in msg
 
 
 # ============================================================================

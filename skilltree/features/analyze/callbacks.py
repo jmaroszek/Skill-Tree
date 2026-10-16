@@ -32,6 +32,7 @@ from skilltree.features.analyze.charts import (
     render_reflection_drift_chart as _render_reflection_drift_chart,
     render_throughput_chart as _render_throughput_chart,
 )
+from skilltree.store.graph.state import revisions
 
 graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
@@ -221,7 +222,7 @@ def _analyze_signature():
     listed on their own because adding an empty one bumps nothing, the
     ratings rubric because the tooltips quote it, and the date because the
     charts are dated."""
-    return [_PROCESS_EPOCH, GraphManager._graph_version,
+    return [_PROCESS_EPOCH, revisions.graph,
             ConfigManager.get_contexts(), ConfigManager.get_ratings_definitions(),
             date.today().isoformat()]
 

@@ -23,6 +23,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 from support.triggers import fire
+from skilltree.store.graph.state import revisions
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -231,15 +232,14 @@ def test_every_laid_out_canvas_redraws_when_the_graph_changes():
 def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     from skilltree.ui.canvas.view import build_canvas_view
     from skilltree.engine.callbacks import generate_elements
-    from skilltree.store.graph.manager import GraphManager
     from test_atomic_saves import graph
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', 'Needs_Hard')
-    version = GraphManager._graph_version
+    version = revisions.graph
     view = build_canvas_view(
         manager, generate_elements, 'filter-context', None,
         'components', {}, 'All', 'B', None, None)
     assert {e['data']['id'] for e in view.elements if 'source' not in e['data']} == {'A', 'B'}
     assert view.clear_focus_style == {'display': 'inline-block'}
     assert any(rule['selector'] == 'node[id = "A"]' for rule in view.stylesheet)
-    assert GraphManager._graph_version == version
+    assert revisions.graph == version

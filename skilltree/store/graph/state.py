@@ -64,24 +64,3 @@ class GraphCaches:
     inherited_times: object = None
     read_epoch: object = None
     lock: object = field(default_factory=threading.Lock)
-
-
-class RevisionValue:
-    """Read compatibility for GraphManager's former class-level counters."""
-    def __init__(self, name):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        return getattr(revisions, self.name)
-
-
-class CacheValue:
-    """Compatibility for callers inspecting a manager's existing private caches."""
-    def __init__(self, name):
-        self.name = name
-
-    def __get__(self, instance, owner):
-        return self if instance is None else getattr(instance.caches, self.name)
-
-    def __set__(self, instance, value):
-        setattr(instance.caches, self.name, value)

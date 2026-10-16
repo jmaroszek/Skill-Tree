@@ -5,6 +5,7 @@ from skilltree.store import database
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import score_nodes
+from skilltree.store.graph.state import revisions
 
 
 def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
@@ -13,7 +14,7 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
     Reuses per-manager route and required-work maps across calls: a filter toggle,
     priority-goal change, or cosmetic edit (description, tags, paths)
     doesn't alter scoring inputs, so the strongest-route and prerequisite maps
-    do not need re-walking. Invalidated only when _scoring_version
+    do not need re-walking. Invalidated only when the scoring revision
     advances (a scoring-relevant node/edge mutation) or a TV-affecting
     hyperparam changes. Cost params (w_e, w_t, beta), goal_boost, and the
     context weights don't affect the
@@ -25,7 +26,7 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
                          'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult',
                          'future_work_half_credit_hours', 'future_work_exponent')
     hypers_key = tuple((k, hypers.get(k)) for k in TV_AFFECTING_KEYS)
-    cache_key = (database.get_db_path(), manager._scoring_version, hypers_key)
+    cache_key = (database.get_db_path(), revisions.scoring, hypers_key)
     with manager.caches.lock:
         if cache_key != manager.caches.scoring_key:
             manager.caches.scoring_memo = {}
@@ -79,7 +80,7 @@ def get_priority_normalizer(manager) -> float:
     hypers = ConfigManager.get_hyperparams()
     hypers['context_weights'] = ConfigManager.get_context_weights()
     priority_goals = ConfigManager.get_priority_goals()
-    cache_key = (database.get_db_path(), manager._scoring_version,
+    cache_key = (database.get_db_path(), revisions.scoring,
                  json.dumps(hypers, sort_keys=True, default=str),
                  tuple(priority_goals or ()))
     with manager.caches.lock:

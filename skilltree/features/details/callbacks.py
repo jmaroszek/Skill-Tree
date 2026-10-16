@@ -11,7 +11,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
-from skilltree.features.details.layout import (_build_suggestion_row, build_details_suggestions)
+from skilltree.features.details.layout import (build_suggestion_row, build_details_suggestions)
 from skilltree.ui.prerender import prerendered
 from skilltree.features.details.explore import select_explore_goals
 from skilltree.ui.canvas.elements import (
@@ -597,7 +597,7 @@ def register_details_callbacks(app, services=None):
             goal_node = nodes_by_name.get(goal_name)
             if not goal_node or goal_node.status == STATUS_DONE:
                 continue
-            goal_rows.append(_build_suggestion_row(
+            goal_rows.append(build_suggestion_row(
                 goal_node, priority_rank=rank))
             priority_names.append(goal_name)
             seen.add(goal_name)
@@ -626,7 +626,7 @@ def register_details_callbacks(app, services=None):
             seed_names=priority_names,
         )
         explore_rows = [
-            _build_suggestion_row(goal, priority=priorities[goal.name])
+            build_suggestion_row(goal, priority=priorities[goal.name])
             for goal in explore
         ]
         filters_active = is_filters_active(

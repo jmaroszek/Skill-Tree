@@ -12,6 +12,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD as HARD
 from skilltree.store.commands import handle_save
+from skilltree.store.graph.state import revisions
 
 
 def node(name, **kwargs):
@@ -59,11 +60,11 @@ def test_jointly_cyclic_edges_roll_back():
 
 def test_rejected_editor_save_preserves_fields_versions_and_edges():
     m = graph("A", "B")
-    before = (m._graph_version, m._scoring_version)
+    before = (revisions.graph, revisions.scoring)
     with pytest.raises(ValueError):
         save(m, "A", e_needs_h=["B"], e_supp_h=["B"])
     assert m.get_node("A").description == "original"
-    assert (m._graph_version, m._scoring_version) == before
+    assert (revisions.graph, revisions.scoring) == before
     assert m.get_edges() == []
 
 

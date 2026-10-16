@@ -1,5 +1,4 @@
 """Editor node operations sharing the existing atomic manager transactions."""
-from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT,
@@ -402,13 +401,11 @@ def handle_toggle_done(manager, tapped_node):
 
 
 @database.atomic
-def handle_group_delete(manager, group_delete_data):
-    """Delete multiple nodes from a JSON-encoded list. Returns a status message.
+def handle_group_delete(manager, names):
+    """Delete the named nodes. Returns a status message.
 
     All or nothing: one transaction, so a failure part-way through deletes none.
     """
-    # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
-    names = bridge_payloads.names(group_delete_data)
     for node_name in names:
         manager.delete_node(node_name)
     return f"Deleted {len(names)} node(s)" if names else ""

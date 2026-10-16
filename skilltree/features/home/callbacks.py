@@ -11,7 +11,6 @@ from skilltree.store import database
 
 from dash import Input, Output, State, ALL, ClientsideFunction, no_update
 from skilltree.store.graph.manager import GraphManager
-from skilltree.store.settings import ConfigManager
 from skilltree.features.home.table import (
     format_now_nodes_section, format_suggestions_table,
 )
@@ -79,7 +78,7 @@ def register_next_callbacks(app, services=None):
     )
 
     # Not on page load. The layout already carries this table, built from the
-    # same snapshot and filters (next_view._initial_next_view), and rebuilding
+    # same snapshot and filters (next_view.initial_next_view), and rebuilding
     # it there cost more than the request. Dash held the core engine behind
     # it, because the table feeds selected-suggestion-store, one of the core
     # engine's States, and so the whole startup waited on a copy of what was
@@ -133,7 +132,6 @@ def register_next_callbacks(app, services=None):
         now_nodes = manager.get_now_nodes()
         return format_now_nodes_section(
             now_nodes,
-            cap=ConfigManager.get_now_node_cap(),
             manager=manager,
             selected_node_id=selected_node_id,
         )

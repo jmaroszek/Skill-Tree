@@ -211,7 +211,7 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
 
     suggestion.now = 1
     manager.update_node(suggestion)
-    now_section = format_now_nodes_section([suggestion], 5, manager)
+    now_section = format_now_nodes_section([suggestion], manager)
     now_row = _find(
         now_section,
         {"type": "now-row", "index": "Suggestion"},
@@ -227,7 +227,7 @@ def test_now_card_context_uses_readable_body_size():
     node = _node("Suggestion", context="Money", subcontext="Business", now=1)
     manager.add_node(node)
 
-    now_section = format_now_nodes_section([node], 5, manager)
+    now_section = format_now_nodes_section([node], manager)
     now_row = _find(now_section, {"type": "now-row", "index": "Suggestion"})
     _accent, card_body = now_row.children
     _top_row, context_line = card_body.children

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
 from skilltree.store import database
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
+from skilltree.store.graph.state import revisions
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -86,7 +87,7 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
     with manager.caches.lock:
         manager._prepare_read_caches()
         cached = manager.caches.subtrees.get(cache_key)
-        if not database.in_transaction() and cached is not None and cached[0] == manager._graph_version:
+        if not database.in_transaction() and cached is not None and cached[0] == revisions.graph:
             return set(cached[1])
 
     # Separate directed and bidirectional edge types
@@ -117,7 +118,7 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
         with manager.caches.lock:
             if len(manager.caches.subtrees) >= 128:
                 manager.caches.subtrees.pop(next(iter(manager.caches.subtrees)))
-            manager.caches.subtrees[cache_key] = (manager._graph_version, frozenset(visited))
+            manager.caches.subtrees[cache_key] = (revisions.graph, frozenset(visited))
     return visited
 
 
@@ -343,9 +344,9 @@ def inherited_times(manager) -> Dict[str, float]:
         manager._prepare_read_caches()
         cached = manager.caches.inherited_times
         if (not database.in_transaction() and cached is not None
-                and cached[0] == manager._graph_version):
+                and cached[0] == revisions.graph):
             return dict(cached[1])
-    version = manager._graph_version
+    version = revisions.graph
 
     nodes = {n.name: n for n in manager.get_all_nodes(include_dormant=True)}
     prerequisites = {}
@@ -500,7 +501,7 @@ def _matching_terms(manager, nodes: List[Node], terms: List[str],
     return [n for n in nodes if all(term in text(n) for term in terms)]
 
 
-def _build_nx_graph(manager, allowed_names: Optional[Set[str]] = None,
+def build_nx_graph(manager, allowed_names: Optional[Set[str]] = None,
                     include_dormant: bool = False) -> "nx.Graph":
     """The undirected graph of the nodes in ``allowed_names`` (any node, when
     it is given; otherwise the awake ones, or all with ``include_dormant``)."""
@@ -562,11 +563,11 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
     else:
         allowed_names = None
 
-    # Cache keyed by (method, sorted allowed names, graph_version). The
+    # Cache keyed by (method, sorted allowed names, graph revision). The
     # version key makes invalidation automatic: any mutator bumps the
     # version, so subsequent calls miss and recompute.
     allowed_key = tuple(sorted(allowed_names)) if allowed_names is not None else None
-    cache_key = (method, allowed_key, manager._graph_version)
+    cache_key = (method, allowed_key, revisions.graph)
     with manager.caches.lock:
         manager._prepare_read_caches()
         cached = manager.caches.communities.get(cache_key)
@@ -575,7 +576,7 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
     if cached is not None and not database.in_transaction():
         return [set(c) for c in cached]
 
-    G = manager._build_nx_graph(allowed_names=allowed_names)
+    G = manager.build_nx_graph(allowed_names=allowed_names)
     if len(G.nodes) == 0:
         result: List[Set[str]] = []
         manager._cache_communities(cache_key, result)
@@ -585,7 +586,7 @@ def detect_communities(manager, method: str = "components", filters: Optional[Di
         # An orphan has no link at all. Its degree comes from the whole
         # graph: hiding Done nodes used to make orphans of the nodes linked
         # only to them.
-        whole = manager._build_nx_graph(include_dormant=True)
+        whole = manager.build_nx_graph(include_dormant=True)
         result = [{node} for node in G.nodes if whole.degree(node) == 0]
         manager._cache_communities(cache_key, result)
         return [set(c) for c in result]

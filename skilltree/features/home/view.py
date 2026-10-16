@@ -28,7 +28,7 @@ def _components_by_id(children):
 
 
 @database.snapshot_read
-def _initial_next_view(template, sidebars):
+def initial_next_view(template, sidebars):
     """Ship usable Next content in the first layout, with the actual UI filters."""
     view = deepcopy(template)
     controls = _components_by_id(sidebars)
@@ -49,7 +49,7 @@ def _initial_next_view(template, sidebars):
     parts['suggestions-table'].children = format_suggestions_table(
         next_rows.rows, manager, pinned_steps=next_rows.pinned_steps)
     parts['now-nodes-table'].children = format_now_nodes_section(
-        manager.get_now_nodes(), ConfigManager.get_now_node_cap(), manager)
+        manager.get_now_nodes(), manager)
     return view
 
 

@@ -1,10 +1,10 @@
 """Canvas view preparation, independent of mutation routing and callback registration."""
+from typing import NamedTuple
+
 import dash
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES
 from skilltree.domain.contexts import sort_contexts
-pass
-from skilltree.engine.response import CoreResponse
 from skilltree.ui.canvas.registry import CANVASES
 
 _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
@@ -13,6 +13,22 @@ _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 # until that canvas loads. It still marks a render, which is what the graph
 # version bridge, the startup cover and the Goals prewarm listen for.
 CANVAS_DEFERRED = {'deferred': True}
+
+
+class CanvasView(NamedTuple):
+    """What a render of the Nodes canvas sends. The fields have the names of
+    the core callback's outputs, which take them over as they are."""
+    elements: object
+    community_options: object
+    search_options: object
+    filter_context_options: object
+    node_context_options: object
+    node_type_options: object
+    filter_type_options: object
+    stylesheet: object
+    clear_focus_style: object
+    community_value: object
+    community_memory: object
 
 
 def _node_count(members):
@@ -272,7 +288,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         # still run at the top of core_engine because they're polling and
         # don't have a single transition point to hook into.
 
-    return CoreResponse(
+    return CanvasView(
         elements=elements,
         community_options=community_options,
         search_options=search_options,

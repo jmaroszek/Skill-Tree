@@ -71,7 +71,7 @@ def test_group_delete_rolls_back_as_one(monkeypatch, manager):
     _fail_on(monkeypatch, "delete_node", "C")
 
     with pytest.raises(RuntimeError):
-        handle_group_delete(manager, '["A", "B", "C"]|1')
+        handle_group_delete(manager, ["A", "B", "C"])
 
     assert all(manager.get_node(n) is not None for n in "ABC")
 

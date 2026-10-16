@@ -31,7 +31,7 @@ def name_problem(name, label) -> Optional[str]:
     return None
 
 
-def _canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, str]:
+def canonicalize_edge(source: str, target: str, edge_type: str) -> Tuple[str, str]:
     """Helps is bidirectional: (A,B,Helps) and (B,A,Helps) describe the
     same fact (verified in scoring.build_adjacency, which mirrors Syn for
     either row). Canonicalize so only one row per pair can exist by
@@ -67,7 +67,7 @@ def cyclic_nodes(prerequisite_edges) -> set:
     return {name for name, count in incoming.items() if count > 0}
 
 
-def _is_prereq_satisfied(p_node) -> bool:
+def is_prereq_satisfied(p_node) -> bool:
     """Check if a prerequisite node is satisfied (Done)."""
     if not p_node:
         return False

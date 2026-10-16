@@ -21,7 +21,6 @@ from skilltree.features.details.layout import build_details_tab_content
 from skilltree.features.settings.layout import build_settings_modal
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.analyze.layout import build_analyze_tab_content
-pass
 from skilltree.features.links.layout import build_bridge_modal
 from skilltree.ui.components.context_picker import build_context_picker_support
 from skilltree.ui.components.list_toolbar import SORT_MENUS, sort_menu_items
@@ -179,9 +178,9 @@ def build_index_string():
 @database.snapshot_read
 def build_app_layout(initial_elements, env="production"):
     """Assembles the full application layout with pure Flexbox (Push behavior)."""
-    from skilltree.features.home.view import _initial_next_view, perf_stats_text
+    from skilltree.features.home.view import initial_next_view, perf_stats_text
     sidebars = build_all_sidebars()
-    initial_next = _initial_next_view(build_next_view(), sidebars)
+    initial_next = initial_next_view(build_next_view(), sidebars)
     
     edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
@@ -555,7 +554,7 @@ def build_app_layout(initial_elements, env="production"):
         dcc.Store(id='events-elements-pending-store', data=None),
         dcc.Store(id='details-freeze-rerender-store', data=False),
         dcc.Store(id='events-freeze-rerender-store', data=False),
-        # Bumped by the bridge callback only when GraphManager._graph_version
+        # Bumped by the bridge callback only when the graph revision
         # advances (i.e. a real node/edge mutation, not a cosmetic filter change).
         # Downstream listeners use this instead of cytoscape-graph.elements to
         # avoid re-firing on cosmetic updates (filter, depth, highlight).

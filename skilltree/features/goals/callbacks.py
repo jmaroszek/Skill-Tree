@@ -2,7 +2,7 @@
 
 Goals-sidebar logic, the filters-sidebar toggle, and the editor-sidebar
 fast-path live here so they don't have to ride along inside the Details or
-Canvas tab modules. The cross-sidebar style coordinator (`_compute_sidebar_styles`
+Canvas tab modules. The cross-sidebar style coordinator (`compute_sidebar_styles`
 and friends) stays in callbacks.py because it's woven into core_engine's output
 tuple — see the IDX constants there.
 """

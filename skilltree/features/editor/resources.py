@@ -11,7 +11,6 @@ import logging
 import dash
 from dash import Input, Output, State, ALL, ctx
 
-pass
 from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.ui.prerender import prerendered

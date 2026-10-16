@@ -581,7 +581,7 @@ def _attribute_row(label, value_id):
     ], className="d-flex align-items-center mb-1")
 
 
-def _build_suggestion_row(node, priority_rank=None, priority=None):
+def build_suggestion_row(node, priority_rank=None, priority=None):
     """One keyboard-accessible starting-point card in the Details empty state.
 
     The name, then the context on a muted line. The subcontext is left out,

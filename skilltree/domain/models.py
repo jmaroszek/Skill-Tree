@@ -282,7 +282,7 @@ class Node:
         own effort, and no own time to scoring. The recommender skips such
         a node because it has no hours of its own (`has_no_own_work`, the
         actual gate), and surfaces its children instead. Cascade still flows
-        through it (`scoring._strongest_routes` walks its H/S edges), so it
+        through it (`scoring.strongest_routes` walks its H/S edges), so it
         can act as connective tissue without ever being recommended itself.
         """
         return self.value_mode == 'inherited' and self.time_mode == 'inherited'

@@ -3,8 +3,8 @@ import math
 from collections import defaultdict
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.domain.scoring import (build_adjacency as _scoring_build_adjacency, intrinsic_value,
-                     perceived_cost, _done_names, _goals_above, _milestone_names,
-                     _strongest_routes)
+                     perceived_cost, done_names, goals_above, milestone_names,
+                     strongest_routes)
 
 
 def _hard_subtree(goal_name, hard_in):
@@ -44,8 +44,8 @@ def _goal_work(all_nodes_dict, edges, hp):
 
     H_out, _, _, hard_in = _scoring_build_adjacency(edges, set(all_nodes_dict))
     memo: dict = {}
-    nearest, goal_order = _goals_above(H_out, all_nodes_dict, memo,
-                                       _done_names(all_nodes_dict, memo))
+    nearest, goal_order = goals_above(H_out, all_nodes_dict, memo,
+                                       done_names(all_nodes_dict, memo))
     goal_iv = {g: intrinsic_value(all_nodes_dict[g], w_v, w_i, value_exponent)
                for g in goal_order}
 
@@ -242,8 +242,8 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals, *, context_wei
                 for e in edges if e['type'] == EDGE_NEEDS_HARD]
     H_inv, _, _, _ = _scoring_build_adjacency(inverted, set(all_nodes_dict))
     memo: dict = {}
-    routes = _strongest_routes(goal_name, H_inv, {}, hp.get('d_H', 0.6), 0.0, memo,
-                               free=_milestone_names(all_nodes_dict, memo))
+    routes = strongest_routes(goal_name, H_inv, {}, hp.get('d_H', 0.6), 0.0, memo,
+                               free=milestone_names(all_nodes_dict, memo))
 
     total = me['tv']
     own = math.fsum(work[t]['own'] for t in tasks)
