@@ -3,11 +3,21 @@ from html import escape
 
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
-from dash import html
+from dash import Input, Output, State, ctx, html, no_update
 
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.domain.goals import explain_goal, rank_goals
+from skilltree.domain.models import EDGE_NEEDS_HARD
+from skilltree.domain.scoring import explain_score, focus_route_data
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.settings import ConfigManager
+from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
+from skilltree.ui.styles import BADGE_PALETTE
+
+# The default manager, for callers that pass none.
+graph_manager = GraphManager()
 
 # Maps the `via` field from scoring.explain_score to a bar color.
 # Cool & quiet palette. Hard is a darker rugged blue (matches subtasks-
@@ -339,3 +349,285 @@ def build_explain_chart(contributors, top_n: int = 10):
     callback assigns it to the static dcc.Graph's figure prop.
     """
     return _explain_bar_chart(contributors or [], top_n)
+
+
+
+def register_explain_callbacks(app, services=None):
+    graph_manager = services.graph if services is not None else globals()['graph_manager']
+
+    # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
+    # The modal renders via React Portal (dbc.Modal uses createPortal), so it is
+    # visible from any tab even though it lives inside details-tab-content.
+    @app.callback(
+        Output("details-node-select", "value", allow_duplicate=True),
+        Output("modal-details-explain", "is_open", allow_duplicate=True),
+        Input("details-explain-trigger-input", "value"),
+        prevent_initial_call=True,
+    )
+    def context_menu_explain_open(trigger_val):
+        if not trigger_val:
+            return no_update, no_update
+        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
+        if not node_name:
+            return no_update, no_update
+        return node_name, True
+
+    # --- Explain modal: the arithmetic is a disclosure, closed by default ---
+    @app.callback(
+        Output("collapse-details-explain-summary", "is_open"),
+        Input("btn-details-explain-summary-toggle", "n_clicks"),
+        State("collapse-details-explain-summary", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_details_explain_summary(n, is_open):
+        if n:
+            return not is_open
+        return is_open
+
+    app.clientside_callback(
+        "function(isOpen){ return 'editor-chevron on-dark' + (isOpen ? ' open' : ''); }",
+        Output("details-explain-summary-chevron", "className"),
+        Input("collapse-details-explain-summary", "is_open"),
+    )
+
+    # --- Explain Score modal ---------------------------------------------
+    @app.callback(
+        Output("modal-details-explain", "is_open"),
+        [Input("btn-details-explain", "n_clicks"),
+         Input("btn-details-explain-close", "n_clicks")],
+        State("modal-details-explain", "is_open"),
+        prevent_initial_call=True,
+    )
+    def toggle_explain_modal(_open_clicks, _close_clicks, is_open):
+        return not is_open
+
+    @app.callback(
+        [Output("details-explain-title", "children"),
+         Output("details-explain-subtitle", "children"),
+         Output("details-explain-summary", "children"),
+         Output("details-explain-contrib-store", "data"),
+         Output("details-explain-count", "value"),
+         Output("details-explain-ready-node", "data")],
+        Input("modal-details-explain", "is_open"),
+        Input("details-explain-node", "data"),
+        State("details-node-select", "value"),
+        prevent_initial_call=True,
+    )
+    def populate_explain_modal(is_open, _explain_node, node_name):
+        if not is_open or not node_name:
+            return (no_update, no_update, no_update, no_update, no_update,
+                    no_update)
+        return _build_explain_content(node_name)
+
+    @database.snapshot_read
+    def _build_explain_content(node_name):
+        # Explanation and both ranking pools reuse one set of normalized rows.
+        all_nodes = graph_manager.get_all_nodes()
+        priority_goals = ConfigManager.get_priority_goals()
+        hypers = ConfigManager.get_hyperparams()
+        hypers['context_weights'] = ConfigManager.get_context_weights()
+        node = next((n for n in all_nodes if n.name == node_name), None)
+        is_goal = node is not None and node.type == 'Goal'
+        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
+        # A sleeping node can be selected in Details, but it isn't scored.
+        if node is None and graph_manager.get_node(node_name) is not None:
+            return (node_name, "Dormant: not ranked",
+                    html.Div("This node is asleep. It is scored once its event "
+                             "wakes it.", className="text-muted",
+                             style={"padding": "16px"}),
+                    [], count_out, node_name)
+
+        normalized = None
+        if is_goal:
+            # Goals are sinks in the prereq DAG: explain_score's forward
+            # cascade collapses to ~nothing and would mark them ineligible.
+            # explain_goal builds the breakdown from the work left beneath
+            # the Goal and pulls the headline score from rank_goals, so the
+            # modal matches the Goals-sidebar ranking exactly.
+            result = explain_goal(node_name, all_nodes,
+                                  graph_manager.get_edges(),
+                                  hypers, priority_goals,
+                                  context_weights=ConfigManager.get_context_weights())
+            breakdown, normalized = result if result else (None, None)
+        else:
+            # The repetition adjustment is a property of the whole pool, so
+            # it comes from the ranking pass rather than being recomputed
+            # here — that way the modal can never report a score the Next
+            # tab disagrees with.
+            scored = graph_manager.calculate_priority_scores(
+                all_nodes, priority_goals=priority_goals,
+            )
+            ranked = next((n for n in scored if n.name == node_name), None)
+            breakdown = explain_score(
+                node_name,
+                all_nodes,
+                graph_manager.get_edges(),
+                hypers,
+                priority_goals=priority_goals,
+                variety=getattr(ranked, 'variety', None),
+            )
+            # Same base as every other 0-100 priority in the app — see
+            # GraphManager.get_priority_normalizer.
+            if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
+                top = graph_manager.get_priority_normalizer()
+                if top > 0:
+                    normalized = round((breakdown['score'] / top) * 100)
+        title = node_name if breakdown else "Node not found"
+
+        # Where this node's value, before cost, sits among comparable ones.
+        # Goals are ranked against Goals. A Goal's total sums the work left
+        # beneath it, so it would only rank Goals by size; the average worth
+        # of a task is the comparable figure.
+        subtitle = ""
+        tv = breakdown['composition']['total_value'] if breakdown else None
+        if tv is not None:
+            if is_goal:
+                goals = [n for n in all_nodes if n.type == 'Goal']
+                ranked_goals = rank_goals(
+                    goals, all_nodes, graph_manager.get_edges(),
+                    priority_goals, hypers,
+                    context_weights=ConfigManager.get_context_weights(),
+                    with_components=True,
+                )
+                peers = [c['tv'] / c['n_tasks'] for _, c in ranked_goals if c['n_tasks']]
+                n_tasks = breakdown['cost']['n_tasks']
+                subtitle = (format_value_rank(tv / n_tasks, peers, "goals")
+                            if n_tasks else "")
+            elif not breakdown['eligible']:
+                reason = breakdown.get('block_reason')
+                subtitle = f"Not ranked: {reason}" if reason else "Not ranked"
+            else:
+                # The Next tab's pool: eligible nodes outside Now. A Now node
+                # joins that pool for the count, so it reads as where it
+                # would sit, and every other node's rank matches Home.
+                pool = [n for n in all_nodes
+                        if not n.now or n.name == node_name]
+                scored_pool = graph_manager.calculate_priority_scores(
+                    pool, priority_goals=priority_goals,
+                )
+                names = [n.name for n in scored_pool
+                         if getattr(n, 'priority_score', -1) >= 0]
+                if node_name in names:
+                    subtitle = format_priority_rank(
+                        names.index(node_name) + 1, len(names),
+                        in_now=bool(node and node.now))
+
+        contributors = breakdown['contributors'] if breakdown else []
+        # The chart's hover restates each contributor's ratings, which the
+        # scorer's contribution rows don't carry.
+        nodes_by_name = {n.name: n for n in all_nodes}
+        for c in contributors:
+            contributor = nodes_by_name.get(c['name'])
+            if contributor is not None:
+                c['value'], c['interest'] = contributor.value, contributor.interest
+        # count_out resets to the default only when the modal opens, not when
+        # the user selects a different node while it's already open.
+        return (title, subtitle, build_explain_summary(breakdown, normalized),
+                contributors, count_out, node_name)
+
+    @app.callback(
+        [Output("details-explain-chart", "figure"),
+         Output("details-explain-chart", "style"),
+         Output("details-explain-chart-placeholder", "style"),
+         Output("details-explain-chart-placeholder", "children")],
+        [Input("details-explain-count", "value"),
+         Input("details-explain-contrib-store", "data"),
+         Input("details-explain-ready-node", "data"),
+         Input("modal-details-explain", "is_open"),
+         Input("details-explain-node", "data")],
+        State("details-node-select", "value"),
+        prevent_initial_call=True,
+    )
+    def update_explain_chart(count, contributors, ready_node, is_open,
+                             _explain_node, selected_node):
+        placeholder_style = {
+            "minHeight": "260px",
+            "fontSize": tokens.FS_BASE,
+        }
+        if not is_open or not selected_node or ready_node != selected_node:
+            return (no_update, {"display": "none"}, placeholder_style,
+                    "Preparing explanation…")
+        if not contributors:
+            return (no_update, {"display": "none"}, placeholder_style,
+                    "No contributors to display.")
+        try:
+            n = max(1, int(count)) if count else 10
+        except (TypeError, ValueError):
+            n = 10
+        return (build_explain_chart(contributors, top_n=n), {},
+                {"display": "none"}, "")
+
+    @app.callback(
+        [Output("details-explain-focus-feedback", "children"),
+         Output("btn-details-explain-focus", "disabled")],
+        Input("details-explain-focus-count", "value"),
+        prevent_initial_call=True,
+    )
+    def validate_focus_count(val):
+        if val is None:
+            return "", False
+        try:
+            n = int(val)
+        except (TypeError, ValueError):
+            return "", False
+        if n > 5:
+            return "Max is 5", True
+        if n < 1:
+            return "Min is 1", True
+        return "", False
+
+    @app.callback(
+        Output("focus-goal-store", "data", allow_duplicate=True),
+        Output("main-tabs", "active_tab", allow_duplicate=True),
+        Output("modal-details-explain", "is_open", allow_duplicate=True),
+        Input("btn-details-explain-focus", "n_clicks"),
+        [State("details-selected-node-store", "data"),
+         State("details-explain-contrib-store", "data"),
+         State("details-explain-focus-count", "value")],
+        prevent_initial_call=True,
+    )
+    def focus_top_contributor_paths(n_clicks, selected_node, contributors, k):
+        if not n_clicks or not selected_node or not contributors:
+            return no_update, no_update, no_update
+        try:
+            k_int = max(1, min(5, int(k))) if k else 3
+        except (TypeError, ValueError):
+            k_int = 3
+        all_nodes_fc = graph_manager.get_all_nodes()
+        node_fc = next((n for n in all_nodes_fc if n.name == selected_node), None)
+        is_goal_fc = node_fc is not None and node_fc.type == 'Goal'
+        edges_fc = graph_manager.get_edges()
+        if is_goal_fc:
+            # A Goal's contributors are the tasks in its hard subtree, and
+            # explain_goal measures their depth on the inverted Hard-only
+            # graph. The routes are traced on that same graph.
+            edges_fc = [
+                {'source': e['target'], 'target': e['source'], 'type': e['type']}
+                for e in edges_fc if e['type'] == EDGE_NEEDS_HARD
+            ]
+        pi = focus_route_data(
+            selected_node, contributors, k_int, all_nodes_fc, edges_fc,
+            ConfigManager.get_hyperparams(),
+            skip_done=not is_goal_fc, flat_goals=not is_goal_fc,
+        )
+        edge_rank_items = list(pi['edge_rank'].items())
+        if is_goal_fc:
+            # Flip keys back to real edge orientation so the canvas matches
+            # them against actual prereq -> dependent edges.
+            edge_rank_items = [((t, s, etype), r)
+                               for (s, t, etype), r in edge_rank_items]
+        # Serialize edge_rank keys for JSON compatibility in dcc.Store.
+        edge_rank_str = {
+            bridge_payloads.edge_key(s, t, etype): r
+            for (s, t, etype), r in edge_rank_items
+        }
+        return (
+            {"node": selected_node,
+             "subtree": pi['subtree'],
+             "path_info": {
+                 "node_rank": pi['node_rank'],
+                 "edge_rank": edge_rank_str,
+                 "target_labels": pi['target_labels'],
+             }},
+            "tab-canvas", False,
+        )

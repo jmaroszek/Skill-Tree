@@ -9,6 +9,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD as HARD
 from test_atomic_saves import graph, node
+from support.triggers import fire
 
 
 def test_next_rows_use_one_connection_and_one_settings_read(monkeypatch):
@@ -220,7 +221,6 @@ def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
     import dash
     from skilltree.features.details import callbacks as details_callbacks
     from dash._utils import to_json
-    from types import SimpleNamespace
 
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', HARD)
@@ -229,8 +229,7 @@ def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
     spec = next(v for k, v in app.callback_map.items()
                 if 'details-explain-title.children' in k)
     callback = spec['callback'].__wrapped__
-    monkeypatch.setattr(details_callbacks, 'ctx', SimpleNamespace(
-        triggered_id='modal-details-explain'))
+    fire('modal-details-explain.is_open')
     opened, statements = _trace_connections(monkeypatch)
     assert callback(False, None, 'A') == (dash.no_update,) * 6
     assert not opened

@@ -262,14 +262,14 @@ def test_day_scale_chains_read_in_days():
 
 
 def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
-    from skilltree.features.details import callbacks as details_callbacks
-    manager = details_callbacks.graph_manager
+    from skilltree.features.details import simulation as details_simulation
+    manager = details_simulation.graph_manager
     manager.add_node(node('Goal', type='Goal'))
     for name in ('A', 'B'):
         manager.add_node(node(name))
         manager.add_edge(name, 'Goal', 'Needs_Hard')
 
-    fig, _, _ = details_callbacks._run_simulation('Goal', ['include'], [])
+    fig, _, _ = details_simulation._run_simulation('Goal', ['include'], [])
 
     bars = fig.data[0]
     assert len(bars.customdata) == len(bars.y)
@@ -283,8 +283,8 @@ def test_details_chart_is_read_by_hovering_a_bar_not_zooming():
 def test_details_says_so_when_nothing_is_left_to_estimate():
     """A chart of zero hours told the user nothing; a sentence does."""
     import pytest
-    from skilltree.features.details import callbacks as details_callbacks
-    manager = details_callbacks.graph_manager
+    from skilltree.features.details import simulation as details_simulation
+    manager = details_simulation.graph_manager
     manager.add_node(node('Finished', status='Done'))
     manager.add_node(node('Goal', type='Goal', time_mode='inherited'))
     manager.add_edge('Finished', 'Goal', 'Needs_Hard')
@@ -292,23 +292,23 @@ def test_details_says_so_when_nothing_is_left_to_estimate():
     manager.add_node(node('Optional'))
     manager.add_edge('Optional', 'Finished', 'Needs_Soft')
 
-    with pytest.raises(details_callbacks.NothingLeft, match="'Finished' is Done"):
-        details_callbacks._run_simulation('Finished', ['include'], [])
-    with pytest.raises(details_callbacks.NothingLeft, match="Everything 'Goal' needs is Done"):
-        details_callbacks._run_simulation('Goal', ['include'], [])
+    with pytest.raises(details_simulation.NothingLeft, match="'Finished' is Done"):
+        details_simulation._run_simulation('Finished', ['include'], [])
+    with pytest.raises(details_simulation.NothingLeft, match="Everything 'Goal' needs is Done"):
+        details_simulation._run_simulation('Goal', ['include'], [])
 
 
 def test_details_says_so_when_no_work_leads_in():
     """A Milestone over only other Milestones has nothing to time."""
     import pytest
-    from skilltree.features.details import callbacks as details_callbacks
-    manager = details_callbacks.graph_manager
+    from skilltree.features.details import simulation as details_simulation
+    manager = details_simulation.graph_manager
     for name in ('$250k', '$500k', '$1M'):
         manager.add_node(node(name, type='Milestone', time_mode='inherited'))
     manager.add_edge('$250k', '$500k', 'Needs_Hard')
     manager.add_edge('$500k', '$1M', 'Needs_Hard')
 
     for name in ('$250k', '$1M'):
-        with pytest.raises(details_callbacks.NothingLeft,
+        with pytest.raises(details_simulation.NothingLeft,
                            match=f"No work with a time estimate leads into '\\{name}'"):
-            details_callbacks._run_simulation(name, ['include'], [])
+            details_simulation._run_simulation(name, ['include'], [])

@@ -5,28 +5,15 @@ Callback definitions for the Details tab.
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 import json
-import logging
-import time
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style
-from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from skilltree.features.details.layout import (build_details_subtasks_table,
-                             build_no_selection_subtasks,
-                             _build_suggestion_row, build_details_suggestions,
-                             build_milestone_tile)
-from skilltree.domain.simulation import SimulationCancelled
-from skilltree.features.details.simulation_service import simulation_service
-from skilltree.ui.components.duration import simulation_figure
+from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
+from skilltree.features.details.layout import (_build_suggestion_row, build_details_suggestions)
 from skilltree.ui.prerender import prerendered
 from skilltree.features.details.explore import select_explore_goals
-from skilltree.features.details.explain import (
-    build_explain_summary, build_explain_chart, format_value_rank,
-    format_priority_rank,
-)
-from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.canvas.elements import (
     build_node_element, build_edge_element, canvas_node_styles,
 )
@@ -35,11 +22,18 @@ from skilltree.ui.filters import (
     filter_summary, filter_chip_state, filter_chip_updates,
 )
 from skilltree.ui.dash_tools import get_trigger_id
-from skilltree.store.commands import change_link, link_change_reopens
-from skilltree.domain.scoring import explain_score, focus_route_data
-from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
-from skilltree.domain.goals import explain_goal, normalize_goal_scores, rank_goals
+from skilltree.domain.goals import normalize_goal_scores, rank_goals
+from skilltree.features.details.subtasks import register_subtask_callbacks
+from skilltree.features.details.simulation import register_simulation_callbacks
+from skilltree.features.details.explain import register_explain_callbacks
+from skilltree.features.details.subtasks import (
+    build_milestones_section,
+    collect_details_subtasks,
+)
+from skilltree.features.details.layout import (
+    normalize_max_depth,
+)
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -49,130 +43,6 @@ event_manager = EventManager()
 # soon as the selection changes; select_detail_node restates it.
 DETAILS_CONTENT_SHOWN = {"display": "flex", "flexDirection": "column", "flex": "1",
                          "padding": "0 18px", "overflowY": "auto"}
-
-
-def _normalize_max_depth(value):
-    """Map the Details slider's ``All`` sentinel to an uncapped traversal."""
-    return None if value in (None, 0, 6) else int(value)
-
-
-def _build_milestones_section(subtask_nodes, parent_name, edges):
-    """Compute the (section_style, bottom_toggles_style, tiles) tuple for
-    the milestones strip and the canonical bottom toggle wrapper.
-
-    Mirrors the Subtasks table exactly: it receives the same resolved,
-    depth-limited dependency view, then picks out Milestones and renders them
-    as tiles.
-
-    The bottom toggle wrapper visibility is the *inverse* of the milestones
-    section visibility: when milestones are shown, the toggles live up next
-    to the Milestones header (their -top counterparts), so the canonical
-    bottom set is hidden to avoid duplication. Otherwise the canonical set
-    sits with the Subtasks header as before.
-
-    Returns (section: display:none, bottom_toggles: visible, tiles: []) when
-    no Milestone survives filtering.
-    """
-    milestones = [n for n in subtask_nodes if n.type == "Milestone"]
-    # Sort Open first, Blocked next, Done last — within each group alphabetical.
-    # Mirrors the existing subtasks-table convention (Done at the bottom) but
-    # additionally promotes Open above Blocked since Open milestones are the
-    # ones the user can act on right now.
-    _STATUS_ORDER = {STATUS_OPEN: 0, STATUS_BLOCKED: 1, STATUS_DONE: 2}
-    milestones.sort(key=lambda n: (_STATUS_ORDER.get(n.status, 99), n.name))
-    if not milestones:
-        # Milestones hidden → canonical bottom toggles visible (default).
-        return {"display": "none"}, {}, []
-    tiles = [
-        build_milestone_tile(
-            ms,
-            graph_manager.get_goal_completion(ms.name, include_soft=False),
-        )
-        for ms in milestones
-    ]
-    # Milestones shown → bottom toggles hidden (top toggles take over).
-    return {"display": "block"}, {"display": "none"}, tiles
-
-
-def _collect_details_subtasks(node_name, include_soft, include_synergies,
-                              max_depth, global_filters):
-    """Return the filtered, sorted dependency rows shared by Details views."""
-    view = graph_manager.get_dependency_view(
-        node_name, include_soft=include_soft,
-        include_synergies=include_synergies, max_depth=max_depth,
-        filters=global_filters)
-    subtree = set(view["node_names"]) - {node_name}
-    subtask_nodes = [graph_manager.get_node(name) for name in subtree]
-    subtask_nodes = [node for node in subtask_nodes if node is not None]
-    subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
-    return subtask_nodes, graph_manager.get_edges()
-
-
-class NothingLeft(Exception):
-    """The node has no unfinished work to simulate. The message says why."""
-
-
-def _run_simulation(node_name, include_soft_val, include_synergies_val,
-                    global_filters=None, max_depth=None, should_cancel=None):
-    """Shared helper: run the Monte Carlo simulation and return (figure, style, style).
-
-    Raises NothingLeft when the node and everything it needs are Done: a
-    chart of zero hours says nothing a sentence can't.
-    """
-    include_soft = bool(include_soft_val and "include" in include_soft_val)
-    include_helps = bool(include_synergies_val and "include" in include_synergies_val)
-    with database.read_snapshot():
-        view = graph_manager.get_dependency_view(
-            node_name,
-            include_soft=include_soft,
-            include_synergies=include_helps,
-            max_depth=max_depth,
-            filters=global_filters,
-        )
-        allowed = set(view["node_names"])
-        nodes_dict = {
-            name: graph_manager.get_node(name) for name in allowed
-        }
-        nodes_dict = {name: node for name, node in nodes_dict.items() if node is not None}
-        if node_name not in nodes_dict:
-            return no_update, no_update, no_update
-
-        permitted_types = {EDGE_NEEDS_HARD}
-        if include_soft:
-            permitted_types.add(EDGE_NEEDS_SOFT)
-        if include_helps:
-            permitted_types.add(EDGE_HELPS)
-        sim_edges = [
-            edge for edge in graph_manager.get_edges()
-            if edge['type'] in permitted_types
-            and edge['source'] in allowed and edge['target'] in allowed
-        ]
-
-        requested_trials = ConfigManager.get_monte_carlo_trials()
-        time_settings = ConfigManager.get_time_settings()
-
-    # A Done node is finished, whatever is still open before it.
-    if nodes_dict[node_name].status == STATUS_DONE:
-        raise NothingLeft(f"'{node_name}' is Done, so there is no time left to estimate.")
-    result = simulation_service.summarize(
-        node_name, nodes_dict, sim_edges, include_soft, include_helps,
-        requested_trials, should_cancel=should_cancel)
-    # Every run took zero hours: a chart of P10 = P50 = P90 = 0 tells the user
-    # nothing. Either the work beneath is all Done, or nothing beneath holds
-    # hours at all, like a Milestone over only other Milestones.
-    if result['stats']['max'] == 0:
-        if any(node.status == STATUS_DONE and not node.has_no_own_work
-               for name, node in nodes_dict.items() if name != node_name):
-            raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no "
-                              "time left to estimate.")
-        raise NothingLeft(f"No work with a time estimate leads into '{node_name}' yet, "
-                          "so there is no time to estimate.")
-
-    return (
-        simulation_figure(result, time_settings, requested_trials),
-        {"display": "flex", "flexDirection": "column", "flex": "1", "minHeight": "0"},
-        {"display": "none"},
-    )
 
 
 def register_details_callbacks(app, services=None):
@@ -358,7 +228,7 @@ def register_details_callbacks(app, services=None):
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
-        max_depth = _normalize_max_depth(max_depth_val)
+        max_depth = normalize_max_depth(max_depth_val)
 
         # Build badges. Order: Status → Priority → Type → RelPriority.
         # Goal type tile is suppressed when a Priority N tile is shown
@@ -468,13 +338,13 @@ def register_details_callbacks(app, services=None):
         global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        subtask_nodes, edges = _collect_details_subtasks(
+        subtask_nodes, edges = collect_details_subtasks(
             node_name, include_soft, include_synergies, max_depth,
             global_filters)
 
         # Milestones roster — derived from the same filtered subtask_nodes the
         # Subtasks table uses, so the strip stays in lockstep with the table.
-        ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
+        ms_section_style, bottom_toggles_style, ms_tiles = build_milestones_section(
             subtask_nodes, node_name, edges)
 
         return (
@@ -498,70 +368,6 @@ def register_details_callbacks(app, services=None):
             {"display": "none"} if node.has_no_own_work else {},
         )
 
-    # --- Subtasks table: selection placeholder, then render after layout ---
-    # The full table is the largest remaining Details response. Keep it out of
-    # the initial animation window: the browser swaps in a placeholder when the
-    # selection changes (see the panel callback above), and
-    # details_deferred_subtasks.js requests the real rows only after the
-    # newest Cytoscape layout has stopped. Filter/refresh changes on an already
-    # rendered node remain immediate.
-    #
-    # The selection is a State. As an Input it made a request on every
-    # selection whose answer landed in the opening animation, and the only
-    # selection it had to act on is a frozen canvas's, which runs no layout.
-    # The callback below sends that canvas's settle signal itself.
-    @app.callback(
-        Output("details-subtasks-table-container", "children"),
-        Input("details-layout-settled-trigger-input", "value"),
-        Input("details-refresh-trigger", "data"),
-        Input("graph-version-store", "data"),
-        Input("details-include-soft-needs", "value"),
-        Input("details-include-synergies", "value"),
-        Input("details-max-depth", "value"),
-        FILTER_INPUTS,
-        Input("details-hide-blocked", "value"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    @database.snapshot_read
-    def render_details_subtasks(settled_token, _refresh, _version,
-                                include_soft_val, include_synergies_val,
-                                max_depth_val, sidebar_filters, hide_blocked_val,
-                                selected_node):
-        # A deleted node has no table. Its refresh can land after the
-        # selection clears.
-        if not selected_node or not graph_manager.get_node(selected_node):
-            return build_no_selection_subtasks()
-
-        trigger = get_trigger_id()
-        if trigger == "details-layout-settled-trigger-input":
-            try:
-                settled_root = json.loads(settled_token or "{}").get("root")
-            except (TypeError, ValueError, AttributeError):
-                return no_update
-            # A superseded layout may finish after the user selected another
-            # node. Never let its late signal overwrite the current table.
-            if settled_root != selected_node:
-                return no_update
-
-        include_soft = bool(include_soft_val and "include" in include_soft_val)
-        include_synergies = bool(
-            include_synergies_val and "include" in include_synergies_val)
-        max_depth = _normalize_max_depth(max_depth_val)
-        global_filters = filters_from(sidebar_filters)
-        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
-            global_filters["hide_blocked"] = True
-
-        subtask_nodes, edges = _collect_details_subtasks(
-            selected_node, include_soft, include_synergies, max_depth,
-            global_filters)
-        non_milestone_subtasks = [
-            node for node in subtask_nodes if node.type != "Milestone"]
-        return build_details_subtasks_table(
-            non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
-            parent_name=selected_node, include_soft=include_soft,
-            include_synergies=include_synergies,
-            milestones_only=bool(subtask_nodes) and not non_milestone_subtasks)
 
     # A frozen canvas starts no layout, so nothing would release a new
     # selection's table. Send the settle signal once the selection lands.
@@ -579,58 +385,6 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # --- Toggle milestone filters ---
-    @app.callback(
-        Output("details-milestones-section", "style", allow_duplicate=True),
-        Output("details-subtask-toggles-bottom", "style", allow_duplicate=True),
-        Output("details-milestones-tiles", "children", allow_duplicate=True),
-        Input("details-include-soft-needs", "value"),
-        Input("details-include-synergies", "value"),
-        Input("details-max-depth", "value"),
-        FILTER_INPUTS,
-        Input("details-hide-blocked", "value"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    @database.snapshot_read
-    def toggle_details_subtask_filters(include_soft_val, include_synergies_val,
-                                       max_depth_val, sidebar_filters,
-                                       hide_blocked_val, selected_node):
-        if not selected_node:
-            return no_update, no_update, no_update
-
-        include_soft = bool(include_soft_val and "include" in include_soft_val)
-        include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
-        max_depth = _normalize_max_depth(max_depth_val)
-
-        global_filters = filters_from(sidebar_filters)
-        if hide_blocked_val and "hide_blocked" in hide_blocked_val:
-            global_filters['hide_blocked'] = True
-        subtask_nodes, edges = _collect_details_subtasks(
-            selected_node, include_soft, include_synergies, max_depth,
-            global_filters)
-
-        # Milestones roster shares the same filtered, depth-limited view as
-        # the table, so both surfaces stay in lockstep.
-        ms_section_style, bottom_toggles_style, ms_tiles = _build_milestones_section(
-            subtask_nodes, selected_node, edges)
-
-        return ms_section_style, bottom_toggles_style, ms_tiles
-
-    # --- Sync "Hide Done" toggle with sidebar filter ---
-    @app.callback(
-        Output("details-hide-done", "value"),
-        Output("filter-done", "value", allow_duplicate=True),
-        Input("details-hide-done", "value"),
-        Input("filter-done", "value"),
-        prevent_initial_call=True,
-    )
-    def sync_hide_done(details_val, filter_val):
-        if (details_val or []) == (filter_val or []):
-            return no_update, no_update
-        if ctx.triggered_id == "details-hide-done":
-            return no_update, details_val
-        return filter_val, no_update
 
     # --- Sync Milestones-row controls with the canonical Subtasks-row controls ---
     # The controls render twice (top: with the Milestones header;
@@ -711,7 +465,7 @@ def register_details_callbacks(app, services=None):
             global_filters['hide_blocked'] = True
         return _build_graph_elements(selected_node, include_soft_val,
                                      include_synergies_val, global_filters,
-                                     max_depth=_normalize_max_depth(max_depth_val),
+                                     max_depth=normalize_max_depth(max_depth_val),
                                      show_cross_links=bool(
                                          show_cross_links_val
                                          and "show" in show_cross_links_val))
@@ -737,98 +491,6 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # Browser-generated sequence numbers let both the worker and the chart
-    # discard superseded selections, even if responses arrive out of order.
-    # Layout-affecting changes first send a node-less request, which shows
-    # "Calculating…" and, while an earlier simulation may still be running,
-    # cancels it on the server without starting another. The selected node is
-    # released only after the newest Cytoscape layout settles. Frozen canvases
-    # bypass the gate because they intentionally produce no layout events.
-    app.clientside_callback(
-        ClientsideFunction(namespace="skillTreeSimulation",
-                           function_name="requestAndForward"),
-        Output("details-sim-request", "data"),
-        Output("details-sim-server-request", "data"),
-        Input("details-selected-node-store", "data"),
-        Input("details-include-soft-needs", "value"),
-        Input("details-include-synergies", "value"),
-        Input("details-max-depth", "value"),
-        Input("filter-context", "value"), Input("filter-subcontext", "value"),
-        Input("filter-done", "value"), Input("filter-value", "value"),
-        Input("filter-interest", "value"), Input("filter-time", "value"),
-        Input("filter-difficulty", "value"), Input("filter-node-type", "value"),
-        Input("filter-dormant", "value"), Input("details-hide-blocked", "value"),
-        Input("filter-time-unit", "value"), Input("graph-version-store", "data"),
-        Input("settings-save-status", "children"),
-        Input("details-simulation-settled-trigger-input", "value"),
-        Input("main-tabs", "active_tab"),
-        Input("filter-time-min", "value"),
-        Input("filter-search-query", "data"),
-        State("details-freeze-rerender-store", "data"),
-    )
-
-    @app.callback(Output("details-sim-result", "data"),
-                  Input("details-sim-server-request", "data"), prevent_initial_call=True)
-    def run_details_simulation(request):
-        if not request:
-            return no_update
-        session, sequence = request['session'], request['sequence']
-        if not simulation_service.begin(session, sequence):
-            return no_update
-        identity = dict(session=session, sequence=sequence)
-        if not request.get('node'):
-            return no_update  # begin() still cancels work from the previous tab.
-        cancelled = lambda: simulation_service.cancelled(session, sequence)
-        filters = build_filters(
-            request.get('context'), request.get('subcontext'), request.get('done'),
-            request.get('value'), request.get('interest'), request.get('time'),
-            request.get('difficulty'), request.get('types'),
-            f_time_unit=request.get('timeUnit'), f_show_dormant=request.get('dormant'),
-            f_time_min=request.get('timeMin'), f_search=request.get('search'))
-        if 'hide_blocked' in (request.get('hideBlocked') or []):
-            filters['hide_blocked'] = True
-        try:
-            fig, results_style, empty_style = _run_simulation(
-                request['node'], request.get('soft'), request.get('helps'),
-                global_filters=filters, max_depth=_normalize_max_depth(request.get('depth')),
-                should_cancel=cancelled)
-            if cancelled():
-                return no_update
-            if fig is no_update:
-                return {**identity, 'error': 'This node is no longer available.'}
-            return {**identity, 'figure': fig, 'resultsStyle': results_style,
-                    'emptyStyle': empty_style, 'caption': ''}
-        except SimulationCancelled:
-            return no_update
-        except NothingLeft as notice:
-            return {**identity, 'notice': str(notice)}
-        except Exception:
-            logging.getLogger(__name__).exception("Time simulation failed")
-            return {**identity, 'error': 'Could not calculate this estimate.'}
-
-    app.clientside_callback(
-        ClientsideFunction(namespace="skillTreeSimulation", function_name="render"),
-        Output("details-sim-chart", "figure"), Output("details-sim-results", "style"),
-        Output("details-sim-empty", "style"), Output("details-sim-status", "children"),
-        Input("details-sim-result", "data"), Input("details-sim-request", "data"),
-    )
-
-    # --- Run Simulation from context menu trigger ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Input("details-simulate-trigger-input", "value"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def context_menu_simulate_trigger(trigger_val, active_tab):
-        if not trigger_val:
-            return no_update
-        # Parse "nodeName|timestamp"; the name may itself contain "|".
-        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
-        if not node_name:
-            return no_update
-        # Select the node — which will auto-run simulation
-        return node_name
 
     # --- Focus on Canvas ---
     @app.callback(
@@ -892,56 +554,6 @@ def register_details_callbacks(app, services=None):
         next_tab = "tab-details" if active_tab != "tab-details" else no_update
         return next_tab, node_name
 
-    # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
-    # The modal renders via React Portal (dbc.Modal uses createPortal), so it is
-    # visible from any tab even though it lives inside details-tab-content.
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Output("modal-details-explain", "is_open", allow_duplicate=True),
-        Input("details-explain-trigger-input", "value"),
-        prevent_initial_call=True,
-    )
-    def context_menu_explain_open(trigger_val):
-        if not trigger_val:
-            return no_update, no_update
-        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
-        if not node_name:
-            return no_update, no_update
-        return node_name, True
-
-    # --- Subtask Name Click → Select that node in Details ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Input({"type": "details-subtask-name", "index": ALL}, "n_clicks"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def navigate_to_subtask(n_clicks_list, active_tab):
-        if active_tab != "tab-details":
-            return no_update
-        if not any(n_clicks_list):
-            return no_update
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update
-        return triggered["index"]
-
-    # --- Milestone Tile Click → Select that Milestone in Details ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Input({"type": "details-milestone-tile", "index": ALL}, "n_clicks"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def navigate_to_milestone_tile(n_clicks_list, active_tab):
-        if active_tab != "tab-details":
-            return no_update
-        if not any(n_clicks_list):
-            return no_update
-        triggered = ctx.triggered_id
-        if not triggered:
-            return no_update
-        return triggered["index"]
 
     # --- Empty-state starting points: priority goals + top-ranked goals ---
     @app.callback(
@@ -1044,107 +656,6 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # --- Explain modal: the arithmetic is a disclosure, closed by default ---
-    @app.callback(
-        Output("collapse-details-explain-summary", "is_open"),
-        Input("btn-details-explain-summary-toggle", "n_clicks"),
-        State("collapse-details-explain-summary", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_details_explain_summary(n, is_open):
-        if n:
-            return not is_open
-        return is_open
-
-    app.clientside_callback(
-        "function(isOpen){ return 'editor-chevron on-dark' + (isOpen ? ' open' : ''); }",
-        Output("details-explain-summary-chevron", "className"),
-        Input("collapse-details-explain-summary", "is_open"),
-    )
-
-    # --- Details > Subtasks: link an existing node ---
-    app.clientside_callback(
-        """
-        function(choice, selectedNode, editorStyle, goalStyle, eventsStyle) {
-            var NO = window.dash_clientside.no_update;
-            if (!(choice || '').startsWith('new|') || !selectedNode) {
-                return [NO, NO, NO];
-            }
-            return window.dash_clientside.editor.open_on_add(
-                choice, editorStyle, goalStyle, eventsStyle);
-        }
-        """,
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("events-sidebar-container", "style", allow_duplicate=True),
-        Input("details-add-choice-input", "value"),
-        State("details-selected-node-store", "data"),
-        State("sidebar-editor-container", "style"),
-        State("details-goal-sidebar", "style"),
-        State("events-sidebar-container", "style"),
-        prevent_initial_call=True,
-    )
-
-    @app.callback(
-        Output("modal-details-link-node", "is_open", allow_duplicate=True),
-        Output("details-add-existing-dropdown", "options"),
-        Output("details-add-existing-dropdown", "value"),
-        Output("details-add-link-edge-type", "value"),
-        Output("details-add-save-status", "children", allow_duplicate=True),
-        Input("details-add-choice-input", "value"),
-        State("details-selected-node-store", "data"),
-        prevent_initial_call=True,
-    )
-    def open_link_node_modal(choice, selected_node):
-        if not (choice or "").startswith("existing|") or not selected_node:
-            return (no_update,) * 5
-        all_nodes = graph_manager.get_all_nodes(include_dormant=True)
-        subtree = graph_manager.get_goal_subtree(selected_node)
-        excluded = subtree | {selected_node}
-        options = [{"label": n.name, "value": n.name}
-                   for n in sorted(all_nodes, key=lambda n: n.name)
-                   if n.name not in excluded]
-        return True, options, None, "hard", ""
-
-    @app.callback(
-        Output("modal-details-link-node", "is_open", allow_duplicate=True),
-        Input("btn-details-add-cancel", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def cancel_link_node(n_clicks):
-        return False if n_clicks else no_update
-
-    # A link that would reopen Done nodes asks first, in the link menu's
-    # confirmation, which makes the link on a yes (link_menu_callbacks).
-    @app.callback(
-        Output("modal-details-link-node", "is_open", allow_duplicate=True),
-        Output("details-refresh-trigger", "data", allow_duplicate=True),
-        Output("details-add-save-status", "children"),
-        Output("modal-link-reopen-confirm", "is_open", allow_duplicate=True),
-        Output("link-reopen-confirm-body", "children", allow_duplicate=True),
-        Output("link-action-pending-store", "data", allow_duplicate=True),
-        Input("btn-details-add-save", "n_clicks"),
-        State("details-selected-node-store", "data"),
-        State("details-add-existing-dropdown", "value"),
-        State("details-add-link-edge-type", "value"),
-        prevent_initial_call=True,
-    )
-    def link_existing_node(n_clicks, selected_node, link_node, link_edge_type):
-        if not n_clicks or not selected_node:
-            return (no_update,) * 6
-        if not link_node:
-            return no_update, no_update, "Please select a node to link.", no_update, no_update, no_update
-        edge_type = EDGE_NEEDS_HARD if link_edge_type == "hard" else EDGE_NEEDS_SOFT
-        change = ["add", link_node, selected_node, edge_type]
-        try:
-            reopened = link_change_reopens(graph_manager, link_node, selected_node,
-                                           edge_type, "add")
-            if reopened:
-                return False, no_update, "", True, reopen_body(reopened), change
-            change_link(graph_manager, link_node, selected_node, edge_type, "add")
-        except ValueError as e:
-            return no_update, no_update, str(e), no_update, no_update, no_update
-        return False, f"link-{int(time.time() * 1000)}", "", no_update, no_update, no_update
 
     # --- Details Graph Layout: Toggle Panel ---
     @app.callback(
@@ -1225,7 +736,7 @@ def register_details_callbacks(app, services=None):
     # the server twice per selection, once for the payload and once for
     # dash-cytoscape's positional echo, both inside the opening animation.
     # A depth limit is named after it, since the filter chip leaves it out;
-    # the slider's 6 means All, as in _normalize_max_depth.
+    # the slider's 6 means All, as in normalize_max_depth.
     app.clientside_callback(
         """
         function(pending, maxDepth) {
@@ -1264,16 +775,6 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # --- Explain Score modal ---------------------------------------------
-    @app.callback(
-        Output("modal-details-explain", "is_open"),
-        [Input("btn-details-explain", "n_clicks"),
-         Input("btn-details-explain-close", "n_clicks")],
-        State("modal-details-explain", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_explain_modal(_open_clicks, _close_clicks, is_open):
-        return not is_open
 
     # Both Explain callbacks run only while the modal is open. They used to
     # take the selection directly and return nothing while closed, which
@@ -1333,236 +834,9 @@ def register_details_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    @app.callback(
-        [Output("details-explain-title", "children"),
-         Output("details-explain-subtitle", "children"),
-         Output("details-explain-summary", "children"),
-         Output("details-explain-contrib-store", "data"),
-         Output("details-explain-count", "value"),
-         Output("details-explain-ready-node", "data")],
-        Input("modal-details-explain", "is_open"),
-        Input("details-explain-node", "data"),
-        State("details-node-select", "value"),
-        prevent_initial_call=True,
-    )
-    def populate_explain_modal(is_open, _explain_node, node_name):
-        if not is_open or not node_name:
-            return (no_update, no_update, no_update, no_update, no_update,
-                    no_update)
-        return _build_explain_content(node_name)
-
-    @database.snapshot_read
-    def _build_explain_content(node_name):
-        # Explanation and both ranking pools reuse one set of normalized rows.
-        all_nodes = graph_manager.get_all_nodes()
-        priority_goals = ConfigManager.get_priority_goals()
-        hypers = ConfigManager.get_hyperparams()
-        hypers['context_weights'] = ConfigManager.get_context_weights()
-        node = next((n for n in all_nodes if n.name == node_name), None)
-        is_goal = node is not None and node.type == 'Goal'
-        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
-        # A sleeping node can be selected in Details, but it isn't scored.
-        if node is None and graph_manager.get_node(node_name) is not None:
-            return (node_name, "Dormant: not ranked",
-                    html.Div("This node is asleep. It is scored once its event "
-                             "wakes it.", className="text-muted",
-                             style={"padding": "16px"}),
-                    [], count_out, node_name)
-
-        normalized = None
-        if is_goal:
-            # Goals are sinks in the prereq DAG: explain_score's forward
-            # cascade collapses to ~nothing and would mark them ineligible.
-            # explain_goal builds the breakdown from the work left beneath
-            # the Goal and pulls the headline score from rank_goals, so the
-            # modal matches the Goals-sidebar ranking exactly.
-            result = explain_goal(node_name, all_nodes,
-                                  graph_manager.get_edges(),
-                                  hypers, priority_goals,
-                                  context_weights=ConfigManager.get_context_weights())
-            breakdown, normalized = result if result else (None, None)
-        else:
-            # The repetition adjustment is a property of the whole pool, so
-            # it comes from the ranking pass rather than being recomputed
-            # here — that way the modal can never report a score the Next
-            # tab disagrees with.
-            scored = graph_manager.calculate_priority_scores(
-                all_nodes, priority_goals=priority_goals,
-            )
-            ranked = next((n for n in scored if n.name == node_name), None)
-            breakdown = explain_score(
-                node_name,
-                all_nodes,
-                graph_manager.get_edges(),
-                hypers,
-                priority_goals=priority_goals,
-                variety=getattr(ranked, 'variety', None),
-            )
-            # Same base as every other 0-100 priority in the app — see
-            # GraphManager.get_priority_normalizer.
-            if breakdown and breakdown['eligible'] and breakdown['score'] > 0:
-                top = graph_manager.get_priority_normalizer()
-                if top > 0:
-                    normalized = round((breakdown['score'] / top) * 100)
-        title = node_name if breakdown else "Node not found"
-
-        # Where this node's value, before cost, sits among comparable ones.
-        # Goals are ranked against Goals. A Goal's total sums the work left
-        # beneath it, so it would only rank Goals by size; the average worth
-        # of a task is the comparable figure.
-        subtitle = ""
-        tv = breakdown['composition']['total_value'] if breakdown else None
-        if tv is not None:
-            if is_goal:
-                goals = [n for n in all_nodes if n.type == 'Goal']
-                ranked_goals = rank_goals(
-                    goals, all_nodes, graph_manager.get_edges(),
-                    priority_goals, hypers,
-                    context_weights=ConfigManager.get_context_weights(),
-                    with_components=True,
-                )
-                peers = [c['tv'] / c['n_tasks'] for _, c in ranked_goals if c['n_tasks']]
-                n_tasks = breakdown['cost']['n_tasks']
-                subtitle = (format_value_rank(tv / n_tasks, peers, "goals")
-                            if n_tasks else "")
-            elif not breakdown['eligible']:
-                reason = breakdown.get('block_reason')
-                subtitle = f"Not ranked: {reason}" if reason else "Not ranked"
-            else:
-                # The Next tab's pool: eligible nodes outside Now. A Now node
-                # joins that pool for the count, so it reads as where it
-                # would sit, and every other node's rank matches Home.
-                pool = [n for n in all_nodes
-                        if not n.now or n.name == node_name]
-                scored_pool = graph_manager.calculate_priority_scores(
-                    pool, priority_goals=priority_goals,
-                )
-                names = [n.name for n in scored_pool
-                         if getattr(n, 'priority_score', -1) >= 0]
-                if node_name in names:
-                    subtitle = format_priority_rank(
-                        names.index(node_name) + 1, len(names),
-                        in_now=bool(node and node.now))
-
-        contributors = breakdown['contributors'] if breakdown else []
-        # The chart's hover restates each contributor's ratings, which the
-        # scorer's contribution rows don't carry.
-        nodes_by_name = {n.name: n for n in all_nodes}
-        for c in contributors:
-            contributor = nodes_by_name.get(c['name'])
-            if contributor is not None:
-                c['value'], c['interest'] = contributor.value, contributor.interest
-        # count_out resets to the default only when the modal opens, not when
-        # the user selects a different node while it's already open.
-        return (title, subtitle, build_explain_summary(breakdown, normalized),
-                contributors, count_out, node_name)
-
-    @app.callback(
-        [Output("details-explain-chart", "figure"),
-         Output("details-explain-chart", "style"),
-         Output("details-explain-chart-placeholder", "style"),
-         Output("details-explain-chart-placeholder", "children")],
-        [Input("details-explain-count", "value"),
-         Input("details-explain-contrib-store", "data"),
-         Input("details-explain-ready-node", "data"),
-         Input("modal-details-explain", "is_open"),
-         Input("details-explain-node", "data")],
-        State("details-node-select", "value"),
-        prevent_initial_call=True,
-    )
-    def update_explain_chart(count, contributors, ready_node, is_open,
-                             _explain_node, selected_node):
-        placeholder_style = {
-            "minHeight": "260px",
-            "fontSize": tokens.FS_BASE,
-        }
-        if not is_open or not selected_node or ready_node != selected_node:
-            return (no_update, {"display": "none"}, placeholder_style,
-                    "Preparing explanation…")
-        if not contributors:
-            return (no_update, {"display": "none"}, placeholder_style,
-                    "No contributors to display.")
-        try:
-            n = max(1, int(count)) if count else 10
-        except (TypeError, ValueError):
-            n = 10
-        return (build_explain_chart(contributors, top_n=n), {},
-                {"display": "none"}, "")
-
-    @app.callback(
-        [Output("details-explain-focus-feedback", "children"),
-         Output("btn-details-explain-focus", "disabled")],
-        Input("details-explain-focus-count", "value"),
-        prevent_initial_call=True,
-    )
-    def validate_focus_count(val):
-        if val is None:
-            return "", False
-        try:
-            n = int(val)
-        except (TypeError, ValueError):
-            return "", False
-        if n > 5:
-            return "Max is 5", True
-        if n < 1:
-            return "Min is 1", True
-        return "", False
-
-    @app.callback(
-        Output("focus-goal-store", "data", allow_duplicate=True),
-        Output("main-tabs", "active_tab", allow_duplicate=True),
-        Output("modal-details-explain", "is_open", allow_duplicate=True),
-        Input("btn-details-explain-focus", "n_clicks"),
-        [State("details-selected-node-store", "data"),
-         State("details-explain-contrib-store", "data"),
-         State("details-explain-focus-count", "value")],
-        prevent_initial_call=True,
-    )
-    def focus_top_contributor_paths(n_clicks, selected_node, contributors, k):
-        if not n_clicks or not selected_node or not contributors:
-            return no_update, no_update, no_update
-        try:
-            k_int = max(1, min(5, int(k))) if k else 3
-        except (TypeError, ValueError):
-            k_int = 3
-        all_nodes_fc = graph_manager.get_all_nodes()
-        node_fc = next((n for n in all_nodes_fc if n.name == selected_node), None)
-        is_goal_fc = node_fc is not None and node_fc.type == 'Goal'
-        edges_fc = graph_manager.get_edges()
-        if is_goal_fc:
-            # A Goal's contributors are the tasks in its hard subtree, and
-            # explain_goal measures their depth on the inverted Hard-only
-            # graph. The routes are traced on that same graph.
-            edges_fc = [
-                {'source': e['target'], 'target': e['source'], 'type': e['type']}
-                for e in edges_fc if e['type'] == EDGE_NEEDS_HARD
-            ]
-        pi = focus_route_data(
-            selected_node, contributors, k_int, all_nodes_fc, edges_fc,
-            ConfigManager.get_hyperparams(),
-            skip_done=not is_goal_fc, flat_goals=not is_goal_fc,
-        )
-        edge_rank_items = list(pi['edge_rank'].items())
-        if is_goal_fc:
-            # Flip keys back to real edge orientation so the canvas matches
-            # them against actual prereq -> dependent edges.
-            edge_rank_items = [((t, s, etype), r)
-                               for (s, t, etype), r in edge_rank_items]
-        # Serialize edge_rank keys for JSON compatibility in dcc.Store.
-        edge_rank_str = {
-            bridge_payloads.edge_key(s, t, etype): r
-            for (s, t, etype), r in edge_rank_items
-        }
-        return (
-            {"node": selected_node,
-             "subtree": pi['subtree'],
-             "path_info": {
-                 "node_rank": pi['node_rank'],
-                 "edge_rank": edge_rank_str,
-                 "target_labels": pi['target_labels'],
-             }},
-            "tab-canvas", False,
-        )
+    register_subtask_callbacks(app, services)
+    register_simulation_callbacks(app, services)
+    register_explain_callbacks(app, services)
 
 
 def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,

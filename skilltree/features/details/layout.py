@@ -1046,3 +1046,8 @@ def build_milestone_tile(milestone_node, completion: dict):
         },
         className="details-milestone-tile",
     )
+
+
+def normalize_max_depth(value):
+    """Map the Details slider's ``All`` sentinel to an uncapped traversal."""
+    return None if value in (None, 0, 6) else int(value)

@@ -345,7 +345,9 @@ class TestDependencyViewTraversal:
 # Details-tab Milestones roster
 # ============================================================================
 
-from skilltree.features.details.callbacks import _build_milestones_section
+from skilltree.features.details.subtasks import (
+    build_milestones_section as _build_milestones_section,
+)
 from skilltree.features.details.layout import build_milestone_tile
 from skilltree.store import schema
 

@@ -15,6 +15,7 @@ from skilltree.features.events.callbacks import register_event_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 from skilltree.ui import tokens
+from support.triggers import fire
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -474,9 +475,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     # A cleared selection gets the no-selection message there too.
     assert "Select a node to see subtasks." in source
 
-    monkeypatch.setattr(
-        details_callbacks, "get_trigger_id",
-        lambda: "details-layout-settled-trigger-input")
+    fire("details-layout-settled-trigger-input.value")
     args[0] = '{"root":"Superseded","settledAt":1}'
     assert callback(*args) is dash.no_update
 
@@ -522,9 +521,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
 
     callback = _raw_callback(_spec_for_output(
         app, "details-subtasks-table-container.children"))
-    monkeypatch.setattr(
-        details_callbacks, "get_trigger_id",
-        lambda: "details-layout-settled-trigger-input")
+    fire("details-layout-settled-trigger-input.value")
     result = callback(
         '{"root":"Current","settledAt":1}', 0, 0,
         ["include"], [], 6,
