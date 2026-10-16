@@ -89,9 +89,6 @@ KNOWN_VIOLATIONS = {
     'deferred: skilltree.store.transfer -> skilltree.store.events',
     'deferred: skilltree.store.transfer -> skilltree.store.graph.manager',
     'deferred: skilltree.store.transfer -> skilltree.store.settings',
-    'deferred: skilltree.ui.callback_helpers -> skilltree.features.editor.values',
-    'deferred: skilltree.ui.callback_helpers -> skilltree.store.events',
-    'deferred: skilltree.ui.callback_helpers -> skilltree.ui.components.duration',
     'deferred: skilltree.ui.canvas.view -> skilltree.ui.styles',
     'deferred: skilltree.ui.kit -> skilltree.store.settings',
     'layer: skilltree.domain.goals -> skilltree.store.settings',
@@ -102,7 +99,6 @@ KNOWN_VIOLATIONS = {
     'layer: skilltree.features.settings.callbacks -> skilltree.shell',
     'layer: skilltree.store.commands -> skilltree.ui.payloads',
     'layer: skilltree.store.graph.queries -> skilltree.features.analyze.data',
-    'layer: skilltree.ui.callback_helpers -> skilltree.features.editor.values',
     'layer: skilltree.ui.canvas.view -> skilltree.engine.response',
     'layer: skilltree.ui.sidebars_layout -> skilltree.features.events.layout',
     'private: skilltree.app -> skilltree.store.database._db_path_cache',
@@ -113,7 +109,6 @@ KNOWN_VIOLATIONS = {
     'private: skilltree.engine.callbacks -> skilltree.engine.sidebars._compute_sidebar_styles',
     'private: skilltree.engine.callbacks -> skilltree.features.editor.values._calibration_modal_text',
     'private: skilltree.engine.callbacks -> skilltree.features.editor.values._calibration_unit_for',
-    'private: skilltree.engine.callbacks -> skilltree.features.editor.values._friendly_time_estimates',
     'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._RECENT_DAYS',
     'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._REFLECTION_MIN_N',
     'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._TYPE_ORDER',
@@ -129,7 +124,6 @@ KNOWN_VIOLATIONS = {
     'private: skilltree.features.details.callbacks -> skilltree.domain.goals._rank_goals',
     'private: skilltree.features.details.callbacks -> skilltree.features.details.layout._build_suggestion_row',
     'private: skilltree.features.events.callbacks -> skilltree.features.events.layout._event_trigger_type',
-    'private: skilltree.features.events.callbacks -> skilltree.ui.callback_helpers._norm_dormancy',
     'private: skilltree.features.events.layout -> skilltree.features.details.layout._freeze_indicator',
     'private: skilltree.features.goals.callbacks -> skilltree.domain.goals._rank_goals',
     'private: skilltree.features.review.calibration -> skilltree.features.editor.values._calibration_modal_text',
@@ -148,7 +142,6 @@ KNOWN_VIOLATIONS = {
     'private: skilltree.store.transfer -> skilltree.store.backup._read_only_uri',
     'private: skilltree.store.transfer -> skilltree.store.database._initialized',
     'private: skilltree.store.transfer -> skilltree.store.database._refusal_for',
-    'private: skilltree.ui.callback_helpers -> skilltree.features.editor.values._friendly_time_estimates',
 }
 
 

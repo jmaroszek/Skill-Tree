@@ -11,8 +11,8 @@ import types
 import dash
 import pytest
 
-from skilltree.features.events import callbacks as event_callbacks
-from skilltree.ui.callback_helpers import NEW_NODE_DORMANCY, build_dormancy_snapshot
+from skilltree.features.editor import dormancy
+from skilltree.features.editor.form import NEW_NODE_DORMANCY, build_dormancy_snapshot
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
@@ -28,14 +28,14 @@ def _node(name):
 def populate(monkeypatch):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
+    dormancy.register_dormancy_callbacks(app)
     fn = next(spec["callback"] for spec in app.callback_map.values()
               if getattr(spec.get("callback"), "__name__", "") == "populate_node_dormancy")
     while hasattr(fn, "__wrapped__"):
         fn = fn.__wrapped__
 
     def run(trigger, snapshot, form, save_result=None):
-        monkeypatch.setattr(event_callbacks, "ctx",
+        monkeypatch.setattr(dormancy, "ctx",
                             types.SimpleNamespace(triggered_id=trigger))
         return fn("A", 1, save_result, None, snapshot, form)
     return run

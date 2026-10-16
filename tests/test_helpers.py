@@ -1,13 +1,14 @@
 """
-Tests for callback_helpers.py serialization functions and styles.py.
+Tests for the editor form, filter and time helpers, and ui/styles.py.
 
 Tests pure functions that don't require a database.
 """
 
 import dash
-from skilltree.ui.callback_helpers import (
+from skilltree.features.editor.layout import alias_rows_label, update_alias_rows
+from skilltree.features.editor.form import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state, editor_form_values, alias_rows_label, update_alias_rows,
+    snapshot_from_form_state, editor_form_values,
 )
 from skilltree.engine.callbacks import resolve_active_node_id
 from skilltree.features.details.explain import (
@@ -542,7 +543,7 @@ class TestIsFormDirtyVsSnapshot:
 # snapshot_from_form_state — post-save pristine snapshot built directly from
 # form State rather than a DB round-trip. This is the bug-fix path for the
 # persistent "unsaved changes" false-positive after save: the DB round-trip
-# through build_editor_snapshot re-applied _friendly_time_estimates, which
+# through build_editor_snapshot re-applied friendly_time_estimates, which
 # could pick a different time_unit than the user had selected, causing the
 # next dirty check to fire.
 # ============================================================================
@@ -586,10 +587,10 @@ class TestSnapshotFromFormState:
     def test_time_unit_drift_does_not_trip_dirty_check(self):
         """Regression: the primary observed false-positive. User types time
         values in 'hours'; on save, a DB round-trip through
-        _friendly_time_estimates could pick 'weeks' from large hour values,
+        friendly_time_estimates could pick 'weeks' from large hour values,
         diverging both time_unit and time_o/m/p. Snapshotting form State
         directly preserves the user's selected unit."""
-        # 500/600/700 hours — _friendly_time_estimates would pick 'weeks'.
+        # 500/600/700 hours — friendly_time_estimates would pick 'weeks'.
         form = self._form(time_o=500, time_m=600, time_p=700, time_unit='hours')
         snap = snapshot_from_form_state(form, form['name'], form['aliases'])
         # Snapshot must preserve the form's 'hours' unit and raw hour values.

@@ -483,7 +483,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     """The form still says Dormant in its event. Saving that used to ask to
     put the awake node back to sleep, which was refused, and every other
     edit with it."""
-    from skilltree.ui.callback_helpers import build_dormancy_snapshot
+    from skilltree.features.editor.form import build_dormancy_snapshot
     manager = graph('A')
     events = EventManager()
     events.add_event(Event('Later'))
@@ -503,7 +503,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
 def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch):
     """Only an untouched section gives way to the wake. Asking to sleep in
     another event is a real request, refused with its own reason."""
-    from skilltree.ui.callback_helpers import build_dormancy_snapshot
+    from skilltree.features.editor.form import build_dormancy_snapshot
     manager = graph('A')
     events = EventManager()
     for name in ('Later', 'Other'):

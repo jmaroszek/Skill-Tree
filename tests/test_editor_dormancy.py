@@ -13,9 +13,11 @@ from dash._utils import AttributeDict
 
 from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
-from skilltree.ui.callback_helpers import (NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT,
-                              build_dormancy_snapshot, build_editor_snapshot,
-                              dormancy_for_save, is_form_dirty_vs_snapshot)
+from skilltree.features.editor import dormancy
+from skilltree.features.editor.form import (
+    NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT, build_dormancy_snapshot,
+    build_editor_snapshot, dormancy_for_save, is_form_dirty_vs_snapshot,
+)
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
@@ -301,6 +303,7 @@ def _callback(name):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     event_callbacks.register_event_callbacks(app)
+    dormancy.register_dormancy_callbacks(app)
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

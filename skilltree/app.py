@@ -176,6 +176,7 @@ def create_app(settings=None, services=None):
     from skilltree.features.review.calibration import register_calibration_callbacks
     from skilltree.features.editor.resources import register_resource_link_callbacks
     from skilltree.features.events.callbacks import register_event_callbacks
+    from skilltree.features.editor.dormancy import register_dormancy_callbacks
     from skilltree.features.details.callbacks import register_details_callbacks
     from skilltree.features.home.callbacks import register_next_callbacks
     from skilltree.features.settings.callbacks import register_settings_callbacks
@@ -213,6 +214,7 @@ def create_app(settings=None, services=None):
             app))
     for register in (register_callbacks, register_calibration_callbacks,
                      register_resource_link_callbacks, register_event_callbacks,
+                     register_dormancy_callbacks,
                      register_details_callbacks, register_next_callbacks,
                      register_settings_callbacks, register_review_hub_callbacks,
                      register_analyze_callbacks, register_sidebars_callbacks,

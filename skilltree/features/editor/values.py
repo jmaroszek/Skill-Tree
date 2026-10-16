@@ -104,7 +104,7 @@ def _calibration_prepop(node):
             node.reflect_notes or '')
 
 
-def _friendly_time_estimates(time_o, time_m, time_p):
+def friendly_time_estimates(time_o, time_m, time_p):
     """Convert stored hour values for display in the node editor.
 
     Uses weeks as the maximum unit — never months or years — so the editor

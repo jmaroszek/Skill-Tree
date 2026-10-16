@@ -232,7 +232,7 @@ BADGE_PALETTE = {
     # Hard edge. 'EdgeSelf' is the node itself, off the edge axis entirely.
     #
     # These were previously duplicated as details_layout._REL_BADGE_STYLES and
-    # callback_helpers._VIA_COLORS, kept in sync by comments alone.
+    # details/explain._VIA_COLORS, kept in sync by comments alone.
     'EdgeHard':    ('#2a4d6e', '#d6e0ee'),
     'EdgeSoft':    ('#576068', '#dde0e5'),
     'EdgeSynergy': ('#466a78', '#d8e6e9'),

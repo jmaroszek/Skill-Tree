@@ -1,31 +1,29 @@
-"""
-Shared helper functions for Dash callback modules.
-
-Contains stateless utility functions extracted from callbacks.py to keep
-the callback registration files focused on Dash I/O wiring.
-"""
-
-import logging
-from skilltree.ui.components.duration import NEW_NODE_TIME_UNIT
-from skilltree.store import database
-
+"""The node editor's form: its fields, the snapshot that says what is unsaved,
+and what a save means."""
 import dash
-from dash import html, State, ALL
-import dash_bootstrap_components as dbc
+from dash import ALL, State
+
+from skilltree.domain.models import (
+    EDGE_HELPS,
+    EDGE_NEEDS_HARD,
+    EDGE_NEEDS_SOFT,
+    STATUS_DONE,
+)
 from skilltree.domain.time import (
-    ALL_WEEKDAYS, habit_day_count as _habit_day_count, habit_to_hours,
+    ALL_WEEKDAYS,
+    habit_day_count,
+    habit_to_hours,
     parse_habit_days,
 )
-
-logger = logging.getLogger(__name__)
-
+from skilltree.features.editor.values import friendly_time_estimates
+from skilltree.store import database
+from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
-from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
-from skilltree.ui.kit import add_button
-from skilltree.store.resources import get_sections
-
-
-# --- Habit-mode time conversion ---
+from skilltree.ui.components.duration import (
+    NEW_NODE_TIME_UNIT,
+    days_to_duration,
+    duration_to_days,
+)
 
 
 def habit_editor_view(intensity_unit, int_o, int_m, int_p, habit_days):
@@ -59,16 +57,13 @@ def habit_preview_text(duration, dur_unit, intensity_m, int_unit, days=None):
     if total <= 0:
         return ""
     if int_unit.endswith('_per_session'):
-        n = _habit_day_count(days)
+        n = habit_day_count(days)
         mag = 'min' if int_unit.startswith('min') else 'hr'
         day_str = f"{n} day{'' if n == 1 else 's'}/wk"
         dur_str = f"{(duration or 0):g} {dur_unit or 'weeks'}"
         return (f"≈ {round(total, 1)} h total — "
                 f"{(intensity_m or 0):g} {mag} × {day_str} × {dur_str}")
     return f"Computes to ~{round(total, 1)} h total"
-
-
-# --- Editor Dirty-State Check (snapshot-based) ---
 
 
 def _norm_str(s):
@@ -80,22 +75,8 @@ def _norm_list(lst):
     return sorted([v for v in (lst or []) if v])
 
 
-# --- Dormancy in the node editor ---
-# Dormant is a form field like any other: flipping it writes nothing until
-# Save. A dormant node belongs to one event. The section's controls are
-# collected into one dict by a clientside callback (node-dormancy-form); this
-# is its shape:
-#
-#   dormant      the Dormant switch
-#   event        the node's event, NEW_EVENT_OPTION, or None
-#   event_name   name for the new event when event is NEW_EVENT_OPTION
-#   delay_value / delay_unit   how long after the event fires the node wakes;
-#                0 while the Delay switch is off
-#   wake_date    the date a fired event gave the node, while it is still in
-#                that event; None otherwise. '' means the date was cleared.
-#   now          Add to Now
-
 NEW_EVENT_OPTION = '__new__'
+
 
 NEW_NODE_DORMANCY = {'dormant': False, 'event': None, 'event_name': '',
                      'delay_value': 0, 'delay_unit': 'days',
@@ -107,7 +88,6 @@ def build_dormancy_snapshot(node, event_manager=None):
     if node is None or not node.dormant:
         return dict(NEW_NODE_DORMANCY)
     if event_manager is None:
-        from skilltree.store.events import EventManager
         event_manager = EventManager()
     membership = event_manager.get_node_membership(node.name)
     if membership is None:
@@ -116,7 +96,6 @@ def build_dormancy_snapshot(node, event_manager=None):
     if wake_date:
         value, unit = 0, 'days'
     else:
-        from skilltree.ui.components.duration import days_to_duration
         value, unit = days_to_duration(membership.get('delay_days'))
     return {
         'dormant': True,
@@ -129,11 +108,10 @@ def build_dormancy_snapshot(node, event_manager=None):
     }
 
 
-def _norm_dormancy(dormancy):
+def norm_dormancy(dormancy):
     """Comparable form of a dormancy dict. Delays compare in days, so
     "1 week" and "7 days" are the same setting. The rest of the section
     means nothing while Dormant is off."""
-    from skilltree.ui.components.duration import duration_to_days
     d = dormancy or {}
     if not d.get('dormant'):
         return (False,)
@@ -156,7 +134,7 @@ def woke_during_edit(events, name, dormancy, pristine_snapshot):
     """
     loaded = pristine_snapshot.get('dormancy') if isinstance(pristine_snapshot, dict) else None
     if (not (dormancy or {}).get('dormant') or not (loaded or {}).get('dormant')
-            or _norm_dormancy(dormancy) != _norm_dormancy(loaded)
+            or norm_dormancy(dormancy) != norm_dormancy(loaded)
             or pristine_snapshot.get('name') != name):
         return None
     event = loaded.get('event')
@@ -164,9 +142,8 @@ def woke_during_edit(events, name, dormancy, pristine_snapshot):
 
 
 def dormancy_for_save(dormancy):
-    """The node-dormancy-form dict in the shape node_commands.apply_dormancy
+    """The node-dormancy-form dict in the shape commands.apply_dormancy
     takes: the delay in days, and the new-event choice resolved to its name."""
-    from skilltree.ui.components.duration import duration_to_days
     d = dormancy or {}
     event = d.get('event') or None
     new_event = event == NEW_EVENT_OPTION
@@ -222,10 +199,6 @@ def build_editor_snapshot(manager, node_name):
 
     Returns None if the node doesn't exist.
     """
-    # Local import — _friendly_time_estimates lives in callbacks.py which
-    # imports from this module, so we defer to avoid a circular import.
-    from skilltree.features.editor.values import _friendly_time_estimates
-
     node = manager.get_node(node_name) if node_name else None
     if node is None:
         return None
@@ -238,7 +211,7 @@ def build_editor_snapshot(manager, node_name):
     else:
         priority_rank = 'none'
 
-    friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+    friendly_o, friendly_m, friendly_p, friendly_unit = friendly_time_estimates(
         node.time_o, node.time_m, node.time_p
     )
 
@@ -391,7 +364,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
 
     Unlike build_editor_snapshot (DB round-trip + display transforms),
     this snapshots what the form actually holds — so the post-save dirty
-    check can't trip on heuristic drift (e.g. _friendly_time_estimates
+    check can't trip on heuristic drift (e.g. friendly_time_estimates
     picking a different time_unit from DB hours than the user selected).
 
     linted_name / linted_aliases are the only values the app legitimately
@@ -610,19 +583,11 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
         if _norm_list(left.get(section_id)) != _norm_list(right.get(section_id)):
             return True
 
-    if _norm_dormancy(form_values.get('dormancy')) != _norm_dormancy(snapshot.get('dormancy')):
+    if norm_dormancy(form_values.get('dormancy')) != norm_dormancy(snapshot.get('dormancy')):
         return True
 
     return False
 
-
-# --- Node CRUD Helpers ---
-
-
-# --- UI Formatting Helpers ---
-
-
-# --- Link Row UI Helper ---
 
 def resource_link_values(values, ids):
     """The editor's mounted resource inputs as {section_id: [links]}."""
@@ -632,105 +597,3 @@ def resource_link_values(values, ids):
         mounted.setdefault(section_id, {})[int(index)] = value or ''
     return {section_id: [by_index.get(i, '') for i in range(max(by_index) + 1)]
             for section_id, by_index in mounted.items()}
-
-
-def render_resource_sections(links):
-    """The node editor's Resources: one labeled block of link rows per section.
-
-    Each row is an input plus trailing browse / open / remove icons in one
-    .editor-field-group. A section always shows at least one (empty) row. The
-    row index rides in the id ("<section>:<i>") so one set of pattern-matched
-    callbacks serves every section.
-    """
-    blocks = []
-    for section in get_sections():
-        section_id = section['id']
-        values = (links or {}).get(section_id) or ['']
-        rows = []
-        for index, value in enumerate(values):
-            key = f"{section_id}:{index}"
-            children = [dbc.Input(id={'type': 'resource-link', 'index': key},
-                                  value=value, type='text', placeholder='Enter path or URL...'),
-                        dbc.Button(html.I(className='bi bi-folder2-open'),
-                                   id={'type': 'resource-browse', 'index': key},
-                                   title='Browse', className='editor-icon-btn'),
-                        dbc.Button(html.I(className='bi bi-box-arrow-up-right'),
-                                   id={'type': 'resource-open', 'index': key},
-                                   title='Open', className='editor-icon-btn')]
-            if len(values) > 1:
-                children.append(dbc.Button(html.I(className='bi bi-x-lg'),
-                           id={'type': 'resource-remove', 'index': key},
-                           title='Remove', className='editor-icon-btn editor-icon-btn-danger'))
-            rows.append(html.Div(children, className='d-flex editor-field-group mb-1'))
-        blocks.append(html.Div([
-            html.Div([dbc.Label(section['name'], className='mb-0'),
-                      add_button({'type': 'resource-add', 'index': section_id}, "Add link")],
-                     className='d-flex align-items-center mt-2 mb-1'),
-            html.Div(rows),
-        ], **{'data-resource-root': section['root_path'],
-              'data-resource-id': section_id}))
-    return blocks
-
-
-def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-remove"):
-    """Build the alias input rows (one unified field per alias, trailing ×).
-
-    Shared by the main node editor and the add-node modals (dormant / subtask);
-    callers pass the prefixed pattern-matching id types so each surface keeps
-    its own component namespace. Mirrors render_resource_sections' visual style.
-    """
-    alias_list = aliases or ['']
-    rows = []
-    for i, val in enumerate(alias_list):
-        rows.append(html.Div([
-            dbc.Input(id={'type': input_type, 'index': i}, type='text',
-                      value=val or '', placeholder='Enter alias...'),
-            dbc.Button(html.I(className='bi bi-x-lg'),
-                       id={'type': remove_type, 'index': i}, title='Remove alias',
-                       className='editor-icon-btn editor-icon-btn-danger'),
-        ], className='d-flex editor-field-group mb-1'))
-    return rows
-
-
-def alias_rows_label(aliases):
-    """Return the singular/plural label for the rendered alias row count."""
-    return "Alias" if len(aliases or ['']) == 1 else "Aliases"
-
-
-def update_alias_rows(trigger, current_values, stored_values, aliases_open,
-                      add_button_id, remove_button_type):
-    """Apply one add/remove action to an editor's repeatable alias rows.
-
-    The first click on the Name-label ``+`` reveals the existing first row;
-    later clicks add rows. Removing the final row closes the optional section,
-    ready for the next ``+`` click to reveal a fresh blank row.
-    """
-    aliases = (list(current_values) if current_values
-               else list(stored_values or ['']))
-    collapse_update = dash.no_update
-
-    if trigger == add_button_id:
-        if aliases_open:
-            aliases.append('')
-        collapse_update = True
-    elif (isinstance(trigger, dict)
-          and trigger.get('type') == remove_button_type):
-        idx = trigger.get('index')
-        if isinstance(idx, int) and 0 <= idx < len(aliases):
-            aliases.pop(idx)
-            if not aliases:
-                collapse_update = False
-
-    return aliases, collapse_update
-
-
-# ---------------------------------------------------------------------------
-# Explain Score modal renderer
-# ---------------------------------------------------------------------------
-
-
-# --- Reopening Done nodes ---
-# A Done node stays Done only while all of its Hard prerequisites are. The link
-# menu and the node editor ask before a change reopens one.
-
-

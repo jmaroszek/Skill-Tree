@@ -1,4 +1,4 @@
-"""The node editor's form is declared once (callback_helpers.EDITOR_FORM).
+"""The node editor's form is declared once (features/editor/form.EDITOR_FORM).
 
 Four callbacks read the whole form: core_engine saves it, and populate_editor,
 toggle_unsaved_modal and sync_original_name_after_save compare it with its
@@ -12,7 +12,9 @@ import inspect
 import dash
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import EDITOR_FORM, editor_form_values, editor_form_values_from
+from skilltree.features.editor.form import (
+    EDITOR_FORM, editor_form_values, editor_form_values_from,
+)
 
 READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
            "sync_original_name_after_save")

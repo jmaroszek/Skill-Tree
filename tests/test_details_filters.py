@@ -3,7 +3,7 @@
 Its callbacks listed the filter controls one by one and had lost the unit, so
 a maximum of 10 weeks read as 10 hours on the Details graph, its subtasks and
 its milestones, while the Nodes canvas and Details' own simulation used weeks.
-They now take the controls as one group (callback_helpers.SIDEBAR_FILTERS).
+They now take the controls as one group (ui/filters.SIDEBAR_FILTERS).
 """
 import dash
 import pytest

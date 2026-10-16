@@ -1,6 +1,6 @@
 """A node editor form, for tests that call the editor's callbacks directly.
 
-The callbacks take the form as one dict (callback_helpers.EDITOR_FORM), which
+The callbacks take the form as one dict (features/editor/form.EDITOR_FORM), which
 Dash builds from the editor's fields. editor_form() builds one with every
 field empty except those given, and call() calls a callback the way Dash
 would. Both refuse a name that is neither a form field nor a parameter, so a
@@ -8,7 +8,7 @@ test can't set something nothing reads.
 """
 import inspect
 
-from skilltree.ui.callback_helpers import EDITOR_FORM
+from skilltree.features.editor.form import EDITOR_FORM
 
 
 def editor_form(**fields):

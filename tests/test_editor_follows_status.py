@@ -9,7 +9,7 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import follow_done_status
+from skilltree.features.editor.form import follow_done_status
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN

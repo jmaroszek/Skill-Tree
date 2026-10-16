@@ -10,7 +10,7 @@ import pytest
 from skilltree.features.links import bridge as bridge_callbacks
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import NEW_NODE_SNAPSHOT
+from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node

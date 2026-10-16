@@ -1134,7 +1134,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     # Cool & quiet palette: Hard a darker rugged blue (the same value as the
     # HardRelPri badge, so one hue means one thing app-wide); Soft a neutral
     # slate; Synergy a cyan-teal, categorically off the Hard/Soft necessity
-    # axis. These used to be written out here AND in callback_helpers as
+    # axis. These used to be written out here AND in details/explain.py as
     # _VIA_COLORS, kept in step by a comment saying they matched.
     _REL_BADGE_STYLES = {
         rel: {"backgroundColor": BADGE_PALETTE[f"Edge{rel}"][0],

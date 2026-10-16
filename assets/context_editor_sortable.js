@@ -11,7 +11,7 @@
  * for context_rules.apply_drag_order to fold into the store.
  *
  * SortableJS moves DOM nodes itself. The editor's root carries a React key
- * derived from its structure (callback_helpers._structure_key), so the render
+ * derived from its structure (features/settings/contexts._structure_key), so the render
  * that follows a drop remounts the editor instead of reconciling against the
  * rearranged DOM. The nonce makes every drop produce that render.
  *

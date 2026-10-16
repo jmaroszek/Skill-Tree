@@ -124,7 +124,7 @@ the window edge, and 48px sits between the two. The Now cards sit 32px above the
 drops under the table instead of squeezing it. Beside the bar, the row's columns sit 24px apart, and the time, the V/I/E
 chart and the link dots sit 38px apart. The first gap is the looser one so the
 bar's end edge does not crowd the time. These are constants in
-`skilltree/ui/callback_helpers.py` and `skilltree/shell.py`.
+`skilltree/features/home/table.py` and `skilltree/shell.py`.
 
 Under the description, with no header, **Supports** lists the nodes that name
 the selected one as a hard or soft prerequisite, Goals included, and **Synergy**
@@ -211,7 +211,7 @@ than guess.
 
 ### Canvas node fill
 Every canvas fills a node by the same precedence, in
-`callback_helpers.node_fill_color`. Done and Blocked come first. Otherwise the
+`ui/canvas/elements.node_fill_color`. Done and Blocked come first. Otherwise the
 node takes its type color. Settings → Appearance sets all of these colors. A
 dormant node keeps its fill and adds the dashed `.dormant` style on top; a Now
 node keeps its fill and adds the pulsing amber ring. Neither dormant nor Now
@@ -607,7 +607,7 @@ A right-click menu doesn't need one, since its target is the thing you clicked.
 
 A node has exactly one menu, `#node-context-menu`, wherever it appears:
 canvases, Next rows, Now cards and Goals sidebar cards. Rows and cards opt in
-with `node_menu_attributes` (`skilltree/ui/callback_helpers.py`). An option that fits only
+with `node_menu_attributes` (`skilltree/ui/components/menus.py`). An option that fits only
 some nodes is hidden for the rest rather than living in a separate menu:
 external links appear only when set, and Set Priority only for a single Goal.
 
@@ -966,7 +966,7 @@ in `skilltree/domain/contexts.py` and its rows in `build_context_editor_rows`.
 
 ### Filtered chip
 
-A pill that says a view is narrowed by the Filters sidebar. Build it with `ui_kit.filter_chip`; its text, tooltip and `hidden` come from `callback_helpers.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details and Events graphs (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
+A pill that says a view is narrowed by the Filters sidebar. Build it with `ui_kit.filter_chip`; its text, tooltip and `hidden` come from `ui/filters.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details and Events graphs (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
 
 ### Details local-view control row
 

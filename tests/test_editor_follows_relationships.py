@@ -9,9 +9,10 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import (NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS,
-                              build_editor_snapshot, follow_relationships,
-                              merge_relationships, resolve_relationship_intent)
+from skilltree.features.editor.form import (
+    NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS, build_editor_snapshot,
+    follow_relationships, merge_relationships, resolve_relationship_intent,
+)
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN

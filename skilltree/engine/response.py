@@ -32,7 +32,7 @@ class CoreResponse(NamedTuple):
     # which fire whether or not the save goes through.
     save_result: object = no_update
     # The editor's Done switch and saved-form snapshot, when the node it shows
-    # changed status outside the editor (callback_helpers.follow_done_status).
+    # changed status outside the editor (editor form.follow_done_status).
     editor_done: object = no_update
     editor_snapshot: object = no_update
     # A save that would reopen Done nodes waits: the confirmation, what it

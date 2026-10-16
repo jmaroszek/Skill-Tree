@@ -10,7 +10,7 @@ can switch back to habit mode without re-typing.
 
 
 
-from skilltree.ui.callback_helpers import habit_editor_view, habit_preview_text
+from skilltree.features.editor.form import habit_editor_view, habit_preview_text
 from skilltree.domain.time import (
     habit_to_hours, compute_habit_time_omp, parse_habit_days,
 )

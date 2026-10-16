@@ -5,7 +5,9 @@ import sys
 
 import pytest
 from skilltree.store import resources
-from skilltree.ui.callback_helpers import build_editor_snapshot, is_form_dirty_vs_snapshot
+from skilltree.features.editor.form import (
+    build_editor_snapshot, is_form_dirty_vs_snapshot,
+)
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from dash.development.base_component import Component
@@ -174,7 +176,7 @@ def test_home_dots_use_named_section_labels():
 
 
 def test_editor_renders_every_section_with_its_links():
-    from skilltree.ui.callback_helpers import render_resource_sections
+    from skilltree.features.editor.resources import render_resource_sections
     blocks = render_resource_sections({'drive': ['a.pdf', 'b.pdf']})
     assert [getattr(b, 'data-resource-id') for b in blocks] == ['obsidian', 'drive', 'website']
     drive_inputs = [c for c in _flatten(blocks[1])
@@ -187,7 +189,7 @@ def test_editor_renders_every_section_with_its_links():
 
 
 def test_mounted_inputs_are_the_editor_links():
-    from skilltree.ui.callback_helpers import resource_link_values
+    from skilltree.features.editor.form import resource_link_values
     ids = [{'type': 'resource-link', 'index': index}
            for index in ('drive:1', 'drive:0', 'books:0')]
     assert resource_link_values(['b.pdf', 'a.pdf', ''], ids) == {

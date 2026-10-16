@@ -1,7 +1,7 @@
 """Every canvas paints and describes a node the same way.
 
 Nodes, Details and Events each choose which nodes to show, and all three build
-the elements with `callback_helpers.build_node_element`. The hover tooltip,
+the elements with `ui/canvas/elements.build_node_element`. The hover tooltip,
 context menu, stylesheet and Now pulse read that payload on whichever canvas
 raised them. So one graph rendered by all three canvases must give every node
 they share the same fill, classes and tooltip.

@@ -2,7 +2,7 @@
  * Node context menu, multi-select, and group delete for the Skill Tree canvases.
  *
  * One menu serves every place a node appears: the canvases, and the rows and
- * cards that carry node_menu_attributes (callback_helpers.py) — Next
+ * cards that carry node_menu_attributes (ui/components/menus.py) — Next
  * suggestions, Now cards and Goals sidebar cards. menus.js positions and
  * closes it.
  */
@@ -380,7 +380,7 @@
 
         // --- Right-click on a node shown as a row or card ---
         // Next suggestions, Now cards and Goals sidebar cards carry
-        // node_menu_attributes (callback_helpers.py). Document-level
+        // node_menu_attributes (ui/components/menus.py). Document-level
         // delegation survives Dash re-renders of the lists.
         document.addEventListener('contextmenu', function (evt) {
             var rowEl = evt.target.closest && evt.target.closest('[data-node-menu]');

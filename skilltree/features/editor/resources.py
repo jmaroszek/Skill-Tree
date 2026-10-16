@@ -11,10 +11,14 @@ import logging
 import dash
 from dash import Input, Output, State, ALL, ctx
 
-from skilltree.ui.callback_helpers import render_resource_sections, resource_link_values
+pass
+from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.ui.prerender import prerendered
 from skilltree.store.resources import NeedsConfirmation, get_sections, open_resource, store_path
+from dash import html
+from skilltree.ui.kit import add_button
+import dash_bootstrap_components as dbc
 
 logger = logging.getLogger(__name__)
 
@@ -162,3 +166,41 @@ def register_resource_link_callbacks(app, services=None):
             return links
         except (KeyError, ValueError, TypeError, IndexError, AttributeError, StopIteration):
             return dash.no_update
+
+
+def render_resource_sections(links):
+    """The node editor's Resources: one labeled block of link rows per section.
+
+    Each row is an input plus trailing browse / open / remove icons in one
+    .editor-field-group. A section always shows at least one (empty) row. The
+    row index rides in the id ("<section>:<i>") so one set of pattern-matched
+    callbacks serves every section.
+    """
+    blocks = []
+    for section in get_sections():
+        section_id = section['id']
+        values = (links or {}).get(section_id) or ['']
+        rows = []
+        for index, value in enumerate(values):
+            key = f"{section_id}:{index}"
+            children = [dbc.Input(id={'type': 'resource-link', 'index': key},
+                                  value=value, type='text', placeholder='Enter path or URL...'),
+                        dbc.Button(html.I(className='bi bi-folder2-open'),
+                                   id={'type': 'resource-browse', 'index': key},
+                                   title='Browse', className='editor-icon-btn'),
+                        dbc.Button(html.I(className='bi bi-box-arrow-up-right'),
+                                   id={'type': 'resource-open', 'index': key},
+                                   title='Open', className='editor-icon-btn')]
+            if len(values) > 1:
+                children.append(dbc.Button(html.I(className='bi bi-x-lg'),
+                           id={'type': 'resource-remove', 'index': key},
+                           title='Remove', className='editor-icon-btn editor-icon-btn-danger'))
+            rows.append(html.Div(children, className='d-flex editor-field-group mb-1'))
+        blocks.append(html.Div([
+            html.Div([dbc.Label(section['name'], className='mb-0'),
+                      add_button({'type': 'resource-add', 'index': section_id}, "Add link")],
+                     className='d-flex align-items-center mt-2 mb-1'),
+            html.Div(rows),
+        ], **{'data-resource-root': section['root_path'],
+              'data-resource-id': section_id}))
+    return blocks

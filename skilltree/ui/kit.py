@@ -218,7 +218,7 @@ def step_button(button_id, icon, tooltip, **kwargs):
 def filter_chip(prefix, className_extra=""):
     """The "Filtered" chip: which filters are narrowing this view, and a clear.
 
-    Hidden until `callback_helpers.filter_chip_state` marks it active. The
+    Hidden until `ui.filters.filter_chip_state` marks it active. The
     callback fills ``{prefix}-text`` and the chip's title and `hidden`; the
     clear button is ``{prefix}-clear``.
     """

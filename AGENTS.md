@@ -102,7 +102,7 @@ python -m ruff check .                                              # before com
 pytest -n auto                                                      # before committing: the whole suite, on every core
 ```
 
-- To find the tests for a file, search `tests/` for its name: a module's, or a JS or CSS asset's. Shared code (`models`, `database`, `graph_manager`, `config`, `scoring`, `callback_helpers`) is tested all over the suite: after changing it, run all of it.
+- To find the tests for a file, search `tests/` for its name: a module's, or a JS or CSS asset's. Shared code (`skilltree/domain`, `skilltree/store`, `skilltree/ui`) is tested all over the suite: after changing it, run all of it.
 - `pytest --lf` reruns only what failed last time. `-n auto` needs pytest-xdist, which `requirements-dev.txt` and `environment.yml` install.
 - Don't wait on CI after pushing: it runs everything, on four platforms, on every push. Look at the last run before you push again (`gh run list --limit 3`); when it's red, fixing it comes first.
 
@@ -113,9 +113,9 @@ Tests use a `temp_database` fixture that gives each test its own copy of a new d
 ## Key patterns to follow when editing
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
-- Put new code in the layer it belongs to (see Package layout above). Don't add to `skilltree/ui/callback_helpers.py`, `skilltree/ui/sidebars_layout.py` or `skilltree/engine/callbacks.py`: they are being broken up.
-- The node editor's fields are declared once, as `EDITOR_FORM` in [`skilltree/ui/callback_helpers.py`](skilltree/ui/callback_helpers.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
-- Build canvas elements with `build_node_element` / `build_edge_element` in [`skilltree/ui/callback_helpers.py`](skilltree/ui/callback_helpers.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
+- Put new code in the layer it belongs to (see Package layout above). Don't add to `skilltree/ui/sidebars_layout.py` or `skilltree/engine/callbacks.py`: they are being broken up.
+- The node editor's fields are declared once, as `EDITOR_FORM` in [`skilltree/features/editor/form.py`](skilltree/features/editor/form.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
+- Build canvas elements with `build_node_element` / `build_edge_element` in [`skilltree/ui/canvas/elements.py`](skilltree/ui/canvas/elements.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
 - Behavior that belongs on every canvas loops over `CANVASES` in [`skilltree/ui/canvas/registry.py`](skilltree/ui/canvas/registry.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.

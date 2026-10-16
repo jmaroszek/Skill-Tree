@@ -1,7 +1,7 @@
 """Sidebar visibility and draft-preservation decisions shared by core paths."""
 import dash
 from skilltree.store.settings import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
-from skilltree.ui.callback_helpers import (
+from skilltree.features.editor.form import (
     is_form_dirty_vs_snapshot, editor_form_values_from,
 )
 from skilltree.ui.sidebars import should_open_editor, left_sidebar_is_open
@@ -28,7 +28,7 @@ def _compute_sidebar_styles(trigger_id, all_triggered_ids, search_val,
     the short-circuit path and the full core_engine path share one
     implementation.
 
-    `form_state` is the editor form (callback_helpers.EDITOR_FORM's values)
+    `form_state` is the editor form (editor form.EDITOR_FORM's values)
     plus its 'pristine_snapshot'. It is read for the unsaved-changes check on
     btn-close-editor and btn-add, and for the name and type a save needs. For
     triggers that need neither, pass an empty dict.

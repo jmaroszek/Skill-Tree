@@ -9,7 +9,7 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import NEW_EVENT_OPTION
+from skilltree.features.editor.form import NEW_EVENT_OPTION
 from editor_forms import call
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager

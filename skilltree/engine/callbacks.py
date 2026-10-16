@@ -5,7 +5,7 @@ Callback definitions for the Skill Tree Dash application.
 from skilltree.features.editor.values import (
     _calibration_modal_text,
     _calibration_unit_for,
-    _friendly_time_estimates,
+    friendly_time_estimates,
 )
 
 import functools
@@ -35,13 +35,16 @@ from skilltree.store.commands import (
     prior_node_for_completion, apply_dormancy, conflicting_node_name,
     plan_bridge, bridge_form, finish_bridge, done_names, ReopensDoneNodes,
 )
-from skilltree.ui.callback_helpers import (
-    render_alias_rows, alias_rows_label, update_alias_rows, resource_link_values,
-    build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
-    NEW_NODE_DORMANCY, woke_during_edit, follow_done_status, resolve_done_intent,
-    RELATIONSHIP_FIELDS, stored_relationships, follow_relationships,
-    resolve_relationship_intent, habit_editor_view, habit_preview_text,
+from skilltree.features.editor.layout import (
+    render_alias_rows, alias_rows_label, update_alias_rows,
+)
+from skilltree.features.editor.form import (
+    resource_link_values, build_editor_snapshot, is_form_dirty_vs_snapshot,
+    NEW_NODE_SNAPSHOT, snapshot_from_form_state, EDITOR_FORM, editor_form_values_from,
+    dormancy_for_save, NEW_NODE_DORMANCY, woke_during_edit, follow_done_status,
+    resolve_done_intent, RELATIONSHIP_FIELDS, stored_relationships,
+    follow_relationships, resolve_relationship_intent, habit_editor_view,
+    habit_preview_text,
 )
 from skilltree.features.nodes.layout import empty_canvas_detail
 from skilltree.ui.components.confirm import reopen_body
@@ -342,7 +345,7 @@ def register_callbacks(app, services=None):
     # The link menu, the Details tab and a bridge change the open node's links
     # without the editor, whose pickers were filled when it loaded. A picker
     # the user hasn't touched takes the stored links; an edited one keeps the
-    # edits on top of them (callback_helpers.follow_relationships). Save
+    # edits on top of them (editor form.follow_relationships). Save
     # merges the same way, so it never depends on this having run. A changed
     # snapshot also checks again: after a save that merged in an outside
     # change, the snapshot holds the form's lists rather than what was stored.
@@ -740,7 +743,7 @@ def register_callbacks(app, services=None):
                         details_selected_node, bridge_ends, bridge_kind, form):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
 
-        `form` is what the editor holds now (callback_helpers.EDITOR_FORM),
+        `form` is what the editor holds now (editor form.EDITOR_FORM),
         checked against `pristine_snapshot` before a switch discards it.
         """
         trigger_id = get_trigger_id()
@@ -993,7 +996,7 @@ def register_callbacks(app, services=None):
         actual_status = data.get('status', STATUS_OPEN)
         done_val = [STATUS_DONE] if actual_status == STATUS_DONE else []
 
-        friendly_o, friendly_m, friendly_p, friendly_unit = _friendly_time_estimates(
+        friendly_o, friendly_m, friendly_p, friendly_unit = friendly_time_estimates(
             data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0)
         )
 
@@ -1092,7 +1095,7 @@ def register_callbacks(app, services=None):
         # as it is now either: this runs after the save's whole response, and
         # anything typed meanwhile would join the baseline and never count as
         # unsaved. A DB-derived snapshot (via build_editor_snapshot)
-        # re-applies display transforms — most notably _friendly_time_estimates,
+        # re-applies display transforms — most notably friendly_time_estimates,
         # which picks its unit from max DB-hours and can diverge from the unit
         # the user had selected. Snapshotting the form State guarantees the
         # immediate post-save dirty check sees the form as clean, since the
@@ -1814,7 +1817,7 @@ def register_callbacks(app, services=None):
         The existing Dash wiring preserves mutation and refresh ordering. Sidebar
         decisions and canvas rendering are delegated; CoreResponse names the stable
         output contract so partial responses do not depend on numeric slots.
-        `form` is the node editor's form (callback_helpers.EDITOR_FORM).
+        `form` is the node editor's form (editor form.EDITOR_FORM).
         """
         form = form or {}
         # The form's fields, under the names the save below reads them by.

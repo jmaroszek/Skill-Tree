@@ -95,7 +95,7 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
     """Write the editor's Dormant switch and Event section for a saved node.
 
     Runs after handle_save, inside the same transaction, so a refusal here
-    undoes the whole save. `dormancy` is callback_helpers.dormancy_for_save
+    undoes the whole save. `dormancy` is editor form.dormancy_for_save
     output: the delay already in days. `was_dormant` is the node's state
     before this save.
     """

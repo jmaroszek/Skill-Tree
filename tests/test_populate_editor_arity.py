@@ -12,7 +12,7 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 import dash
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import NEW_NODE_SNAPSHOT
+from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from skilltree.engine.callbacks import register_callbacks
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
