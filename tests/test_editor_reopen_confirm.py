@@ -75,14 +75,14 @@ def _give_basics_a_prerequisite(monkeypatch, trigger="btn-save", **state):
                 e_supp_h=["Basics"], **state)
 
 
-@pytest.mark.parametrize("trigger", ["btn-save", "btn-save-close", "btn-unsaved-save"])
+@pytest.mark.parametrize("trigger", ["btn-save", "btn-unsaved-save"])
 def test_a_save_that_reopens_done_nodes_asks_and_saves_nothing(monkeypatch, manager, trigger):
     response = _give_basics_a_prerequisite(monkeypatch, trigger, desc="new notes")
 
     assert response.reopen_open is True
     assert response.reopen_pending == {"via": trigger}
     assert "reopens 2 Done nodes" in str(response.reopen_body)
-    # The editor stays open, even for Save & Close, and nothing was saved.
+    # The editor stays open, even for the dialog's Save, and nothing was saved.
     assert response.editor_style["transform"] == "translateX(0px)"
     assert response.save_result is dash.no_update
     assert _edges(manager) == {("Basics", "Advanced", EDGE_NEEDS_HARD)}
@@ -93,9 +93,9 @@ def test_a_save_that_reopens_done_nodes_asks_and_saves_nothing(monkeypatch, mana
 def test_save_in_the_confirmation_finishes_the_save(monkeypatch, manager):
     response = _give_basics_a_prerequisite(
         monkeypatch, "btn-editor-reopen-confirm",
-        btn_editor_reopen_confirm=1, editor_reopen_pending={"via": "btn-save-close"})
+        btn_editor_reopen_confirm=1, editor_reopen_pending={"via": "btn-unsaved-save"})
 
-    assert response.save_result["via"] == "btn-save-close"
+    assert response.save_result["via"] == "btn-unsaved-save"
     assert ("Extra", "Basics", EDGE_NEEDS_HARD) in _edges(manager)
     assert _statuses(manager) == {"Basics": "Blocked", "Advanced": "Blocked",
                                   "Extra": STATUS_OPEN}

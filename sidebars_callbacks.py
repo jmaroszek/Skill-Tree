@@ -350,9 +350,7 @@ def register_sidebars_callbacks(app, services=None):
         ClientsideFunction(namespace='editor', function_name='dismiss_tooltips'),
         Output('editor-revert-tooltip', 'is_open'),
         Output('editor-save-tooltip', 'is_open'),
-        Output('editor-save-close-tooltip', 'is_open'),
         Output('editor-delete-tooltip', 'is_open'),
-        Output('editor-new-node-tooltip', 'is_open'),
         Input('sidebar-editor-container', 'style'),
         prevent_initial_call=True,
     )

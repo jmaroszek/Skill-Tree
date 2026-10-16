@@ -32,15 +32,12 @@ from list_toolbar import GOALS_SORT, SEARCH_STYLE, build_list_toolbar
 from context_picker import build_multi_context_picker, build_single_context_picker
 from models import STATUS_DONE
 import style_tokens as tokens
-from ui_kit import (Tooltip, add_button, cancel_action, confirm_action, danger_action,
-                     bullet_hint, done_color, hover_label, info_button, panel_close_button,
+from ui_kit import (Tooltip, add_button, cancel_action, danger_action,
+                     bullet_hint, hover_label, info_button, panel_close_button,
                      primary_action)
 
 # Node types have distinct product behavior and are not user-extensible.
 NODE_TYPES = list(SUPPORTED_NODE_TYPES)
-
-# Save & Close reuses the canvas "Done" node color (same as the Events tab's
-# Trigger button) — a save-and-close is the editor's "done" moment.
 
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
@@ -101,16 +98,10 @@ _EDITOR_HINTS = {
 }
 
 
-# The four editor action buttons share one padding; it was written out
-# four times, and one of them differed.
-_ACTION_PAD = {"padding": "6px 0"}
-
-
 # --- Node Editor sidebar (left) ---
 def build_node_editor_content():
     CONTEXTS = sort_contexts(ConfigManager.get_contexts())
     _TED = ConfigManager.get_time_estimate_defaults()
-    _DONE_COLOR = done_color()
     return html.Div(
         [
             html.Div([
@@ -119,7 +110,15 @@ def build_node_editor_content():
                     add_button("btn-editor-new", "New node", large=True),
                 ], className="d-flex align-items-center"),
                 panel_close_button("btn-close-editor", "Close node editor", large=True)
-            ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
+            # Sticky, so New node and Close stay in reach from anywhere in the
+            # form; the action bar at the bottom holds only Delete, Revert and
+            # Save. Padding rather than margin: a stuck element's margin lets
+            # scrolled fields show above it. The opaque background hides them.
+            ], id="node-editor-header",
+               className="d-flex justify-content-between align-items-center",
+               style={"position": "sticky", "top": "0", "zIndex": 3,
+                      "backgroundColor": tokens.BG_PANEL,
+                      "paddingTop": "0.5rem", "paddingBottom": "0.25rem"}),
             html.Div([
                 html.Div([
                     html.H5("Search", className="mb-0"),
@@ -488,7 +487,7 @@ def build_node_editor_content():
                           style={'display': 'none'}),
                 html.Div(id='editor-resources'),
 
-                # The five actions stay pinned to the bottom of the panel while the
+                # The three actions stay pinned to the bottom of the panel while the
                 # fields above them scroll. `position: sticky` keeps them in normal
                 # flow, so the panel's full height still scrolls to the very end and
                 # nothing sits permanently behind the bar. The opaque background is
@@ -497,26 +496,11 @@ def build_node_editor_content():
                 html.Div([
                     html.Hr(className="my-2"),
                     html.Div([
-                        # btn-revert was the one button in the app with no
-                        # color prop, hand-painting the exact value that
-                        # color="secondary" already gives it. Its label also
-                        # says Cancel while its tooltip describes a revert;
-                        # Revert is what it does, and what the unsaved-changes
-                        # modal calls the same choice.
-                        danger_action("Delete", "btn-delete",
-                                      className="flex-fill me-2", style=_ACTION_PAD),
-                        cancel_action("Revert", "btn-revert",
-                                      className="flex-fill me-2", style=_ACTION_PAD),
-                        primary_action("Save", "btn-save",
-                                       className="flex-fill me-2", style=_ACTION_PAD),
-                        confirm_action("Save & Close", "btn-save-close",
-                                       className="flex-fill",
-                                       style={**_ACTION_PAD,
-                                              "backgroundColor": _DONE_COLOR,
-                                              "borderColor": _DONE_COLOR})
-                    ], className="d-flex mt-4"),
-                    cancel_action("New Node", "btn-new-node", className="w-100 mt-2",
-                                  style={"padding": "8px 0"}),
+                        danger_action("Delete", "btn-delete"),
+                        html.Div(className="flex-grow-1"),
+                        cancel_action("Revert", "btn-revert", className="me-2"),
+                        primary_action("Save", "btn-save"),
+                    ], className="form-actions form-actions-lg d-flex align-items-center mt-3"),
                     # Kept inside the bar so a save confirmation is visible from
                     # wherever the user was scrolled when they pressed Save.
                     html.Div(id="save-output", className="text-success fw-bold text-end mt-2"),
@@ -530,9 +514,7 @@ def build_node_editor_content():
                 }),
                 Tooltip("Discard unsaved changes and revert this node to its last saved state", id="editor-revert-tooltip", target="btn-revert", placement="top"),
                 Tooltip("Save changes", id="editor-save-tooltip", target="btn-save", placement="top"),
-                Tooltip("Save changes and close the node editor", id="editor-save-close-tooltip", target="btn-save-close", placement="top"),
                 Tooltip("Delete this node", id="editor-delete-tooltip", target="btn-delete", placement="top"),
-                Tooltip("Create a new node", id="editor-new-node-tooltip", target="btn-new-node", placement="top"),
                 dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='node-time-unit-prev', data='weeks'),
                 dcc.Store(id='node-original-name', data=None)

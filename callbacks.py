@@ -140,7 +140,7 @@ def _core_engine_editor_only_tuple(next_ed_style, next_goal_style, next_events_s
 
 # The editor's own saves: each commits the whole form, so the form is what
 # the database holds afterwards.
-_EDITOR_SAVE_TRIGGERS = ('btn-save', 'btn-save-close', 'btn-unsaved-save')
+_EDITOR_SAVE_TRIGGERS = ('btn-save', 'btn-unsaved-save')
 
 # What changes a node's Done status outside the editor: the node menu's
 # toggles, and the undo-Done confirmation, which also re-blocks the Done
@@ -189,7 +189,8 @@ def _build_undo_done_body(target_names, downstream_done):
 def _editor_kept_open(ed_style):
     """The editor style for a refused save: open, so the form stays on screen.
 
-    Save & Close computes a closed style before the save runs. A save that is
+    The unsaved-changes dialog's Save computes a closed style before the save
+    runs. A save that is
     then refused must not slide the form away with the user's input in it.
     """
     if not isinstance(ed_style, dict):
@@ -647,13 +648,12 @@ def register_callbacks(app, services=None):
 
     # --- Scroll editor to top on New Node / Add ---
     app.clientside_callback(
-        """function(n1, n2, n3) {
+        """function(n1, n2) {
             var el = document.getElementById('sidebar-editor-container');
             if (el) el.scrollTop = 0;
             return window.dash_clientside.no_update;
         }""",
-        Output('btn-new-node', 'title'),
-        Input('btn-new-node', 'n_clicks'),
+        Output('btn-editor-new', 'title'),
         Input('btn-add', 'n_clicks'),
         Input('btn-editor-new', 'n_clicks'),
         prevent_initial_call=True,
@@ -702,7 +702,6 @@ def register_callbacks(app, services=None):
          Input('editor-save-result-store', 'data'),
          Input('search-node', 'value'),
          Input('background-click-input', 'value'),
-         Input('btn-new-node', 'n_clicks'),
          Input('btn-editor-new', 'n_clicks'),
          Input('edit-trigger-input', 'value'),
          Input('details-edit-trigger-input', 'value'),
@@ -724,7 +723,7 @@ def register_callbacks(app, services=None):
         # a dozen follow-on callbacks, all before the editor could be seen.
         prevent_initial_call=True,
     )
-    def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, new_node_clicks, editor_new_clicks, edit_trigger_val,
+    def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
                         revert_clicks,
                         ed_style, original_name, pending_nav, pristine_snapshot,
@@ -822,8 +821,7 @@ def register_callbacks(app, services=None):
             # the last-loaded node (matches the Goals/Events toggles).
             return _untouched()
 
-        if trigger_id in ('btn-new-node', 'btn-editor-new',
-                          'details-add-choice-input'):
+        if trigger_id in ('btn-editor-new', 'details-add-choice-input'):
             if trigger_id == 'details-add-choice-input':
                 if not (details_add_choice or '').startswith('new|') or not details_selected_node:
                     return _untouched()
@@ -1074,7 +1072,7 @@ def register_callbacks(app, services=None):
         # The unsaved-changes dialog's Save moves on to another node instead,
         # and populate_editor handles that.
         if (not isinstance(save_result, dict)
-                or save_result.get('via') not in ('btn-save', 'btn-save-close')):
+                or save_result.get('via') != 'btn-save'):
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update
         linted = save_result.get('name')
         if not linted or manager.get_node(linted) is None:
@@ -1414,10 +1412,8 @@ def register_callbacks(app, services=None):
         Output('time-validation-error', 'children'),
         Output('time-validation-error', 'style'),
         Output('btn-save', 'disabled'),
-        Output('btn-save-close', 'disabled'),
         # The time fields sit below the fold; hovering Save says why it's off.
         Output('btn-save', 'title'),
-        Output('btn-save-close', 'title'),
         Input('node-time-o', 'value'),
         Input('node-time-m', 'value'),
         Input('node-time-p', 'value'),
@@ -1442,12 +1438,12 @@ def register_callbacks(app, services=None):
 
         if (time_mode_val and 'inherited' in time_mode_val) or \
            (habit_mode_val and 'habit' in habit_mode_val):
-            return "", hidden, False, False, "", ""
+            return "", hidden, False, ""
 
         msg = time_estimate_problem(time_o, time_m, time_p)
         if msg:
-            return msg, visible, True, True, msg, msg
-        return "", hidden, False, False, "", ""
+            return msg, visible, True, msg
+        return "", hidden, False, ""
 
     # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
     @app.callback(
@@ -1713,7 +1709,7 @@ def register_callbacks(app, services=None):
          Output('filter-community', 'value', allow_duplicate=True),
          Output('community-memory-store', 'data')],
 
-        [Input('btn-save', 'n_clicks'), Input('btn-save-close', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
+        [Input('btn-save', 'n_clicks'), Input('btn-node-delete-confirm', 'n_clicks'),
          Input('filter-context', 'value'), Input('filter-subcontext', 'value'), Input('filter-done', 'value'),
          Input('filter-dormant', 'value'),
          Input('search-node', 'value'),
@@ -1723,7 +1719,7 @@ def register_callbacks(app, services=None):
          Input('filter-time', 'value'), Input('filter-time-unit', 'value'),
          Input('filter-difficulty', 'value'),
          Input('suggestion-count-store', 'data'),
-         Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'), Input('btn-new-node', 'n_clicks'),
+         Input('btn-edit-node', 'n_clicks'), Input('btn-add', 'n_clicks'),
          Input('btn-close-editor', 'n_clicks'), Input('btn-goals-toggle', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'), Input('btn-unsaved-discard', 'n_clicks'),
          Input('settings-save-status', 'children'),
@@ -1775,10 +1771,10 @@ def register_callbacks(app, services=None):
          EDITOR_FORM],
         prevent_initial_call='initial_duplicate'
     )
-    def core_engine(save_clicks, save_close_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
+    def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_new_node, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_save_status, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_save_status, migration_open, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
@@ -1984,7 +1980,7 @@ def register_callbacks(app, services=None):
                     t_p = float(time_p or 0) * multiplier
 
                     # Intercept rename: if original name differs from current name, rename node atomically
-                    if (trigger_id in ('btn-save', 'btn-save-close', 'btn-unsaved-save') and
+                    if (trigger_id in _EDITOR_SAVE_TRIGGERS and
                             original_name and original_name.strip() and
                             name.strip() != original_name.strip() and
                             manager.get_node(original_name.strip())):

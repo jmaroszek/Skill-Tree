@@ -13,7 +13,7 @@
  * _compute_sidebar_styles), which the browser can't evaluate. So when the
  * editor is already open we return no_update and let core_engine decide.
  *
- * btn-editor-new, btn-new-node, btn-close-editor, btn-save-close, etc. stay
+ * btn-editor-new, btn-close-editor, btn-save, etc. stay
  * server-only — they need form state (unsaved-changes modal, validation,
  * pending nav).
  */
@@ -88,18 +88,18 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
     window.dash_clientside.editor.dismiss_tooltips = function (editorStyle) {
         var NO = window.dash_clientside.no_update;
         if (editorStyle && editorStyle.transform === "translateX(0px)") {
-            return [NO, NO, NO, NO, NO];
+            return [NO, NO, NO];
         }
         // A pending hover timer can fire after the sidebar has moved away.
         // The tooltip's native mouseout handler cancels that timer; resetting
         // is_open then closes a tooltip that was already showing.
-        ["btn-revert", "btn-save", "btn-save-close", "btn-delete", "btn-new-node"]
+        ["btn-revert", "btn-save", "btn-delete"]
             .forEach(function (id) {
                 var button = document.getElementById(id);
                 if (button) {
                     button.dispatchEvent(new MouseEvent("mouseout", {bubbles: true}));
                 }
             });
-        return [false, false, false, false, false];
+        return [false, false, false];
     };
 })();

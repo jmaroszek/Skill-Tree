@@ -188,11 +188,14 @@ def build_events_tab_content():
                 # confirm modal already previews exactly which nodes will
                 # wake, so the table is not the only preview of the action.
                 #
-                # Order is the node editor's: danger, then the plain commit,
-                # then the commit that also finishes. They take size="sm"
-                # rather than the style guide's default form-action size --
-                # the pane is narrow and sits beside a dense table, where
-                # full-size buttons read as a slab.
+                # Save, the routine commit, is the one filled button and comes
+                # first, where the eye lands after the label. Trigger fires at
+                # most once per event and Save runs after every edit, so
+                # Trigger is the quiet one beside it. Delete sits apart at the
+                # far end. The node editor's footer mirrors this order: there
+                # nothing labels the row, and the eye ends on the right. They take
+                # size="sm" rather than the style guide's default form-action
+                # size -- the pane is narrow and sits beside a dense table.
                 #
                 # Neither wrapper may carry a Bootstrap display utility --
                 # .d-flex and friends are `!important` and beat the inline
@@ -201,24 +204,24 @@ def build_events_tab_content():
                 # it shared a .d-flex box with Save.
                 dbc.Label("Actions", className="mt-3 mb-1"),
                 html.Div([
-                    html.Div(
-                        danger_action("Delete", "btn-event-delete", size="sm"),
-                        id="event-delete-wrapper", className="me-2",
-                    ),
                     primary_action("Save", "btn-event-save", size="sm",
                                    className="me-2"),
                     html.Div(
-                        confirm_action("Trigger", "btn-trigger-event", size="sm",
-                                       style={"backgroundColor": _done_color,
-                                              "borderColor": _done_color}),
+                        confirm_action("Trigger", "btn-trigger-event", size="sm"),
                         id="event-trigger-btn-wrapper",
                     ),
                     # The save confirmation rides beside the button that
                     # causes it rather than under the title, a panel's height
-                    # away, where it used to appear.
-                    html.Div(id="event-save-status", className="text-success ms-3",
+                    # away, where it used to appear. It also fills the gap
+                    # that holds Delete apart from the commits.
+                    html.Div(id="event-save-status",
+                             className="text-success flex-grow-1 mx-3",
                              style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
-                ], className="d-flex align-items-center mb-2"),
+                    html.Div(
+                        danger_action("Delete", "btn-event-delete", size="sm"),
+                        id="event-delete-wrapper",
+                    ),
+                ], className="form-actions d-flex align-items-center mb-2"),
                 Tooltip("Delete this event and its dormant nodes",
                         target="btn-event-delete", placement="bottom"),
                 Tooltip("Save changes to this event",

@@ -343,7 +343,7 @@ def test_loading_any_node_clears_the_pending_bridge(monkeypatch, manager):
 
 
 def test_a_new_node_clears_the_pending_bridge(monkeypatch, manager):
-    out = _populate(monkeypatch, "btn-new-node", new_node_clicks=1)
+    out = _populate(monkeypatch, "btn-editor-new", editor_new_clicks=1)
 
     assert out[43] is None
 

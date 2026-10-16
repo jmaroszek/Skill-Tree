@@ -180,8 +180,7 @@ def test_an_empty_graph_says_how_to_begin():
 def test_a_disabled_save_says_why():
     from callbacks import register_callbacks
     validate = _callbacks(register_callbacks)["validate_time_estimates"]
-    message, _style, disabled, _disabled_close, title, _title_close = validate(
-        None, None, None, [], [])
+    message, _style, disabled, title = validate(None, None, None, [], [])
     assert disabled is True and "Expected" in title
-    _message, _style, disabled, _dc, title, _tc = validate(None, 2, None, [], [])
+    _message, _style, disabled, title = validate(None, 2, None, [], [])
     assert disabled is False and title == ""

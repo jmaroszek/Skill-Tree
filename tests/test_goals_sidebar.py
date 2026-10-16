@@ -152,7 +152,7 @@ shownCards = false;
 def test_opening_the_editor_slides_goals_and_events_shut():
     open_style = {"transform": "translateX(0px)", "left": "0"}
     _, goal_style, events_style = callbacks._compute_sidebar_styles(
-        "btn-new-node", {"btn-new-node"}, None,
+        "btn-editor-new", {"btn-editor-new"}, None,
         None, open_style, open_style, None, {},
     )
     assert goal_style["transform"] == SIDEBAR_TRANSLATE_CLOSED
