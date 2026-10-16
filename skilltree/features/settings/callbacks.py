@@ -2,76 +2,58 @@
 Callback definitions for the Settings tab.
 """
 
-import json
-import uuid
 import logging
+from typing import Any, Tuple
+
 import dash
-from skilltree.store import database
-from dash import html, Input, Output, State, ALL, MATCH, ctx
 import dash_bootstrap_components as dbc
-from skilltree.store.graph.manager import GraphManager
-from skilltree.store.settings import (
-    ConfigManager, DEFAULT_NODE_COLORS, DEFAULT_TITLECASE_LINTER, SUPPORTED_NODE_TYPES,
-)
+from dash import ALL, MATCH, Input, Output, State, ctx, html
+
+from skilltree.domain import contexts as context_rules
 from skilltree.domain.contexts import (
-    CONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL,
-    SUBCONTEXT_SORT_DEFINITION, sort_subcontexts,
+    CONTEXT_SORT_ALPHABETICAL,
+    CONTEXT_SORT_DEFINITION,
+    SUBCONTEXT_SORT_ALPHABETICAL,
+    SUBCONTEXT_SORT_DEFINITION,
 )
+from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.names import (
-    NAME_FORMAT_MODES, NAME_FORMAT_NONE, NAME_FORMAT_TITLE,
+    NAME_FORMAT_MODES,
+    NAME_FORMAT_NONE,
+    NAME_FORMAT_TITLE,
 )
 from skilltree.domain.profiles import PROFILES
-from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE
-from typing import Tuple, Any
-from skilltree.runtime.file_picker import spawn_local_file_picker
-from skilltree.features.settings.contexts import build_context_editor_rows
-from skilltree.ui.dash_tools import get_trigger_id
-from skilltree.domain.time import sync_time_fields, capacity_hours
-from skilltree.domain import contexts as context_rules
-from skilltree.store.resources import (get_sections, save_sections, validate_sections,
-                            section_link_counts, live_sections, MAX_SECTIONS)
-from skilltree.features.settings.migration import build_migration_content
-from skilltree.features.settings.layout import build_resource_setting_rows
+from skilltree.domain.time import capacity_hours, sync_time_fields
+from skilltree.features.settings.contexts import (
+    CTX_EDIT_STATES,
+    editor_state,
+    live_rows,
+    register_context_editor_callbacks,
+)
+from skilltree.features.settings.draft import (
+    apply_settings,
+    changed_settings,
+    normalized_sections,
+)
+from skilltree.features.settings.migration import register_migration_callbacks
+from skilltree.features.settings.resources import (
+    SECTION_FORM_STATES,
+    register_resource_settings_callbacks,
+    section_form_rows,
+)
+from skilltree.store import database
+from skilltree.store.graph.manager import GraphManager
+from skilltree.store.resources import get_sections, validate_sections
+from skilltree.store.settings import (
+    DEFAULT_NODE_COLORS,
+    DEFAULT_TITLECASE_LINTER,
+    SUPPORTED_NODE_TYPES,
+    ConfigManager,
+)
 
 logger = logging.getLogger(__name__)
 
 manager = GraphManager()
-
-
-def _section_form_rows(store, names, name_ids, roots, root_ids,
-                       use_roots, use_root_ids):
-    """Overlay mounted form values on the ordered section draft.
-
-    Only live cards mount their fields, so a removed section keeps its stored
-    values. A section whose Root folder switch is off saves no root, whatever
-    its hidden field still holds.
-    """
-    rows = [dict(row) for row in (store or get_sections())]
-    by_id = {row["id"]: row for row in rows}
-    for values, ids, field in ((names, name_ids, "name"),
-                               (roots, root_ids, "root_path"),
-                               (use_roots, use_root_ids, "use_root")):
-        for value, component_id in zip(values or [], ids or []):
-            row = by_id.get(component_id["index"])
-            if row is None:
-                continue
-            if field == "use_root":
-                row[field] = "enabled" in (value or [])
-            else:
-                row[field] = value
-    for row in rows:
-        if row.get("use_root") is False:
-            row["root_path"] = ""
-    return rows
-
-
-# The mounted Resource-card fields, as the State list every callback that
-# reads the draft passes to _section_form_rows (after the store).
-_SECTION_FORM_STATES = [
-    State({'type': f'resource-section-{field}', 'index': ALL}, prop)
-    for field in ('name', 'root', 'root-enabled')
-    for prop in ('value', 'id')
-]
 
 
 def _display_types():
@@ -155,130 +137,6 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
-# The same complete draft is committed after an ordinary close or after the
-# migration dialog. Validation and migration planning happen before any write.
-_SETTING_METHODS = {
-    'hp_profile': 'hp_profile', 'ts': 'time_settings',
-    'contexts': 'contexts', 'subcontexts': 'subcontexts',
-    'context_weights': 'context_weights', 'shapes': 'node_shapes',
-    'colors': 'node_colors', 'name_formatting': 'name_formatting',
-    'show_scoring_perf': 'show_scoring_perf',
-    'time_calibration_enabled': 'time_calibration_enabled',
-    'now_node_cap': 'now_node_cap', 'subcontext_sort_mode': 'subcontext_sort_mode',
-    'context_sort_mode': 'context_sort_mode', 'backup_extra_dir': 'backup_extra_dir',
-}
-
-
-def _changed_settings(draft):
-    changed = {}
-    for key, method in _SETTING_METHODS.items():
-        if key not in draft:
-            continue
-        current = getattr(ConfigManager, 'get_' + method)()
-        if key == 'context_weights':
-            # Missing weights already mean 1. Opening/closing the modal must
-            # not turn those defaults into an edit or clear profile overrides.
-            current = {name: current.get(name, 1.0)
-                       for name in set(current) | set(draft[key])}
-        if draft[key] != current:
-            changed[key] = draft[key]
-    return changed
-
-
-def _normalized_sections(rows):
-    return [{'id': row['id'], 'name': (row.get('name') or '').strip(),
-             'root_path': (row.get('root_path') or '').strip(), 'position': i}
-            for i, row in enumerate(live_sections(rows))]
-
-
-def _apply_settings(draft):
-    for key, value in _changed_settings(draft).items():
-        getattr(ConfigManager, 'set_' + _SETTING_METHODS[key])(value)
-        if key == 'hp_profile':
-            ConfigManager.clear_hyperparams()
-    if (_normalized_sections(draft['resource_sections']) != get_sections()):
-        save_sections(draft['resource_sections'])
-
-
-def _fold_live_values(rows, name_vals, name_ids, weight_vals, weight_ids,
-                      sub_vals, sub_ids):
-    """Copy what is currently typed in the editor back into the stored rows.
-
-    The name, priority and chip inputs are deliberately not callback Inputs —
-    re-rendering the container on every keystroke would take the caret with
-    it. They are read here instead, just before a structural edit (add,
-    remove, drag) rebuilds the rows, and again on save.
-    """
-    by_rid_name = {i["index"]: v for i, v in zip(name_ids or [], name_vals or [])}
-    by_rid_weight = {i["index"]: v for i, v in zip(weight_ids or [], weight_vals or [])}
-    by_sid = {i["index"]: v for i, v in zip(sub_ids or [], sub_vals or [])}
-
-    folded = []
-    for row in rows or []:
-        rid = row["rid"]
-        name = by_rid_name.get(rid, row.get("name"))
-        weight = by_rid_weight.get(rid, row.get("weight"))
-        try:
-            weight = float(weight)
-        except (TypeError, ValueError):
-            weight = context_rules.DEFAULT_CONTEXT_WEIGHT
-        subs = [{**s, "name": by_sid.get(s["sid"], s.get("name"))}
-                for s in row.get("subs", [])]
-        folded.append({**row, "name": name if name is not None else "",
-                       "weight": weight, "subs": subs})
-    return folded
-
-
-def _editor_state(manager, rows=None):
-    """Build the Contexts editor's store payload.
-
-    Alongside the rows it carries the taxonomy they are diffed against and the
-    node counts per context and per (context, subcontext) pair. Capturing
-    those once, when the modal opens, is what lets the live summary and the
-    validation run on every keystroke without touching the database. Saving
-    re-reads the config rather than trusting this snapshot.
-    """
-    contexts = ConfigManager.get_contexts()
-    subcontexts = ConfigManager.get_subcontexts()
-    ctx_counts, pair_counts = manager.count_nodes_by_context()
-    if rows is None:
-        rows = context_rules.taxonomy_to_rows(
-            contexts, subcontexts, ConfigManager.get_context_weights())
-    return {
-        'rows': rows,
-        'old': {'contexts': contexts, 'subcontexts': subcontexts},
-        'counts': {
-            'ctx': ctx_counts,
-            # JSON has no tuple keys, so pairs travel as [ctx, sub, n] triples.
-            'pair': [[c, s, n] for (c, s), n in pair_counts.items()],
-        },
-    }
-
-
-def _counts_from_state(state):
-    """Unpack the store's node counts back into ({ctx: n}, {(ctx, sub): n})."""
-    counts = (state or {}).get('counts') or {}
-    pairs = {(row[0], row[1]): row[2] for row in counts.get('pair', [])
-             if len(row) == 3}
-    return counts.get('ctx', {}), pairs
-
-
-def _remove_row(rows, rid):
-    """Drop a row, or mark it removed when it has something to lose.
-
-    A row that was never saved just disappears — there is nothing to undo. One
-    that came from the config is kept, struck through, so the node count stays
-    visible and the removal can be taken back before Save.
-    """
-    out = []
-    for row in rows:
-        if row["rid"] != rid:
-            out.append(row)
-        elif row.get("orig"):
-            out.append({**row, "deleted": True})
-    return out
-
-
 def _save_message(plan) -> str:
     """Confirm a save, naming the context changes it made.
 
@@ -288,36 +146,6 @@ def _save_message(plan) -> str:
     """
     detail = context_rules.describe_plan(plan)
     return f"Settings saved — {detail}" if detail else "Settings saved"
-
-
-def _clicked(triggered_value) -> bool:
-    """True when a pattern-matched button was actually clicked.
-
-    Re-rendering the row container mounts fresh buttons whose n_clicks is
-    None, which fires the callback again; without this guard the first render
-    after any edit would replay that edit.
-    """
-    return bool(triggered_value)
-
-
-def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals: list,
-                                new_subcontexts: dict) -> None:
-    """Apply per-node ctx/sub remaps via `manager.apply_node_migration`.
-
-    Each `entries[i]` carries a 'node_name' field; ctx_vals[i] and sub_vals[i]
-    are the chosen new values from the modal's per-node dropdowns.
-    `__keep__` is a no-op; `__clear__` clears the field (handled inside
-    `apply_node_migration` via the sentinel).
-    """
-    for i, entry in enumerate(entries):
-        ctx_val = ctx_vals[i] if i < len(ctx_vals) else None
-        sub_val = sub_vals[i] if i < len(sub_vals) else None
-        if ctx_val and ctx_val != '__keep__':
-            manager.apply_node_migration(entry['node_name'], 'context',
-                                         ctx_val, new_subcontexts)
-        if sub_val and sub_val != '__keep__':
-            manager.apply_node_migration(entry['node_name'], 'subcontext',
-                                         sub_val, new_subcontexts)
 
 
 def register_settings_callbacks(app, services=None):
@@ -331,148 +159,6 @@ def register_settings_callbacks(app, services=None):
         prevent_initial_call=True,
     )
 
-    # --- Contexts editor -----------------------------------------------
-    # The rows live in `context-editor-store`; the components below are only
-    # how a click finds its row again. Text inputs are read as State rather
-    # than driving Inputs, so typing never re-renders the container out from
-    # under the caret. See context_rules.py for the row model.
-
-    _CTX_EDIT_STATES = (
-        State('context-editor-store', 'data'),
-        State({"type": "ctx-row-name", "index": ALL}, "value"),
-        State({"type": "ctx-row-name", "index": ALL}, "id"),
-        State({"type": "ctx-row-weight", "index": ALL}, "value"),
-        State({"type": "ctx-row-weight", "index": ALL}, "id"),
-        State({"type": "ctx-sub-name", "index": ALL}, "value"),
-        State({"type": "ctx-sub-name", "index": ALL}, "id"),
-    )
-
-    def _live_rows(state, name_vals, name_ids, weight_vals, weight_ids,
-                   sub_vals, sub_ids):
-        """Rows from the store with whatever is currently typed folded in."""
-        return _fold_live_values((state or {}).get('rows', []),
-                                 name_vals, name_ids, weight_vals, weight_ids,
-                                 sub_vals, sub_ids)
-
-    @app.callback(
-        Output('setting-context-editor', 'children'),
-        Input('context-editor-store', 'data'),
-    )
-    def render_context_editor(state):
-        state = state or {}
-        ctx_counts, pair_counts = _counts_from_state(state)
-        rows = state.get('rows', [])
-        return build_context_editor_rows(
-            rows, ctx_counts, pair_counts,
-            context_rules.validate_rows(context_rules.normalize_rows(rows)))
-
-    @app.callback(
-        Output({"type": "ctx-row-name", "index": ALL}, "invalid"),
-        Output({"type": "ctx-sub-name", "index": ALL}, "invalid"),
-        Output('ctx-editor-summary', 'children'),
-        Output('ctx-editor-summary', 'className'),
-        Input({"type": "ctx-row-name", "index": ALL}, "value"),
-        Input({"type": "ctx-sub-name", "index": ALL}, "value"),
-        State('context-editor-store', 'data'),
-        State({"type": "ctx-row-name", "index": ALL}, "id"),
-        State({"type": "ctx-sub-name", "index": ALL}, "id"),
-    )
-    def validate_context_editor(name_vals, sub_vals, state, name_ids, sub_ids):
-        """Flag problems and say what a save would do, without a re-render.
-
-        Writing only `invalid` flags and one line of text leaves the inputs
-        themselves in place, which is what lets this run on every keystroke.
-        Everything it needs was captured in the store when the modal opened,
-        so it costs no database read.
-        """
-        state = state or {}
-        rows = _fold_live_values(state.get('rows', []),
-                                 name_vals, name_ids, [], [], sub_vals, sub_ids)
-        rows = context_rules.normalize_rows(rows)
-        errors = context_rules.validate_rows(rows)
-
-        name_flags = [f"row:{i['index']}" in errors for i in name_ids or []]
-        sub_flags = [f"sub:{i['index']}" in errors for i in sub_ids or []]
-
-        if errors:
-            first = next(iter(errors.values()))
-            extra = len(errors) - 1
-            text = first + (f" (+{extra} more)" if extra else "")
-            return name_flags, sub_flags, text, "mt-1 ctx-summary-error"
-
-        old = state.get('old') or {}
-        ctx_counts, pair_counts = _counts_from_state(state)
-        plan = context_rules.plan_taxonomy_change(
-            rows, old.get('contexts', []), old.get('subcontexts', {}))
-        return (name_flags, sub_flags,
-                context_rules.describe_plan(plan, ctx_counts, pair_counts),
-                "mt-1")
-
-    @app.callback(
-        Output('context-editor-store', 'data', allow_duplicate=True),
-        Input('btn-ctx-row-add', 'n_clicks'),
-        Input({"type": "ctx-row-delete", "index": ALL}, "n_clicks"),
-        Input({"type": "ctx-row-undelete", "index": ALL}, "n_clicks"),
-        Input({"type": "ctx-sub-add", "index": ALL}, "n_clicks"),
-        Input({"type": "ctx-sub-remove", "index": ALL}, "n_clicks"),
-        Input('ctx-editor-drag-input', 'value'),
-        *_CTX_EDIT_STATES,
-        prevent_initial_call=True,
-    )
-    def edit_context_rows(_add, _del, _undel, _sub_add, _sub_del, drag_value,
-                          state,
-                          name_vals, name_ids, weight_vals, weight_ids,
-                          sub_vals, sub_ids):
-        """Apply one structural edit to the rows and hand back a fresh store.
-
-        Every branch folds the live text values in first, so an edit never
-        discards a name the user typed but has not blurred.
-        """
-        trigger = ctx.triggered_id
-        if trigger is None:
-            return dash.no_update
-        fired = ctx.triggered[0].get('value') if ctx.triggered else None
-        rows = _live_rows(state, name_vals, name_ids, weight_vals, weight_ids,
-                          sub_vals, sub_ids)
-
-        if trigger == 'btn-ctx-row-add':
-            if not _clicked(fired):
-                return dash.no_update
-            rows.append({"rid": context_rules.next_row_id(rows), "orig": None,
-                         "name": "", "subs": [],
-                         "weight": context_rules.DEFAULT_CONTEXT_WEIGHT})
-
-        elif trigger == 'ctx-editor-drag-input':
-            if not drag_value:
-                return dash.no_update
-            try:
-                rows = context_rules.apply_drag_order(rows, json.loads(drag_value))
-            except (ValueError, TypeError):
-                return dash.no_update
-
-        elif isinstance(trigger, dict):
-            if not _clicked(fired):
-                return dash.no_update
-            kind, index = trigger.get('type'), trigger.get('index')
-            if kind == 'ctx-row-delete':
-                rows = _remove_row(rows, index)
-            elif kind == 'ctx-row-undelete':
-                rows = [{**r, "deleted": False} if r["rid"] == index else r
-                        for r in rows]
-            elif kind == 'ctx-sub-add':
-                sid = context_rules.next_sub_id(rows)
-                blank = {"sid": sid, "orig": None, "orig_ctx": None, "name": ""}
-                rows = [{**r, "subs": list(r["subs"]) + [blank]}
-                        if r["rid"] == index else r for r in rows]
-            elif kind == 'ctx-sub-remove':
-                rows = [{**r, "subs": [s for s in r["subs"] if s["sid"] != index]}
-                        for r in rows]
-            else:
-                return dash.no_update
-        else:
-            return dash.no_update
-
-        return {**(state or {}), 'rows': rows}
 
     # --- Settings: Open the Settings modal from the toolbar gear button ---
     @app.callback(
@@ -511,101 +197,6 @@ def register_settings_callbacks(app, services=None):
     def toggle_titlecase_options(format_mode):
         return format_mode == NAME_FORMAT_TITLE
 
-    # --- Settings: Resource cards ---
-    # The draft reloads when Settings opens and after a save lands, so a
-    # removed card stops showing once its removal is real.
-    @app.callback(
-        Output('resource-section-settings-store', 'data'),
-        Input('settings-modal', 'is_open'),
-        Input('settings-save-status', 'children'),
-        prevent_initial_call=True,
-    )
-    def load_resource_sections(is_open, save_status):
-        if ctx.triggered_id == 'settings-save-status':
-            if not str(save_status or '').startswith('Settings saved'):
-                return dash.no_update
-            return get_sections()
-        return get_sections() if is_open else dash.no_update
-
-    @app.callback(
-        Output('resource-section-settings-rows', 'children'),
-        Output('resource-section-limit-msg', 'children'),
-        Input('resource-section-settings-store', 'data'),
-    )
-    def render_resource_section_settings(rows):
-        rows = rows if rows is not None else get_sections()
-        # The limit note stays up while you're still at the limit, and
-        # clears once a removal makes room.
-        full = len(live_sections(rows)) >= MAX_SECTIONS
-        return (build_resource_setting_rows(rows, section_link_counts()),
-                dash.no_update if full else '')
-
-    @app.callback(
-        Output({'type': 'resource-section-root-options', 'index': ALL}, 'is_open'),
-        Input({'type': 'resource-section-root-enabled', 'index': ALL}, 'value'),
-    )
-    def toggle_resource_root_options(values):
-        return ['enabled' in (value or []) for value in values]
-
-    # Browser fallback. In the desktop window assets/resource_picker.js
-    # answers the click with the native folder dialog, and Dash never sees it.
-    @app.callback(
-        Output({'type': 'resource-section-root', 'index': MATCH}, 'value'),
-        Input({'type': 'resource-section-root-browse', 'index': MATCH}, 'n_clicks'),
-        State({'type': 'resource-section-root', 'index': MATCH}, 'value'),
-        prevent_initial_call=True,
-    )
-    def browse_resource_root(n_clicks, current):
-        if not n_clicks:
-            return dash.no_update
-        picked = spawn_local_file_picker(current or '', 'Select folder', None,
-                                         directory=True)
-        return picked or dash.no_update
-
-    @app.callback(
-        Output('resource-section-settings-store', 'data', allow_duplicate=True),
-        Output('resource-section-limit-msg', 'children', allow_duplicate=True),
-        Input('btn-resource-section-add', 'n_clicks'),
-        Input({'type': 'resource-section-remove', 'index': ALL}, 'n_clicks'),
-        Input({'type': 'resource-section-undelete', 'index': ALL}, 'n_clicks'),
-        State('resource-section-settings-store', 'data'),
-        *_SECTION_FORM_STATES,
-        prevent_initial_call=True,
-    )
-    def modify_resource_sections(_add, _remove, _undelete, store, *form):
-        # Re-rendered cards mount fresh buttons; only a click counts.
-        if not ctx.triggered[0].get('value'):
-            return dash.no_update, dash.no_update
-        rows = _section_form_rows(store, *form)
-        trigger = ctx.triggered_id
-        limit_note = f'You can have up to {MAX_SECTIONS} resources. Remove one to add another.'
-        if trigger == 'btn-resource-section-add':
-            if len(live_sections(rows)) >= MAX_SECTIONS:
-                return dash.no_update, limit_note
-            used_names = {(row.get('name') or '').casefold()
-                          for row in live_sections(rows)}
-            name = 'New Resource'
-            suffix = 2
-            while name.casefold() in used_names:
-                name = f'New Resource {suffix}'
-                suffix += 1
-            rows.append({'id': uuid.uuid4().hex, 'name': name, 'root_path': '', 'position': len(rows), 'new': True})
-            return rows, dash.no_update
-        if not isinstance(trigger, dict):
-            return dash.no_update, dash.no_update
-        row = next((row for row in rows if row['id'] == trigger['index']), None)
-        if row is None:
-            return dash.no_update, dash.no_update
-        if trigger['type'] == 'resource-section-undelete':
-            if len(live_sections(rows)) >= MAX_SECTIONS:
-                return dash.no_update, limit_note
-            row.pop('deleted', None)
-        elif row.get('new'):
-            # Never saved, so there is nothing to hold for an undo.
-            rows.remove(row)
-        else:
-            row['deleted'] = True
-        return rows, dash.no_update
 
     # --- Settings: Load when Settings tab activates ---
     load_outputs = [
@@ -635,7 +226,7 @@ def register_settings_callbacks(app, services=None):
         if not is_open:
             return (dash.no_update,) * len(load_outputs)
 
-        editor_state = _editor_state(manager)
+        contexts_state = editor_state(manager)
         profile = ConfigManager.get_hp_profile()
         if profile not in PROFILES:
             profile = "Sage"
@@ -666,7 +257,7 @@ def register_settings_callbacks(app, services=None):
             context_sort_mode = CONTEXT_SORT_DEFINITION
 
         return (
-            editor_state,
+            contexts_state,
             profile,
             shape_rows,
             status_color_rows,
@@ -729,9 +320,9 @@ def register_settings_callbacks(app, services=None):
         State('setting-context-sort-mode', 'value'),
         State('setting-time-calibration-enabled', 'value'),
         State('setting-now-node-cap', 'value'),
-        *_CTX_EDIT_STATES,
+        *CTX_EDIT_STATES,
         State('resource-section-settings-store', 'data'),
-        *_SECTION_FORM_STATES,
+        *SECTION_FORM_STATES,
         State('setting-backup-extra-dir', 'value'),
         State('setting-show-hour-equivalents', 'value'),
         prevent_initial_call=True,
@@ -763,7 +354,7 @@ def register_settings_callbacks(app, services=None):
             # Every setter and manager call joins it. Early returns below are
             # validation/migration decisions and have written nothing.
             with database.transaction():
-                sections = _section_form_rows(
+                sections = section_form_rows(
                     section_store, section_names, section_name_ids,
                     section_roots, section_root_ids,
                     section_use_roots, section_use_root_ids)
@@ -791,7 +382,7 @@ def register_settings_callbacks(app, services=None):
                     editor_store = {'rows': context_rules.taxonomy_to_rows(
                         ConfigManager.get_contexts(), ConfigManager.get_subcontexts(),
                         ConfigManager.get_context_weights())}
-                rows = context_rules.normalize_rows(_live_rows(
+                rows = context_rules.normalize_rows(live_rows(
                     editor_store, ctx_name_vals, ctx_name_ids, ctx_weight_vals,
                     ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
                 errors = context_rules.validate_rows(rows)
@@ -892,14 +483,14 @@ def register_settings_callbacks(app, services=None):
                 if orphans:
                     return result("Migration required — check the migration dialog.", draft)
 
-                if (not _changed_settings(draft)
-                        and _normalized_sections(sections) == get_sections()
+                if (not changed_settings(draft)
+                        and normalized_sections(sections) == get_sections()
                         and not plan['ctx_renames'] and not plan['pair_moves']):
                     return result(dash.no_update, closed=True)
 
                 manager.apply_taxonomy_migration(plan['ctx_renames'], plan['pair_moves'])
-                _apply_settings(draft)
-                editor = _editor_state(manager)
+                apply_settings(draft)
+                editor = editor_state(manager)
             # Only dismiss after the transaction has committed successfully.
             return result(_save_message(plan), editor=editor, closed=True)
 
@@ -908,284 +499,6 @@ def register_settings_callbacks(app, services=None):
             return result("Couldn't save settings. Nothing was changed; the log has the "
                           "details.")
 
-    # --- Migration Modal ---
-    @app.callback(
-        Output('modal-migration', 'is_open'),
-        Output('migration-modal-body', 'children'),
-        Output('migration-mapping-store', 'data'),
-        Output('context-editor-store', 'data', allow_duplicate=True),
-        Output('migration-error', 'children'),
-        Output('pending-settings-store', 'data', allow_duplicate=True),
-        Output('settings-save-status', 'children', allow_duplicate=True),
-        Output('settings-modal', 'is_open', allow_duplicate=True),
-        Input('pending-settings-store', 'data'),
-        Input('btn-migration-apply', 'n_clicks'),
-        Input('btn-migration-skip', 'n_clicks'),
-        Input('btn-migration-cancel', 'n_clicks'),
-        State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
-        State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
-        State('migration-mapping-store', 'data'),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-        running=[(Output(button, 'disabled'), True, False)
-                 for button in ('btn-migration-apply', 'btn-migration-skip', 'btn-migration-cancel')],
-    )
-    def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
-                         cgc_node_values, cgs_node_values,
-                         sgc_node_values, sgs_node_values,
-                         mapping_data, pending_state):
-        from types import SimpleNamespace
-
-        trigger_id = get_trigger_id()
-
-        if trigger_id == 'pending-settings-store' and pending_data:
-            orphans = pending_data.get('orphans', {})
-            new_values = pending_data.get('new_values', {})
-            subcontexts_by_context = pending_data.get('subcontexts', {})
-            rename_map = pending_data.get('rename_map', {})
-
-            orphans_for_ui = {}
-            for field, val_map in orphans.items():
-                orphans_for_ui[field] = {}
-                for old_val, node_dicts in val_map.items():
-                    orphans_for_ui[field][old_val] = [SimpleNamespace(**d) for d in node_dicts]
-
-            children, mapping = build_migration_content(
-                orphans_for_ui, new_values, subcontexts_by_context,
-                rename_map=rename_map,
-            )
-            return (True, children, mapping, dash.no_update, "",
-                    dash.no_update, dash.no_update, dash.no_update)
-
-        if trigger_id == 'btn-migration-cancel':
-            # Declining migration returns to the complete draft, including the
-            # context removals, so the user can correct it without losing edits.
-            return False, [], None, dash.no_update, "", None, "", dash.no_update
-
-        if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
-            try:
-                # One transaction: the renames, the settings and any rehoming
-                # are saved together or not at all.
-                with database.transaction():
-                    # The renames and moves the editor already resolved go on
-                    # first, on Skip as well as Apply: skipping declines to rehome
-                    # the stranded nodes, not to make the rename that was asked
-                    # for. Doing it here rather than at Save is what makes Cancel
-                    # leave the graph untouched.
-                    manager.apply_taxonomy_migration(
-                        pending_state.get('ctx_renames', {}),
-                        pending_state.get('pair_moves', []),
-                    )
-
-                    _apply_settings(pending_state)
-
-                    if trigger_id == 'btn-migration-apply' and mapping_data:
-                        new_subcontexts = pending_state.get('subcontexts', {})
-
-                        ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
-                        _apply_per_node_migrations(manager, ctx_nodes, cgc_node_values,
-                                                    cgs_node_values, new_subcontexts)
-
-                        sub_nodes = mapping_data.get('sub_nodes', []) if isinstance(mapping_data, dict) else []
-                        _apply_per_node_migrations(manager, sub_nodes, sgc_node_values,
-                                                    sgs_node_values, new_subcontexts)
-                    editor = _editor_state(manager)
-            except Exception:
-                logger.exception("Failed to apply the settings migration")
-                return (dash.no_update,) * 4 + (
-                    "Couldn't apply the changes, so nothing was saved. The log "
-                    "has the details.",) + (dash.no_update,) * 3
-
-            # Re-seed the rows from what was just saved, so the next edit
-            # diffs against it and the node counts reflect the rehoming.
-            return False, [], None, editor, "", None, "Settings saved", False
-
-        return (dash.no_update,) * 8
-
-    def _filtered_sub_options(ctx_val, subcontexts_map):
-        mode = ConfigManager.get_subcontext_sort_mode()
-        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
-        else:
-            subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss], mode
-            )
-        opts = [{"label": s, "value": s} for s in subs]
-        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
-        default = subs[0] if subs else "__keep__"
-        return opts, default
-
-    def _per_row_filter(ctx_vals, sub_vals, pending_data):
-        """Shared body for per-node ctx→sub cascading callbacks.
-
-        Updates only the triggered row's options. Preserves the row's current
-        sub value when it remains valid under the new ctx — this is what
-        keeps bulk-apply from being clobbered when its programmatic ctx writes
-        re-trigger this callback.
-        """
-        if not ctx_vals:
-            return dash.no_update, dash.no_update
-        triggered = ctx.triggered_id
-        if not isinstance(triggered, dict):
-            return [dash.no_update] * len(ctx_vals), [dash.no_update] * len(ctx_vals)
-        triggered_idx = triggered.get('index')
-        subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        new_opts = [dash.no_update] * len(ctx_vals)
-        new_vals = [dash.no_update] * len(ctx_vals)
-        for pos, inp in enumerate(ctx.inputs_list[0]):
-            if inp.get('id', {}).get('index') == triggered_idx:
-                opts, default = _filtered_sub_options(ctx_vals[pos], subcontexts_map)
-                new_opts[pos] = opts
-                current_sub = sub_vals[pos] if pos < len(sub_vals) else None
-                valid_subs = {o['value'] for o in opts}
-                new_vals[pos] = dash.no_update if current_sub in valid_subs else default
-                break
-        return new_opts, new_vals
-
-    # --- Migration: per-node cascading filter for context-orphan section ---
-    @app.callback(
-        Output({"type": "migration-cgs-node", "index": dash.ALL}, "options"),
-        Output({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
-        Input({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
-        State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def filter_cgs_node_options(cgc_vals, cgs_vals, pending_data):
-        return _per_row_filter(cgc_vals, cgs_vals, pending_data)
-
-    # --- Migration: per-node cascading filter for subcontext-orphan section ---
-    @app.callback(
-        Output({"type": "migration-sgs-node", "index": dash.ALL}, "options"),
-        Output({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
-        Input({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgs-node", "index": dash.ALL}, "value"),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def filter_sgs_node_options(sgc_vals, sgs_vals, pending_data):
-        return _per_row_filter(sgc_vals, sgs_vals, pending_data)
-
-    def _bulk_cascading(bulk_ctx_vals, pending_data):
-        """Cascading filter for the per-group bulk-apply ctx → sub dropdown."""
-        if not bulk_ctx_vals:
-            return dash.no_update, dash.no_update
-        triggered = ctx.triggered_id
-        if not isinstance(triggered, dict):
-            return ([dash.no_update] * len(bulk_ctx_vals),
-                    [dash.no_update] * len(bulk_ctx_vals))
-        triggered_idx = triggered.get('index')
-        subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        new_opts = [dash.no_update] * len(bulk_ctx_vals)
-        new_vals = [dash.no_update] * len(bulk_ctx_vals)
-        for pos, inp in enumerate(ctx.inputs_list[0]):
-            if inp.get('id', {}).get('index') == triggered_idx:
-                opts, default = _filtered_sub_options(bulk_ctx_vals[pos], subcontexts_map)
-                new_opts[pos] = opts
-                new_vals[pos] = default
-                break
-        return new_opts, new_vals
-
-    # --- Migration: cascading filter for ctx-orphan bulk row ---
-    @app.callback(
-        Output({"type": "migration-bulk-cgs", "index": dash.ALL}, "options"),
-        Output({"type": "migration-bulk-cgs", "index": dash.ALL}, "value"),
-        Input({"type": "migration-bulk-cgc", "index": dash.ALL}, "value"),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def filter_bulk_cgs_options(bulk_ctx_vals, pending_data):
-        return _bulk_cascading(bulk_ctx_vals, pending_data)
-
-    # --- Migration: cascading filter for sub-orphan bulk row ---
-    @app.callback(
-        Output({"type": "migration-bulk-sgs", "index": dash.ALL}, "options"),
-        Output({"type": "migration-bulk-sgs", "index": dash.ALL}, "value"),
-        Input({"type": "migration-bulk-sgc", "index": dash.ALL}, "value"),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def filter_bulk_sgs_options(bulk_ctx_vals, pending_data):
-        return _bulk_cascading(bulk_ctx_vals, pending_data)
-
-    def _bulk_apply(entries_key, ctx_dd_type, sub_dd_type,
-                    bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
-                    n_ctx_outputs):
-        """Push a single (ctx, sub) pair to every per-node row in the
-        triggered group. Returns (ctx_values, sub_values, sub_options) lists
-        sized to the per-node dropdowns; rows outside the group get no_update.
-        """
-        triggered = ctx.triggered_id
-        if not isinstance(triggered, dict) or n_ctx_outputs == 0:
-            return ([dash.no_update] * n_ctx_outputs,
-                    [dash.no_update] * n_ctx_outputs,
-                    [dash.no_update] * n_ctx_outputs)
-        group_i = triggered.get('index')
-        entries = (mapping_data or {}).get(entries_key, [])
-        # Bulk dropdowns are indexed per group; pick the values for THIS group.
-        new_ctx = bulk_ctx_vals[group_i] if group_i < len(bulk_ctx_vals) else None
-        new_sub = bulk_sub_vals[group_i] if group_i < len(bulk_sub_vals) else None
-        if not new_ctx:
-            return ([dash.no_update] * n_ctx_outputs,
-                    [dash.no_update] * n_ctx_outputs,
-                    [dash.no_update] * n_ctx_outputs)
-        subcontexts_map = (pending_data or {}).get('subcontexts', {})
-        sub_opts, _ = _filtered_sub_options(new_ctx, subcontexts_map)
-        ctx_out = [dash.no_update] * n_ctx_outputs
-        sub_out = [dash.no_update] * n_ctx_outputs
-        opts_out = [dash.no_update] * n_ctx_outputs
-        for i, entry in enumerate(entries):
-            if i >= n_ctx_outputs:
-                break
-            if entry.get('group_idx') == group_i:
-                ctx_out[i] = new_ctx
-                sub_out[i] = new_sub
-                opts_out[i] = sub_opts
-        return ctx_out, sub_out, opts_out
-
-    # --- Migration: bulk apply for ctx-orphan group ---
-    @app.callback(
-        Output({"type": "migration-cgc-node", "index": dash.ALL}, "value", allow_duplicate=True),
-        Output({"type": "migration-cgs-node", "index": dash.ALL}, "value", allow_duplicate=True),
-        Output({"type": "migration-cgs-node", "index": dash.ALL}, "options", allow_duplicate=True),
-        Input({"type": "migration-bulk-cg-apply", "index": dash.ALL}, "n_clicks"),
-        State({"type": "migration-bulk-cgc", "index": dash.ALL}, "value"),
-        State({"type": "migration-bulk-cgs", "index": dash.ALL}, "value"),
-        State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
-        State('migration-mapping-store', 'data'),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def bulk_apply_cg(n_clicks_list, bulk_ctx_vals, bulk_sub_vals,
-                      cgc_node_vals, mapping_data, pending_data):
-        if not any(n_clicks_list):
-            return (dash.no_update, dash.no_update, dash.no_update)
-        return _bulk_apply('ctx_nodes', 'migration-cgc-node', 'migration-cgs-node',
-                           bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
-                           len(cgc_node_vals))
-
-    # --- Migration: bulk apply for sub-orphan group ---
-    @app.callback(
-        Output({"type": "migration-sgc-node", "index": dash.ALL}, "value", allow_duplicate=True),
-        Output({"type": "migration-sgs-node", "index": dash.ALL}, "value", allow_duplicate=True),
-        Output({"type": "migration-sgs-node", "index": dash.ALL}, "options", allow_duplicate=True),
-        Input({"type": "migration-bulk-sg-apply", "index": dash.ALL}, "n_clicks"),
-        State({"type": "migration-bulk-sgc", "index": dash.ALL}, "value"),
-        State({"type": "migration-bulk-sgs", "index": dash.ALL}, "value"),
-        State({"type": "migration-sgc-node", "index": dash.ALL}, "value"),
-        State('migration-mapping-store', 'data'),
-        State('pending-settings-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def bulk_apply_sg(n_clicks_list, bulk_ctx_vals, bulk_sub_vals,
-                      sgc_node_vals, mapping_data, pending_data):
-        if not any(n_clicks_list):
-            return (dash.no_update, dash.no_update, dash.no_update)
-        return _bulk_apply('sub_nodes', 'migration-sgc-node', 'migration-sgs-node',
-                           bulk_ctx_vals, bulk_sub_vals, mapping_data, pending_data,
-                           len(sgc_node_vals))
 
     # --- Settings: Auto-dismiss status message ---
     @app.callback(
@@ -1234,4 +547,8 @@ def register_settings_callbacks(app, services=None):
             return dash.no_update
         from skilltree.store.settings import DEFAULT_NODE_COLORS
         return _build_type_color_rows(_display_types(), DEFAULT_NODE_COLORS)
+
+    register_context_editor_callbacks(app, services)
+    register_resource_settings_callbacks(app, services)
+    register_migration_callbacks(app, services)
 

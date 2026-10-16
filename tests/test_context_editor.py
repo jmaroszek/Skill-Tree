@@ -21,6 +21,7 @@ from skilltree.features.settings.contexts import build_context_editor_rows
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.features.settings import draft as settings_draft
 
 
 CONTEXTS = ["Health", "People", "Wisdom"]
@@ -563,7 +564,7 @@ class TestMigrationDialog:
         def broken(_rows):
             raise RuntimeError("disk full")
         pending["resource_sections"][0]["name"] = "Renamed Resources"
-        monkeypatch.setattr(settings_callbacks, "save_sections", broken)
+        monkeypatch.setattr(settings_draft, "save_sections", broken)
         is_open, body, mapping, editor, error, cleared, status, settings_open = self._answer(
             fns, "btn-migration-apply", pending)
 

@@ -281,7 +281,9 @@ def test_settings_cards_carry_their_switches_and_a_removed_card_holds():
 
 
 def test_section_draft_reads_switches_from_the_cards():
-    from skilltree.features.settings.callbacks import _section_form_rows
+    from skilltree.features.settings.resources import (
+        section_form_rows as _section_form_rows,
+    )
     store = [{'id': 'books', 'name': 'Books',
               'root_path': 'C:/Library', 'position': 0}]
     ids = [{'type': 'x', 'index': 'books'}]

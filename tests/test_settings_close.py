@@ -6,6 +6,8 @@ import dash
 from skilltree.store import database
 from skilltree.features.settings import callbacks as settings_callbacks
 from skilltree.store.settings import ConfigManager
+from skilltree.features.settings import draft as settings_draft
+from skilltree.features.settings import contexts as settings_contexts
 
 
 def _callbacks():
@@ -40,7 +42,7 @@ def _draft(callbacks):
         now_node_cap_val=ConfigManager.get_now_node_cap(),
         context_sort_mode_val=ConfigManager.get_context_sort_mode(),
         subcontext_sort_mode_val=ConfigManager.get_subcontext_sort_mode(),
-        editor_store=settings_callbacks._editor_state(settings_callbacks.manager),
+        editor_store=settings_contexts.editor_state(settings_callbacks.manager),
         section_store=settings_callbacks.get_sections(),
         backup_extra_dir=ConfigManager.get_backup_extra_dir())
     return args
@@ -61,7 +63,7 @@ def test_unchanged_close_writes_nothing_and_preserves_profile_overrides(monkeypa
         raise AssertionError('an unchanged close attempted a write')
 
     monkeypatch.setattr(ConfigManager, '_set_db_value', unexpected)
-    monkeypatch.setattr(settings_callbacks, 'save_sections', unexpected)
+    monkeypatch.setattr(settings_draft, 'save_sections', unexpected)
     result = callbacks['save_settings'](**args)
     assert result[5] is False and result[6] == 'close-1'
     assert result[0] is dash.no_update
@@ -111,7 +113,7 @@ def test_failed_commit_keeps_settings_open_and_rolls_back(monkeypatch):
     def broken(_rows):
         raise RuntimeError('disk full')
 
-    monkeypatch.setattr(settings_callbacks, 'save_sections', broken)
+    monkeypatch.setattr(settings_draft, 'save_sections', broken)
     result = callbacks['save_settings'](**args)
     assert "Couldn't save settings" in result[0]
     assert result[5] is dash.no_update and result[6] == 'close-1'

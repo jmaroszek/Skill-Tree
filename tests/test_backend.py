@@ -2078,7 +2078,7 @@ class TestApplyPerNodeMigrations:
     actual DB writes can be observed."""
 
     def _apply(self, manager, entries, ctx_vals, sub_vals, new_subcontexts=None):
-        from skilltree.features.settings.callbacks import _apply_per_node_migrations
+        from skilltree.features.settings.migration import _apply_per_node_migrations
         _apply_per_node_migrations(manager, entries, ctx_vals, sub_vals,
                                     new_subcontexts or {})
 
