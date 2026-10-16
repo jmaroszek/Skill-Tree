@@ -150,11 +150,16 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     result = simulation_service.summarize(
         node_name, nodes_dict, sim_edges, include_soft, include_helps,
         requested_trials, should_cancel=should_cancel)
-    # Zero hours with only the node itself unfinished: a container that takes
-    # its time from work that is all Done.
-    if result['chain_size'] <= 1 and result['stats']['max'] == 0:
-        raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no time "
-                          "left to estimate.")
+    # Every run took zero hours: a chart of P10 = P50 = P90 = 0 tells the user
+    # nothing. Either the work beneath is all Done, or nothing beneath holds
+    # hours at all, like a Milestone over only other Milestones.
+    if result['stats']['max'] == 0:
+        if any(node.status == STATUS_DONE and not node.has_no_own_work
+               for name, node in nodes_dict.items() if name != node_name):
+            raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no "
+                              "time left to estimate.")
+        raise NothingLeft(f"No work with a time estimate leads into '{node_name}' yet, "
+                          "so there is no time to estimate.")
 
     return (
         simulation_figure(result, time_settings, requested_trials),

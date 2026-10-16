@@ -1234,14 +1234,14 @@ def build_milestone_tile(milestone_node, completion: dict):
       Name                     [Status]
       ▰▰▰▰▰▱▱▱▱▱  47% · 18.2h
 
-    Leaf Milestones (no Hard children, total == 0) skip the progress bar
-    and show just name + status pill — mirrors the canvas hover tooltip's
-    "no subtasks yet" branch behavior.
+    A Milestone with no estimated work beneath it (no Hard children, or only
+    other Milestones) skips the progress bar and hours and shows just name +
+    status pill — mirrors the canvas hover tooltip.
 
     The whole tile is keyed for the pattern-matched click callback in
     details_callbacks; clicking navigates Details to this Milestone.
     """
-    total = (completion or {}).get('total', 0)
+    has_work = (completion or {}).get('has_work', False)
     pct = (completion or {}).get('pct', 0)
     remaining = (completion or {}).get('remaining_time', 0)
 
@@ -1269,7 +1269,7 @@ def build_milestone_tile(milestone_node, completion: dict):
 
     children = [header]
 
-    if total > 0:
+    if has_work:
         bar_color = progress_bar_color(pct)
         children += [
             # Progress bar — same style as the canvas hover tooltip so the two

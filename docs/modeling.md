@@ -57,6 +57,8 @@ Both Actions and Milestones are objective, externally verifiable events. But the
 
 Because a Milestone holds no work, scoring doesn't count it as a step. Put one between two nodes and they stay exactly as close as before. So add Milestones wherever they help you track progress, without worrying that they push the work around them further away.
 
+Finishing the work before a Milestone doesn't mean you hit it. So the app never suggests marking a Milestone Done. You mark it Done yourself, once you've passed the test. If you finish the work and miss the target, the Milestone stays open, and so does everything it unlocks. Add another round of work in front of it and try again.
+
 ## Node Size
 
 Choosing the right node type is half the battle. The other half is choosing the right node **size** — its level of abstraction. For Skill Tree to rank and sequence your work well, each node should be a high-level project, typically spanning at least a couple of weeks. Skill Tree's job is to tell you which project deserves your attention this month, not to track every step within it.

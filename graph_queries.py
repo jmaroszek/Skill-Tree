@@ -247,7 +247,9 @@ def summarize_completion(nodes: List[Node]) -> dict:
 
     ``pct`` is ``share`` as a whole percent, held to 1-99 until every node
     is Done, so 100 still means finished and started work never reads 0.
-    ``total`` and ``done`` stay counts of nodes.
+    ``total`` and ``done`` stay counts of nodes. ``has_work`` says whether
+    any of them carries estimated hours, finished or not. A Milestone with
+    only other Milestones beneath it has nodes but no work to show progress on.
     """
     total = len(nodes)
     done_nodes = [n for n in nodes if n.status == STATUS_DONE]
@@ -270,6 +272,7 @@ def summarize_completion(nodes: List[Node]) -> dict:
     is_blocked = (done + blocked == total) and (blocked > 0)
     return {"total": total, "done": done, "pct": pct, "share": share,
             "total_time": total_time, "done_time": done_time,
+            "has_work": total_time > 0,
             "remaining_time": round(remaining_time, 1), "is_blocked": is_blocked}
 
 

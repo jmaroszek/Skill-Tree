@@ -454,7 +454,8 @@ class TestBuildMilestoneTile:
 
     def test_with_progress_bar(self, mgr):
         ms = _make_node("M", type="Milestone", time_mode='inherited')
-        completion = {"total": 4, "done": 2, "pct": 50, "remaining_time": 6.0}
+        completion = {"total": 4, "done": 2, "pct": 50, "remaining_time": 6.0,
+                      "has_work": True}
         tile = build_milestone_tile(ms, completion)
         # Tile is an html.Div with a pattern-matched id for the click callback.
         assert tile.id == {"type": "details-milestone-tile", "index": "M"}
@@ -468,8 +469,27 @@ class TestBuildMilestoneTile:
         completion = {"total": 0, "done": 0, "pct": 0, "remaining_time": 0.0}
         tile = build_milestone_tile(ms, completion)
         rendered = str(tile)
-        # No progress bar text — the "X% · Yh" stats row is gated on total > 0.
+        # No progress bar text — the "X% · Yh" stats row needs work beneath.
         assert "0% ·" not in rendered
+
+    def test_no_progress_bar_over_only_milestones(self, mgr):
+        # $1M sits on $750k, which sits on $500k: nodes beneath, no hours.
+        mgr.add_node(_make_node("Net Worth $500k", type="Milestone", time_mode='inherited'))
+        mgr.add_node(_make_node("Net Worth $1M", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Net Worth $500k", "Net Worth $1M", EDGE_NEEDS_HARD)
+        completion = mgr.get_goal_completion("Net Worth $1M", include_soft=False)
+        assert completion["total"] == 1 and not completion["has_work"]
+        rendered = str(build_milestone_tile(mgr.get_node("Net Worth $1M"), completion))
+        assert "%" not in rendered
+
+    def test_progress_bar_once_work_leads_in(self, mgr):
+        mgr.add_node(_make_node("Squat Program", type="Action", time_m=12.0))
+        mgr.add_node(_make_node("Squat 1.5x BW", type="Milestone", time_mode='inherited'))
+        mgr.add_edge("Squat Program", "Squat 1.5x BW", EDGE_NEEDS_HARD)
+        completion = mgr.get_goal_completion("Squat 1.5x BW", include_soft=False)
+        assert completion["has_work"]
+        rendered = str(build_milestone_tile(mgr.get_node("Squat 1.5x BW"), completion))
+        assert "0% ·" in rendered
 
     def test_handles_none_completion(self, mgr):
         # Defensive: if completion is None or empty, treat as no-prereqs leaf.

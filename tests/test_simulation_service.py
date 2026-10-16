@@ -296,3 +296,19 @@ def test_details_says_so_when_nothing_is_left_to_estimate():
         details_callbacks._run_simulation('Finished', ['include'], [])
     with pytest.raises(details_callbacks.NothingLeft, match="Everything 'Goal' needs is Done"):
         details_callbacks._run_simulation('Goal', ['include'], [])
+
+
+def test_details_says_so_when_no_work_leads_in():
+    """A Milestone over only other Milestones has nothing to time."""
+    import pytest
+    import details_callbacks
+    manager = details_callbacks.graph_manager
+    for name in ('$250k', '$500k', '$1M'):
+        manager.add_node(node(name, type='Milestone', time_mode='inherited'))
+    manager.add_edge('$250k', '$500k', 'Needs_Hard')
+    manager.add_edge('$500k', '$1M', 'Needs_Hard')
+
+    for name in ('$250k', '$1M'):
+        with pytest.raises(details_callbacks.NothingLeft,
+                           match=f"No work with a time estimate leads into '\\{name}'"):
+            details_callbacks._run_simulation(name, ['include'], [])

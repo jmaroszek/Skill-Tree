@@ -585,7 +585,9 @@ def register_callbacks(app, services=None):
 
             lines = [marker, header]
 
-            if total > 0:
+            # A Milestone over nothing but other Milestones has no hours to
+            # show progress on; a Goal still counts its nodes.
+            if total > 0 and (node_type == 'Goal' or completion.get('has_work')):
                 bar_color = progress_bar_color(pct)
                 lines += [
                     html.Hr(style={"margin": "6px 0", "borderColor": tokens.BORDER_PANEL}),
@@ -603,7 +605,8 @@ def register_callbacks(app, services=None):
                               ConfigManager.format_time_friendly(remaining)]),
                 ]
             else:
-                lines.append(html.Div("No subtasks yet", style={"color": tokens.TEXT_DIM, "fontStyle": "italic"}))
+                empty_text = "No subtasks yet" if total == 0 else "No work beneath it yet"
+                lines.append(html.Div(empty_text, style={"color": tokens.TEXT_DIM, "fontStyle": "italic"}))
 
             ctx_val = data.get('context', '')
             sub_val = data.get('subcontext', '')

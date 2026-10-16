@@ -612,8 +612,9 @@ def build_editor_reopen_confirm_modal():
 
 
 # Suggestion modal that fires when the last hard prerequisite of a Goal or
-# Milestone becomes Done. Offers a one-click "Mark Done" without forcing it —
-# matches the user's preference that container completion remain explicit.
+# inherited-time container becomes Done (never a Milestone). Offers a one-click
+# "Mark Done" without forcing it — matches the user's preference that container
+# completion remain explicit.
 def build_auto_done_suggestion_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),

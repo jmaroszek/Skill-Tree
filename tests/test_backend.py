@@ -2835,8 +2835,9 @@ class TestContainerTypeTimeInheritance:
 # ============================================================================
 
 class TestAutoDoneCandidates:
-    """When the last hard prerequisite of a Goal or Milestone becomes Done,
-    GraphManager should queue the container as an auto-Done candidate. The UI
+    """When the last hard prerequisite of a Goal or inherited-time container
+    becomes Done, GraphManager should queue it as an auto-Done candidate.
+    Milestones never queue. The UI
     drains this queue and surfaces a "Mark Done?" suggestion modal.
     """
 
@@ -2866,7 +2867,9 @@ class TestAutoDoneCandidates:
 
         assert mgr.pop_auto_done_candidates() == ["G"]
 
-    def test_last_prereq_done_queues_milestone(self, mgr):
+    def test_last_prereq_done_never_queues_milestone(self, mgr):
+        # Finishing the work isn't evidence the target was hit, so a
+        # Milestone is never suggested, though it inherits its time.
         mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("P", type="Learn"))
         mgr.add_edge("P", "M", EDGE_NEEDS_HARD)
@@ -2875,7 +2878,8 @@ class TestAutoDoneCandidates:
         p.status = STATUS_DONE
         mgr.update_node(p)
 
-        assert mgr.pop_auto_done_candidates() == ["M"]
+        assert mgr.pop_auto_done_candidates() == []
+        assert not mgr.is_auto_done_ready("M")
 
     def test_non_last_prereq_done_does_not_queue(self, mgr):
         mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
@@ -2961,9 +2965,29 @@ class TestAutoDoneCandidates:
         assert set(candidates) == {"G1", "G2"}
 
     def test_chained_containers_only_direct_queued(self, mgr):
-        # Leaf → Milestone → Goal. When leaf goes Done, only the Milestone
-        # is direct-eligible. The Goal still has the Milestone as an Open
+        # Leaf → container → Goal. When leaf goes Done, only the container
+        # is direct-eligible. The Goal still has the container as an Open
         # prereq, so it shouldn't queue yet.
+        mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
+        mgr.add_node(_make_node("C", type="Learn", time_mode='inherited'))
+        mgr.add_node(_make_node("L", type="Learn"))
+        mgr.add_edge("L", "C", EDGE_NEEDS_HARD)
+        mgr.add_edge("C", "G", EDGE_NEEDS_HARD)
+
+        l = mgr.get_node("L")
+        l.status = STATUS_DONE
+        mgr.update_node(l)
+        assert mgr.pop_auto_done_candidates() == ["C"]
+
+        # Mark the container Done — now Goal becomes a candidate.
+        c = mgr.get_node("C")
+        c.status = STATUS_DONE
+        mgr.update_node(c)
+        assert mgr.pop_auto_done_candidates() == ["G"]
+
+    def test_milestone_marked_done_by_hand_queues_goal(self, mgr):
+        # Leaf → Milestone → Goal. The Milestone waits for the user, and
+        # marking it Done is what makes the Goal a candidate.
         mgr.add_node(_make_node("G", type="Goal", time_mode='inherited'))
         mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited'))
         mgr.add_node(_make_node("L", type="Learn"))
@@ -2973,9 +2997,8 @@ class TestAutoDoneCandidates:
         l = mgr.get_node("L")
         l.status = STATUS_DONE
         mgr.update_node(l)
-        assert mgr.pop_auto_done_candidates() == ["M"]
+        assert mgr.pop_auto_done_candidates() == []
 
-        # Mark Milestone Done — now Goal becomes a candidate.
         m = mgr.get_node("M")
         m.status = STATUS_DONE
         mgr.update_node(m)
