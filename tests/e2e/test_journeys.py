@@ -228,7 +228,7 @@ def test_backup_export_and_restore(page, server):
     _welcome(page)
     _new_node(page, "Keep Me", "Learn")
     page.click("#btn-settings-toggle")
-    page.click("a.nav-link:has-text('Data')")
+    page.click("a.nav-link:text-is('App')")
     page.click("#btn-backup-now")
     page.wait_for_function(
         "document.querySelector('#data-status').innerText.includes('Backed up')", timeout=15000)
@@ -343,7 +343,7 @@ def test_an_export_fills_a_new_install(page, server, start_server, open_app, tmp
     _new_node(page, "Next Step", "Action", needs_hard=["Carry Over"])
     page.keyboard.press("Escape")
     page.click("#btn-settings-toggle")
-    page.click("a.nav-link:has-text('Data')")
+    page.click("a.nav-link:text-is('App')")
     with page.expect_download(timeout=15000) as download:
         page.click("#btn-export-json")
     exported = tmp_path / "moving.json"
