@@ -1722,6 +1722,44 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     );
 }
 
+/* The Node Editor's header and action bar are sticky inside the scroller, so
+   a mask on the scroller would fade them too. Each instead casts a 24px
+   gradient of the panel colour over the fields next to it. The header's
+   appears once the form has scrolled under it; the bar's leaves in the last
+   24px of scrolling, as .scroll-fade-bottom does. scroll(nearest) reads the
+   editor's own scroller, and a form that fits has no timeline, so both stay
+   at their base opacity of 0. */
+@keyframes editor-edge-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+#node-editor-header::after,
+#node-editor-actions::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 24px;
+    pointer-events: none;
+    opacity: 0;
+    animation: editor-edge-fade-in linear both;
+    animation-timeline: scroll(nearest block);
+}
+
+#node-editor-header::after {
+    top: 100%;
+    background: linear-gradient(to bottom, var(--st-bg-panel), transparent);
+    animation-range: 0 24px;
+}
+
+#node-editor-actions::before {
+    bottom: 100%;
+    background: linear-gradient(to top, var(--st-bg-panel), transparent);
+    animation-direction: reverse;
+    animation-range: calc(100% - 24px) 100%;
+}
+
 .details-subtask-edit-btn.btn-link,
 .review-history-edit-btn.btn-link {
     --bs-btn-color: var(--st-text-dim);
