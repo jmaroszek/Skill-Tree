@@ -447,3 +447,26 @@ def test_priority_normalizer_cache_invalidated_on_hyperparam_change(monkeypatch)
     monkeypatch.setattr(ConfigManager, "get_hyperparams",
                         classmethod(lambda cls: dict(base, w_e=10.0)))
     assert mgr.get_priority_normalizer() < first
+
+
+def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, temp_database):
+    import sqlite3
+    from contextlib import closing
+    from skilltree.store import database
+    from skilltree.store.graph.manager import GraphManager
+    from test_atomic_saves import graph
+
+    manager = graph('A', 'B')
+    manager.add_edge('A', 'B', 'Needs_Soft')
+    manager.get_priority_normalizer()
+    first_key = manager.caches.normalizer_key
+    other = str(tmp_path / 'other.db')
+    # A connection's own `with` only commits; closing() also closes it.
+    with closing(sqlite3.connect(temp_database)) as source, \
+            closing(sqlite3.connect(other)) as target:
+        source.backup(target)
+        target.execute("UPDATE Nodes SET value=10 WHERE name='B'")
+        target.commit()
+    monkeypatch.setattr(database, 'get_db_path', lambda: other)
+    assert manager.get_priority_normalizer() == GraphManager().get_priority_normalizer()
+    assert manager.caches.normalizer_key != first_key

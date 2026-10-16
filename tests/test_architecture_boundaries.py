@@ -1,146 +1,271 @@
-"""Keep shared operations usable without registering or importing UI callbacks."""
+"""The package's layers, and the rules for importing across them.
+
+skilltree/ is split by layer. Each may import only the layers it builds on:
+
+    domain       pure logic: models, scoring, time, rules
+    runtime      paths, the version, the server
+    store        SQLite and what reads or writes it      domain, runtime
+    ui           Dash pieces that features share         domain, runtime, store
+    features/x   one feature's layout and callbacks      the above, and x itself
+    composition  app, services, shell, engine            anything
+
+Features don't import each other. The composition modules tie them together,
+and tabs coordinate through the database and shared stores.
+
+Three more rules hold everywhere:
+
+- No module imports another module's _private names, or reads them as
+  module._name. A name another module needs is public.
+- skilltree modules import each other at the top of the file. Only
+  skilltree.app defers its imports, so a launch that hands over to a running
+  instance exits before loading Dash.
+- __init__.py files stay empty, so importing a package runs nothing.
+
+KNOWN_VIOLATIONS lists the imports that break a rule today. The refactor that
+fixes one deletes it from the list. A new violation fails, and so does a
+listed one that no longer happens, so the list only shrinks.
+"""
 import ast
 from pathlib import Path
 import subprocess
 import sys
 
-import pytest
+ROOT = Path(__file__).resolve().parents[1]
+PACKAGE = ROOT / 'skilltree'
+
+COMPOSITION = {'skilltree', 'skilltree.app', 'skilltree.services', 'skilltree.shell'}
+
+# What each layer may import from the package.
+ALLOWED = {
+    'domain': {'domain'},
+    'runtime': {'runtime'},
+    'store': {'domain', 'runtime', 'store'},
+    'ui': {'domain', 'runtime', 'store', 'ui'},
+}
+
+# Libraries a layer must not reach for.
+FORBIDDEN_LIBRARIES = {
+    'domain': {'sqlite3', 'dash', 'dash_bootstrap_components', 'dash_cytoscape',
+               'plotly', 'flask', 'werkzeug'},
+    'runtime': {'dash', 'dash_bootstrap_components', 'dash_cytoscape', 'plotly'},
+    'store': {'dash', 'dash_bootstrap_components', 'dash_cytoscape', 'plotly',
+              'flask', 'werkzeug'},
+}
+
+# The one module that may import the package inside its functions.
+DEFERRED_IMPORTS_OK = {'skilltree.app'}
+
+KNOWN_VIOLATIONS = {
+    'deferred: skilltree.engine.callbacks -> skilltree.domain.models',
+    'deferred: skilltree.engine.callbacks -> skilltree.shell',
+    'deferred: skilltree.engine.callbacks -> skilltree.store.events',
+    'deferred: skilltree.features.details.callbacks -> skilltree.domain.goals',
+    'deferred: skilltree.features.details.layout -> skilltree.domain.models',
+    'deferred: skilltree.features.goals.callbacks -> skilltree.domain.goals',
+    'deferred: skilltree.features.onboarding.steps -> skilltree.store.database',
+    'deferred: skilltree.features.review.callbacks -> skilltree.features.editor.values',
+    'deferred: skilltree.features.settings.callbacks -> skilltree.shell',
+    'deferred: skilltree.features.settings.callbacks -> skilltree.store.events',
+    'deferred: skilltree.features.settings.callbacks -> skilltree.store.settings',
+    'deferred: skilltree.runtime.server -> skilltree.runtime.version',
+    'deferred: skilltree.shell -> skilltree.features.home.view',
+    'deferred: skilltree.shell -> skilltree.features.onboarding.steps',
+    'deferred: skilltree.store.backup -> skilltree.store.settings',
+    'deferred: skilltree.store.commands -> skilltree.domain.models',
+    'deferred: skilltree.store.database -> skilltree.store.backup',
+    'deferred: skilltree.store.database -> skilltree.store.resources',
+    'deferred: skilltree.store.database -> skilltree.store.settings',
+    'deferred: skilltree.store.events -> skilltree.domain.rules',
+    'deferred: skilltree.store.events -> skilltree.store.graph.manager',
+    'deferred: skilltree.store.events -> skilltree.store.settings',
+    'deferred: skilltree.store.graph.manager -> skilltree.domain.contexts',
+    'deferred: skilltree.store.graph.manager -> skilltree.store.events',
+    'deferred: skilltree.store.graph.manager -> skilltree.store.settings',
+    'deferred: skilltree.store.graph.queries -> skilltree.domain.communities',
+    'deferred: skilltree.store.graph.queries -> skilltree.features.analyze.data',
+    'deferred: skilltree.store.graph.scoring -> skilltree.runtime.perf',
+    'deferred: skilltree.store.graph.state -> skilltree.store.database',
+    'deferred: skilltree.store.settings -> skilltree.store.graph.manager',
+    'deferred: skilltree.store.transfer -> skilltree.store.events',
+    'deferred: skilltree.store.transfer -> skilltree.store.graph.manager',
+    'deferred: skilltree.store.transfer -> skilltree.store.settings',
+    'deferred: skilltree.ui.callback_helpers -> skilltree.features.editor.values',
+    'deferred: skilltree.ui.callback_helpers -> skilltree.store.events',
+    'deferred: skilltree.ui.callback_helpers -> skilltree.store.graph.manager',
+    'deferred: skilltree.ui.callback_helpers -> skilltree.ui.components.duration',
+    'deferred: skilltree.ui.canvas.view -> skilltree.ui.styles',
+    'deferred: skilltree.ui.kit -> skilltree.store.settings',
+    'layer: skilltree.domain.goals -> skilltree.store.settings',
+    'layer: skilltree.features.events.layout -> skilltree.features.details.layout',
+    'layer: skilltree.features.goals.callbacks -> skilltree.features.details.layout',
+    'layer: skilltree.features.review.calibration -> skilltree.features.editor.values',
+    'layer: skilltree.features.review.callbacks -> skilltree.features.editor.values',
+    'layer: skilltree.features.settings.callbacks -> skilltree.shell',
+    'layer: skilltree.store.commands -> skilltree.ui.payloads',
+    'layer: skilltree.store.graph.queries -> skilltree.features.analyze.data',
+    'layer: skilltree.ui.callback_helpers -> skilltree.features.editor.values',
+    'layer: skilltree.ui.canvas.view -> skilltree.engine.response',
+    'layer: skilltree.ui.sidebars_layout -> skilltree.features.events.layout',
+    'private: skilltree.app -> skilltree.store.database._db_path_cache',
+    'private: skilltree.domain.goals -> skilltree.domain.scoring._done_names',
+    'private: skilltree.domain.goals -> skilltree.domain.scoring._goals_above',
+    'private: skilltree.domain.goals -> skilltree.domain.scoring._milestone_names',
+    'private: skilltree.domain.goals -> skilltree.domain.scoring._strongest_routes',
+    'private: skilltree.engine.callbacks -> skilltree.engine.sidebars._compute_sidebar_styles',
+    'private: skilltree.engine.callbacks -> skilltree.features.editor.values._calibration_modal_text',
+    'private: skilltree.engine.callbacks -> skilltree.features.editor.values._calibration_unit_for',
+    'private: skilltree.engine.callbacks -> skilltree.features.editor.values._friendly_time_estimates',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._RECENT_DAYS',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._REFLECTION_MIN_N',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._TYPE_ORDER',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._build_adjacency',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_bottlenecks',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_estimation_accuracy',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_goal_progress',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_overview',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_rating_distribution',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_reflection_drift',
+    'private: skilltree.features.analyze.callbacks -> skilltree.features.analyze.data._compute_throughput',
+    'private: skilltree.features.analyze.data -> skilltree.domain.goals._rank_goals',
+    'private: skilltree.features.details.callbacks -> skilltree.domain.goals._rank_goals',
+    'private: skilltree.features.details.callbacks -> skilltree.features.details.layout._build_suggestion_row',
+    'private: skilltree.features.events.callbacks -> skilltree.features.events.layout._event_trigger_type',
+    'private: skilltree.features.events.callbacks -> skilltree.ui.callback_helpers._norm_dormancy',
+    'private: skilltree.features.events.layout -> skilltree.features.details.layout._freeze_indicator',
+    'private: skilltree.features.goals.callbacks -> skilltree.domain.goals._rank_goals',
+    'private: skilltree.features.review.calibration -> skilltree.features.editor.values._calibration_modal_text',
+    'private: skilltree.features.review.calibration -> skilltree.features.editor.values._calibration_prepop',
+    'private: skilltree.features.review.calibration -> skilltree.features.editor.values._calibration_review_queue',
+    'private: skilltree.features.review.calibration -> skilltree.features.editor.values._calibration_unit_for',
+    'private: skilltree.features.review.callbacks -> skilltree.features.editor.values._calibration_modal_text',
+    'private: skilltree.features.review.callbacks -> skilltree.features.editor.values._calibration_prepop',
+    'private: skilltree.features.review.callbacks -> skilltree.features.editor.values._calibration_review_queue',
+    'private: skilltree.shell -> skilltree.features.details.layout._freeze_indicator',
+    'private: skilltree.shell -> skilltree.features.home.view._initial_next_view',
+    'private: skilltree.store.graph.manager -> skilltree.domain.rules._canonicalize_edge',
+    'private: skilltree.store.graph.manager -> skilltree.domain.rules._is_prereq_satisfied',
+    'private: skilltree.store.graph.manager -> skilltree.store.graph.queries._build_nx_graph',
+    'private: skilltree.store.transfer -> skilltree.domain.rules._canonicalize_edge',
+    'private: skilltree.store.transfer -> skilltree.store.backup._read_only_uri',
+    'private: skilltree.store.transfer -> skilltree.store.database._initialized',
+    'private: skilltree.store.transfer -> skilltree.store.database._refusal_for',
+    'private: skilltree.ui.callback_helpers -> skilltree.features.editor.values._friendly_time_estimates',
+}
 
 
-# Modules that hold graph/business logic. These must stay usable without the
-# Dash UI stack, so callback_helpers (which imports dash, dbc and plotly) is
-# off-limits to them as well as the callback registration modules themselves.
-CORE_MODULES = [
-    'skilltree.domain.goals', 'skilltree.features.analyze.data',
-    'skilltree.domain.contexts', 'skilltree.store.commands',
-    'skilltree.features.editor.values', 'skilltree.store.graph.manager',
-    'skilltree.store.graph.repository', 'skilltree.store.graph.queries',
-    'skilltree.store.graph.scoring', 'skilltree.domain.rules',
-    'skilltree.store.graph.state', 'skilltree.shell', 'skilltree.ui.payloads',
-]
-
-# View-preparation modules. They legitimately build Dash components, so they may
-# use callback_helpers — but they still must not import callback registration.
-VIEW_MODULES = ['skilltree.features.home.view', 'skilltree.ui.canvas.view',
-                'skilltree.engine.sidebars']
+def _dotted(path):
+    parts = list(path.relative_to(ROOT).with_suffix('').parts)
+    if parts[-1] == '__init__':
+        parts.pop()
+    return '.'.join(parts)
 
 
-def _imports_of(module):
-    source = Path(__file__).resolve().parents[1] / (module.replace('.', '/') + '.py')
-    tree = ast.parse(source.read_text(encoding='utf-8'))
-    imports = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            imports.append(node.module or '')
-            imports.extend(f'{node.module}.{alias.name}' for alias in node.names)
-        elif isinstance(node, ast.Import):
-            imports.extend(alias.name for alias in node.names)
-    return imports
+MODULES = {_dotted(path): path for path in sorted(PACKAGE.rglob('*.py'))}
 
 
-@pytest.mark.parametrize('module', CORE_MODULES + VIEW_MODULES)
-def test_shared_modules_do_not_import_callback_modules(module):
-    offenders = [name for name in _imports_of(module)
-                 if any(part == 'callbacks' or part.endswith('_callbacks')
-                        for part in name.split('.'))]
-    assert not offenders, f'{module} imports callback modules: {offenders}'
+def _layer(module):
+    if module in COMPOSITION or module.split('.')[:2] == ['skilltree', 'engine']:
+        return 'composition'
+    parts = module.split('.')
+    if parts[1] == 'features':
+        return f'feature:{parts[2]}' if len(parts) > 2 else 'composition'
+    return parts[1]
 
 
-@pytest.mark.parametrize('module', CORE_MODULES)
-def test_core_modules_do_not_depend_on_the_dash_ui_helper_layer(module):
-    """Graph/business logic must not reach for the component-building helpers.
-
-    callback_helpers pulls in dash, dash_bootstrap_components and plotly. A core
-    module that imports it can no longer be used (or tested) without the UI stack,
-    which is the coupling this split exists to remove.
-    """
-    assert not any('callback_helpers' in name.split('.')
-                   for name in _imports_of(module))
+def _may_import(source_layer, target_layer):
+    if source_layer == 'composition':
+        return True
+    if source_layer.startswith('feature:'):
+        return target_layer in {'domain', 'runtime', 'store', 'ui', source_layer}
+    return target_layer in ALLOWED[source_layer]
 
 
-def test_importing_application_modules_has_no_database_or_logging_side_effects():
-    script = '''
-import importlib
-import logging
-import sqlite3
-def forbidden(*args, **kwargs):
-    raise AssertionError("Import attempted to open a database")
-sqlite3.connect = forbidden
-handlers = list(logging.getLogger().handlers)
-for name in (
-    'app', 'skilltree.app', 'skilltree.services', 'skilltree.shell',
-    'skilltree.ui.sidebars_layout', 'skilltree.engine.callbacks',
-    'skilltree.features.details.callbacks', 'skilltree.features.analyze.callbacks',
-    'skilltree.features.events.callbacks', 'skilltree.features.home.callbacks',
-    'skilltree.features.settings.callbacks', 'skilltree.features.review.callbacks',
-    'skilltree.features.goals.callbacks', 'skilltree.features.review.calibration',
-    'skilltree.features.editor.resources',
-):
-    importlib.import_module(name)
-assert logging.getLogger().handlers == handlers
-'''
+def _target(module, name):
+    """`from module import name` names a submodule, or something in module."""
+    submodule = f'{module}.{name}'
+    return (submodule, None) if submodule in MODULES else (module, name)
+
+
+def _violations_of(module, path):
+    tree = ast.parse(path.read_text(encoding='utf-8'))
+    layer = _layer(module)
+    aliases = {}
+    found = set()
+
+    def imported(target, name, deferred):
+        library = target.split('.')[0]
+        if library != 'skilltree':
+            if library in FORBIDDEN_LIBRARIES.get(layer, ()):
+                found.add(f'external: {module} -> {target}')
+            return
+        if not _may_import(layer, _layer(target)):
+            found.add(f'layer: {module} -> {target}')
+        if name and name.startswith('_') and not name.startswith('__'):
+            found.add(f'private: {module} -> {target}.{name}')
+        if deferred and module not in DEFERRED_IMPORTS_OK:
+            found.add(f'deferred: {module} -> {target}')
+
+    def visit(node, deferred):
+        for child in ast.iter_child_nodes(node):
+            inside = deferred or isinstance(
+                child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda))
+            if isinstance(child, ast.Import):
+                for alias in child.names:
+                    if alias.name in MODULES:
+                        aliases[alias.asname or alias.name] = alias.name
+                    imported(alias.name, None, deferred)
+            elif isinstance(child, ast.ImportFrom):
+                assert not child.level, f'{module} uses a relative import'
+                for alias in child.names:
+                    target, name = _target(child.module, alias.name)
+                    if name is None:
+                        aliases[alias.asname or alias.name] = target
+                    imported(target, name, deferred)
+            elif isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name):
+                owner = aliases.get(child.value.id)
+                if (owner and owner != module and child.attr.startswith('_')
+                        and not child.attr.startswith('__')):
+                    found.add(f'private: {module} -> {owner}.{child.attr}')
+            visit(child, inside)
+
+    visit(tree, False)
+    if path.name == '__init__.py' and path.read_text(encoding='utf-8').strip():
+        found.add(f'init: {module} is not empty')
+    return found
+
+
+def test_imports_follow_the_layers():
+    found = set().union(*(_violations_of(m, p) for m, p in MODULES.items()))
+    new = sorted(found - KNOWN_VIOLATIONS)
+    fixed = sorted(KNOWN_VIOLATIONS - found)
+    assert not new, ("Imports that break the layer rules (this file's docstring "
+                     "has them):\n  " + "\n  ".join(new))
+    assert not fixed, ("These no longer happen. Delete them from "
+                       "KNOWN_VIOLATIONS:\n  " + "\n  ".join(fixed))
+
+
+def _import_everything(check):
+    names = ['app', *MODULES]
+    script = (
+        'import importlib, logging, sqlite3, sys\n'
+        'def forbidden(*args, **kwargs):\n'
+        '    raise AssertionError("Import attempted to open a database")\n'
+        'sqlite3.connect = forbidden\n'
+        'handlers = list(logging.getLogger().handlers)\n'
+        f'for name in {names!r}:\n'
+        '    importlib.import_module(name)\n'
+        + check)
     result = subprocess.run([sys.executable, '-c', script], capture_output=True,
-                            text=True, timeout=30)
+                            text=True, timeout=60, cwd=ROOT)
     assert result.returncode == 0, result.stderr
+
+
+def test_importing_any_module_opens_no_database_and_configures_no_logging():
+    _import_everything('assert logging.getLogger().handlers == handlers\n')
 
 
 def test_networkx_loads_only_when_communities_are_detected():
     """NetworkX is hundreds of modules. The desktop window waits for the
     server to answer, so the server shouldn't load it first; app.main warms
     it in the background instead."""
-    script = '''
-import importlib
-import sys
-for name in (
-    'app', 'skilltree.app', 'skilltree.services', 'skilltree.store.graph.manager',
-    'skilltree.store.graph.queries', 'skilltree.engine.callbacks',
-    'skilltree.features.details.callbacks', 'skilltree.features.analyze.callbacks',
-    'skilltree.features.events.callbacks', 'skilltree.features.home.callbacks',
-    'skilltree.features.settings.callbacks', 'skilltree.features.goals.callbacks',
-):
-    importlib.import_module(name)
-assert 'networkx' not in sys.modules
-'''
-    result = subprocess.run([sys.executable, '-c', script], capture_output=True,
-                            text=True, timeout=30)
-    assert result.returncode == 0, result.stderr
-
-
-def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
-    from skilltree.ui.canvas.view import build_canvas_view
-    from skilltree.engine.callbacks import generate_elements
-    from skilltree.store.graph.manager import GraphManager
-    from test_atomic_saves import graph
-    manager = graph('A', 'B')
-    manager.add_edge('A', 'B', 'Needs_Hard')
-    version = GraphManager._graph_version
-    view = build_canvas_view(
-        manager, generate_elements, 'filter-context', None,
-        'components', {}, 'All', 'B', None, None)
-    assert {e['data']['id'] for e in view.elements if 'source' not in e['data']} == {'A', 'B'}
-    assert view.clear_focus_style == {'display': 'inline-block'}
-    assert any(rule['selector'] == 'node[id = "A"]' for rule in view.stylesheet)
-    assert GraphManager._graph_version == version
-
-
-def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, temp_database):
-    import sqlite3
-    from contextlib import closing
-    from skilltree.store import database
-    from skilltree.store.graph.manager import GraphManager
-    from test_atomic_saves import graph
-
-    manager = graph('A', 'B')
-    manager.add_edge('A', 'B', 'Needs_Soft')
-    manager.get_priority_normalizer()
-    first_key = manager.caches.normalizer_key
-    other = str(tmp_path / 'other.db')
-    # A connection's own `with` only commits; closing() also closes it.
-    with closing(sqlite3.connect(temp_database)) as source, \
-            closing(sqlite3.connect(other)) as target:
-        source.backup(target)
-        target.execute("UPDATE Nodes SET value=10 WHERE name='B'")
-        target.commit()
-    monkeypatch.setattr(database, 'get_db_path', lambda: other)
-    assert manager.get_priority_normalizer() == GraphManager().get_priority_normalizer()
-    assert manager.caches.normalizer_key != first_key
+    _import_everything("assert 'networkx' not in sys.modules\n")

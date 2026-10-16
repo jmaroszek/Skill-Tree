@@ -18,25 +18,25 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 TOKENS_CSS = ASSETS / "tokens.css"
 
-# UI modules: everything that builds Dash components.
-UI_MODULES = [
-    "skilltree/shell.py", "skilltree/features/details/layout.py", "skilltree/features/events/layout.py", "skilltree/ui/sidebars_layout.py",
-    "skilltree/features/settings/layout.py", "skilltree/features/review/layout.py", "skilltree/features/analyze/layout.py",
-    "skilltree/ui/callback_helpers.py", "skilltree/engine/callbacks.py", "skilltree/features/details/callbacks.py",
-    "skilltree/features/events/callbacks.py", "skilltree/features/settings/callbacks.py", "skilltree/features/goals/callbacks.py",
-    "skilltree/features/review/callbacks.py", "skilltree/features/home/view.py", "skilltree/ui/canvas/view.py",
-    "skilltree/ui/components/list_toolbar.py", "skilltree/ui/components/duration.py", "skilltree/ui/components/context_picker.py", "skilltree/ui/kit.py",
-    "skilltree/engine/sidebars.py",
-]
-
 # Modules that legitimately hold real values rather than references:
-#   config.py     - BADGE_PALETTE and the canvas colours Settings edits
-#   styles.py     - Cytoscape parses its own stylesheet, not CSS
-#   style_tokens  - the var() references themselves
-# analyze_callbacks builds Plotly figures, which read computed values and
+#   store/settings.py  - BADGE_PALETTE and the canvas colours Settings edits
+#   ui/styles.py       - Cytoscape parses its own stylesheet, not CSS
+#   ui/tokens.py       - the var() references themselves
+# analyze/callbacks.py builds Plotly figures, which read computed values and
 # cannot resolve a CSS variable; its chart constants stay literal and are
 # pinned to the tokens by test_plotly_chart_colours_match_their_tokens below.
-VALUE_OWNERS = {"skilltree/store/settings.py", "skilltree/ui/styles.py", "skilltree/ui/tokens.py", "skilltree/features/analyze/callbacks.py"}
+VALUE_OWNERS = {"skilltree/store/settings.py", "skilltree/ui/styles.py",
+                "skilltree/ui/tokens.py", "skilltree/features/analyze/callbacks.py"}
+
+# UI modules: every module in the layers that build Dash components, so a
+# module split out of another one is checked from its first commit.
+UI_MODULES = sorted(
+    path.relative_to(ROOT).as_posix()
+    for folder in ("skilltree/ui", "skilltree/features", "skilltree/engine")
+    for path in (ROOT / folder).rglob("*.py")
+    if path.name != "__init__.py"
+    and path.relative_to(ROOT).as_posix() not in VALUE_OWNERS
+) + ["skilltree/shell.py"]
 
 # Lines that legitimately hold a real value even inside a UI module. Each is a
 # renderer that reads computed values and cannot resolve a CSS variable:
