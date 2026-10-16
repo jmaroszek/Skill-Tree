@@ -199,12 +199,15 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
     import config
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
+    # Build the app before patching. Its first import of a module that does
+    # `from resource_links import open_resource` would keep the fake for
+    # every later test.
+    app = app_module.create_app(app_module.AppSettings(
+        environment=config.ENVIRONMENT, configure_logging=False))
     opened = []
     monkeypatch.setattr(resources, 'open_resource',
                         lambda value, section, confirmed=False:
                         opened.append((value, section['id'])))
-    app = app_module.create_app(app_module.AppSettings(
-        environment=config.ENVIRONMENT, configure_logging=False))
     client = app.server.test_client()
     layout = client.get('/_dash-layout')
     assert layout.status_code == 200
