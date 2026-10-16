@@ -175,7 +175,7 @@ let NODES=[], S={}, SET={}, sel=null, filter='all', q='';
 const $=s=>document.querySelector(s);
 const UNITS=['hours','days','weeks','months','years'];
 const mult=u=>({hours:1,days:SET.hw/7,weeks:SET.hw,months:SET.hm,years:13*SET.hm})[u];
-function friendly(h){ // mirrors ConfigManager.format_time_friendly
+function friendly(h){ // mirrors format_time_friendly
   if(!h||h<=0) return '0h';
   const t=[[13*SET.hm,'y'],[SET.hm,'m'],[SET.hw,'w'],[SET.hw/7,'d']];
   for(const [s,x] of t) if(s>0&&h>=s){const a=Math.round(h/s*10)/10;return a+x}

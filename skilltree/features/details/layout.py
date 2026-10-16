@@ -25,6 +25,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style, BADGE_PALETTE
 from skilltree.ui.styles import stylesheet
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from skilltree.ui.components.duration import format_time_friendly
 
 def _freeze_indicator(indicator_id: str):
     """Snowflake overlay shown on a canvas while its freeze toggle is on.
@@ -846,7 +847,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
 
     pct = completion.get("pct", 0)
     total = completion.get("total", 0)
-    formatted_time = ConfigManager.format_time_friendly(completion.get("remaining_time", 0))
+    formatted_time = format_time_friendly(completion.get("remaining_time", 0))
 
     # A goal is effectively Done if its toggle is on OR all subtasks are complete
     if status == STATUS_DONE or (pct == 100 and total > 0):
@@ -1164,7 +1165,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ], className="details-subtask-actions")
 
         _eff = graph_manager.get_effective_time(node.name) if graph_manager else 0.0
-        _time_cell = ConfigManager.format_time_friendly(_eff) if _eff > 0 else "—"
+        _time_cell = format_time_friendly(_eff) if _eff > 0 else "—"
 
         rows.append(html.Tr([
             html.Td(
@@ -1286,7 +1287,7 @@ def build_milestone_tile(milestone_node, completion: dict):
                        "overflow": "hidden"},
             ),
             html.Div(
-                f"{pct}% · {ConfigManager.format_time_friendly(remaining)}",
+                f"{pct}% · {format_time_friendly(remaining)}",
                 className="text-muted",
                 style={"fontSize": tokens.FS_XS},
             ),

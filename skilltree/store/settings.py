@@ -20,6 +20,7 @@ from typing import Optional
 from skilltree.store.database import get_connection
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
+from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
 from skilltree.domain.names import DEFAULT_TITLECASE_EXCLUSIONS
 from skilltree.domain.profiles import (
     DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES, PROFILE_ALIASES,
@@ -657,124 +658,19 @@ class ConfigManager:
         sorts[list_id] = value
         cls._set_db_value("LIST_SORTS", json.dumps(sorts, sort_keys=True))
 
-    # One year of productivity = 13 months (≈ 52 weeks) by definition. Built
-    # off hours_per_month so a user-tuned monthly rate flows through to years
-    # consistently. Not a stored setting — derived on demand.
-    HOURS_PER_YEAR_MULT = 13  # × hours_per_month
-
     @classmethod
     def get_hours_per_year(cls) -> float:
-        return cls.HOURS_PER_YEAR_MULT * cls.get_time_settings()['hours_per_month']
-
-    # A day is a seventh of a week. Derived from hours_per_week so a user-tuned
-    # weekly rate flows through, and not stored as a setting.
-    DAYS_PER_WEEK = 7
+        return HOURS_PER_YEAR_MULT * cls.get_time_settings()['hours_per_month']
 
     @classmethod
     def get_hours_per_day(cls) -> float:
-        return cls.get_time_settings()['hours_per_week'] / cls.DAYS_PER_WEEK
+        return cls.get_time_settings()['hours_per_week'] / DAYS_PER_WEEK
 
     @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
-        """Returns the hours-per-unit multiplier for time input conversion.
-
-        Args:
-            unit: 'hours', 'days', 'weeks', 'months', or 'years'
-
-        Returns:
-            Multiplier to convert from the given unit to hours.
-        """
-        if unit == 'days':
-            return cls.get_hours_per_day()
-        elif unit == 'weeks':
-            return cls.get_time_settings()['hours_per_week']
-        elif unit == 'months':
-            return cls.get_time_settings()['hours_per_month']
-        elif unit == 'years':
-            return cls.get_hours_per_year()
-        return 1.0
-
-    @classmethod
-    def time_unit(cls, hours: float | None, *, time_settings=None) -> tuple[float, str]:
-        """The display unit for a duration: (hours in one unit, suffix).
-
-        The largest of year, month, week and day that the duration reaches, else
-        hours. `format_time_friendly` picks its unit this way. A chart can call
-        it once and draw every value in that one unit.
-        """
-        settings = (cls.get_time_settings() if time_settings is None
-                    else {**DEFAULT_TIME_SETTINGS, **time_settings})
-        hw = settings['hours_per_week']
-        hm = settings['hours_per_month']
-        hy = cls.HOURS_PER_YEAR_MULT * hm
-        hd = hw / cls.DAYS_PER_WEEK
-        hours = hours or 0.0
-
-        if hy > 0 and hours >= hy:
-            return float(hy), "y"
-        if hm > 0 and hours >= hm:
-            return float(hm), "m"
-        if hw > 0 and hours >= hw:
-            return float(hw), "w"
-        if hd > 0 and hours >= hd:
-            return float(hd), "d"
-        return 1.0, "h"
-
-    @classmethod
-    def format_time_friendly(cls, hours: float | None,
-                             force_one_decimal: bool = False, *, time_settings=None) -> str:
-        """Format an hour based on user configured time bounds.
-
-        By default, integer values display without a decimal ("1w", "8h").
-        Pass `force_one_decimal=True` for tabular displays where decimal
-        alignment matters — every value gets exactly one decimal place
-        ("1.0w", "8.0h", "0.0h").
-        """
-        if hours is None or hours <= 0:
-            return "0.0h" if force_one_decimal else "0h"
-
-        # Coerce to float before the integer-display checks below. Callers such
-        # as the Analyze throughput axis-tick generator pass plain ints, and
-        # round(int, 1) returns an int. int.is_integer() only exists on Python
-        # 3.12+, so on the app's 3.10 runtime the checks would raise
-        # AttributeError. float() makes the path version-agnostic.
-        hours = float(hours)
-        size, suffix = cls.time_unit(hours, time_settings=time_settings)
-
-        amount = round(hours / size, 1)
-        if amount.is_integer() and not force_one_decimal:
-            amount = int(amount)
-        return f"{amount}{suffix}"
-
-    @classmethod
-    def hours_to_friendly_unit(cls, hours: float) -> tuple:
-        """Convert hours to the most logical display unit.
-
-        Returns:
-            (converted_value, unit_string) e.g. (2.0, 'weeks')
-        """
-        if hours is None or hours <= 0:
-            return (0, 'hours')
-        settings = cls.get_time_settings()
-        hw = settings['hours_per_week']
-        hm = settings['hours_per_month']
-        hy = cls.HOURS_PER_YEAR_MULT * hm
-        hd = hw / cls.DAYS_PER_WEEK
-
-        if hy > 0 and hours >= hy:
-            val = round(hours / hy, 2)
-            return (val, 'years')
-        elif hm > 0 and hours >= hm:
-            val = round(hours / hm, 2)
-            return (val, 'months')
-        elif hw > 0 and hours >= hw:
-            val = round(hours / hw, 2)
-            return (val, 'weeks')
-        elif hd > 0 and hours >= hd:
-            val = round(hours / hd, 2)
-            return (val, 'days')
-        else:
-            return (round(hours, 2), 'hours')
+        """Hours in one `unit` ('hours', 'days', 'weeks', 'months' or 'years'),
+        for converting a time input to hours."""
+        return hours_per_unit(unit, cls.get_time_settings())
 
     @classmethod
     def get_hp_profile(cls) -> str:

@@ -38,6 +38,7 @@ from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.domain.scoring import explain_score, focus_route_data
 from skilltree.ui import tokens
+from skilltree.ui.components.duration import format_time_friendly
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -404,7 +405,7 @@ def register_details_callbacks(app, services=None):
             ctx_str += f" > {node.subcontext}"
 
         effective_time = graph_manager.get_effective_time(node_name)
-        time_str = ConfigManager.format_time_friendly(effective_time) if effective_time else "—"
+        time_str = format_time_friendly(effective_time) if effective_time else "—"
 
         # Ratings display: when a node's ratings are inherited (containers and
         # Milestones), its stored value/interest are scoring-inert, so
@@ -430,7 +431,7 @@ def register_details_callbacks(app, services=None):
             if completion["total"] > 0:
                 show_progress = {"display": "block"}
                 progress_val = completion["pct"]
-                remaining = ConfigManager.format_time_friendly(
+                remaining = format_time_friendly(
                     completion["remaining_time"])
                 # Milestone count: walk the same hard-subtree the completion
                 # walked, count Milestones in it. Filter-independent, like

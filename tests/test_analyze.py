@@ -17,6 +17,7 @@ from skilltree.features.analyze.callbacks import (
     _compute_throughput, _compute_reflection_drift,
     _compute_rating_distribution,
 )
+from skilltree.ui.components.duration import format_time_friendly
 
 
 def _throughput_node_names(rows):
@@ -195,7 +196,7 @@ class TestComputeBottlenecks:
         widths = [float(s.style['width'].split('(')[1].split('%')[0]) for s in track.children]
         assert widths == [pytest.approx(100 * 5 / 45, abs=0.01),
                           pytest.approx(100 * 40 / 45, abs=0.01)]
-        fmt = ConfigManager.format_time_friendly
+        fmt = format_time_friendly
         tip = next(p for p in parts if getattr(p, 'className', None) == "gp-bar")
         assert f"Takes {fmt(5)}" in getattr(tip, 'data-tip')
         value = next(p for p in parts if getattr(p, 'className', None) == "gp-pct")
@@ -296,7 +297,7 @@ class TestComputeGoalProgress:
         pct = next(p for p in parts if getattr(p, 'className', None) == 'gp-pct')
         assert pct.children == "0.3%"   # started, so not 0%
         bar = next(p for p in parts if getattr(p, 'className', None) == 'gp-bar')
-        fmt = ConfigManager.format_time_friendly
+        fmt = format_time_friendly
         assert getattr(bar, 'data-tip').splitlines() == [
             "Goal1", f"{fmt(1)} of {fmt(300)} done",
             f"{fmt(1)} of it in the last 6 months, across 1 node"]
@@ -929,7 +930,7 @@ class TestThroughputCapacity:
                    if getattr(p, 'className', None) == 'tp-seg')
         lines = getattr(seg, 'data-tip').splitlines()
         assert lines[0] == "Jan 2026 · Mind"
-        assert lines[2] == "• A (" + ConfigManager.format_time_friendly(rows[0]['total_hours']) + ")"
+        assert lines[2] == "• A (" + format_time_friendly(rows[0]['total_hours']) + ")"
 
 
 class TestReflectionDriftChart:

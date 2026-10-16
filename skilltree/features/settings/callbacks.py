@@ -682,7 +682,7 @@ def register_settings_callbacks(app, services=None):
         )
 
     # --- Settings: Sync Time Estimates ---
-    # 1 week = 7 days; 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see ConfigManager.HOURS_PER_YEAR_MULT).
+    # 1 week = 7 days; 1 month = 4 weeks; 1 year = 13 months = 52 weeks (see HOURS_PER_YEAR_MULT).
     @app.callback(
         Output('setting-hpd', 'value', allow_duplicate=True),
         Output('setting-hpw', 'value', allow_duplicate=True),

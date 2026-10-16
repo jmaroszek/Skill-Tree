@@ -67,6 +67,7 @@ from skilltree.domain.names import normalize_name_for_comparison
 from skilltree.ui import tokens
 from skilltree.ui.kit import (progress_bar_color)
 from skilltree.ui.components.duration import work_time_tooltip
+from skilltree.ui.components.duration import format_time_friendly
 
 logger = logging.getLogger(__name__)
 
@@ -614,7 +615,7 @@ def register_callbacks(app, services=None):
                                "margin": "4px 0", "overflow": "hidden"}
                     ),
                     html.Div([html.Strong("Remaining: "),
-                              ConfigManager.format_time_friendly(remaining)]),
+                              format_time_friendly(remaining)]),
                 ]
             else:
                 empty_text = "No subtasks yet" if total == 0 else "No work beneath it yet"
@@ -650,7 +651,7 @@ def register_callbacks(app, services=None):
                 if time_inherited:
                     lines.append(html.Div([html.Strong("Time: "), "inherited"]))
                 else:
-                    time_str = ConfigManager.format_time_friendly(data.get('time', 0))
+                    time_str = format_time_friendly(data.get('time', 0))
                     lines.append(html.Div([html.Strong("Time: "), time_str]))
 
             ctx_val = data.get('context', '')

@@ -252,3 +252,87 @@ def resolve_value_mode(n_type, value_mode_val):
     if value_mode_val and 'inherited' in value_mode_val:
         return 'inherited'
     return 'manual'
+
+
+# One year of productivity is 13 months (about 52 weeks) by definition. It is
+# built from hours_per_month, so a user-tuned monthly rate flows through to
+# years consistently. A day is a seventh of a week, for the same reason.
+HOURS_PER_YEAR_MULT = 13  # × hours_per_month
+DAYS_PER_WEEK = 7
+
+
+def hours_per_unit(unit, time_settings):
+    """Hours in one `unit` ('hours', 'days', 'weeks', 'months' or 'years')."""
+    if unit == 'days':
+        return time_settings['hours_per_week'] / DAYS_PER_WEEK
+    if unit == 'weeks':
+        return time_settings['hours_per_week']
+    if unit == 'months':
+        return time_settings['hours_per_month']
+    if unit == 'years':
+        return HOURS_PER_YEAR_MULT * time_settings['hours_per_month']
+    return 1.0
+
+
+def unit_for(hours, time_settings):
+    """The display unit for a duration: (hours in one unit, suffix).
+
+    The largest of year, month, week and day that the duration reaches, else
+    hours. format_hours picks its unit this way. A chart can call it once and
+    draw every value in that one unit.
+    """
+    hw = time_settings['hours_per_week']
+    hm = time_settings['hours_per_month']
+    hy = HOURS_PER_YEAR_MULT * hm
+    hd = hw / DAYS_PER_WEEK
+    hours = hours or 0.0
+
+    if hy > 0 and hours >= hy:
+        return float(hy), "y"
+    if hm > 0 and hours >= hm:
+        return float(hm), "m"
+    if hw > 0 and hours >= hw:
+        return float(hw), "w"
+    if hd > 0 and hours >= hd:
+        return float(hd), "d"
+    return 1.0, "h"
+
+
+def format_hours(hours, time_settings, force_one_decimal=False):
+    """Format worked hours in the largest unit they reach ("1w", "8h").
+
+    By default, integer values display without a decimal. Pass
+    `force_one_decimal=True` for tabular displays where decimal alignment
+    matters: every value gets exactly one decimal place ("1.0w", "8.0h").
+    """
+    if hours is None or hours <= 0:
+        return "0.0h" if force_one_decimal else "0h"
+    # Callers such as the Analyze axis ticks pass ints, and round(int, 1)
+    # returns an int; as a float it can say whether it is whole.
+    hours = float(hours)
+    size, suffix = unit_for(hours, time_settings)
+    amount = round(hours / size, 1)
+    if amount.is_integer() and not force_one_decimal:
+        amount = int(amount)
+    return f"{amount}{suffix}"
+
+
+def friendly_unit(hours, time_settings):
+    """Hours in the largest unit they reach, as (amount, unit name), such as
+    (2.0, 'weeks')."""
+    if hours is None or hours <= 0:
+        return (0, 'hours')
+    hw = time_settings['hours_per_week']
+    hm = time_settings['hours_per_month']
+    hy = HOURS_PER_YEAR_MULT * hm
+    hd = hw / DAYS_PER_WEEK
+
+    if hy > 0 and hours >= hy:
+        return (round(hours / hy, 2), 'years')
+    if hm > 0 and hours >= hm:
+        return (round(hours / hm, 2), 'months')
+    if hw > 0 and hours >= hw:
+        return (round(hours / hw, 2), 'weeks')
+    if hd > 0 and hours >= hd:
+        return (round(hours / hd, 2), 'days')
+    return (round(hours, 2), 'hours')

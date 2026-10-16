@@ -8,7 +8,6 @@ Review History table + filters + edit hand-off.
 from dash import Input, Output, State, ALL, ctx, no_update, html
 import dash_bootstrap_components as dbc
 
-from skilltree.store.settings import ConfigManager
 from skilltree.ui.kit import Tooltip
 from skilltree.store.graph.manager import GraphManager
 from skilltree.features.review.layout import build_calibration_dismissed_view
@@ -22,6 +21,7 @@ from skilltree.features.review.layout import (
     history_sort_direction_icon,
     history_sort_key_class,
 )
+from skilltree.ui.components.duration import format_time_friendly
 
 
 _manager = GraphManager()
@@ -40,7 +40,7 @@ def _fmt_hours(hours):
     """Friendly time; DASH for missing."""
     if hours is None:
         return _DASH
-    return ConfigManager.format_time_friendly(hours)
+    return format_time_friendly(hours)
 
 
 def _fmt_delta_hours(actual, estimate):
@@ -49,7 +49,7 @@ def _fmt_delta_hours(actual, estimate):
         return _DASH
     diff = actual - estimate
     sign = "+" if diff >= 0 else "−"
-    return f"{sign}{ConfigManager.format_time_friendly(abs(diff))}"
+    return f"{sign}{format_time_friendly(abs(diff))}"
 
 
 def _fmt_vie_tuple(v, i, d):

@@ -20,6 +20,7 @@ from skilltree.features.editor.values import (
     _calibration_unit_for,
     _calibration_modal_text,
 )
+from skilltree.domain.time import HOURS_PER_YEAR_MULT
 
 
 @pytest.fixture
@@ -254,7 +255,7 @@ class TestCalibrationUnitFor:
         s = ConfigManager.get_time_settings()
         hw = s.get('hours_per_week', 40)
         hm = s.get('hours_per_month', 160)
-        hy = ConfigManager.HOURS_PER_YEAR_MULT * hm
+        hy = HOURS_PER_YEAR_MULT * hm
         return hw, hm, hy
 
     def test_small_estimate_is_hours(self):

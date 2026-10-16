@@ -5,9 +5,9 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html
 
-from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui import tokens
+from skilltree.ui.components.duration import format_time_friendly
 
 # Maps the `via` field from scoring.explain_score to a bar color.
 # Cool & quiet palette. Hard is a darker rugged blue (matches subtasks-
@@ -141,7 +141,7 @@ def _explain_summary_table(breakdown: dict, normalized):
     header("Cost")
 
     def duration(hours):
-        return ConfigManager.format_time_friendly(hours) if hours > 0 else "None"
+        return format_time_friendly(hours) if hours > 0 else "None"
 
     if is_goal:
         count = cost_info.get('n_tasks', 0)

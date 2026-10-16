@@ -1,8 +1,16 @@
-"""Shared estimate guidance and the Time Simulation forecast chart."""
+"""Shared estimate guidance, the Time Simulation forecast chart, and worked hours
+in the user's units."""
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html
 
+from skilltree.domain.time import (
+    DAYS_PER_WEEK,
+    HOURS_PER_YEAR_MULT,
+    format_hours,
+    friendly_unit,
+    unit_for,
+)
 from skilltree.store.settings import DEFAULT_TIME_SETTINGS, ConfigManager
 from skilltree.ui.kit import Tooltip
 
@@ -38,8 +46,8 @@ def work_time_unit_items(time_settings=None):
     else:
         settings = {**DEFAULT_TIME_SETTINGS, **time_settings}
         week, month = settings["hours_per_week"], settings["hours_per_month"]
-        per_unit = {"days": week / ConfigManager.DAYS_PER_WEEK, "weeks": week,
-                    "months": month, "years": ConfigManager.HOURS_PER_YEAR_MULT * month}
+        per_unit = {"days": week / DAYS_PER_WEEK, "weeks": week,
+                    "months": month, "years": HOURS_PER_YEAR_MULT * month}
     return [f"1 {unit[:-1]} = {_compact_hours(hours)} {'hour' if hours == 1 else 'hours'}"
             for unit, hours in per_unit.items()]
 
@@ -90,7 +98,7 @@ def time_estimates_heading(id_prefix, kind="estimate"):
 # --- Unit selects -----------------------------------------------------------
 # One builder for every "per what?" select in the app. These used to be typed
 # out by hand at nine call sites, which is how the Reflection modal's copy
-# ended up missing "Years" while ConfigManager.hours_to_friendly_unit could
+# ended up missing "Years" while hours_to_friendly_unit could
 # still hand it that value, and how four of them picked up a 100px width the
 # others never got.
 
@@ -130,7 +138,7 @@ def unit_select(select_id, units=TIME_UNITS, value=None, compact=False, **kwargs
 # not, so a one-year delay round-tripped as "365 days". Both inverses now share
 # _largest_exact_unit, so the form and the display cannot drift apart again.
 #
-# ConfigManager.format_time_friendly / time_unit are deliberately NOT reused
+# format_time_friendly / time_unit below are deliberately NOT reused
 # here. Those measure worked hours against the user's hours-per-week setting;
 # a delay is plain calendar days with fixed constants.
 
@@ -222,7 +230,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
     precision.
     """
     stats, counts = summary["stats"], summary["counts"]
-    size, suffix = ConfigManager.time_unit(stats["p50"], time_settings=time_settings)
+    size, suffix = time_unit(stats["p50"], time_settings=time_settings)
     centers = [center / size for center in summary["centers"]]
     width = summary["width"] / size
 
@@ -276,3 +284,28 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         bargap=0,
     )
     return fig
+
+
+# --- Worked hours, in the user's units ---------------------------------------
+
+def _time_settings(time_settings=None):
+    if time_settings is None:
+        return ConfigManager.get_time_settings()
+    return {**DEFAULT_TIME_SETTINGS, **time_settings}
+
+
+def time_unit(hours, *, time_settings=None):
+    """The display unit for worked hours: (hours in one unit, suffix), from
+    the user's hours per week and month."""
+    return unit_for(hours, _time_settings(time_settings))
+
+
+def format_time_friendly(hours, force_one_decimal=False, *, time_settings=None):
+    """Worked hours in the largest unit they reach ("1w", "8h"), from the
+    user's hours per week and month."""
+    return format_hours(hours, _time_settings(time_settings), force_one_decimal)
+
+
+def hours_to_friendly_unit(hours):
+    """Worked hours as (amount, unit name), such as (2.0, 'weeks')."""
+    return friendly_unit(hours, _time_settings())

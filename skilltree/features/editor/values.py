@@ -1,6 +1,7 @@
 """Shared editor and calibration values, independent of callback registration."""
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import STATUS_DONE
+from skilltree.ui.components.duration import format_time_friendly, hours_to_friendly_unit
 
 # The Reflection notes box's prompt for any node that holds work.
 PROJECT_NOTES_PLACEHOLDER = "Anything worth remembering about this project?"
@@ -23,7 +24,7 @@ def _calibration_modal_text(node):
     est = getattr(node, 'time', 0) or 0
     if est > 0:
         prompt = (f"You estimated this project would take "
-                  f"{ConfigManager.format_time_friendly(est)}. "
+                  f"{format_time_friendly(est)}. "
                   f"How long did it actually take?")
     else:
         prompt = "How long did it actually take?"
@@ -54,7 +55,7 @@ def _calibration_unit_for(hours):
     """The Unit-dropdown value matching the friendly formatter's choice for
     `hours` (e.g. a ~3.5w estimate → 'weeks'). Years cap to 'months' — the
     modal dropdown offers hours / days / weeks / months."""
-    _, unit = ConfigManager.hours_to_friendly_unit(hours or 0)
+    _, unit = hours_to_friendly_unit(hours or 0)
     return 'months' if unit == 'years' else unit
 
 
@@ -112,7 +113,7 @@ def friendly_time_estimates(time_o, time_m, time_p):
     (o, m, p, unit_string).
     """
     max_hours = max(time_o or 0, time_m or 0, time_p or 0)
-    _, unit = ConfigManager.hours_to_friendly_unit(max_hours)
+    _, unit = hours_to_friendly_unit(max_hours)
     # Cap at weeks: months/years are too coarse for direct editing
     if unit in ('months', 'years'):
         unit = 'weeks'

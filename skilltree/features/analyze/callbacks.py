@@ -33,6 +33,8 @@ from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.settings import ConfigManager, DEFAULT_ANALYZE_LIMITS
 from skilltree.ui.styles import BADGE_PALETTE, badge_style
 from skilltree.ui import tokens
+from skilltree.ui.components.duration import format_time_friendly
+from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT
 
 graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
@@ -146,7 +148,7 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
 
     Picks a step that scales with the user's productivity settings — years for
     very large ranges, then months, weeks, days, hours — and labels each tick via
-    ``ConfigManager.format_time_friendly`` so the axis reads "1y" / "2m" /
+    ``format_time_friendly`` so the axis reads "1y" / "2m" /
     "3w" / "8h" instead of raw hour counts.
     """
     if max_val <= 0:
@@ -154,8 +156,8 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     settings = ConfigManager.get_time_settings()
     hw = max(1, settings['hours_per_week'])
     hm = max(1, settings['hours_per_month'])
-    hy = ConfigManager.HOURS_PER_YEAR_MULT * hm
-    hd = hw / ConfigManager.DAYS_PER_WEEK
+    hy = HOURS_PER_YEAR_MULT * hm
+    hd = hw / DAYS_PER_WEEK
 
     # Pick a step that gives roughly 4-7 ticks for the visible range.
     if max_val >= 4 * hy:
@@ -184,17 +186,17 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     while v <= max_val * 1.05:
         tickvals.append(round(v, 4))
         v += step
-    ticktext = [ConfigManager.format_time_friendly(t) for t in tickvals]
+    ticktext = [format_time_friendly(t) for t in tickvals]
     return tickvals, ticktext
 
 
 def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
     """Return (tickvals, ticktext) for a log-scaled hours axis, placing ticks
     at 1-2-5 ×10^k values within range and labelling each via
-    ``ConfigManager.format_time_friendly``."""
+    ``format_time_friendly``."""
     import math as _math
     if max_val <= 0:
-        return [1.0], [ConfigManager.format_time_friendly(1.0)]
+        return [1.0], [format_time_friendly(1.0)]
     lo = max(0.5, min_val)
     vals = []
     k = _math.floor(_math.log10(lo))
@@ -207,7 +209,7 @@ def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
             if v < lo / 1.5:
                 continue
             if v > max_val * 1.5:
-                return vals, [ConfigManager.format_time_friendly(x) for x in vals]
+                return vals, [format_time_friendly(x) for x in vals]
             vals.append(v)
         k += 1
 
@@ -267,7 +269,7 @@ def _render_bottleneck_chart(data):
         return _card([html.P("No open node gates any unfinished work.",
                              className="text-muted small mb-0")])
 
-    fmt = ConfigManager.format_time_friendly
+    fmt = format_time_friendly
     widest = max(d['own_hours'] + d['hours'] for d in data) or 1
     body = []
     for d in data:
@@ -314,7 +316,7 @@ def _render_goal_progress(rows):
     if not rows:
         return _card(html.P("No goals defined.", className="text-muted small mb-0"))
 
-    fmt = ConfigManager.format_time_friendly
+    fmt = format_time_friendly
     months = round(_RECENT_DAYS / 30.4)
     body = []
     for r in rows:
@@ -365,7 +367,7 @@ def _render_estimation_accuracy(rows):
             "with Reflection enabled to populate this chart.",
             className="text-muted small")])
 
-    fmt = ConfigManager.format_time_friendly
+    fmt = format_time_friendly
     colors = ConfigManager.get_node_colors()
 
     all_vals = [r['estimate'] for r in rows] + [r['actual'] for r in rows]
@@ -615,7 +617,7 @@ def _render_throughput_chart(quarter_rows,
     drop sharply at the end. The tooltip still gives the share of capacity.
     A long run of buckets turns the labels on their side so they never
     overlap."""
-    fmt = ConfigManager.format_time_friendly
+    fmt = format_time_friendly
     if not quarter_rows or all(not r['segments'] for r in quarter_rows):
         return _card([html.P(
             "No nodes with a completion date yet. Mark nodes Done to "
@@ -772,7 +774,7 @@ def _work_left_cell(row, area, scale):
     the area's share of all remaining work, the exact type mix and the
     median node time; the row's count, at its start, is the median's
     sample, less any node whose time comes from its children."""
-    fmt = ConfigManager.format_time_friendly
+    fmt = format_time_friendly
     by_type = row.get('time_by_type') or {}
     track = []
     if scale:

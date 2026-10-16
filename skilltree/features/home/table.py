@@ -11,6 +11,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
+from skilltree.ui.components.duration import format_time_friendly
 
 _MONO_FONT = tokens.FONT_MONO
 
@@ -330,7 +331,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         # force_one_decimal keeps the column aligned (1.0w / 1.5w / 11.4h
         # all render with the same decimal width).
         time_label = html.Span(
-            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
+            format_time_friendly(eff_time, force_one_decimal=True),
             style={"color": tokens.TEXT_SOFT, "minWidth": "52px", "textAlign": "right",
                    "fontSize": tokens.FS_LG},
         )
@@ -445,7 +446,7 @@ def format_now_nodes_section(now_nodes, cap, manager, selected_node_id=None):
 
         # --- Time estimate ---
         time_label = html.Span(
-            ConfigManager.format_time_friendly(eff_time, force_one_decimal=True),
+            format_time_friendly(eff_time, force_one_decimal=True),
             style={"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_ROW_META,
                    "fontFamily": _MONO_FONT, "fontWeight": "500",
                    "flexShrink": "0"},
