@@ -241,7 +241,8 @@ def test_details_suggestion_without_context_keeps_an_empty_second_line():
 
 def test_priority_rank_badges_share_the_orange_rank_color():
     """Regression: the Details rank badge once borrowed the Goal yellow."""
-    from skilltree.features.details.layout import _build_suggestion_row, build_goal_card
+    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.goals.layout import build_goal_card
 
     row = _build_suggestion_row(_suggestion_node(), priority_rank=2)
     badge = row.children[-1]
@@ -255,7 +256,8 @@ def test_priority_rank_badges_share_the_orange_rank_color():
 
 
 def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():
-    from skilltree.features.details.layout import _build_suggestion_row, build_goal_card
+    from skilltree.features.details.layout import _build_suggestion_row
+    from skilltree.features.goals.layout import build_goal_card
 
     row = _build_suggestion_row(_suggestion_node(), priority=54)
     badge = row.children[-1]

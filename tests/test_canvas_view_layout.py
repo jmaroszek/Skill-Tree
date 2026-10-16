@@ -3,7 +3,8 @@
 from pathlib import Path
 
 from skilltree.store.settings import ConfigManager
-from skilltree.features.details.layout import build_graph_settings_panel, build_details_tab_content
+from skilltree.features.details.layout import build_details_tab_content
+from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.shell import build_app_layout
 from skilltree.ui.sidebars_layout import build_filters_content
 

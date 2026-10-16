@@ -30,6 +30,8 @@ from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
 from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui.timing import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
+from skilltree.ui import tokens
+from skilltree.ui.styles import badge_style
 
 _DELAY = {"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}
 
@@ -353,3 +355,15 @@ def progress_bar_color(pct):
     """
     return (BADGE_PALETTE[STATUS_DONE][0] if pct == 100
             else BADGE_PALETTE[STATUS_OPEN][0])
+
+
+def goal_corner_badge(text, palette_name, class_name="badge"):
+    """The fixed-width badge in a goal card's corner: a priority rank or score.
+
+    The Goals sidebar and the Details suggestions share it, so the same number
+    looks the same on both.
+    """
+    return html.Span(text, className=class_name, style={
+        **badge_style(palette_name, font_size=tokens.FS_XS),
+        "minWidth": "34px", "textAlign": "center", "display": "inline-block",
+    })

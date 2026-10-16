@@ -15,185 +15,19 @@ from skilltree.ui.kit import (
     nav_button,
     panel_close_button,
     progress_bar_color,
-    restore_button,
     split_handle)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
-from typing import Optional, List, Any
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style, BADGE_PALETTE
 from skilltree.ui.styles import stylesheet
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.ui.components.duration import format_time_friendly
-
-def _freeze_indicator(indicator_id: str):
-    """Snowflake overlay shown on a canvas while its freeze toggle is on.
-
-    Hidden by default; a clientside callback flips display + keeps the style
-    in sync with the freeze-rerender store. Centered horizontally with the
-    tab bar's Filters button (`right: 19px` with a 1.6rem icon).
-    """
-    return html.I(
-        className="bi bi-snow",
-        id=indicator_id,
-        style={
-            "display": "none",
-            "position": "absolute",
-            "top": "12px",
-            "right": "19px",
-            "fontSize": tokens.FS_HEADING,
-            "color": tokens.ACCENT_SOFT,
-            "textShadow": "0 0 6px rgba(126, 200, 227, 0.5)",
-            "pointerEvents": "none",
-            "zIndex": 10,
-        },
-    )
-
-
-def build_graph_settings_panel(
-    prefix: str,
-    *,
-    include_animate: bool = True,
-    defaults_getter=ConfigManager.get_graph_layout_defaults,
-    max_depth_id: str = None,
-    outside_nodes_id: str = None,
-):
-    """Build a graph-layout panel. Single source of truth for all three canvases
-    (Nodes / Details / Events).
-
-    Callers pass the slider `defaults_getter` explicitly to select between
-    `get_graph_layout_defaults` (main canvas) and
-    `get_details_graph_layout_defaults` (details/events). Pass
-    ``include_animate=False`` to render only Freeze in the behavior row.
-
-    ``max_depth_id`` opts a canvas into a Max Depth slider at the top of the
-    panel. Only the Details tab passes it, since that's the only canvas that
-    examines a local subtree rather than the whole graph. The id is supplied by
-    the caller rather than derived from ``prefix`` on purpose: depth is a
-    tab-level control that also redraws the subtasks table, milestones strip,
-    inherited ratings and Time Simulation, so it keeps the tab-scoped
-    ``details-max-depth`` name instead of a panel-scoped one. It sits above a
-    divider, separated from the physics sliders below it.
-
-    ``outside_nodes_id`` is the Events canvas's counterpart: a switch that
-    shows or hides nodes outside the event that link to its nodes. It is
-    remembered in the browser between sessions.
-    """
-    gl = defaults_getter()
-    p = prefix
-    reset_btn_id = f"btn-reset-{p}"
-    close_btn_id = f"btn-close-{p}"
-
-    children = [
-        html.Div([
-            html.Div([
-                html.Span("Graph Layout", style={"fontWeight": "300", "fontSize": tokens.FS_LG}),
-                restore_button(reset_btn_id),
-            ], className="d-flex align-items-center"),
-            panel_close_button(close_btn_id, "Close graph layout panel"),
-        ], className="d-flex justify-content-between align-items-center",
-           style={"marginBottom": tokens.SPACE_BLOCK}),
-    ]
-
-    children += [
-        html.Div([
-            *([
-                dbc.Switch(
-                    id=f"{p}-animate",
-                    label="Animate",
-                    value=True,
-                    style={"fontSize": tokens.FS_BASE},
-                ),
-            ] if include_animate else []),
-            dbc.Switch(
-                id=f"{p}-freeze-rerender",
-                label="Freeze",
-                value=False,
-                style={"fontSize": tokens.FS_BASE},
-            ),
-        ], className="d-flex gap-2"),
-        Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
-                    target=f"{p}-freeze-rerender", placement="left"),
-        html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
-    ]
-
-    # Scope, not physics — so it leads the panel and gets its own divider
-    # rather than sitting among the force-layout sliders.
-    if outside_nodes_id:
-        children += [
-            dbc.Switch(
-                id=outside_nodes_id,
-                label="Nodes outside event",
-                value=True,
-                persistence=True,
-                persistence_type="local",
-                style={"fontSize": tokens.FS_BASE},
-            ),
-            html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
-        ]
-
-    if max_depth_id:
-        children += [
-            html.Div("Max Depth", className="settings-label"),
-            dcc.Slider(
-                id=max_depth_id,
-                min=1, max=6, step=1, value=6,
-                marks={1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "All"},
-                updatemode="mouseup",
-            ),
-            html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
-        ]
-
-    children += [
-        html.Div("Edge Length", className="settings-label"),
-        dcc.Slider(
-            id=f"{p}-edge-length",
-            min=50, max=300, step=10, value=gl.get('edge_length', 100),
-            marks=None,
-            updatemode="mouseup",
-        ),
-        html.Div([
-            html.Span("Short"),
-            html.Span("Long"),
-        ], id=f"{p}-edge-length-axis", className="graph-settings-axis"),
-
-        html.Div("Gravity", className="settings-label"),
-        dcc.Slider(
-            id=f"{p}-gravity",
-            min=0, max=5, step=0.25, value=gl.get('gravity', 0.25),
-            marks=None,
-            updatemode="mouseup",
-        ),
-        html.Div([
-            html.Span("Weak"),
-            html.Span("Strong"),
-        ], id=f"{p}-gravity-axis", className="graph-settings-axis"),
-
-        html.Div("Repulsion", className="settings-label"),
-        dcc.Slider(
-            id=f"{p}-repulsion",
-            min=500, max=100000, step=500, value=gl.get('repulsion', 4500),
-            marks=None,
-            updatemode="mouseup",
-        ),
-        html.Div([
-            html.Span("Weak"),
-            html.Span("Strong"),
-        ], id=f"{p}-repulsion-axis", className="graph-settings-axis"),
-    ]
-
-    children += [
-        html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
-
-        dbc.Button("Settle", id=f"{p}-relayout",
-                   color="secondary", size="sm", className="w-100 mt-2"),
-        Tooltip("Re-run layout physics to untangle nodes",
-                    target=f"{p}-relayout", placement="top"),
-    ]
-
-    return html.Div(children, id=f"{p}-panel", className="graph-settings-panel",
-                    style={"display": "none"})
+from skilltree.ui.canvas.settings_panel import (
+    freeze_indicator, build_graph_settings_panel,
+)
+from skilltree.ui.kit import goal_corner_badge
 
 
 def build_details_tab_content():
@@ -402,7 +236,7 @@ def build_details_tab_content():
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             Tooltip("Graph layout", target="btn-details-graph-settings", placement="left"),
-            _freeze_indicator("details-freeze-indicator"),
+            freeze_indicator("details-freeze-indicator"),
             build_graph_settings_panel(
                 "details-graph-settings",
                 defaults_getter=ConfigManager.get_details_graph_layout_defaults,
@@ -747,18 +581,6 @@ def _attribute_row(label, value_id):
     ], className="d-flex align-items-center mb-1")
 
 
-def _goal_corner_badge(text, palette_name, class_name="badge"):
-    """The fixed-width badge in a goal card's corner: a priority rank or score.
-
-    The Goals sidebar and the Details suggestions share it, so the same number
-    looks the same on both.
-    """
-    return html.Span(text, className=class_name, style={
-        **badge_style(palette_name, font_size=tokens.FS_XS),
-        "minWidth": "34px", "textAlign": "center", "display": "inline-block",
-    })
-
-
 def _build_suggestion_row(node, priority_rank=None, priority=None):
     """One keyboard-accessible starting-point card in the Details empty state.
 
@@ -773,11 +595,11 @@ def _build_suggestion_row(node, priority_rank=None, priority=None):
     """
     if priority_rank is not None:
         label_bits = [f"Priority {priority_rank}"]
-        corner = _goal_corner_badge(str(priority_rank), "PriorityRank",
+        corner = goal_corner_badge(str(priority_rank), "PriorityRank",
                                     "badge details-suggestion-badge")
     elif priority is not None:
         label_bits = [f"Priority score {priority}"]
-        corner = _goal_corner_badge(str(priority), STATUS_OPEN,
+        corner = goal_corner_badge(str(priority), STATUS_OPEN,
                                     "badge details-suggestion-badge")
     else:
         label_bits, corner = [], None
@@ -833,95 +655,6 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
         return html.P(message,
                       className="text-muted small text-center mt-3")
     return sections
-
-
-def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
-                    show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False,
-                    corner_text: Optional[str] = None, menu_attributes: Optional[dict] = None):
-    """Builds a single goal card for the goal sidebar list.
-
-    ``menu_attributes`` are the goal's ``node_menu_attributes``, which give the
-    card the shared node context menu on right-click.
-    """
-    border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
-
-    pct = completion.get("pct", 0)
-    total = completion.get("total", 0)
-    formatted_time = format_time_friendly(completion.get("remaining_time", 0))
-
-    # A goal is effectively Done if its toggle is on OR all subtasks are complete
-    if status == STATUS_DONE or (pct == 100 and total > 0):
-        effective_status = STATUS_DONE
-    elif completion.get("is_blocked", False):
-        effective_status = STATUS_BLOCKED
-    else:
-        effective_status = STATUS_OPEN
-
-    # status badge uses centralized BADGE_PALETTE (constructed inline below)
-
-    # Drag handle (visible only for non-priority, manual-sort goals)
-    drag_handle = html.Span(
-        html.I(className="bi bi-list"), className="goal-drag-handle",
-        style={"cursor": "grab", "color": tokens.TEXT_DIM, "fontSize": tokens.FS_MD,
-               "marginRight": "8px", "userSelect": "none"},
-    ) if show_order_buttons else None
-
-    # Top-right indicator: a green "Done" badge for completed goals, otherwise
-    # the sort-dependent corner text (priority score / manual rank). Open goals
-    # carry no badge under sorts where order is arbitrary (alphabetical).
-    _badge_cls = "badge ms-1" if priority_rank is not None else "badge"
-    if effective_status == STATUS_DONE:
-        corner_badge = html.Span(
-            STATUS_DONE, className=_badge_cls,
-            style={**badge_style(STATUS_DONE, font_size=tokens.FS_XS),
-                   "width": "62px", "textAlign": "center", "display": "inline-block"})
-    elif corner_text and priority_rank is None:
-        corner_badge = _goal_corner_badge(corner_text, STATUS_OPEN, _badge_cls)
-    else:
-        corner_badge = None
-
-    children: List[Any] = [
-        html.Div([
-            html.Div([
-                drag_handle,
-                html.H6(name, className="mb-0", style={"fontWeight": "500"}),
-            ], className="d-flex align-items-center"),
-            html.Div([
-                html.Span(
-                    _goal_corner_badge(str(priority_rank), "PriorityRank"),
-                    className="goal-rank-trigger",
-                    role="button", tabIndex=0,
-                    **{"data-goal-name": name, "aria-label": f"Set priority for {name}"},
-                ) if priority_rank is not None else None,
-                corner_badge,
-            ], className="d-flex align-items-center ms-2 gap-1"),
-        # mb-0, not mb-1: the name and its stats line are one block, and the
-        # Small below already carries its own leading. The extra 4px read as a
-        # gap between two unrelated things.
-        ], className="d-flex align-items-center justify-content-between mb-0"),
-    ]
-
-    # Stats line: progress as the share of estimated work done, so a Goal
-    # with one big topic left doesn't look nearly finished; the remaining
-    # time carries the sense of size.
-    if total > 0:
-        _sep = "\u00a0\u00a0\u00b7\u00a0\u00a0"
-        stats_text = f"{pct}% done{_sep}{formatted_time} left"
-    else:
-        stats_text = "No subtasks yet"
-
-    children.append(html.Small(stats_text, className="text-muted", style={"fontSize": tokens.FS_SM}))
-
-    return html.Div(children, id={"type": "goal-card", "index": name},
-       className="mb-2 goal-card rounded",
-       role="button", tabIndex=0,
-       **{"data-goal-name": name, **(menu_attributes or {})},
-       style={
-           "border": border_style,
-           "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
-           "transition": "border-color 0.2s, background-color 0.2s",
-           "padding": "10px 14px",
-       })
 
 
 def _build_filters_sidebar():

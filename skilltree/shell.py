@@ -19,7 +19,10 @@ from skilltree.ui.timing import (
 )
 from skilltree.ui.styles import CANVAS_HEIGHT
 from skilltree.features.events.layout import build_events_tab_content, build_add_to_event_modal
-from skilltree.features.details.layout import build_details_tab_content, _freeze_indicator, build_graph_settings_panel
+from skilltree.features.details.layout import build_details_tab_content
+from skilltree.ui.canvas.settings_panel import (
+    freeze_indicator, build_graph_settings_panel,
+)
 from skilltree.features.settings.layout import build_settings_modal
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.analyze.layout import build_analyze_tab_content
@@ -75,7 +78,7 @@ def create_graph_view(initial_elements):
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             Tooltip("Graph layout", target="btn-graph-settings", placement="left"),
-            _freeze_indicator("freeze-indicator"),
+            freeze_indicator("freeze-indicator"),
             build_graph_settings_panel(
                 "graph-settings",
                 defaults_getter=ConfigManager.get_graph_layout_defaults,

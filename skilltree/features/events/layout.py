@@ -14,7 +14,9 @@ from skilltree.ui.styles import badge_style
 pass
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import events_graph_stylesheet
-from skilltree.features.details.layout import build_graph_settings_panel, _freeze_indicator
+from skilltree.ui.canvas.settings_panel import (
+    build_graph_settings_panel, freeze_indicator,
+)
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
 from skilltree.ui.kit import (Tooltip, add_button, confirm_action, danger_action,
                     done_color, filter_chip, panel_close_button, primary_action,
@@ -376,7 +378,7 @@ def build_events_tab_content():
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right"),
             Tooltip("Graph layout", target="btn-events-graph-settings", placement="left"),
-            _freeze_indicator("events-freeze-indicator"),
+            freeze_indicator("events-freeze-indicator"),
             build_graph_settings_panel(
                 "events-graph-settings",
                 defaults_getter=ConfigManager.get_events_graph_layout_defaults,
