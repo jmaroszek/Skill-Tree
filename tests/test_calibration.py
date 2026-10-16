@@ -384,7 +384,7 @@ class TestPriorNodeForCompletion:
 
 class TestCalibrationModalLayout:
     def test_ratings_come_before_time_then_notes(self):
-        from skilltree.shell import build_time_calibration_modal
+        from skilltree.features.review.layout import build_time_calibration_modal
         text = repr(build_time_calibration_modal())
         order = [text.index(marker) for marker in
                  ("calibration-value", "time-calibration-lower", "calibration-notes")]

@@ -50,3 +50,18 @@ def build_bridge_modal():
             primary_action("Create", "btn-bridge-create"),
         ]),
     ], id="modal-bridge", is_open=False, centered=True)
+
+
+# Confirmation for a link change that would reopen Done nodes: making a link
+# Hard, reversing one, or linking an existing node on Details can give a Done
+# node a Hard prerequisite that isn't Done. link_menu_callbacks fills the body
+# and holds the request until the user answers.
+def build_link_reopen_confirm_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
+        dbc.ModalBody(id="link-reopen-confirm-body"),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-link-reopen-cancel", color="secondary", className="flex-fill me-2"),
+            dbc.Button("Change Link", id="btn-link-reopen-confirm", color="warning", className="flex-fill"),
+        ], className="d-flex"),
+    ], id="modal-link-reopen-confirm", size="sm", is_open=False, centered=True)

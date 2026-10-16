@@ -6,12 +6,10 @@ Contains all UI component definitions and the Cytoscape stylesheet.
 from skilltree.store import database
 
 from dash import html, dcc
-import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from skilltree.store.settings import (
-    ConfigManager, DEFAULT_CONTEXTS, DEFAULT_GRAPH_LAYOUT,
+    ConfigManager,
 )
-from skilltree.domain.contexts import sort_subcontexts
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
     TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
@@ -20,470 +18,48 @@ from skilltree.ui.timing import (
 from skilltree.ui.styles import CANVAS_HEIGHT
 from skilltree.features.events.layout import build_events_tab_content, build_add_to_event_modal
 from skilltree.features.details.layout import build_details_tab_content
-from skilltree.ui.canvas.settings_panel import (
-    freeze_indicator, build_graph_settings_panel,
-)
 from skilltree.features.settings.layout import build_settings_modal
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.analyze.layout import build_analyze_tab_content
 from skilltree.ui.sidebars_layout import build_all_sidebars
-from skilltree.features.links.bridge_layout import build_bridge_modal
+from skilltree.features.links.layout import build_bridge_modal
 from skilltree.ui.components.context_picker import build_context_picker_support
 from skilltree.ui.components.list_toolbar import SORT_MENUS, sort_menu_items
 from skilltree.ui import tokens
-from skilltree.ui.styles import stylesheet
-from skilltree.ui.components.duration import unit_select, work_time_tooltip
 from skilltree.store.resources import MAX_SECTIONS
-from skilltree.features.editor.values import PROJECT_NOTES_PLACEHOLDER
-from skilltree.ui.kit import (Tooltip, cancel_action, edit_button, filter_chip,
-                    info_button, panel_close_button, primary_action,
-                    step_button)
+from skilltree.ui.kit import (Tooltip)
+from skilltree.ui.components.menus import (
+    floating_menu, menu_divider,
+    menu_heading, menu_item,
+    priority_items,
+)
+from skilltree.features.nodes.layout import create_graph_view
+from skilltree.features.home.layout import build_next_view
+from skilltree.features.settings.migration import build_migration_modal
+from skilltree.features.onboarding.layout import build_welcome_modal
+from skilltree.features.editor.layout import (
+    build_delete_confirm_modal, build_editor_reopen_confirm_modal,
+    build_ratings_editor_modal, build_ratings_popup, build_unsaved_changes_modal,
+)
+from skilltree.engine.layout import (
+    build_auto_done_suggestion_modal, build_group_delete_confirm_modal,
+    build_undo_done_confirm_modal,
+)
+from skilltree.features.links.layout import build_link_reopen_confirm_modal
+from skilltree.features.review.layout import (
+    build_calibration_review_toast, build_reflection_ratings_editor_modal,
+    build_reflection_ratings_popup, build_time_calibration_modal,
+)
+from skilltree.ui.canvas.tooltip import build_hover_tooltip
 
 
 # --- Graph View (Canvas only) ---
 
-def create_graph_view(initial_elements):
-    """Create the Cytoscape graph canvas with fullscreen toggle button."""
-    gl = ConfigManager.get_graph_layout_defaults()
-    return html.Div([
-        html.Div([
-            cyto.Cytoscape(
-                id='cytoscape-graph',
-                # Filter changes re-run this layout, so it describes a
-                # transition: keep the current positions, and animate to match
-                # the Animate switch, which starts on. The graph-settings
-                # callback only rewrites this prop once a control is touched,
-                # so until then Animate read on but ran off. The cold start
-                # from nodes stacked at the origin is the exception, adjusted
-                # by assets/canvas_first_paint.js.
-                layout={
-                    'name': 'fcose', 'quality': 'proof',
-                    'fit': True, 'animate': True, 'animationDuration': 1000,
-                    'padding': 30, 'numIter': 2500, 'randomize': False,
-                    'idealEdgeLength': gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),
-                    'nodeRepulsion': gl.get('repulsion', DEFAULT_GRAPH_LAYOUT['repulsion']),
-                    'gravity': gl.get('gravity', DEFAULT_GRAPH_LAYOUT['gravity']),
-                },
-                style={'width': '100%', 'height': '100%',
-                       'backgroundColor': tokens.BG_CANVAS, 'borderRadius': '8px'},
-                elements=initial_elements,
-                stylesheet=stylesheet,
-                userZoomingEnabled=False,
-                boxSelectionEnabled=True,
-                userPanningEnabled=False,
-                autoungrabify=False
-            ),
-            dbc.Button(html.I(className="bi bi-gear"),
-                       id="btn-graph-settings",
-                       color="secondary", size="sm",
-                       className="btn-canvas-overlay btn-canvas-bottom-right"),
-            Tooltip("Graph layout", target="btn-graph-settings", placement="left"),
-            freeze_indicator("freeze-indicator"),
-            build_graph_settings_panel(
-                "graph-settings",
-                defaults_getter=ConfigManager.get_graph_layout_defaults,
-            ),
-            dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
-                       id="btn-fullscreen",
-                       color="secondary", size="sm",
-                       className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
-            html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
-            filter_chip("nodes-filter-chip", "filter-chip-overlay"),
-            # Shown over an empty canvas (callbacks.register_callbacks fills it
-            # in and opens it): what the filters hid, and the way back.
-            html.Div([
-                html.Div("No nodes match your filters", className="canvas-empty-title"),
-                html.Div(id="canvas-empty-detail", className="canvas-empty-detail"),
-                html.Div([
-                    dbc.Button("Show Done", id="btn-empty-show-done",
-                               color="secondary", size="sm"),
-                    dbc.Button("Show Dormant", id="btn-empty-show-dormant",
-                               color="secondary", size="sm"),
-                    dbc.Button("Clear filters", id="btn-empty-clear",
-                               color="secondary", size="sm"),
-                ], id="canvas-empty-actions", className="canvas-empty-actions"),
-            ], id="canvas-empty-state", className="canvas-empty-state",
-                role="status", **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]
-            # First-paint cover. This canvas mounts inside the hidden Nodes
-            # tab, where Cytoscape stacks every node at the origin until its
-            # layout runs and `fit` is a no-op at 0x0 — so opening the tab
-            # early used to show the graph piled into the top-left corner and
-            # then jump. It starts opaque and is lifted by
-            # assets/canvas_first_paint.js once the graph is laid out and
-            # framed. Last child so it covers the overlays above it too.
-            html.Div(
-                html.Div([
-                    dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
-                    html.Div("Preparing the graph…", className="canvas-cover-label"),
-                ], className="canvas-cover-inner"),
-                id="canvas-first-paint-cover",
-                className="canvas-cover",
-                role="status",
-                **{"aria-live": "polite"},  # type: ignore[reportArgumentType]
-            ),
-        ], id="canvas-container", className="canvas-container h-100", style={"overflow": "hidden", "borderRadius": "8px"}),
-    ], className="h-100", style={"overflow": "hidden"})
-
-
-# Was a byte-identical copy of callback_helpers.SECTION_TITLE_STYLE; both now
-# resolve to the one definition in style_tokens.
-# The three ratings-editor textareas hand-painted a DARKLY imitation,
-# written out verbatim three times. One definition instead.
-_RATING_TEXTAREA_STYLE = {
-    "width": "100%", "height": "72px", "resize": "vertical",
-    "backgroundColor": tokens.BG_RAISED, "color": tokens.TEXT_PRIMARY,
-    "border": f"1px solid {tokens.BORDER_PANEL}",
-    "borderRadius": tokens.RADIUS_SM, "padding": "4px",
-    "fontSize": tokens.FS_CAP,
-}
-
-_section_title_style = tokens.SECTION_TITLE_STYLE
-
-# The Next table fills the room beside the Description panel up to this width.
-# Its basis is the narrowest it reads well, which is also where the panel drops
-# below it.
-NEXT_TABLE_MAX_WIDTH = 1500
-NEXT_TABLE_BASIS = 780
-
 
 # --- Next View ---
 
-def build_next_view():
-    return html.Div([
-        dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
-    
-        # A new user's checklist (onboarding_callbacks.py); empty once done.
-        html.Div(id="getting-started"),
-
-        # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
-        # Heading + rows are emitted together by populate_now_section. The
-        # section collapses to zero height when there are no Now nodes, so
-        # the Next heading floats to the top of the tab.
-        html.Div(id="now-nodes-table"),
-    
-        html.Div([
-            html.H6("Next", className="text-muted mb-0", style=_section_title_style),
-            dbc.ButtonGroup([
-                step_button("btn-sugg-minus", "dash-lg", "Show fewer suggestions"),
-                html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
-                           className="align-self-center mx-1",
-                           style={"fontSize": tokens.FS_LG, "fontWeight": "bold", "minWidth": "18px",
-                                  "textAlign": "center"}),
-                step_button("btn-sugg-plus", "plus-lg", "Show more suggestions"),
-            ], className="align-middle"),
-            filter_chip("next-filter-chip"),
-        ], className="d-flex align-items-center mb-2", style={"gap": tokens.SPACE_BLOCK}),
-    
-        dcc.Store(id='selected-suggestion-store', data=None),
-        dcc.Store(id='focus-goal-store', data=None),
-    
-        # Next Table and Description side-by-side
-        html.Div([
-            html.Div(id="suggestions-table", children=[
-                html.P("Loading suggestions...", className="text-muted mt-3")
-            ], style={"flex": f"1 1 {NEXT_TABLE_BASIS}px", "minWidth": 0,
-                      "maxWidth": f"{NEXT_TABLE_MAX_WIDTH}px"}),
-        
-            # Description area — populated when clicking a Now card or Next row.
-            html.Div(id="next-description-area", children=[
-                html.H6("Description", className="text-muted mb-2", style=_section_title_style),
-                html.Div("Click a card or row to see its description", id="next-description-text",
-                         style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
-                html.Div(id="next-relations"),
-            ], style={"flex": "0 1 420px", "minWidth": "280px",
-                      "paddingRight": "2.5rem", "boxSizing": "content-box"}),
-        # Wraps under the table when the window is too narrow for both.
-        ], style={"display": "flex", "flexWrap": "wrap", "alignItems": "flex-start",
-                  "columnGap": "3rem", "rowGap": "2rem"}),
-    ])
-
 
 # --- Migration Modal ---
-
-def _orphan_name_label(n):
-    """Returns the display label for an orphan node in the migration modal.
-
-    Plain string for live nodes; a Span with a muted "(dormant — in event: X)"
-    suffix for dormant orphans so the user understands they're remapping nodes
-    that aren't currently on the canvas.
-    """
-    is_dormant = bool(getattr(n, 'dormant', False))
-    if not is_dormant:
-        return n.name
-    events = getattr(n, 'events', None) or []
-    if events:
-        suffix = f" (dormant — in event: {', '.join(events)})"
-    else:
-        suffix = " (dormant)"
-    return html.Span([
-        n.name,
-        html.Span(suffix,
-                  className="text-muted small ms-1",
-                  style={"fontStyle": "italic"}),
-    ])
-
-
-def build_migration_content(orphans_by_field, new_values_by_field,
-                            subcontexts_by_context=None, rename_map=None):
-    """Build dynamic migration modal body from orphan data.
-
-    Per-node design: every affected node gets its own (context, subcontext)
-    dropdown so heterogeneous remaps are possible. Each affected-value group
-    also has a "Bulk apply" row for the common case where all nodes in a
-    group should go to the same target.
-
-    `rename_map` pre-fills per-node defaults to (new_ctx, original_subcontext)
-    for a known rename. The Contexts editor carries renames onto the nodes
-    before this dialog opens, so from Settings it is empty and only genuine
-    removals arrive here.
-
-    Args:
-        orphans_by_field: {'context': {'OldCtx': [n_obj, ...]}, 'type': {...}, 'subcontext': {...}}
-            Each n_obj must expose .name, and (for context orphans) .subcontext.
-        new_values_by_field: {'context': [...], 'type': [...], 'subcontext': [...]}
-        subcontexts_by_context: {ctx_name: [sub, ...]} for the post-save state.
-        rename_map: {old_ctx: new_ctx} for detected pure renames.
-
-    Returns:
-        Tuple of (children list for modal body, mapping dict).
-        Mapping: {
-            "type":      [{"field": "type",       "old_value": ..., "node_name": ...}, ...],
-            "ctx_nodes": [{"field": "context",    "old_value": ..., "node_name": ..., "group_idx": int}, ...],
-            "sub_nodes": [{"field": "subcontext", "old_value": ..., "node_name": ..., "group_idx": int}, ...],
-        }
-        ctx_nodes/sub_nodes are ordered to match the per-node dropdown indices
-        (`migration-cgc-node` / `migration-cgs-node` etc.).
-    """
-    rename_map = rename_map or {}
-    children = []
-    type_mapping = []
-    ctx_node_entries = []
-    sub_node_entries = []
-    type_idx = 0
-
-    # --- Type changes (one dropdown per node, grouped by old value) ---
-    type_orphans = orphans_by_field.get('type', {})
-    if type_orphans:
-        new_vals = new_values_by_field.get('type', [])
-        children.append(html.H5("Type Changes", className="mt-3 mb-2"))
-        for old_val, nodes in type_orphans.items():
-            options = [{"label": v, "value": v} for v in new_vals]
-            default_val = new_vals[0] if new_vals else None
-            children.append(dbc.Card([
-                dbc.CardBody([
-                    html.Div([
-                        html.Strong(old_val),
-                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''} affected",
-                                  className="text-muted ms-1"),
-                    ], className="mb-2"),
-                    *[
-                        dbc.Row([
-                            dbc.Col(html.Span(_orphan_name_label(n), className="small",
-                                              style={"lineHeight": "38px"}), width=5),
-                            dbc.Col(dbc.Select(
-                                id={"type": "migration-dropdown", "index": type_idx + i},
-                                options=options,  # type: ignore[reportArgumentType]
-                                value=default_val,
-                                placeholder="Reassign to...",
-                                size="sm",
-                            ), width=7),
-                        ], className="mb-1")
-                        for i, n in enumerate(nodes)
-                    ],
-                ])
-            ], className="mb-2"))
-            for n in nodes:
-                type_mapping.append({"field": "type", "old_value": old_val, "node_name": n.name})
-                type_idx += 1
-
-    new_ctx_vals = new_values_by_field.get('context', [])
-    subcontexts_map = subcontexts_by_context or {}
-
-    ctx_options = [{"label": v, "value": v} for v in new_ctx_vals]
-    ctx_options += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
-
-    def _sub_options_for(ctx_val):
-        mode = ConfigManager.get_subcontext_sort_mode()
-        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
-        else:
-            subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss], mode
-            )
-        opts = [{"label": s, "value": s} for s in subs]
-        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
-        return opts, (subs[0] if subs else "__keep__")
-
-    def _bulk_row(group_i, ctx_dd_type, sub_dd_type, btn_type, ctx_default, sub_opts, sub_default):
-        return dbc.Row([
-            dbc.Col(html.Small("Bulk apply:", className="text-muted fw-bold"),
-                    width=4, className="d-flex align-items-center"),
-            dbc.Col(dbc.Select(
-                id={"type": ctx_dd_type, "index": group_i},
-                options=ctx_options,  # type: ignore[reportArgumentType]
-                value=ctx_default,
-                size="sm",
-            ), width=3),
-            dbc.Col(dbc.Select(
-                id={"type": sub_dd_type, "index": group_i},
-                options=sub_opts,  # type: ignore[reportArgumentType]
-                value=sub_default,
-                size="sm",
-            ), width=3),
-            dbc.Col(dbc.Button("Apply to all", id={"type": btn_type, "index": group_i},
-                               color="secondary", size="sm", className="w-100"), width=2),
-        ], className="mb-2 pb-2 border-bottom")
-
-    def _per_node_row(node_idx, name, ctx_dd_type, sub_dd_type, ctx_default, sub_opts, sub_default):
-        return dbc.Row([
-            dbc.Col(html.Span(name, className="small"),
-                    width=4, className="d-flex align-items-center"),
-            dbc.Col(dbc.Select(
-                id={"type": ctx_dd_type, "index": node_idx},
-                options=ctx_options,  # type: ignore[reportArgumentType]
-                value=ctx_default,
-                size="sm",
-            ), width=4),
-            dbc.Col(dbc.Select(
-                id={"type": sub_dd_type, "index": node_idx},
-                options=sub_opts,  # type: ignore[reportArgumentType]
-                value=sub_default,
-                size="sm",
-            ), width=4),
-        ], className="mb-1")
-
-    header_row = dbc.Row([
-        dbc.Col(html.Small("", className="text-muted fw-bold"), width=4),
-        dbc.Col(html.Small("Context", className="text-muted fw-bold"), width=4),
-        dbc.Col(html.Small("Subcontext", className="text-muted fw-bold"), width=4),
-    ], className="mb-1 px-1")
-
-    # --- Context changes ---
-    ctx_orphans = orphans_by_field.get('context', {})
-    if ctx_orphans:
-        children.append(html.H5("Context Changes", className="mt-3 mb-2"))
-        for group_i, (old_val, nodes) in enumerate(ctx_orphans.items()):
-            renamed_to = rename_map.get(old_val)
-            bulk_ctx_default = renamed_to or (new_ctx_vals[0] if new_ctx_vals else "__keep__")
-            bulk_sub_opts, bulk_sub_default = _sub_options_for(bulk_ctx_default)
-            if renamed_to:
-                bulk_sub_default = "__keep__"
-
-            node_rows = []
-            for n in nodes:
-                node_idx = len(ctx_node_entries)
-                node_orig_sub = getattr(n, 'subcontext', None)
-                if renamed_to:
-                    new_subs = subcontexts_map.get(renamed_to, [])
-                    node_default_ctx = renamed_to
-                    sub_opts, fallback_default = _sub_options_for(renamed_to)
-                    if node_orig_sub and node_orig_sub in new_subs:
-                        node_default_sub = node_orig_sub
-                    elif node_orig_sub:
-                        node_default_sub = "__clear__"
-                    else:
-                        node_default_sub = fallback_default
-                else:
-                    node_default_ctx = bulk_ctx_default
-                    sub_opts, node_default_sub = _sub_options_for(node_default_ctx)
-                node_rows.append(_per_node_row(
-                    node_idx, _orphan_name_label(n), "migration-cgc-node", "migration-cgs-node",
-                    node_default_ctx, sub_opts, node_default_sub,
-                ))
-                ctx_node_entries.append({
-                    "field": "context",
-                    "old_value": old_val,
-                    "node_name": n.name,
-                    "group_idx": group_i,
-                })
-
-            scroll_style = {"maxHeight": "40vh", "overflowY": "auto"} if len(nodes) > 12 else {}
-            header_extra = (html.Span(f" → {renamed_to}", className="text-success ms-1")
-                            if renamed_to else None)
-            children.append(dbc.Card([
-                dbc.CardBody([
-                    html.Div([
-                        html.Strong(old_val),
-                        header_extra,
-                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
-                                  className="text-muted ms-1 small"),
-                    ], className="mb-2"),
-                    _bulk_row(group_i, "migration-bulk-cgc", "migration-bulk-cgs",
-                              "migration-bulk-cg-apply",
-                              bulk_ctx_default, bulk_sub_opts, bulk_sub_default),
-                    header_row,
-                    html.Div(node_rows, style=scroll_style),
-                ])
-            ], className="mb-2"))
-
-    # --- Subcontext changes ---
-    sub_orphans = orphans_by_field.get('subcontext', {})
-    if sub_orphans:
-        children.append(html.H5("Subcontext Changes", className="mt-3 mb-2"))
-        for group_i, (old_val, nodes) in enumerate(sub_orphans.items()):
-            # Smart default: if old label is "ctx > sub" and `sub` now lives
-            # under exactly one new parent, pre-pick that (parent, sub).
-            default_ctx = "__keep__"
-            default_sub = "__keep__"
-            if " > " in old_val:
-                _, sub_name = old_val.split(" > ", 1)
-                candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
-                if len(candidates) == 1:
-                    default_ctx = candidates[0]
-                    default_sub = sub_name
-            sub_opts, _ = _sub_options_for(default_ctx)
-
-            node_rows = []
-            for n in nodes:
-                node_idx = len(sub_node_entries)
-                node_rows.append(_per_node_row(
-                    node_idx, _orphan_name_label(n), "migration-sgc-node", "migration-sgs-node",
-                    default_ctx, sub_opts, default_sub,
-                ))
-                sub_node_entries.append({
-                    "field": "subcontext",
-                    "old_value": old_val,
-                    "node_name": n.name,
-                    "group_idx": group_i,
-                })
-
-            scroll_style = {"maxHeight": "40vh", "overflowY": "auto"} if len(nodes) > 12 else {}
-            children.append(dbc.Card([
-                dbc.CardBody([
-                    html.Div([
-                        html.Strong(old_val),
-                        html.Span(f" — {len(nodes)} node{'s' if len(nodes) != 1 else ''}",
-                                  className="text-muted ms-1 small"),
-                    ], className="mb-2"),
-                    _bulk_row(group_i, "migration-bulk-sgc", "migration-bulk-sgs",
-                              "migration-bulk-sg-apply",
-                              default_ctx, sub_opts, default_sub),
-                    header_row,
-                    html.Div(node_rows, style=scroll_style),
-                ])
-            ], className="mb-2"))
-
-    return children, {
-        "type": type_mapping,
-        "ctx_nodes": ctx_node_entries,
-        "sub_nodes": sub_node_entries,
-    }
-
-
-def build_migration_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
-        dbc.ModalBody(id="migration-modal-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
-            # A refused Apply or Skip says why here. The choices above stay put
-            # for another try, and nothing has been saved.
-            html.Span(id="migration-error", className="text-danger me-2"),
-            dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
-            dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
-        ])
-    ], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
 
 
 def build_error_modal():
@@ -507,577 +83,13 @@ def build_app_error_modal():
     ], id="modal-app-error", size="sm", is_open=False, centered=True)
 
 
-def build_welcome_modal():
-    """The first launch, with an empty graph (onboarding.should_welcome).
-
-    The layout is built per page load, so answering it once keeps it closed.
-    onboarding_callbacks.py handles the choices.
-    """
-    from skilltree.features.onboarding import steps as onboarding
-    return html.Div([
-        dbc.Modal([
-            dbc.ModalHeader(dbc.ModalTitle("Welcome to Skill Tree"), close_button=False),
-            dbc.ModalBody([
-                html.P("Skill Tree helps you decide what to work on next. You add your "
-                       "goals and the things that lead to them, connect them, and it "
-                       "ranks what's worth doing now."),
-                html.P("Contexts are the areas of your life that nodes belong to, and "
-                       "every node has one. Start with a suggested set "
-                       f"({', '.join(DEFAULT_CONTEXTS)}), or with a single one "
-                       "called General, and change them any time in "
-                       "Settings > Contexts."),
-                html.P(["Coming from another computer? Import your export in ",
-                        html.Em("Settings > App"), "."], className="mb-0"),
-            ]),
-            dbc.ModalFooter([
-                cancel_action("Import a graph…", "btn-welcome-import", className="me-auto"),
-                cancel_action("Start with just General", "btn-welcome-empty"),
-                primary_action("Use the suggested contexts", "btn-welcome-suggested"),
-            ]),
-        ], id="welcome-modal", is_open=onboarding.should_welcome(), centered=True,
-            size="lg", backdrop="static", keyboard=False),
-        dcc.Store(id="welcome-reload-trigger"),
-        dcc.Store(id="welcome-reload-sink"),
-    ])
-
-
-def build_unsaved_changes_modal():
-    return dbc.Modal([
-        # close_button=False removes the header X so the modal can only be resolved
-        # via one of the three footer actions. backdrop="static" + keyboard=False
-        # block backdrop-click and Esc dismissals; Bootstrap auto-plays its built-in
-        # "shake" animation on the modal when the static backdrop is clicked.
-        dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
-        dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
-        dbc.ModalFooter([
-            dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
-            dbc.Button("Edit", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Save", id="btn-unsaved-save", color="success", className="flex-fill"),
-        ], className="d-flex flex-nowrap"),
-    ], id="modal-unsaved-changes", size="sm", is_open=False, centered=True,
-       backdrop="static", keyboard=False)
-
-
-def build_delete_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
-        # Names the node when it opens (callbacks.toggle_delete_modal).
-        dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone.",
-                      id="node-delete-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
-
-
-# Confirmation modal for un-marking a Done node when downstream Done nodes
-# would be re-blocked by the cascade. Lists the affected nodes and waits for
-# explicit confirmation so the user knows their previously-Done dependents
-# will flip to Blocked.
-def build_undo_done_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Un-mark as Done?")),
-        dbc.ModalBody(id="undo-done-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
-
-
-# Confirmation for a link change that would reopen Done nodes: making a link
-# Hard, reversing one, or linking an existing node on Details can give a Done
-# node a Hard prerequisite that isn't Done. link_menu_callbacks fills the body
-# and holds the request until the user answers.
-def build_link_reopen_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
-        dbc.ModalBody(id="link-reopen-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-link-reopen-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Change Link", id="btn-link-reopen-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-link-reopen-confirm", size="sm", is_open=False, centered=True)
-
-
-# The same question for a node editor save: a new Hard prerequisite that isn't
-# Done reopens the Done node it leads to. core_engine holds the save, and its
-# Save button runs it again once the user agrees.
-def build_editor_reopen_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
-        dbc.ModalBody(id="editor-reopen-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-editor-reopen-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Save", id="btn-editor-reopen-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-editor-reopen-confirm", size="sm", is_open=False, centered=True)
-
-
-# Suggestion modal that fires when the last hard prerequisite of a Goal or
-# inherited-time container becomes Done (never a Milestone). Offers a one-click
-# "Mark Done" without forcing it — matches the user's preference that container
-# completion remain explicit.
-def build_auto_done_suggestion_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),
-        dbc.ModalBody(id="auto-done-suggestion-body"),
-        dbc.ModalFooter([
-            dbc.Button("Dismiss", id="btn-auto-done-dismiss", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Mark Done", id="btn-auto-done-confirm", color="primary", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
-
-
-# Time-calibration modal: pops after an explicit single-node completion to
-# capture how long the work actually took. Submit persists the values onto the
-# node; Skip leaves the actual_time_* fields NULL. The reference div is filled
-# by core_engine with the node name and its original estimate. Input fields are
-# static (the app doesn't suppress callback exceptions, so State-referenced IDs
-# must exist in the initial layout); they are reset on close.
-def build_time_calibration_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Reflection", id="time-calibration-title")),
-        dbc.ModalBody([
-            # Progress bar — shown in review + completion (chrome callback toggles).
-            html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
-                     className="mb-3", children=[
-                dbc.Progress(id="calibration-review-progress", value=0, label="",
-                             style={"height": "20px"}),
-            ]),
-            # Active rating form — hidden on the completion screen.
-            html.Div(id="time-calibration-active", children=[
-                # V/I/E sliders — capture how the node *actually* felt now that
-                # the work is done. Stored as reflect_value/interest/difficulty
-                # (separate from the estimate columns value/interest/difficulty).
-                # Ratings come first, as in the node editor. A callback sets
-                # --est-value/-interest/-difficulty on this section's style, and
-                # theme.css draws the "estimated" tick on each slider from them.
-                html.Div(id="calibration-vie-section", children=[
-                    html.Div([
-                        html.H5("Actual ratings", className="mb-0"),
-                        info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
-                    ], className="d-flex align-items-center mb-2"),
-                    dbc.Label("Value", className="mt-3"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-value", className="calibration-slider",
-                               marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Interest", className="mt-3"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-interest", className="calibration-slider",
-                               marks={i: str(i) for i in range(1, 11)}),
-                    dbc.Label("Effort", className="mt-3"),
-                    dcc.Slider(min=1, max=10, step=1, value=5,
-                               id="calibration-difficulty", className="calibration-slider",
-                               marks={i: str(i) for i in range(1, 11)}),
-                ]),
-                # A Milestone holds no work, so it reflects in notes alone: a
-                # callback hides the ratings above and this time section.
-                html.Div(id="calibration-time-section", children=[
-                    html.Hr(className="my-4"),
-                    # d-inline-block: the hover target is the words, not the whole
-                    # row, so the tooltip opens beside them instead of off-screen.
-                    html.H5("Actual time", id="time-calibration-heading",
-                            className="mb-2 d-inline-block hover-hint"),
-                    Tooltip(work_time_tooltip("actual"),
-                            target="time-calibration-heading", placement="bottom",
-                            id="time-calibration-heading-tooltip"),
-                    html.Div(id="time-calibration-reference", className="text-muted small mb-2"),
-                    dbc.Row([
-                        dbc.Col([
-                            dbc.Label("Lower Bound"),
-                            dbc.Input(id="time-calibration-lower", type="number", min=0),
-                            html.Small(id="time-calibration-lower-hours",
-                                       className="time-hour-hint text-muted mt-1",
-                                       style={"display": "none"}),
-                        ], width=3),
-                        dbc.Col([
-                            dbc.Label("Best Estimate"),
-                            dbc.Input(id="time-calibration-point", type="number", min=0),
-                            html.Small(id="time-calibration-point-hours",
-                                       className="time-hour-hint text-muted mt-1",
-                                       style={"display": "none"}),
-                        ], width=3),
-                        dbc.Col([
-                            dbc.Label("Upper Bound"),
-                            dbc.Input(id="time-calibration-upper", type="number", min=0),
-                            html.Small(id="time-calibration-upper-hours",
-                                       className="time-hour-hint text-muted mt-1",
-                                       style={"display": "none"}),
-                        ], width=3),
-                        dbc.Col([
-                            dbc.Label("Unit"),
-                            unit_select("time-calibration-unit", value="hours"),
-                        ], width=3),
-                    ]),
-                    html.Hr(className="my-4"),
-                ]),
-                # Written afterthoughts. The node's Description is the plan
-                # made before starting; this is what the work taught.
-                # A label, so it names the box for assistive tech, sized as an H5.
-                dbc.Label("Reflection notes", html_for="calibration-notes",
-                          className="h5 mb-2"),
-                dbc.Textarea(
-                    id="calibration-notes", rows=4,
-                    placeholder=PROJECT_NOTES_PLACEHOLDER,
-                    style={"resize": "vertical"}),
-            ]),
-            # Completion screen — shown only after the last node of a review cycle.
-            html.Div(id="time-calibration-complete", style={"display": "none"},
-                     className="text-center py-3"),
-        ]),
-        dbc.ModalFooter([
-            # Dismiss / Done are shown contextually by the chrome callback.
-            dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
-                       color="secondary", className="flex-fill me-2",
-                       style={"display": "none"}),
-            dbc.Button("Skip", id="btn-time-calibration-skip",
-                       color="secondary", className="flex-fill me-2"),
-            dbc.Button("Submit", id="btn-time-calibration-submit",
-                       color="primary", className="flex-fill"),
-            dbc.Button("Done", id="btn-time-calibration-done",
-                       color="primary", className="flex-fill",
-                       style={"display": "none"}),
-        ], className="d-flex"),
-    ], id="modal-time-calibration", size="lg", is_open=False, centered=True)
-
-
-# Brief notification shown when calibration review is launched but every
-# completed node is already rated or dismissed.
-def build_calibration_review_toast():
-    return dbc.Toast(
-        id="calibration-review-toast",
-        header="Reflection",
-        is_open=False,
-        dismissable=True,
-        duration=4000,
-        icon="info",
-        style={"position": "fixed", "top": 66, "right": 12,
-               "width": 340, "zIndex": 1100},
-    )
-
-
-# Used by the canvas context menu and Delete-key hotkey — handles one or many
-# nodes. Distinct from the node-editor delete flow above, which always targets
-# the single node currently open in the editor.
-def build_group_delete_confirm_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
-        dbc.ModalBody(id="group-delete-confirm-body"),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill"),
-        ], className="d-flex"),
-    ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)
-
-
 # --- Floating Tooltip ---
-
-def build_hover_tooltip():
-    return html.Div(
-        id="hover-tooltip",
-        className="border rounded shadow p-2",
-        style={
-            "position": "fixed",
-            "zIndex": 9999,
-            "display": "none",
-            "pointerEvents": "none",
-            "maxWidth": "280px",
-            "fontSize": tokens.FS_BASE,
-            "lineHeight": "1.5",
-            "backgroundColor": tokens.BG_RAISED,
-            "color": tokens.TEXT_PRIMARY,
-            "borderColor": tokens.BORDER_PANEL
-        }
-    )
-
-
-_cell_style = {
-    "padding": "6px 8px",
-    "verticalAlign": "top",
-    "borderBottom": f"1px solid {tokens.BORDER_SUBTLE}",
-    "lineHeight": "1.4",
-}
-_header_cell_style = {
-    **_cell_style,
-    "fontWeight": "700",
-    "backgroundColor": tokens.BG_RAISED,
-    "borderBottom": f"2px solid {tokens.BORDER_PANEL}",
-    "position": "sticky",
-    "top": "0",
-}
-
-
-def _ratings_cell_children(text):
-    """Render a definition string with its leading keyword (up to the first
-    colon) bolded for quick scanning."""
-    head, sep, tail = text.partition(':')
-    if not sep:
-        return text
-    return [html.Strong(head + sep), tail]
-
-
-def build_popup_table_rows(defs):
-    """Build the ratings popup table rows from a list of definition dicts."""
-    return [
-        html.Tr([
-            html.Td(str(d['rating']), style={
-                **_cell_style, "fontWeight": "700", "color": tokens.TEXT_SOFT,
-                "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
-            }),
-            html.Td(_ratings_cell_children(d['value']), style={
-                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
-            }),
-            html.Td(_ratings_cell_children(d['interest']), style={
-                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
-            }),
-            html.Td(_ratings_cell_children(d['effort']), style={
-                **_cell_style, "backgroundColor": tokens.BG_CANVAS if i % 2 == 0 else "transparent",
-            }),
-        ])
-        for i, d in enumerate(defs)
-    ]
-
-
-def build_editor_table(defs, id_prefix="ratings-edit"):
-    """Build the full editor table (with header) for a ratings editor modal.
-
-    `id_prefix` namespaces the textarea pattern-matching ids so the estimation
-    and reflection editors don't collide (e.g. "ratings-edit" vs
-    "reflection-ratings-edit")."""
-    return html.Table([
-        html.Thead(html.Tr([
-            html.Th("#", style={**_header_cell_style, "width": "36px"}),
-            html.Th("Value", style=_header_cell_style),
-            html.Th("Interest", style=_header_cell_style),
-            html.Th("Effort", style=_header_cell_style),
-        ])),
-        html.Tbody(build_editor_rows(defs, id_prefix)),
-    ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY})
-
-
-def build_editor_rows(defs, id_prefix="ratings-edit"):
-    """Build the editor modal rows (textareas) from a list of definition dicts."""
-    from dash import dcc
-    rows = []
-    for d in defs:
-        i = d['rating'] - 1
-        rows.append(html.Tr([
-            html.Td(str(d['rating']), style={
-                **_cell_style, "fontWeight": "700", "color": tokens.TEXT_SOFT,
-                "width": "36px", "textAlign": "center",
-            }),
-            html.Td(dcc.Textarea(
-                id={"type": f"{id_prefix}-value", "index": i},
-                value=d['value'],
-                style=_RATING_TEXTAREA_STYLE,
-            ), style=_cell_style),
-            html.Td(dcc.Textarea(
-                id={"type": f"{id_prefix}-interest", "index": i},
-                value=d['interest'],
-                style=_RATING_TEXTAREA_STYLE,
-            ), style=_cell_style),
-            html.Td(dcc.Textarea(
-                id={"type": f"{id_prefix}-effort", "index": i},
-                value=d['effort'],
-                style=_RATING_TEXTAREA_STYLE,
-            ), style=_cell_style),
-        ]))
-    return rows
-
-
-def build_ratings_popup():
-    return html.Div([
-        # Draggable header
-        html.Div([
-            html.Span("Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
-            edit_button("btn-ratings-edit", "Edit definitions",
-                        className_extra="ms-2"),
-            panel_close_button("btn-ratings-close", "Close ratings reference",
-                               style={"marginLeft": "auto"}),
-        ], id="ratings-popup-header", className="d-flex align-items-center", style={
-            "cursor": "move",
-            "padding": "8px 10px",
-            "backgroundColor": tokens.BG_RAISED,
-            "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
-            "borderRadius": "6px 6px 0 0",
-            "flexShrink": "0",
-            "userSelect": "none",
-        }),
-        # Scrollable body
-        html.Div([
-            html.Table([
-                html.Thead(html.Tr([
-                    html.Th("#", style={**_header_cell_style, "width": "36px"}),
-                    html.Th("Value", style=_header_cell_style),
-                    html.Th("Interest", style=_header_cell_style),
-                    html.Th("Effort", style=_header_cell_style),
-                ])),
-                html.Tbody(
-                    id="ratings-popup-table-body",
-                    children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
-                ),
-            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
-        ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-    ], id="ratings-popup", style={
-        "display": "none",
-        "flexDirection": "column",
-        "position": "fixed",
-        "top": "120px",
-        "left": "420px",
-        "width": "960px",
-        "height": "auto",
-        "maxHeight": "calc(100vh - 160px)",
-        "minWidth": "400px",
-        "minHeight": "200px",
-        "zIndex": 9998,
-        "backgroundColor": tokens.BG_PANEL,
-        "border": f"1px solid {tokens.BORDER_PANEL}",
-        "borderRadius": "6px",
-        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-        "resize": "both",
-        "overflow": "hidden",
-    })
-
-
-def build_ratings_editor_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Edit Ratings Definitions")),
-        dbc.ModalBody(
-            html.Div(id="ratings-editor-body"),
-            style={"maxHeight": "70vh", "overflowY": "auto"},
-        ),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
-            dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
-        ]),
-    ], id="modal-ratings-editor", size="xl", is_open=False, centered=True,
-       scrollable=True)
-
-
-# Retrospective sibling of `ratings_popup`, opened only from the Reflection
-# modal's info icon. It reads its own REFLECTION_RATINGS_DEFINITIONS so the
-# wording can stay decoupled from the estimation rubric. The JS in
-# assets/ratings_popup.js wires btn-reflection-ratings-info to this popup.
-def build_reflection_ratings_popup():
-    return html.Div([
-        html.Div([
-            html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
-            edit_button("btn-reflection-ratings-edit", "Edit definitions",
-                        className_extra="ms-2"),
-            panel_close_button("btn-reflection-ratings-close",
-                               "Close reflection ratings reference",
-                               style={"marginLeft": "auto"}),
-        ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
-            "cursor": "move",
-            "padding": "8px 10px",
-            "backgroundColor": tokens.BG_RAISED,
-            "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
-            "borderRadius": "6px 6px 0 0",
-            "flexShrink": "0",
-            "userSelect": "none",
-        }),
-        html.Div([
-            html.Table([
-                html.Thead(html.Tr([
-                    html.Th("#", style={**_header_cell_style, "width": "36px"}),
-                    html.Th("Value", style=_header_cell_style),
-                    html.Th("Interest", style=_header_cell_style),
-                    html.Th("Effort", style=_header_cell_style),
-                ])),
-                html.Tbody(
-                    id="reflection-ratings-popup-table-body",
-                    children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
-                ),
-            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
-        ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-    ], id="reflection-ratings-popup", style={
-        "display": "none",
-        "flexDirection": "column",
-        "position": "fixed",
-        "top": "120px",
-        "left": "420px",
-        "width": "960px",
-        "height": "auto",
-        "maxHeight": "calc(100vh - 160px)",
-        "minWidth": "400px",
-        "minHeight": "200px",
-        "zIndex": 9998,
-        "backgroundColor": tokens.BG_PANEL,
-        "border": f"1px solid {tokens.BORDER_PANEL}",
-        "borderRadius": "6px",
-        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-        "resize": "both",
-        "overflow": "hidden",
-    })
-
-
-def build_reflection_ratings_editor_modal():
-    return dbc.Modal([
-        dbc.ModalHeader(dbc.ModalTitle("Edit Reflection Ratings Definitions")),
-        dbc.ModalBody(
-            html.Div(id="reflection-ratings-editor-body"),
-            style={"maxHeight": "70vh", "overflowY": "auto"},
-        ),
-        dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
-            dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
-        ]),
-    ], id="modal-reflection-ratings-editor", size="xl", is_open=False,
-       centered=True, scrollable=True)
 
 
 # --- Floating menus ---
 # Every right-click menu and popover is built from these, so a row, divider
 # or destructive item can't look different from one menu to the next.
 # assets/menus.js gives them the same behavior.
-
-def _menu_item(label, item_id, danger=False, icon=None):
-    """One clickable row. ``danger`` marks a destructive command.
-
-    ``icon`` is a Bootstrap Icon name without the ``bi-`` prefix.  Menu
-    commands stay labelled; the icon simply makes their intent scannable.
-    """
-    class_name = "ctx-menu-item ctx-menu-item-danger" if danger else "ctx-menu-item"
-    children = label if icon is None else [
-        html.I(className=f"bi bi-{icon} ctx-menu-icon", **{"aria-hidden": "true"}),
-        html.Span(label, className="ctx-menu-label"),
-    ]
-    return html.Div(children, id=item_id, className=class_name,
-                    role="menuitem", tabIndex=-1)
-
-
-def _menu_divider(divider_id=None):
-    """A separator between groups. Give it an id when a script hides it."""
-    if divider_id:
-        return html.Hr(id=divider_id, style={"margin": "2px"})
-    return html.Hr(style={"margin": "2px"})
-
-
-def _menu_heading(text):
-    """A muted, unclickable caption that names what a menu does."""
-    return html.Div(text, className="ctx-menu-heading")
-
-
-def _floating_menu(menu_id, children):
-    return html.Div(children, id=menu_id, className="ctx-menu",
-                    role="menu",
-                    style={"display": "none"})
-
-
-def _priority_items(prefix):
-    """Priority 1–3 and Clear Priority, ids ``<prefix>-1`` … ``<prefix>-clear``.
-
-    Shared by the node menu's Set Priority submenu and the goal rank popover.
-    """
-    return [
-        _menu_item("Priority 1", f"{prefix}-1", icon="1-circle"),
-        _menu_item("Priority 2", f"{prefix}-2", icon="2-circle"),
-        _menu_item("Priority 3", f"{prefix}-3", icon="3-circle"),
-        _menu_divider(),
-        _menu_item("Clear Priority", f"{prefix}-clear", icon="eraser"),
-    ]
 
 
 # --- Page template: the startup cover ---
@@ -1177,18 +189,18 @@ def build_app_layout(initial_elements, env="production"):
     # apply: links that aren't set, Set Priority for anything but a single
     # Goal, and Create Bridge for anything but two nodes. So a Goal's menu is
     # every other node's menu plus one section.
-    context_menu = _floating_menu("node-context-menu", [
-        _menu_item("Edit", "ctx-menu-edit", icon="pencil"),
-        _menu_divider(),
-        _menu_item("View Details", "ctx-menu-details", icon="file-text"),
-        _menu_item("Explain Priority", "ctx-menu-explain", icon="lightbulb"),
-        _menu_divider("ctx-menu-priority-divider"),
+    context_menu = floating_menu("node-context-menu", [
+        menu_item("Edit", "ctx-menu-edit", icon="pencil"),
+        menu_divider(),
+        menu_item("View Details", "ctx-menu-details", icon="file-text"),
+        menu_item("Explain Priority", "ctx-menu-explain", icon="lightbulb"),
+        menu_divider("ctx-menu-priority-divider"),
         html.Div(
             [
                 html.I(className="bi bi-flag ctx-menu-icon", **{"aria-hidden": "true"}),
                 html.Span("Set Priority", className="ctx-menu-label"),
                 html.I(className="bi bi-chevron-right ctx-menu-caret"),
-                html.Div(_priority_items("ctx-menu-priority"),
+                html.Div(priority_items("ctx-menu-priority"),
                          className="ctx-menu-submenu"),
             ],
             id="ctx-menu-priority",
@@ -1196,63 +208,63 @@ def build_app_layout(initial_elements, env="production"):
             role="menuitem", tabIndex=-1,
             **{"aria-haspopup": "menu", "aria-expanded": "false"},
         ),
-        _menu_divider(),
-        _menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
-        _menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
-        _menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
+        menu_divider(),
+        menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
+        menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
+        menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
         # Shown, with its divider, only when the menu acts on two nodes.
-        _menu_divider("ctx-menu-bridge-divider"),
-        _menu_item("Create Bridge…", "ctx-menu-bridge", icon="share"),
-        _menu_divider("ctx-menu-links-divider"),
+        menu_divider("ctx-menu-bridge-divider"),
+        menu_item("Create Bridge…", "ctx-menu-bridge", icon="share"),
+        menu_divider("ctx-menu-links-divider"),
         # One slot per possible Resource section; context_menu.js names each
         # after its section and shows only those the node has a link in.
-        *[_menu_item("Open Resource", f"ctx-menu-resource-{i}", icon="box-arrow-up-right")
+        *[menu_item("Open Resource", f"ctx-menu-resource-{i}", icon="box-arrow-up-right")
           for i in range(MAX_SECTIONS)],
-        _menu_divider(),
-        _menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
+        menu_divider(),
+        menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
     ])
 
     # --- Edge context menu: a link on any canvas ---
     # context_menu.js relabels the type toggle and its arrow (Make Soft on a
     # Hard link, Make Hard on a Soft one) and hides it and Reverse on a Synergy, which has
     # neither a strength nor a direction to change.
-    edge_context_menu = _floating_menu("edge-context-menu", [
-        _menu_item("Insert Node Here…", "ctx-menu-edge-bridge", icon="share"),
-        _menu_divider("ctx-menu-edge-change-divider"),
-        _menu_item("Make Soft", "ctx-menu-edge-type", icon="arrow-down-circle"),
-        _menu_item("Reverse Direction", "ctx-menu-edge-reverse", icon="arrow-left-right"),
-        _menu_divider(),
-        _menu_item("Remove Link", "ctx-menu-edge-remove", danger=True, icon="trash3"),
+    edge_context_menu = floating_menu("edge-context-menu", [
+        menu_item("Insert Node Here…", "ctx-menu-edge-bridge", icon="share"),
+        menu_divider("ctx-menu-edge-change-divider"),
+        menu_item("Make Soft", "ctx-menu-edge-type", icon="arrow-down-circle"),
+        menu_item("Reverse Direction", "ctx-menu-edge-reverse", icon="arrow-left-right"),
+        menu_divider(),
+        menu_item("Remove Link", "ctx-menu-edge-remove", danger=True, icon="trash3"),
     ])
 
     # --- Goal sidebar: rank popover (click a priority goal's rank badge) ---
-    goal_rank_popover = _floating_menu(
-        "goal-rank-popover", _priority_items("goal-rank"))
+    goal_rank_popover = floating_menu(
+        "goal-rank-popover", priority_items("goal-rank"))
 
     # --- Events sidebar: right-click context menu ---
     # Same grouping as the node menu. event_context_menu.js hides Trigger Now
     # and its divider for an event that has already triggered.
-    event_context_menu = _floating_menu("event-context-menu", [
-        _menu_item("Edit", "event-ctx-edit", icon="pencil"),
-        _menu_divider("event-ctx-trigger-divider"),
-        _menu_item("Trigger Now…", "event-ctx-trigger", icon="lightning-charge"),
-        _menu_divider(),
-        _menu_item("Delete…", "event-ctx-delete", danger=True, icon="trash3"),
+    event_context_menu = floating_menu("event-context-menu", [
+        menu_item("Edit", "event-ctx-edit", icon="pencil"),
+        menu_divider("event-ctx-trigger-divider"),
+        menu_item("Trigger Now…", "event-ctx-trigger", icon="lightning-charge"),
+        menu_divider(),
+        menu_item("Delete…", "event-ctx-delete", danger=True, icon="trash3"),
     ])
 
     # --- Events tab: the Dormant Nodes "+" ---
     # dormant_add_menu.js opens it under the button and writes the choice to
     # dormant-add-choice-input.
-    dormant_add_menu = _floating_menu("dormant-add-menu", [
-        _menu_heading("Add to this event"),
-        _menu_item("New node", "dormant-add-new", icon="plus-lg"),
-        _menu_item("Existing nodes…", "dormant-add-existing", icon="box-arrow-in-down"),
+    dormant_add_menu = floating_menu("dormant-add-menu", [
+        menu_heading("Add to this event"),
+        menu_item("New node", "dormant-add-new", icon="plus-lg"),
+        menu_item("Existing nodes…", "dormant-add-existing", icon="box-arrow-in-down"),
     ])
 
-    details_add_menu = _floating_menu("details-add-menu", [
-        _menu_heading("Add subtask"),
-        _menu_item("New node", "details-add-new", icon="plus-lg"),
-        _menu_item("Existing node…", "details-add-existing", icon="box-arrow-in-down"),
+    details_add_menu = floating_menu("details-add-menu", [
+        menu_heading("Add subtask"),
+        menu_item("New node", "details-add-new", icon="plus-lg"),
+        menu_item("Existing node…", "details-add-existing", icon="box-arrow-in-down"),
     ])
 
     # --- Goals / Events sidebars: sort menus (the ⇅ button beside search) ---
@@ -1260,9 +272,9 @@ def build_app_layout(initial_elements, env="production"):
     # hidden input; list_toolbar.py moves it into the sort store.
     sort_menus = []
     for sort in SORT_MENUS:
-        sort_menus.append(_floating_menu(sort.menu_id, [
-            _menu_heading("Sort by"),
-            *[_menu_item(label, item_id) for label, item_id in sort_menu_items(sort)],
+        sort_menus.append(floating_menu(sort.menu_id, [
+            menu_heading("Sort by"),
+            *[menu_item(label, item_id) for label, item_id in sort_menu_items(sort)],
         ]))
         sort_menus.append(dcc.Input(id=sort.input_id, type='text', value='',
                                     style={'display': 'none'}))

@@ -21,6 +21,18 @@ import dash_bootstrap_components as dbc
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import restore_button
+from skilltree.features.editor.values import PROJECT_NOTES_PLACEHOLDER
+from skilltree.store.settings import ConfigManager
+from skilltree.ui import tokens
+from skilltree.ui.components.duration import unit_select
+from skilltree.ui.components.duration import work_time_tooltip
+from skilltree.ui.components.ratings_table import (
+    HEADER_CELL_STYLE,
+)
+from skilltree.ui.components.ratings_table import build_popup_table_rows
+from skilltree.ui.kit import edit_button
+from skilltree.ui.kit import info_button
+from skilltree.ui.kit import panel_close_button
 
 
 # History sort criteria, in dropdown order. "Completed" has no column, so the
@@ -235,3 +247,203 @@ def build_calibration_dismissed_view(dismissed_names, limit=None):
                            placement="right"),
         ], className="d-flex align-items-center mb-1"))
     return html.Div(rows), len(dismissed_names)
+
+
+# Time-calibration modal: pops after an explicit single-node completion to
+# capture how long the work actually took. Submit persists the values onto the
+# node; Skip leaves the actual_time_* fields NULL. The reference div is filled
+# by core_engine with the node name and its original estimate. Input fields are
+# static (the app doesn't suppress callback exceptions, so State-referenced IDs
+# must exist in the initial layout); they are reset on close.
+def build_time_calibration_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Reflection", id="time-calibration-title")),
+        dbc.ModalBody([
+            # Progress bar — shown in review + completion (chrome callback toggles).
+            html.Div(id="calibration-review-progress-wrap", style={"display": "none"},
+                     className="mb-3", children=[
+                dbc.Progress(id="calibration-review-progress", value=0, label="",
+                             style={"height": "20px"}),
+            ]),
+            # Active rating form — hidden on the completion screen.
+            html.Div(id="time-calibration-active", children=[
+                # V/I/E sliders — capture how the node *actually* felt now that
+                # the work is done. Stored as reflect_value/interest/difficulty
+                # (separate from the estimate columns value/interest/difficulty).
+                # Ratings come first, as in the node editor. A callback sets
+                # --est-value/-interest/-difficulty on this section's style, and
+                # theme.css draws the "estimated" tick on each slider from them.
+                html.Div(id="calibration-vie-section", children=[
+                    html.Div([
+                        html.H5("Actual ratings", className="mb-0"),
+                        info_button("btn-reflection-ratings-info", "Ratings reference", placement="right"),
+                    ], className="d-flex align-items-center mb-2"),
+                    dbc.Label("Value", className="mt-3"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-value", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Interest", className="mt-3"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-interest", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                    dbc.Label("Effort", className="mt-3"),
+                    dcc.Slider(min=1, max=10, step=1, value=5,
+                               id="calibration-difficulty", className="calibration-slider",
+                               marks={i: str(i) for i in range(1, 11)}),
+                ]),
+                # A Milestone holds no work, so it reflects in notes alone: a
+                # callback hides the ratings above and this time section.
+                html.Div(id="calibration-time-section", children=[
+                    html.Hr(className="my-4"),
+                    # d-inline-block: the hover target is the words, not the whole
+                    # row, so the tooltip opens beside them instead of off-screen.
+                    html.H5("Actual time", id="time-calibration-heading",
+                            className="mb-2 d-inline-block hover-hint"),
+                    Tooltip(work_time_tooltip("actual"),
+                            target="time-calibration-heading", placement="bottom",
+                            id="time-calibration-heading-tooltip"),
+                    html.Div(id="time-calibration-reference", className="text-muted small mb-2"),
+                    dbc.Row([
+                        dbc.Col([
+                            dbc.Label("Lower Bound"),
+                            dbc.Input(id="time-calibration-lower", type="number", min=0),
+                            html.Small(id="time-calibration-lower-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Best Estimate"),
+                            dbc.Input(id="time-calibration-point", type="number", min=0),
+                            html.Small(id="time-calibration-point-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Upper Bound"),
+                            dbc.Input(id="time-calibration-upper", type="number", min=0),
+                            html.Small(id="time-calibration-upper-hours",
+                                       className="time-hour-hint text-muted mt-1",
+                                       style={"display": "none"}),
+                        ], width=3),
+                        dbc.Col([
+                            dbc.Label("Unit"),
+                            unit_select("time-calibration-unit", value="hours"),
+                        ], width=3),
+                    ]),
+                    html.Hr(className="my-4"),
+                ]),
+                # Written afterthoughts. The node's Description is the plan
+                # made before starting; this is what the work taught.
+                # A label, so it names the box for assistive tech, sized as an H5.
+                dbc.Label("Reflection notes", html_for="calibration-notes",
+                          className="h5 mb-2"),
+                dbc.Textarea(
+                    id="calibration-notes", rows=4,
+                    placeholder=PROJECT_NOTES_PLACEHOLDER,
+                    style={"resize": "vertical"}),
+            ]),
+            # Completion screen — shown only after the last node of a review cycle.
+            html.Div(id="time-calibration-complete", style={"display": "none"},
+                     className="text-center py-3"),
+        ]),
+        dbc.ModalFooter([
+            # Dismiss / Done are shown contextually by the chrome callback.
+            dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
+                       color="secondary", className="flex-fill me-2",
+                       style={"display": "none"}),
+            dbc.Button("Skip", id="btn-time-calibration-skip",
+                       color="secondary", className="flex-fill me-2"),
+            dbc.Button("Submit", id="btn-time-calibration-submit",
+                       color="primary", className="flex-fill"),
+            dbc.Button("Done", id="btn-time-calibration-done",
+                       color="primary", className="flex-fill",
+                       style={"display": "none"}),
+        ], className="d-flex"),
+    ], id="modal-time-calibration", size="lg", is_open=False, centered=True)
+
+
+# Brief notification shown when calibration review is launched but every
+# completed node is already rated or dismissed.
+def build_calibration_review_toast():
+    return dbc.Toast(
+        id="calibration-review-toast",
+        header="Reflection",
+        is_open=False,
+        dismissable=True,
+        duration=4000,
+        icon="info",
+        style={"position": "fixed", "top": 66, "right": 12,
+               "width": 340, "zIndex": 1100},
+    )
+
+
+# Retrospective sibling of `ratings_popup`, opened only from the Reflection
+# modal's info icon. It reads its own REFLECTION_RATINGS_DEFINITIONS so the
+# wording can stay decoupled from the estimation rubric. The JS in
+# assets/ratings_popup.js wires btn-reflection-ratings-info to this popup.
+def build_reflection_ratings_popup():
+    return html.Div([
+        html.Div([
+            html.Span("Reflection Ratings Reference", style={"fontWeight": "600", "fontSize": tokens.FS_MD}),
+            edit_button("btn-reflection-ratings-edit", "Edit definitions",
+                        className_extra="ms-2"),
+            panel_close_button("btn-reflection-ratings-close",
+                               "Close reflection ratings reference",
+                               style={"marginLeft": "auto"}),
+        ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
+            "cursor": "move",
+            "padding": "8px 10px",
+            "backgroundColor": tokens.BG_RAISED,
+            "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
+            "borderRadius": "6px 6px 0 0",
+            "flexShrink": "0",
+            "userSelect": "none",
+        }),
+        html.Div([
+            html.Table([
+                html.Thead(html.Tr([
+                    html.Th("#", style={**HEADER_CELL_STYLE, "width": "36px"}),
+                    html.Th("Value", style=HEADER_CELL_STYLE),
+                    html.Th("Interest", style=HEADER_CELL_STYLE),
+                    html.Th("Effort", style=HEADER_CELL_STYLE),
+                ])),
+                html.Tbody(
+                    id="reflection-ratings-popup-table-body",
+                    children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
+                ),
+            ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
+        ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
+    ], id="reflection-ratings-popup", style={
+        "display": "none",
+        "flexDirection": "column",
+        "position": "fixed",
+        "top": "120px",
+        "left": "420px",
+        "width": "960px",
+        "height": "auto",
+        "maxHeight": "calc(100vh - 160px)",
+        "minWidth": "400px",
+        "minHeight": "200px",
+        "zIndex": 9998,
+        "backgroundColor": tokens.BG_PANEL,
+        "border": f"1px solid {tokens.BORDER_PANEL}",
+        "borderRadius": "6px",
+        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
+        "resize": "both",
+        "overflow": "hidden",
+    })
+
+
+def build_reflection_ratings_editor_modal():
+    return dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Edit Reflection Ratings Definitions")),
+        dbc.ModalBody(
+            html.Div(id="reflection-ratings-editor-body"),
+            style={"maxHeight": "70vh", "overflowY": "auto"},
+        ),
+        dbc.ModalFooter([
+            dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
+            dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
+        ]),
+    ], id="modal-reflection-ratings-editor", size="xl", is_open=False,
+       centered=True, scrollable=True)

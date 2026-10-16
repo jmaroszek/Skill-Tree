@@ -1,5 +1,5 @@
 """The Explain modal: why a node scores what it does."""
-from html import escape as _escape
+from html import escape
 
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
@@ -208,8 +208,8 @@ def _contributor_hover(row: dict) -> str:
     how much of its value reaches the explained node. The bar's own label
     already carries its share of total value.
     """
-    lines = [f"<b>{_escape(row['name'])}</b>"]
-    facts = [_escape(row['type'])] if row.get('type') else []
+    lines = [f"<b>{escape(row['name'])}</b>"]
+    facts = [escape(row['type'])] if row.get('type') else []
     if row.get('iv', 0.0) > 1e-9 and row.get('value') is not None:
         facts += [f"Value {_format_rating(row['value'])}",
                   f"Interest {_format_rating(row['interest'])}"]

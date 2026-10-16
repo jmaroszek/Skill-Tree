@@ -30,6 +30,7 @@ from skilltree.domain.time import sync_time_fields, capacity_hours
 from skilltree.domain import contexts as context_rules
 from skilltree.store.resources import (get_sections, save_sections, validate_sections,
                             section_link_counts, live_sections, MAX_SECTIONS)
+from skilltree.features.settings.migration import build_migration_content
 from skilltree.features.settings.layout import build_resource_setting_rows
 
 logger = logging.getLogger(__name__)
@@ -935,7 +936,6 @@ def register_settings_callbacks(app, services=None):
                          cgc_node_values, cgs_node_values,
                          sgc_node_values, sgs_node_values,
                          mapping_data, pending_state):
-        from skilltree.shell import build_migration_content
         from types import SimpleNamespace
 
         trigger_id = get_trigger_id()

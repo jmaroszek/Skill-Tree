@@ -7,8 +7,8 @@ and friends) stays in callbacks.py because it's woven into core_engine's output
 tuple — see the IDX constants there.
 """
 
-import json as _json
-import time as _time
+import json
+import time
 
 from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunction
 
@@ -266,7 +266,7 @@ def register_sidebars_callbacks(app, services=None):
             rank_idx = min(int(action) - 1, len(priority_goals))
             priority_goals.insert(rank_idx, goal_name)
         ConfigManager.set_priority_goals(priority_goals)
-        return f'goal-priority-{_time.time()}'
+        return f'goal-priority-{time.time()}'
 
     # --- Goal Drag Reorder ---
     @app.callback(
@@ -276,7 +276,7 @@ def register_sidebars_callbacks(app, services=None):
     )
     def reorder_goals(drag_order_json):
         try:
-            shown = _json.loads(drag_order_json) if drag_order_json else None
+            shown = json.loads(drag_order_json) if drag_order_json else None
         except (ValueError, TypeError):
             return no_update
         if not isinstance(shown, list) or not shown:

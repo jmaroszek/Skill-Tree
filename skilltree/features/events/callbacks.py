@@ -375,9 +375,9 @@ def register_event_callbacks(app, services=None):
     )
     @prerendered
     def populate_events_search_datalist(refresh_trigger, _arrived):
-        from dash import html as _html
+        from dash import html
         events = event_manager.get_all_events()
-        return [_html.Option(value=e.name) for e in events]
+        return [html.Option(value=e.name) for e in events]
 
     # --- Event clock ---
     # Date triggers and wake dates come due by the calendar. core_engine checks
@@ -401,9 +401,9 @@ def register_event_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def reorder_event(drag_order_json):
-        import json as _json
+        import json
         try:
-            shown = _json.loads(drag_order_json) if drag_order_json else None
+            shown = json.loads(drag_order_json) if drag_order_json else None
         except (ValueError, TypeError):
             return no_update
         if not isinstance(shown, list) or not shown:

@@ -1833,7 +1833,7 @@ class TestBuildMigrationContent:
         return SimpleNamespace(name=name, **attrs)
 
     def _build(self, **kwargs):
-        from skilltree.shell import build_migration_content
+        from skilltree.features.settings.migration import build_migration_content
         return build_migration_content(**kwargs)
 
     # --- Pure-rename smart defaults -----------------------------------------

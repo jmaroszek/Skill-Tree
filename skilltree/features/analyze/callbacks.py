@@ -194,12 +194,12 @@ def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
     """Return (tickvals, ticktext) for a log-scaled hours axis, placing ticks
     at 1-2-5 ×10^k values within range and labelling each via
     ``format_time_friendly``."""
-    import math as _math
+    import math
     if max_val <= 0:
         return [1.0], [format_time_friendly(1.0)]
     lo = max(0.5, min_val)
     vals = []
-    k = _math.floor(_math.log10(lo))
+    k = math.floor(math.log10(lo))
     while True:
         for base in (1, 2, 5):
             # 10.0 ** k keeps v a float — format_time_friendly rounds with

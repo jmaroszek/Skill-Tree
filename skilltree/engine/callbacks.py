@@ -68,6 +68,7 @@ from skilltree.ui.kit import (progress_bar_color)
 from skilltree.ui.components.duration import work_time_tooltip
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.domain.names import format_name
+from skilltree.ui.components.ratings_table import build_editor_table, build_popup_table_rows
 
 logger = logging.getLogger(__name__)
 
@@ -2612,11 +2613,11 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def perform_group_delete(n_clicks, names):
-        import json as _json
-        import time as _time
+        import json
+        import time
         if not n_clicks or not names:
             return dash.no_update
-        return _json.dumps(names) + '|' + str(_time.time())
+        return json.dumps(names) + '|' + str(time.time())
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
@@ -3181,7 +3182,6 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def toggle_ratings_editor(edit_clicks, cancel_clicks):
-        from skilltree.shell import build_editor_table
         if ctx.triggered_id == "btn-ratings-edit":
             defs = ConfigManager.get_ratings_definitions()
             return True, build_editor_table(defs)
@@ -3197,7 +3197,6 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def save_ratings_definitions(n_clicks, values, interests, efforts):
-        from skilltree.shell import build_popup_table_rows
         defs = ConfigManager.get_ratings_definitions()
         new_defs = []
         for i, d in enumerate(defs):
@@ -3223,7 +3222,6 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def toggle_reflection_ratings_editor(edit_clicks, cancel_clicks):
-        from skilltree.shell import build_editor_table
         if ctx.triggered_id == "btn-reflection-ratings-edit":
             defs = ConfigManager.get_reflection_ratings_definitions()
             return True, build_editor_table(defs, id_prefix="reflection-ratings-edit")
@@ -3239,7 +3237,6 @@ def register_callbacks(app, services=None):
         prevent_initial_call=True,
     )
     def save_reflection_ratings_definitions(n_clicks, values, interests, efforts):
-        from skilltree.shell import build_popup_table_rows
         defs = ConfigManager.get_reflection_ratings_definitions()
         new_defs = []
         for i, d in enumerate(defs):
@@ -3286,14 +3283,14 @@ def register_callbacks(app, services=None):
     )
     @database.serialized  # the cap check and the write, as one step
     def dispatch_now_toggle(toggle_val, node_name):
-        import time as _time
+        import time
         if not node_name:
             return no_update, no_update
         node = manager.get_node(node_name)
         if not node:
             return no_update, no_update
         if toggle_val and (node.dormant or node.status == STATUS_DONE):
-            return f"ineligible|{int(_time.time() * 1000)}", no_update
+            return f"ineligible|{int(time.time() * 1000)}", no_update
         wants_now = bool(toggle_val and "now" in toggle_val)
         is_now = bool(node.now)
         if wants_now == is_now:
@@ -3308,7 +3305,7 @@ def register_callbacks(app, services=None):
             now_nodes = manager.get_now_nodes()
             current_count = len(now_nodes)
             if current_count >= ConfigManager.get_now_node_cap():
-                ts = int(_time.time() * 1000)
+                ts = int(time.time() * 1000)
                 return f"refused|{ts}", f"refused|{ts}"
             max_now = max([n.now for n in now_nodes]) if now_nodes else 0
             node.now = max_now + 1
@@ -3319,9 +3316,9 @@ def register_callbacks(app, services=None):
         except ValueError as e:
             # A refusal (a node with no context, say) bounces the switch back
             # and says why, instead of failing in silence.
-            ts = int(_time.time() * 1000)
+            ts = int(time.time() * 1000)
             return f"refused|{ts}", f"error|{ts}|{e}"
-        return f"{node_name}|{int(_time.time() * 1000)}", no_update
+        return f"{node_name}|{int(time.time() * 1000)}", no_update
 
     # --- Context-Menu Now Toggle ---
     # Right-click → "Now" on the canvas / mini-graphs / goal sidebar
@@ -3338,7 +3335,7 @@ def register_callbacks(app, services=None):
     )
     @database.serialized  # the cap check and the writes, as one step
     def handle_now_trigger(trigger_data):
-        import time as _time
+        import time
         if not trigger_data:
             return no_update, no_update
         names = bridge_payloads.names(trigger_data)
@@ -3383,7 +3380,7 @@ def register_callbacks(app, services=None):
                     error = error or str(e)
                     current_count += -1 if node.now > 0 else 1
                     node.now = before
-        ts = int(_time.time() * 1000)
+        ts = int(time.time() * 1000)
         if error is not None:
             refused_out = f"error|{ts}|{error}"
         else:
@@ -3428,8 +3425,8 @@ def register_callbacks(app, services=None):
             return no_update
         if isinstance(names, list) and names:
             manager.reorder_now_nodes(names)
-            import time as _time
-            return f"reorder|{int(_time.time() * 1000)}"
+            import time
+            return f"reorder|{int(time.time() * 1000)}"
         return no_update
 
 
