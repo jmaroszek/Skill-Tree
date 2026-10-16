@@ -12,6 +12,8 @@ from skilltree.engine import callbacks
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from support.triggers import fire
+from skilltree.features.editor import callbacks as editor_callbacks
 
 OPEN = {"transform": "translateX(0px)"}
 
@@ -50,8 +52,8 @@ def populate(monkeypatch, manager):
     fn = _registered()["populate_editor"]
 
     def run(trigger, dirty=True, **values):
-        monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-        monkeypatch.setattr(callbacks, "is_form_dirty_vs_snapshot",
+        fire(trigger)
+        monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
                             lambda *_args, **_kwargs: dirty)
         values.setdefault("ed_style", OPEN)
         values.setdefault("original_name", "A")
@@ -139,8 +141,8 @@ def dialog(monkeypatch):
     fn = _registered()["toggle_unsaved_modal"]
 
     def run(trigger, dirty=True):
-        monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-        monkeypatch.setattr(callbacks, "is_form_dirty_vs_snapshot",
+        fire(trigger)
+        monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
                             lambda *_args, **_kwargs: dirty)
         return call(fn, ed_style=OPEN, pristine_snapshot={"name": "A"})
     return run

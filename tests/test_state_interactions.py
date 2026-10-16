@@ -14,6 +14,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event
 from test_atomic_saves import graph, node, save
+from support.triggers import fire
 
 
 @pytest.fixture(autouse=True)
@@ -53,8 +54,7 @@ def history(manager, name):
 
 
 def run_core(handlers, monkeypatch, trigger='btn-save', **state):
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: trigger)
-    monkeypatch.setattr(callbacks, 'get_all_triggered_ids', lambda: {trigger})
+    fire(trigger)
     form = dict(n_type='Learn', desc='edited', context='Mind', status_done=[],
                 val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                 time_unit='hours', link_values=[], link_ids=[], aliases=[],
@@ -152,8 +152,8 @@ def test_delete_of_a_node_already_gone_does_not_report_success(handlers, monkeyp
 
 
 def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
-    toggle = handlers['register_callbacks.<locals>.toggle_delete_modal']
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-delete')
+    toggle = handlers['register_editor_callbacks.<locals>.toggle_delete_modal']
+    fire('btn-delete')
     is_open, body = toggle(1, None, None, 'A')
     assert is_open and '"A"' in body
     is_open, body = toggle(1, None, None, None)
@@ -296,11 +296,11 @@ def test_stale_auto_done_is_not_accepted_or_displayed(handlers, monkeypatch, cha
         manager.update_node(item)
     else:
         manager.remove_edge('Child', 'Goal', 'Needs_Hard')
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-confirm')
+    fire('btn-auto-done-confirm')
     result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
     assert manager.get_node('Goal').status != 'Done'
     assert result[0] is False and result[2] == []
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'graph-version-store')
+    fire('graph-version-store')
     result = handlers['manage_auto_done_modal'](2, 0, 0, candidates)
     assert result[0] is False and result[2] == []
 
@@ -314,7 +314,7 @@ def test_accepting_auto_done_redraws_through_the_core_engine(handlers, monkeypat
     manager.add_edge('Child', 'Goal', 'Needs_Hard')
     complete(manager, 'Child')
     candidates = manager.pop_auto_done_candidates()
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-confirm')
+    fire('btn-auto-done-confirm')
     result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
     assert manager.get_node('Goal').status == 'Done'
     assert isinstance(result[3], str)  # details-refresh-trigger
@@ -326,7 +326,7 @@ def test_accepting_auto_done_redraws_through_the_core_engine(handlers, monkeypat
     assert shown == {'Child', 'Goal'}
     assert all('selected' not in element for element in response.elements)
 
-    monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: 'btn-auto-done-dismiss')
+    fire('btn-auto-done-dismiss')
     assert handlers['manage_auto_done_modal'](2, 0, 1, ['Goal'])[3] is dash.no_update
 
 

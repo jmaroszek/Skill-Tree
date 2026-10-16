@@ -16,6 +16,7 @@ from skilltree.engine import callbacks
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -41,8 +42,7 @@ def _registered():
 
 def _save(monkeypatch, trigger, **form):
     core_engine = _registered()["core_engine"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],
@@ -76,7 +76,7 @@ def test_a_refused_save_is_not_reported(monkeypatch, manager):
 def test_the_unsaved_dialog_moves_on_only_after_its_save(monkeypatch, manager):
     manager.add_node(_node("Next"))
     populate = _registered()["populate_editor"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "editor-save-result-store")
+    fire("editor-save-result-store")
 
     def run(save_result):
         return call(populate, save_result=save_result, pending_nav="Next")

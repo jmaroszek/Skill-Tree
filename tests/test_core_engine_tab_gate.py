@@ -19,6 +19,8 @@ from skilltree.engine.callbacks import (
     _core_engine_noop_tuple,
     _core_engine_editor_only_tuple,
 )
+from support.triggers import fire
+from skilltree.engine import sidebars
 
 
 def _core_engine_args():
@@ -75,7 +77,7 @@ def test_non_graph_tabs_set_content():
 def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     """Switching to a non-graph tab short-circuits to all no_update."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
+    fire("main-tabs")
     # core_engine accepts positional args from Inputs + States; supply Nones and
     # let the guard fire before any of them are used.
     args = _core_engine_args()
@@ -93,7 +95,7 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
 def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
     """tab-canvas owns cytoscape-graph, so it must NOT short-circuit."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "main-tabs")
+    fire("main-tabs")
     args = _core_engine_args()
     args[38] = tab
     # The rest of core_engine can fail downstream on None args — we only need
@@ -112,7 +114,7 @@ def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
 def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     """Data-mutation triggers (save, toggle-done) must run regardless of active_tab."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
+    fire("btn-save")
     args = _core_engine_args()
     args[38] = "tab-analyze"  # even though tab is non-graph, trigger is not main-tabs
     try:
@@ -154,8 +156,7 @@ def test_editor_only_tuple_arity_and_slots():
 def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
     """An Edit trigger alone short-circuits and opens the sidebar (translateX(0px))."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({trigger}))
+    fire(trigger)
     args = _core_engine_args()
     # edit_trigger_data / details_edit_trigger_data positional indexes: 31, 32
     args[31] = "NodeX|123"
@@ -175,8 +176,7 @@ def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
 def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
     """btn-goals-toggle alone short-circuits and closes the editor (SIDEBAR_TRANSLATE_CLOSED)."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-goals-toggle")
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-goals-toggle"}))
+    fire("btn-goals-toggle")
     args = _core_engine_args()
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
@@ -187,10 +187,9 @@ def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
 def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
     """btn-close-editor alone short-circuits; closes the editor when form has no content."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-close-editor")
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: frozenset({"btn-close-editor"}))
+    fire("btn-close-editor")
     # Stub out the unsaved-changes check — a blank form, no pending nav.
-    monkeypatch.setattr(callbacks, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
+    monkeypatch.setattr(sidebars, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
     args = _core_engine_args()
     result = cb(*args)
     ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
@@ -201,10 +200,8 @@ def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch)
 def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatch):
     """If edit-trigger-input fires batched with a non-editor Input, the full path must run."""
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "edit-trigger-input")
-    # Simulate batched fire: edit-trigger AND search-node both triggered.
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids",
-                         lambda: frozenset({"edit-trigger-input", "search-node"}))
+    # A batched fire: edit-trigger AND search-node both triggered.
+    fire("edit-trigger-input", "search-node")
     args = _core_engine_args()
     args[31] = "NodeX|123"
     try:
@@ -232,7 +229,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
     from skilltree.engine.response import CoreResponse
 
     cb, _ = _core_engine_fn()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "")
+    fire()
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda *a: set())
     out = CoreResponse(*cb(*_core_engine_args()))
 
@@ -255,7 +252,7 @@ def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
     args[names.index("active_tab")] = active_tab
     args[names.index("canvas_stamp")] = stamp
     args[names.index("f_search")] = search
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    fire(trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids",
                         lambda *a: {trigger} if trigger else set())
     return CoreResponse(*cb(*args))

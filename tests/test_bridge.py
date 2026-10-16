@@ -15,6 +15,7 @@ from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
 from skilltree.store.commands import bridge_form, finish_bridge, plan_bridge
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -222,8 +223,7 @@ def _registered():
 
 def _save(monkeypatch, bridge_pending, original_name=None, **form):
     core_engine = _registered()["core_engine"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {"btn-save"})
+    fire("btn-save")
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],
@@ -277,7 +277,7 @@ def test_later_saves_of_the_same_node_leave_the_relationships_alone(monkeypatch,
 # --- The editor -----------------------------------------------------------
 
 def _populate(monkeypatch, trigger, **values):
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    fire(trigger)
     return call(_registered()["populate_editor"], **values)
 
 

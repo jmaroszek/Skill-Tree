@@ -10,11 +10,11 @@ they share the same fill, classes and tooltip.
 import dash
 import pytest
 
-from skilltree.engine import callbacks
 from skilltree.ui.canvas.elements import (
     CanvasNodeStyles, build_node_element, node_fill_color,
 )
 from skilltree.engine.callbacks import generate_elements, register_callbacks
+from skilltree.ui.canvas import callbacks as canvas_callbacks
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
 from skilltree.features.details.callbacks import _build_graph_elements
@@ -22,6 +22,7 @@ from skilltree.features.events.callbacks import register_event_callbacks
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
+from support.triggers import fire
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -136,7 +137,7 @@ def test_hovering_a_node_shows_the_same_tooltip_on_every_canvas(canvases, monkey
 
     def tooltip(key, name):
         trigger = next(canvas.cytoscape_id for canvas in CANVASES if canvas.key == key)
-        monkeypatch.setattr(callbacks, 'get_trigger_id', lambda: trigger)
+        fire(trigger)
         data = _nodes(canvases[key])[name]['data']
         return str(display_hover_data(
             *(data if canvas.key == key else None for canvas in CANVASES)))
@@ -200,7 +201,7 @@ def test_elements_carry_every_field_their_readers_use():
 
     carried = set(CANVAS_NODE_FIELDS) | {'id', 'label', 'color', 'shape'}
 
-    source = inspect.getsource(callbacks.register_callbacks)
+    source = inspect.getsource(canvas_callbacks.register_canvas_callbacks)
     tooltip = source[source.index('def display_hover_data'):]
     tooltip = tooltip[:tooltip.index('\n    # ---')]
     read = set(re.findall(r"data\.get\('([a-z_]+)'", tooltip))

@@ -11,12 +11,12 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 
 import dash
 
-from skilltree.engine import callbacks
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from skilltree.engine.callbacks import register_callbacks
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from support.triggers import fire
 
 
 def _populate_editor_fn():
@@ -42,7 +42,7 @@ def _call_with_trigger(monkeypatch, trigger_id, **values):
     Values name populate_editor's parameters (search_val, add_clicks, ...) or
     fields of the editor form it takes (editor_forms.call); the rest are None.
     """
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger_id)
+    fire(trigger_id)
     return call(_populate_editor_fn(), **values)
 
 
@@ -173,7 +173,7 @@ def test_populate_editor_writes_its_early_return_filler_once(monkeypatch):
     dozen literals that must all agree. The arity tests above check each path
     returns one value per Output."""
     from pathlib import Path
-    src = (Path(__file__).parent.parent / "skilltree" / "engine" / "callbacks.py").read_text(encoding="utf-8")
+    src = (Path(__file__).parent.parent / "skilltree" / "features" / "editor" / "callbacks.py").read_text(encoding="utf-8")
     marker_start = src.index("def populate_editor(")
     marker_end = src.index("\n    # --- Type-adaptive field visibility ---", marker_start)
     body = src[marker_start:marker_end]

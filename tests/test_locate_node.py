@@ -11,6 +11,7 @@ from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
 from skilltree.engine import callbacks
+from skilltree.ui.canvas import callbacks as canvas_callbacks
 
 
 def _locate_callback():
@@ -52,7 +53,7 @@ def locate_node(monkeypatch):
     class _Node:
         dormant = False
 
-    monkeypatch.setattr(callbacks.manager, "get_node", lambda name: _Node())
+    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: _Node())
     return _Node
 
 
@@ -76,7 +77,7 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
     class _Dormant:
         dormant = True
 
-    monkeypatch.setattr(callbacks.manager, "get_node", lambda name: _Dormant())
+    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: _Dormant())
     fn = _locate_callback()
     _message, _disabled, _count, request = fn(1, "Asleep", "tab-events")
     assert request["name"] == "Asleep"
@@ -84,7 +85,7 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
 
 
 def test_deleted_node_reports_in_editor(monkeypatch):
-    monkeypatch.setattr(callbacks.manager, "get_node", lambda name: None)
+    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: None)
     fn = _locate_callback()
     message, interval_disabled, _n, request = fn(1, "Gone", "tab-canvas")
     assert message == "This node no longer exists."

@@ -3,7 +3,19 @@
 import shutil
 
 import pytest
+from dash._callback_context import context_value
+from dash._utils import AttributeDict
+
 from skilltree.store import database
+
+
+@pytest.fixture(autouse=True)
+def callback_context():
+    """Each test starts with no Dash callback context, and support.triggers
+    .fire() can set one without it leaking into the next test."""
+    token = context_value.set(AttributeDict())
+    yield
+    context_value.reset(token)
 
 
 @pytest.fixture(scope="session")
