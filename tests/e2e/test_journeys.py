@@ -91,7 +91,7 @@ def _new_node(page, name, node_type="Learn", needs_hard=(), expected_hours="2"):
         _dropdown_pick(page, "#edge-needs-hard", prerequisite)
     page.click("#btn-save")
     page.wait_for_function(
-        "document.querySelector('#save-output').innerText.includes('Added node')",
+        "document.querySelector('#save-output')?.innerText.includes('Added node')",
         timeout=15000)
     _idle(page)
 
@@ -100,7 +100,7 @@ def _open_in_editor(page, name):
     _open_editor(page)
     _dropdown_pick(page, "#search-node", name)
     page.wait_for_function(
-        f"document.querySelector('#node-name').value === {json.dumps(name)}", timeout=15000)
+        f"document.querySelector('#node-name')?.value === {json.dumps(name)}", timeout=15000)
 
 
 def _reflect(page, actual_hours=None):
@@ -182,7 +182,7 @@ def test_a_small_graph_turns_into_suggestions(page, server):
     page.keyboard.press("Escape")
     page.click("a.nav-link:has-text('Home')")
     page.wait_for_function(
-        "document.querySelector('#suggestions-table').innerText.includes('Sleep Science')",
+        "document.querySelector('#suggestions-table')?.innerText.includes('Sleep Science')",
         timeout=20000)
     assert page.console_errors == []
 
@@ -231,7 +231,7 @@ def test_backup_export_and_restore(page, server):
     page.click("a.nav-link:text-is('App')")
     page.click("#btn-backup-now")
     page.wait_for_function(
-        "document.querySelector('#data-status').innerText.includes('Backed up')", timeout=15000)
+        "document.querySelector('#data-status')?.innerText.includes('Backed up')", timeout=15000)
     with page.expect_download(timeout=15000) as download:
         page.click("#btn-export-json")
     exported = json.loads(open(download.value.path(), encoding="utf-8").read())
@@ -259,7 +259,7 @@ def test_a_restart_keeps_everything(open_app, server):
     again.wait_for_timeout(1000)
     assert not again.is_visible("#welcome-modal")
     again.wait_for_function(
-        "document.querySelector('#suggestions-table').innerText.includes('Persistent')",
+        "document.querySelector('#suggestions-table')?.innerText.includes('Persistent')",
         timeout=20000)
 
 
@@ -281,7 +281,7 @@ def test_rename_and_delete_carry_the_relationships(page, server):
     page.fill("#node-name", "First Draft")
     page.click("#btn-save")
     page.wait_for_function(
-        "document.querySelector('#save-output').innerText.includes(\"Updated node 'First Draft'\")",
+        "document.querySelector('#save-output')?.innerText.includes(\"Updated node 'First Draft'\")",
         timeout=15000)
     assert server.query("SELECT source, target, type FROM Edges") == [
         ("First Draft", "Publish", "Needs_Hard")]
@@ -290,7 +290,7 @@ def test_rename_and_delete_carry_the_relationships(page, server):
     page.click("#btn-delete")
     page.click("#btn-node-delete-confirm")
     page.wait_for_function(
-        "document.querySelector('#save-output').innerText.includes('Deleted')", timeout=15000)
+        "document.querySelector('#save-output')?.innerText.includes('Deleted')", timeout=15000)
     assert server.query("SELECT name FROM Nodes") == [("First Draft",)]
     assert server.query("SELECT COUNT(*) FROM Edges") == [(0,)]
     assert page.console_errors == []
@@ -319,7 +319,7 @@ def test_a_sleeping_node_wakes_with_its_event(page, server):
     page.fill("#node-dormant-event-name", "Trip Booked")
     page.click("#btn-save")
     page.wait_for_function(
-        "document.querySelector('#save-output').innerText.includes('Updated node')",
+        "document.querySelector('#save-output')?.innerText.includes('Updated node')",
         timeout=15000)
     assert server.query("SELECT dormant FROM Nodes") == [(1,)]
     assert server.query("SELECT event_name, node_name FROM EventNodes") == [
@@ -355,7 +355,7 @@ def test_an_export_fills_a_new_install(page, server, start_server, open_app, tmp
     other.set_input_files("#upload-import input[type=file]", str(exported))
     other.wait_for_function(
         "document.querySelector('#suggestions-table') &&"
-        " document.querySelector('#suggestions-table').innerText.includes('Carry Over')",
+        " document.querySelector('#suggestions-table')?.innerText.includes('Carry Over')",
         timeout=60000)
     assert set(fresh.query("SELECT name, status FROM Nodes")) == {
         ("Carry Over", "Open"), ("Next Step", "Blocked")}
@@ -383,7 +383,7 @@ def test_the_editor_follows_done_from_the_node_menu(page, server):
     page.fill("#node-desc", "every morning")
     page.click("#btn-save")
     page.wait_for_function(
-        "document.querySelector('#save-output').innerText.includes('Updated node')",
+        "document.querySelector('#save-output')?.innerText.includes('Updated node')",
         timeout=15000)
     assert server.query("SELECT status, description FROM Nodes") == [
         ("Done", "every morning")]
@@ -438,7 +438,7 @@ def test_settings_close_saves_the_last_field_and_reopens_with_it(page, server, d
     assert server.query("SELECT value FROM Settings WHERE key='NOW_NODE_CAP'") == [('7',)]
     saved = server.query('SELECT key, value FROM Settings ORDER BY key')
     page.click('#btn-settings-toggle')
-    page.wait_for_function("document.querySelector('#setting-now-node-cap').value === '7'")
+    page.wait_for_function("document.querySelector('#setting-now-node-cap')?.value === '7'")
     page.click('#btn-settings-close')
     page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
     assert server.query('SELECT key, value FROM Settings ORDER BY key') == saved
@@ -477,13 +477,13 @@ def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
     page.click("a.nav-link:has-text('Contexts')")
     page.wait_for_function(_INPUT_HOLDING, arg=['ctx-row-name', 'Mind'])
     row = page.evaluate(_INPUT_HOLDING, ['ctx-row-name', 'Mind'])
-    page.fill(f'[id={json.dumps(row)}]', 'Body')
+    page.fill(f'[id={json.dumps(row)}]', 'Health')
     before = server.query('SELECT key, value FROM Settings ORDER BY key')
     page.click('#btn-settings-close')
-    page.wait_for_function("document.querySelector('#settings-save-error').innerText.includes('Nothing was saved')")
+    page.wait_for_function("document.querySelector('#settings-save-error')?.innerText.includes('Nothing was saved')")
     assert page.is_visible('#settings-modal')
     assert server.query('SELECT key, value FROM Settings ORDER BY key') == before
-    assert page.input_value(f'[id={json.dumps(row)}]') == 'Body'
+    assert page.input_value(f'[id={json.dumps(row)}]') == 'Health'
     page.fill(f'[id={json.dumps(row)}]', 'Intellect')
     page.click('#btn-settings-close')
     page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
