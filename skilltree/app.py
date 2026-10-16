@@ -10,10 +10,10 @@ import threading
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 
-from skilltree.store import settings as config
 from skilltree.runtime.paths import get_log_dir, resource_path
 from skilltree.store import database
 from skilltree.runtime.version import __version__
+from skilltree.runtime import paths
 
 _logger = logging.getLogger(__name__)
 
@@ -117,9 +117,9 @@ def create_app(settings=None, services=None):
     settings = settings or AppSettings()
     if settings.environment not in {"production", "sandbox"}:
         raise ValueError("Unknown application environment")
-    if database._db_path_cache is not None and config.ENVIRONMENT != settings.environment:
+    if database._db_path_cache is not None and paths.ENVIRONMENT != settings.environment:
         raise RuntimeError("A process cannot switch databases after startup")
-    config.ENVIRONMENT = settings.environment
+    paths.ENVIRONMENT = settings.environment
     if settings.configure_logging:
         _configure_logging(settings.environment)
     _logger.info("Skill Tree %s starting (%s; Python %s on %s).", __version__,
@@ -273,7 +273,7 @@ def main(argv=None):
     # With --dev in the sandbox, Werkzeug's reloader runs this again in a child
     # process, and restarts that child on every edit. The parent keeps the lock.
     reloader_child = os.environ.get("WERKZEUG_RUN_MAIN") == "true"
-    config.ENVIRONMENT = options.environment
+    paths.ENVIRONMENT = options.environment
     _configure_logging(options.environment)
     lock = server_runtime.InstanceLock(database.get_db_path())
     if not reloader_child:

@@ -117,10 +117,10 @@ def test_focus_draws_a_real_path_to_a_deep_goal():
 
 
 def test_goal_ranking_counts_a_deep_task_like_a_direct_one():
-    from skilltree.domain.goals import _rank_goals
+    from skilltree.domain.goals import rank_goals
     nodes = [node('A', value=8, interest=8), node('B', value=6, interest=6), goal('G', value=1, interest=1)]
     edges = [edge('A', 'B'), edge('B', 'G')]
-    comp = _rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]
+    comp = rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]
     g = HP['value_exponent']
     iv = lambda v: HP['w_v'] * v ** g + HP['w_i'] * v ** g
     assert comp['tv'] == pytest.approx(iv(8) + iv(6) + 2 * D_H * iv(1))

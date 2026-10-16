@@ -41,3 +41,11 @@ def get_data_dir() -> Path:
 def get_log_dir() -> Path:
     return get_app_root() / "Logs"
 
+
+# Which database this process uses: "production" or "sandbox". The app sets
+# it once at startup, before the database is first opened.
+ENVIRONMENT = "production"
+
+
+# Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
+DB_FILENAME = "skilltree.db"

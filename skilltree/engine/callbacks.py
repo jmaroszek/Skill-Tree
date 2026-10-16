@@ -26,9 +26,8 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.prerender import prerendered
-from skilltree.store.settings import (
-    ConfigManager, sort_subcontexts, DEFAULT_GRAPH_LAYOUT,
-)
+from skilltree.store.settings import ConfigManager, DEFAULT_GRAPH_LAYOUT
+from skilltree.domain.contexts import sort_subcontexts
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_OPEN, STATUS_DONE
 from skilltree.ui import payloads as bridge_payloads
@@ -68,6 +67,7 @@ from skilltree.ui import tokens
 from skilltree.ui.kit import (progress_bar_color)
 from skilltree.ui.components.duration import work_time_tooltip
 from skilltree.ui.components.duration import format_time_friendly
+from skilltree.domain.names import format_name
 
 logger = logging.getLogger(__name__)
 
@@ -1380,7 +1380,7 @@ def register_callbacks(app, services=None):
     # --- Hide Effort slider when the node has no work of its own ---
     # Effort describes a node's own hours, so scoring ignores it when time is
     # inherited (Node.has_no_own_work). A Goal's Effort is decorative too:
-    # _rank_goals counts only the effort of the tasks beneath it. The caption
+    # rank_goals counts only the effort of the tasks beneath it. The caption
     # tells the user why the input is absent so the UI stops asking for a
     # value the system ignores. Inheriting ratings alone keeps the slider.
     app.clientside_callback(
@@ -1942,7 +1942,7 @@ def register_callbacks(app, services=None):
         # --- Action Routing ---
         if trigger_id in _EDITOR_SAVE_TRIGGERS:
             if name and name.strip():
-                name = ConfigManager.apply_name_formatting(name.strip())
+                name = format_name(name.strip(), ConfigManager.get_name_formatting())
             if not name or not name.strip():
                 # Only show the error if the user has filled in something meaningful.
                 # If the form is blank (no desc, all ratings at default), they just
@@ -2844,7 +2844,8 @@ def register_callbacks(app, services=None):
         base = [{"label": "None", "value": ""}]
         if not ctx:
             return base
-        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []))
+        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []),
+                                ConfigManager.get_subcontext_sort_mode())
         return base + [{"label": s, "value": s} for s in subs]
 
     # Clear node-subcontext value when the new context doesn't include it.

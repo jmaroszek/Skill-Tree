@@ -8,12 +8,13 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from skilltree.runtime import paths
 from skilltree.runtime.paths import get_data_dir
 
 logger = logging.getLogger(__name__)
 
 
-# Snapshot of the resolved DB path on first call. Reading config.ENVIRONMENT
+# Snapshot of the resolved DB path on first call. Reading paths.ENVIRONMENT
 # on every call risks splitting a single process between sandbox and prod if
 # the env var is ever mutated mid-run (test fixtures, REPL re-imports, etc.).
 # Caching guarantees a process commits to one DB for its lifetime. Tests that
@@ -243,12 +244,9 @@ def get_db_path() -> str:
     global _db_path_cache
     if _db_path_cache is not None:
         return _db_path_cache
-    # Lazy import dodges the circular dependency: config imports
-    # get_connection from this module at load time.
-    from skilltree.store.settings import ENVIRONMENT, DB_FILENAME
-    db_name = DB_FILENAME
-    if ENVIRONMENT == "sandbox":
-        db_name = "sandbox_" + DB_FILENAME
+    db_name = paths.DB_FILENAME
+    if paths.ENVIRONMENT == "sandbox":
+        db_name = "sandbox_" + paths.DB_FILENAME
     _db_path_cache = str(get_data_dir() / db_name)
     return _db_path_cache
 

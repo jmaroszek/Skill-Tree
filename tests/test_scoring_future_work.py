@@ -112,13 +112,13 @@ def test_independent_enumerated_path_and_hard_closure_oracle(profile):
 
 
 def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
-    from skilltree.domain.goals import _rank_goals, explain_goal
+    from skilltree.domain.goals import rank_goals, explain_goal
     ns = [node('A'), node('D', type='Goal'), node('Optional', 10000)]
     es = [edge('A','D')]
     hp = dict(PROFILES['Sage'], future_work_half_credit_hours=1)
-    base = _rank_goals([ns[1]],ns,es,[],hp,with_components=True)[0][1]
+    base = rank_goals([ns[1]],ns,es,[],hp,with_components=True)[0][1]
     extra = es+[edge('Optional','D','Needs_Soft'),edge('Optional','D','Helps')]
-    actual = _rank_goals([ns[1]],ns,extra,[],hp,with_components=True)[0][1]
+    actual = rank_goals([ns[1]],ns,extra,[],hp,with_components=True)[0][1]
     assert actual == base
     bd,_ = explain_goal('D',ns,extra,hp,[])
     assert bd['composition']['total_value'] == actual['tv']

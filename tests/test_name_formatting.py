@@ -2,8 +2,13 @@
 
 import json
 
-from skilltree.domain.names import normalize_name_for_comparison
+from skilltree.domain.names import format_name, normalize_name_for_comparison
 from skilltree.store.settings import ConfigManager
+
+
+def _formatted(name):
+    """`name` as the saved name formatting writes it."""
+    return format_name(name, ConfigManager.get_name_formatting())
 
 
 def test_default_name_formatting_keeps_names_as_entered():
@@ -11,7 +16,7 @@ def test_default_name_formatting_keeps_names_as_entered():
 
     assert formatting["mode"] == "none"
     assert formatting["enabled"] is False
-    assert ConfigManager.apply_name_formatting("learn iOS basics") == "learn iOS basics"
+    assert _formatted("learn iOS basics") == "learn iOS basics"
 
 
 def test_legacy_enabled_switch_migrates_when_read():
@@ -32,14 +37,14 @@ def test_legacy_enabled_switch_migrates_when_read():
 def test_keep_as_entered_does_not_change_capitalization():
     ConfigManager.set_name_formatting({"mode": "none", "exclusions": ["the"]})
 
-    assert ConfigManager.apply_name_formatting("learn the Python API") == "learn the Python API"
+    assert _formatted("learn the Python API") == "learn the Python API"
 
 
 def test_sentence_case_preserves_intentional_internal_capitals():
     ConfigManager.set_name_formatting({"mode": "sentence", "exclusions": []})
 
-    assert ConfigManager.apply_name_formatting("learn the Python API") == "Learn the Python API"
-    assert ConfigManager.apply_name_formatting("'learn the API") == "'Learn the API"
+    assert _formatted("learn the Python API") == "Learn the Python API"
+    assert _formatted("'learn the API") == "'Learn the API"
 
 
 def test_title_case_exceptions_do_not_change_duplicate_detection():
@@ -52,8 +57,8 @@ def test_title_case_exceptions_do_not_change_duplicate_detection():
     assert normalize_name_for_comparison("The Skill Tree") == "skill tree"
 
 
-def test_legacy_api_remains_compatible():
-    ConfigManager.set_titlecase_linter({"enabled": True, "exclusions": ["of"]})
+def test_the_legacy_enabled_switch_still_saves_as_title_case():
+    ConfigManager.set_name_formatting({"enabled": True, "exclusions": ["of"]})
 
-    assert ConfigManager.get_titlecase_linter()["mode"] == "title"
-    assert ConfigManager.apply_titlecase_linter("history of science") == "History of Science"
+    assert ConfigManager.get_name_formatting()["mode"] == "title"
+    assert _formatted("history of science") == "History of Science"

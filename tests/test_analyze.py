@@ -306,7 +306,7 @@ class TestComputeGoalProgress:
         """With cost held equal, a goal with a higher-value Hard-prereq
         subtree outranks one with high own-rating but low-value prereqs.
 
-        _rank_goals scores ROI = subtree value / subtree-time cost. To
+        rank_goals scores ROI = subtree value / subtree-time cost. To
         isolate the *value* axis, both goals get four Hard prereqs with
         identical (default) time, so their costs match exactly and the
         ranking turns purely on prereq-subtree value.
@@ -339,9 +339,9 @@ class TestComputeGoalProgress:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        from skilltree.domain.goals import _rank_goals
+        from skilltree.domain.goals import rank_goals
         hp = ConfigManager.get_hyperparams()
-        ranked = _rank_goals(
+        ranked = rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
             ConfigManager.get_priority_goals(), hp,
@@ -373,8 +373,8 @@ class TestComputeGoalProgress:
         edges = mgr.get_edges()
         hp = ConfigManager.get_hyperparams()
 
-        from skilltree.domain.goals import _rank_goals
-        ranked = _rank_goals(
+        from skilltree.domain.goals import rank_goals
+        ranked = rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
             ConfigManager.get_priority_goals(), hp,
@@ -394,7 +394,7 @@ class TestComputeGoalProgress:
 
     def test_explain_goal_matches_rank_goals(self, mgr):
         """analyze_callbacks.explain_goal reports the same headline score
-        _rank_goals ranks by, and flags the breakdown as a goal."""
+        rank_goals ranks by, and flags the breakdown as a goal."""
         _setup_graph(mgr, [
             _make_node("G", type="Goal", time_mode='inherited',
                        value=4, interest=4),
@@ -409,9 +409,9 @@ class TestComputeGoalProgress:
         hp = ConfigManager.get_hyperparams()
         pgoals = ConfigManager.get_priority_goals()
 
-        from skilltree.domain.goals import _rank_goals, explain_goal
+        from skilltree.domain.goals import rank_goals, explain_goal
         ranked = dict(
-            (g.name, c) for g, c in _rank_goals(
+            (g.name, c) for g, c in rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
                 nodes, edges, pgoals, hp, with_components=True)
         )
@@ -440,7 +440,7 @@ class TestComputeGoalProgress:
 
 
 # ============================================================================
-# _rank_goals — Goal-level density normalization (alpha_goal)
+# rank_goals — Goal-level density normalization (alpha_goal)
 # ============================================================================
 
 class TestGoalDensityNormalization:
@@ -450,7 +450,7 @@ class TestGoalDensityNormalization:
     """
 
     def _rank_with(self, mgr, hp_overrides=None):
-        """Helper: get _rank_goals component dicts keyed by Goal name, with
+        """Helper: get rank_goals component dicts keyed by Goal name, with
         an optional hp_overrides dict patched onto the default hyperparams.
         """
         nodes = mgr.get_all_nodes()
@@ -458,9 +458,9 @@ class TestGoalDensityNormalization:
         hp = ConfigManager.get_hyperparams()
         if hp_overrides:
             hp = {**hp, **hp_overrides}
-        from skilltree.domain.goals import _rank_goals
+        from skilltree.domain.goals import rank_goals
         return {
-            g.name: c for g, c in _rank_goals(
+            g.name: c for g, c in rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
                 nodes, edges,
                 ConfigManager.get_priority_goals(), hp,

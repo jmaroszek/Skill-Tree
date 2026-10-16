@@ -9,8 +9,9 @@ from dash import html, dcc
 import dash_cytoscape as cyto
 import dash_bootstrap_components as dbc
 from skilltree.store.settings import (
-    ConfigManager, DEFAULT_CONTEXTS, DEFAULT_GRAPH_LAYOUT, sort_subcontexts,
+    ConfigManager, DEFAULT_CONTEXTS, DEFAULT_GRAPH_LAYOUT,
 )
+from skilltree.domain.contexts import sort_subcontexts
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
     TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
@@ -300,11 +301,12 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     ctx_options += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
 
     def _sub_options_for(ctx_val):
+        mode = ConfigManager.get_subcontext_sort_mode()
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []))
+            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         else:
             subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss]
+                [s for ss in subcontexts_map.values() for s in ss], mode
             )
         opts = [{"label": s, "value": s} for s in subs]
         opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]

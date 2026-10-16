@@ -7,7 +7,7 @@ from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS, ConfigManager
 from skilltree.store.graph.queries import summarize_completion
 from skilltree.domain.models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN,
                     STATUS_BLOCKED, STATUS_DONE)
-from skilltree.domain.goals import _rank_goals
+from skilltree.domain.goals import rank_goals
 
 def _build_adjacency(edges):
     """Build in-memory forward and reverse adjacency maps from edge list.
@@ -412,7 +412,7 @@ def _walk_back(name, adjacency):
 def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     """The Completion rows: the top Goals and how far along each one is.
 
-    Ranks goals via _rank_goals (average worth of the work left in the hard
+    Ranks goals via rank_goals (average worth of the work left in the hard
     subtree, boosted by priority rank and context weight), then caps to the
     top N. Progress is `summarize_completion` over the hard subtree, the
     prerequisites that gate the Goal: the share of its estimated hours that
@@ -425,7 +425,8 @@ def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     node_map = {n.name: n for n in nodes}
     priority_goals = ConfigManager.get_priority_goals()
     hp = ConfigManager.get_hyperparams()
-    ranked = _rank_goals(all_goals, nodes, edges, priority_goals, hp)
+    ranked = rank_goals(all_goals, nodes, edges, priority_goals, hp,
+                        context_weights=ConfigManager.get_context_weights())
     cutoff = ((today or date.today()) - timedelta(days=_RECENT_DAYS)).isoformat()
 
     rows = []

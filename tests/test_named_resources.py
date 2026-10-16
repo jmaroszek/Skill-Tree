@@ -11,6 +11,7 @@ from skilltree.features.editor.form import (
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from dash.development.base_component import Component
+from skilltree.runtime import paths
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -198,14 +199,13 @@ def test_mounted_inputs_are_the_editor_links():
 
 def test_saved_resource_route_uses_shared_opener(monkeypatch):
     from skilltree import app as app_module
-    from skilltree.store import settings as config
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     # Build the app before patching. Its first import of a module that does
     # `from resource_links import open_resource` would keep the fake for
     # every later test.
     app = app_module.create_app(app_module.AppSettings(
-        environment=config.ENVIRONMENT, configure_logging=False))
+        environment=paths.ENVIRONMENT, configure_logging=False))
     opened = []
     monkeypatch.setattr(resources, 'open_resource',
                         lambda value, section, confirmed=False:

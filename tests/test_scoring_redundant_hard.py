@@ -6,7 +6,7 @@ Eligibility still reads every edge.
 """
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from skilltree.domain.scoring import _drop_redundant_hard, build_adjacency, explain_score, score_nodes
-from skilltree.domain.goals import _rank_goals
+from skilltree.domain.goals import rank_goals
 
 HP = {'w_v': 1.0, 'w_i': 1.0, 'd_H': 0.6, 'd_S': 0.3, 'w_e': 1.5, 'w_t': 6.0,
       'beta': 0.6, 'value_exponent': 2.0, 'goal_boost': 1.0}
@@ -72,8 +72,8 @@ def test_task_linked_past_its_sub_goal_changes_no_score():
     with_shortcut = nested + [_hard('T', 'Top')]
     assert _scores(nodes, with_shortcut) == _scores(nodes, nested)
     goals = [n for n in nodes if n.type == 'Goal']
-    assert (_rank_goals(goals, nodes, with_shortcut, [], HP, with_scores=True)
-            == _rank_goals(goals, nodes, nested, [], HP, with_scores=True))
+    assert (rank_goals(goals, nodes, with_shortcut, [], HP, with_scores=True)
+            == rank_goals(goals, nodes, nested, [], HP, with_scores=True))
 
 
 def test_explain_matches_without_shortcut():

@@ -15,7 +15,7 @@ logic has a home of its own, rather than living in whichever tab first needed it
 - **State gateway** (`skilltree/store/graph/manager.py`, `skilltree/store/events.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `skilltree/store/graph/repository.py`, queries to `skilltree/store/graph/queries.py`, and scoring orchestration to `skilltree/store/graph/scoring.py`. `skilltree/store/graph/state.py` owns shared revisions and per-manager caches.
 - **Config** (`skilltree/store/settings.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
 - **Pure compute** (`skilltree/domain/scoring.py`, `skilltree/domain/simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
-- **Persistence** (`skilltree/store/database.py`) — resolves the DB path from `config.ENVIRONMENT` and runs `init_db` on first connect.
+- **Persistence** (`skilltree/store/database.py`) — resolves the DB path from `paths.ENVIRONMENT` and runs `init_db` on first connect.
 
 Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `skilltree/ui/canvas/registry.py` before any asset runs.
 
@@ -37,9 +37,9 @@ manager reads one database per process, and the revision counters in
 
 | Module | Role |
 |---|---|
-| [skilltree/app.py](../skilltree/app.py) | Entry point (the root `app.py` only launches it). Sets `config.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
+| [skilltree/app.py](../skilltree/app.py) | Entry point (the root `app.py` only launches it). Sets `paths.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
 | [skilltree/domain/models.py](../skilltree/domain/models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [skilltree/store/database.py](../skilltree/store/database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `config.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
+| [skilltree/store/database.py](../skilltree/store/database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `paths.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
 | [skilltree/store/resources.py](../skilltree/store/resources.py) | Named Resource settings, per-node ordered links, relative-path storage, and the shared Windows/macOS/Linux file and URI opener. Web URLs use `webbrowser`. |
 | [skilltree/store/settings.py](../skilltree/store/settings.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
 | [skilltree/store/graph/manager.py](../skilltree/store/graph/manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
@@ -107,7 +107,7 @@ and the like; `RUNNABLE_SUFFIXES`), the opener asks first.
 
 `main()` parses the launch flags (`server_runtime.parse_args`), takes this
 database's instance lock, and calls `create_app(AppSettings(...))`. The factory
-selects `config.ENVIRONMENT` before opening SQLite, configures logging if enabled,
+selects `paths.ENVIRONMENT` before opening SQLite, configures logging if enabled,
 initializes the schema, seeds required types, and runs the existing status-repair
 safety net. It then constructs Dash, sets the page template that carries the
 startup cover, installs the canvas registry, assigns a snapshot-wrapped layout

@@ -10,10 +10,10 @@ import sys
 from pathlib import Path
 from urllib.parse import urlencode
 
-from skilltree.store import settings as config
 from skilltree.store import database
 from skilltree.runtime.paths import get_log_dir, resource_path
 from skilltree.runtime.version import __version__
+from skilltree.runtime import paths
 
 REPO_URL = "https://github.com/jmaroszek/Skill-Tree"
 ISSUES_NEW_URL = f"{REPO_URL}/issues/new"
@@ -49,7 +49,7 @@ def _database_summary() -> str:
 
 def diagnostics() -> str:
     import dash
-    build = config.ENVIRONMENT + (", packaged" if getattr(sys, "frozen", False) else "")
+    build = paths.ENVIRONMENT + (", packaged" if getattr(sys, "frozen", False) else "")
     lines = [
         f"Skill Tree {__version__} ({build})",
         f"OS: {platform.platform()}",

@@ -71,12 +71,12 @@ def test_a_learn_container_still_counts_as_a_step():
 # --------------------------------------------------------------- Goal ranking
 
 def test_goal_ranking_frees_milestones_too():
-    from skilltree.domain.goals import _rank_goals
+    from skilltree.domain.goals import rank_goals
     hp = dict(HP)
     nodes = [node('A', value=8, interest=8), milestone('M'), node('B', value=6, interest=6),
              goal('G', value=1, interest=1)]
     edges = [edge('A', 'B'), edge('B', 'M'), edge('M', 'G')]
-    comp = _rank_goals([nodes[3]], nodes, edges, [], hp, with_components=True)[0][1]
+    comp = rank_goals([nodes[3]], nodes, edges, [], hp, with_components=True)[0][1]
     g = hp['value_exponent']
     iv = lambda v: hp['w_v'] * v ** g + hp['w_i'] * v ** g
     assert comp['tv'] == pytest.approx(iv(8) + iv(6) + 2 * D_H * iv(1))

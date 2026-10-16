@@ -96,10 +96,10 @@ def test_focus_does_not_draw_a_route_through_a_done_node():
 
 
 def test_goal_ranking_counts_only_the_work_left():
-    from skilltree.domain.goals import _rank_goals, explain_goal
+    from skilltree.domain.goals import rank_goals, explain_goal
     nodes = [node('A', status='Done'), node('B'), node('G', type='Goal')]
     edges = [edge('A', 'G'), edge('B', 'G')]
-    comp = _rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]
+    comp = rank_goals([nodes[2]], nodes, edges, [], HP, with_components=True)[0][1]
     bd, _ = explain_goal('G', nodes, edges, HP, [])
     assert {r['name'] for r in bd['contributors']} == {'B'}
     assert comp['n_tasks'] == 1

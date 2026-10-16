@@ -1,16 +1,9 @@
-"""
-Configuration and persistent settings.
+"""The user's settings, stored in the Settings table.
 
-The module holds:
-  - Global defaults (DEFAULT_*) used when the DB has no stored value.
-  - `ENVIRONMENT` — switched to "sandbox" by app.py when invoked with
-    `--sandbox`; determines which SQLite file database.py opens.
-  - `ConfigManager` — a classmethod-only gateway to the Settings table
-    (a simple key/value JSON store), plus a few semantic helpers
-    (rename propagation, hyperparameter profiles, time formatting).
-
-ConfigManager is effectively a singleton: all state lives in SQLite,
-so a single import is shared across all callback modules.
+ConfigManager is a classmethod-only gateway to that key/value table: each
+getter reads a stored JSON value, or a copy of its DEFAULT_* when nothing is
+stored, and each setter writes one back. All state lives in SQLite, so every
+module shares it through one import.
 """
 
 import copy
@@ -21,16 +14,17 @@ from skilltree.store.database import get_connection
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
-from skilltree.domain.names import DEFAULT_TITLECASE_EXCLUSIONS
 from skilltree.domain.profiles import (
     DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES, PROFILE_ALIASES,
 )
+from skilltree.domain.names import (
+    DEFAULT_TITLECASE_EXCLUSIONS, NAME_FORMAT_MODES, NAME_FORMAT_NONE, NAME_FORMAT_TITLE,
+)
+from skilltree.domain.contexts import (
+    CONTEXT_SORT_MODES, DEFAULT_CONTEXT_SORT_MODE, DEFAULT_SUBCONTEXT_SORT_MODE,
+    SUBCONTEXT_SORT_MODES,
+)
 
-ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
-
-
-# Production DB filename. Sandbox mode prepends "sandbox_" at path-resolution time.
-DB_FILENAME = "skilltree.db"
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
@@ -51,65 +45,6 @@ DEFAULT_SUBCONTEXTS = {
     "Money":         ["Budgeting", "Saving", "Investing"],
     "Leisure":       ["Games", "Sports", "Outdoors", "Travel"],
 }
-
-# Sort modes for subcontext dropdown menus. 'definition' preserves the
-# user-defined order from the Contexts settings textbox; the other modes
-# re-order alphabetically or by length.
-SUBCONTEXT_SORT_DEFINITION = 'definition'
-SUBCONTEXT_SORT_LENGTH = 'length'
-SUBCONTEXT_SORT_ALPHABETICAL = 'alphabetical'
-SUBCONTEXT_SORT_MODES = (
-    SUBCONTEXT_SORT_DEFINITION,
-    SUBCONTEXT_SORT_LENGTH,
-    SUBCONTEXT_SORT_ALPHABETICAL,
-)
-DEFAULT_SUBCONTEXT_SORT_MODE = SUBCONTEXT_SORT_DEFINITION
-
-# Sort modes for context dropdown menus. Same three modes as subcontexts.
-CONTEXT_SORT_DEFINITION = 'definition'
-CONTEXT_SORT_LENGTH = 'length'
-CONTEXT_SORT_ALPHABETICAL = 'alphabetical'
-CONTEXT_SORT_MODES = (
-    CONTEXT_SORT_DEFINITION,
-    CONTEXT_SORT_LENGTH,
-    CONTEXT_SORT_ALPHABETICAL,
-)
-DEFAULT_CONTEXT_SORT_MODE = CONTEXT_SORT_DEFINITION
-
-
-def sort_subcontexts(subs, mode=None):
-    """Return a list of subcontexts sorted by the user's configured mode.
-
-    `'definition'` preserves the input order. `'length'` is stable so equal
-    lengths keep their definition order. `None` falls back to the live
-    ConfigManager value.
-    """
-    if mode is None:
-        mode = ConfigManager.get_subcontext_sort_mode()
-    items = list(subs)
-    if mode == SUBCONTEXT_SORT_LENGTH:
-        return sorted(items, key=len)
-    if mode == SUBCONTEXT_SORT_ALPHABETICAL:
-        return sorted(items, key=lambda s: s.lower())
-    return items
-
-
-def sort_contexts(ctxs, mode=None):
-    """Return a list of contexts sorted by the user's configured mode.
-
-    Mirrors `sort_subcontexts`. `None` falls back to the live ConfigManager value.
-    """
-    if mode is None:
-        mode = ConfigManager.get_context_sort_mode()
-    items = list(ctxs)
-    if mode == CONTEXT_SORT_LENGTH:
-        # "Self" renders visibly narrower than other 4-char contexts (STEM, etc.)
-        # in proportional fonts — pin it ahead of same-length peers so the visual
-        # order matches a true shortest-first read of the user's actual contexts.
-        return sorted(items, key=lambda s: (len(s), 0 if s == 'Self' else 1))
-    if mode == CONTEXT_SORT_ALPHABETICAL:
-        return sorted(items, key=lambda s: s.lower())
-    return items
 
 
 DEFAULT_NODE_COLORS = {
@@ -287,15 +222,6 @@ DEFAULT_REFLECTION_RATINGS_DEFINITIONS = [
 ]
 
 
-NAME_FORMAT_NONE = "none"
-NAME_FORMAT_TITLE = "title"
-NAME_FORMAT_SENTENCE = "sentence"
-NAME_FORMAT_MODES = {
-    NAME_FORMAT_NONE,
-    NAME_FORMAT_TITLE,
-    NAME_FORMAT_SENTENCE,
-}
-
 # Names stay as typed unless the user opts in: Title Case would turn "iOS"
 # into "IOS".
 DEFAULT_TITLECASE_LINTER = {
@@ -310,7 +236,6 @@ DEFAULT_NEXT_TABLE_ROWS = 10
 DEFAULT_SHOW_SCORING_PERF = False
 
 DEFAULT_TIME_CALIBRATION_ENABLED = True
-
 
 
 class ConfigManager:
@@ -856,11 +781,6 @@ class ConfigManager:
         }
 
     @classmethod
-    def get_titlecase_linter(cls) -> dict:
-        """Backward-compatible name for callers using the former UI term."""
-        return cls.get_name_formatting()
-
-    @classmethod
     def set_name_formatting(cls, settings: dict):
         mode = settings.get('mode')
         if mode not in NAME_FORMAT_MODES:
@@ -874,11 +794,6 @@ class ConfigManager:
             'enabled': mode != NAME_FORMAT_NONE,
             'exclusions': exclusions,
         }))
-
-    @classmethod
-    def set_titlecase_linter(cls, settings: dict):
-        """Backward-compatible name for callers using the former UI term."""
-        cls.set_name_formatting(settings)
 
     @classmethod
     def get_next_table_rows(cls) -> int:
@@ -1005,34 +920,3 @@ class ConfigManager:
     @classmethod
     def set_time_calibration_enabled(cls, enabled: bool):
         cls._set_db_value("TIME_CALIBRATION_ENABLED", "1" if enabled else "0")
-
-    @classmethod
-    def apply_name_formatting(cls, name: str) -> str:
-        """Apply the configured name formatting to a node name or alias."""
-        linter = cls.get_name_formatting()
-        mode = linter['mode']
-        if mode == NAME_FORMAT_NONE:
-            return name
-        if mode == NAME_FORMAT_SENTENCE:
-            for index, character in enumerate(name):
-                if character.isalpha():
-                    return name[:index] + character.upper() + name[index + 1:]
-            return name
-
-        exclusions = {w.lower() for w in linter.get('exclusions', [])}
-        words = name.split()
-        result = []
-        for i, word in enumerate(words):
-            if i == 0:
-                result.append(word[0].upper() + word[1:] if word else word)
-            elif word.lower() in exclusions:
-                result.append(word.lower())
-            else:
-                result.append(word[0].upper() + word[1:] if word else word)
-        return ' '.join(result)
-
-    @classmethod
-    def apply_titlecase_linter(cls, name: str) -> str:
-        """Backward-compatible name for callers using the former UI term."""
-        return cls.apply_name_formatting(name)
-

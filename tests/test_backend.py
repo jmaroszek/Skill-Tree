@@ -1599,13 +1599,12 @@ class TestConfigManager:
         assert ConfigManager.get_subcontexts() == {}
 
     def test_subcontext_sort_mode_default_is_definition(self):
-        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_round_trip(self):
-        from skilltree.store.settings import (
-            SUBCONTEXT_SORT_LENGTH,
-            SUBCONTEXT_SORT_ALPHABETICAL,
+        from skilltree.domain.contexts import (
+            SUBCONTEXT_SORT_LENGTH, SUBCONTEXT_SORT_ALPHABETICAL,
             SUBCONTEXT_SORT_DEFINITION,
         )
         for mode in (SUBCONTEXT_SORT_LENGTH, SUBCONTEXT_SORT_ALPHABETICAL, SUBCONTEXT_SORT_DEFINITION):
@@ -1613,22 +1612,24 @@ class TestConfigManager:
             assert ConfigManager.get_subcontext_sort_mode() == mode
 
     def test_subcontext_sort_mode_invalid_falls_back_to_default(self):
-        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
         ConfigManager._set_db_value("SUBCONTEXT_SORT_MODE", "garbage")
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_setter_rejects_invalid(self):
-        from skilltree.store.settings import DEFAULT_SUBCONTEXT_SORT_MODE
+        from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
         ConfigManager.set_subcontext_sort_mode("not-a-mode")
         assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_sort_subcontexts_definition_preserves_order(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_DEFINITION
+        from skilltree.domain.contexts import (
+            sort_subcontexts, SUBCONTEXT_SORT_DEFINITION,
+        )
         items = ["Rational", "Sensory", "Judgment"]
         assert sort_subcontexts(items, SUBCONTEXT_SORT_DEFINITION) == items
 
     def test_sort_subcontexts_length_orders_short_first(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        from skilltree.domain.contexts import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
         items = ["Engineering", "Math", "Data Science", "Physics"]
         # Stable: 'Math' (4) < 'Physics' (7) < 'Engineering' (11) == 'Data Science' (12)
         # Length-only key keeps relative order of equal-length entries.
@@ -1637,23 +1638,22 @@ class TestConfigManager:
         ]
 
     def test_sort_subcontexts_alphabetical_case_insensitive(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        from skilltree.domain.contexts import (
+            sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL,
+        )
         items = ["banana", "Apple", "cherry"]
         assert sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL) == ["Apple", "banana", "cherry"]
 
-    def test_sort_subcontexts_uses_configured_mode_when_none(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
-        ConfigManager.set_subcontext_sort_mode(SUBCONTEXT_SORT_ALPHABETICAL)
-        assert sort_subcontexts(["zeta", "alpha"]) == ["alpha", "zeta"]
-
     def test_sort_subcontexts_does_not_mutate_input(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL
+        from skilltree.domain.contexts import (
+            sort_subcontexts, SUBCONTEXT_SORT_ALPHABETICAL,
+        )
         items = ["zeta", "alpha"]
         sort_subcontexts(items, SUBCONTEXT_SORT_ALPHABETICAL)
         assert items == ["zeta", "alpha"]
 
     def test_sort_subcontexts_empty(self):
-        from skilltree.store.settings import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
+        from skilltree.domain.contexts import sort_subcontexts, SUBCONTEXT_SORT_LENGTH
         assert sort_subcontexts([], SUBCONTEXT_SORT_LENGTH) == []
 
     def test_set_and_get_hyperparams(self):

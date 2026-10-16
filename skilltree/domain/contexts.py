@@ -339,3 +339,74 @@ def apply_drag_order(rows, order):
         rest = [s for s in subs if s["sid"] not in set(named)]
         out.append({**row, "subs": [by_sid[sid] for sid in named] + rest})
     return out
+
+
+# Sort modes for subcontext dropdown menus. 'definition' preserves the
+# user-defined order from the Contexts settings textbox; the other modes
+# re-order alphabetically or by length.
+SUBCONTEXT_SORT_DEFINITION = 'definition'
+
+
+SUBCONTEXT_SORT_LENGTH = 'length'
+
+
+SUBCONTEXT_SORT_ALPHABETICAL = 'alphabetical'
+
+
+SUBCONTEXT_SORT_MODES = (
+    SUBCONTEXT_SORT_DEFINITION,
+    SUBCONTEXT_SORT_LENGTH,
+    SUBCONTEXT_SORT_ALPHABETICAL,
+)
+
+
+DEFAULT_SUBCONTEXT_SORT_MODE = SUBCONTEXT_SORT_DEFINITION
+
+
+# Sort modes for context dropdown menus. Same three modes as subcontexts.
+CONTEXT_SORT_DEFINITION = 'definition'
+
+
+CONTEXT_SORT_LENGTH = 'length'
+
+
+CONTEXT_SORT_ALPHABETICAL = 'alphabetical'
+
+
+CONTEXT_SORT_MODES = (
+    CONTEXT_SORT_DEFINITION,
+    CONTEXT_SORT_LENGTH,
+    CONTEXT_SORT_ALPHABETICAL,
+)
+
+
+DEFAULT_CONTEXT_SORT_MODE = CONTEXT_SORT_DEFINITION
+
+
+def sort_subcontexts(subs, mode):
+    """Subcontexts in a sort mode (the user's is
+    ConfigManager.get_subcontext_sort_mode).
+
+    `'definition'` preserves the input order. `'length'` is stable so equal
+    lengths keep their definition order.
+    """
+    items = list(subs)
+    if mode == SUBCONTEXT_SORT_LENGTH:
+        return sorted(items, key=len)
+    if mode == SUBCONTEXT_SORT_ALPHABETICAL:
+        return sorted(items, key=lambda s: s.lower())
+    return items
+
+
+def sort_contexts(ctxs, mode):
+    """Contexts in a sort mode (the user's is
+    ConfigManager.get_context_sort_mode). Mirrors `sort_subcontexts`."""
+    items = list(ctxs)
+    if mode == CONTEXT_SORT_LENGTH:
+        # "Self" renders visibly narrower than other 4-char contexts (STEM, etc.)
+        # in proportional fonts — pin it ahead of same-length peers so the visual
+        # order matches a true shortest-first read of the user's actual contexts.
+        return sorted(items, key=lambda s: (len(s), 0 if s == 'Self' else 1))
+    if mode == CONTEXT_SORT_ALPHABETICAL:
+        return sorted(items, key=lambda s: s.lower())
+    return items

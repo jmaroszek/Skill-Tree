@@ -18,7 +18,8 @@ from skilltree.ui.components.duration import (DURATION_UNITS, NEW_NODE_TIME_UNIT
                          time_estimates_heading, unit_select)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
+from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES
+from skilltree.domain.contexts import sort_contexts
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS, LOCATE_TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
@@ -95,7 +96,8 @@ _EDITOR_HINTS = {
 
 # --- Node Editor sidebar (left) ---
 def build_node_editor_content():
-    CONTEXTS = sort_contexts(ConfigManager.get_contexts())
+    CONTEXTS = sort_contexts(ConfigManager.get_contexts(),
+                             ConfigManager.get_context_sort_mode())
     return html.Div(
         [
             html.Div([

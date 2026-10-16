@@ -1,7 +1,6 @@
 """Shared goal ranking and explanations, independent of Dash callback registration."""
 import math
 from collections import defaultdict
-from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.domain.scoring import (build_adjacency as _scoring_build_adjacency, intrinsic_value,
                      perceived_cost, _done_names, _goals_above, _milestone_names,
@@ -72,8 +71,8 @@ def _goal_work(all_nodes_dict, edges, hp):
     return hard_in, rows
 
 
-def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
-                with_scores=False, with_components=False):
+def rank_goals(goals, all_nodes, edges, priority_goals, hp, *,
+               context_weights=None, with_scores=False, with_components=False):
     """Rank Goals by the average worth of their remaining work, scaled by
     priority-rank boost, context weight and Goal density.
 
@@ -97,7 +96,7 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
         1 + (goal_boost - 1) * 0.66,
         1 + (goal_boost - 1) * 0.33,
     ]
-    context_weights = ConfigManager.get_context_weights() or {}
+    context_weights = context_weights or {}
 
     # Goal-only bucket counts for the density correction. Done Goals are
     # excluded — they're not competing for sidebar attention. Null-context
@@ -130,7 +129,7 @@ def _rank_goals(goals, all_nodes, edges, priority_goals, hp,
         bucket_count = goal_bucket_counts.get((g.context, g.subcontext), 1)
         # Done Goals are excluded from the bucket count, so they would key to
         # 0 (defaultdict default) if requested directly — but Done Goals also
-        # rarely flow into _rank_goals callers. Floor at 1 to mirror the
+        # rarely flow into rank_goals callers. Floor at 1 to mirror the
         # max(1, ...) guard in scoring.score_nodes.
         bucket_count = max(1, bucket_count)
         density_mult = 1.0 / (bucket_count ** alpha_goal) if alpha_goal > 0 else 1.0
@@ -166,7 +165,7 @@ def normalize_goal_scores(ranked, all_nodes, edges):
     left, its cost bottoms out, so its score would dwarf every Goal still in
     play.
 
-    ``ranked`` holds ``(goal, score)`` pairs from ``_rank_goals``. Returns a
+    ``ranked`` holds ``(goal, score)`` pairs from ``rank_goals``. Returns a
     name -> int map.
     """
     status = {n.name: n.status for n in all_nodes}
@@ -196,13 +195,13 @@ def normalize_goal_scores(ranked, all_nodes, edges):
     return {name: round(score / top * 100) for name, score in open_scores.items()}
 
 
-def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
+def explain_goal(goal_name, all_nodes, edges, hp, priority_goals, *, context_weights=None):
     """Explain-modal breakdown for a Goal node.
 
     ``scoring.explain_score`` walks the prereq DAG *forward*, summing what a
     node unlocks. Goals are sinks, so that answer is empty for them. A Goal
     is ranked by the average worth of the work left beneath it instead, so
-    this breakdown is built from the same pieces ``_rank_goals`` uses (see
+    this breakdown is built from the same pieces ``rank_goals`` uses (see
     _goal_work):
 
       * composition: the worth of that work, split into the tasks' own
@@ -210,7 +209,7 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
         earn for other Goals (its sub-Goals and the Goals above it);
       * contributors: one row per unfinished task, by its worth, with its
         depth on the inverted Hard graph so Focus can draw its route;
-      * headline score, cost and adjustments: straight from ``_rank_goals``,
+      * headline score, cost and adjustments: straight from ``rank_goals``,
         so the modal's number matches the Goals sidebar exactly.
 
     Returns ``(breakdown, normalized)``; ``normalized`` is the Goal's 0-100
@@ -222,7 +221,8 @@ def explain_goal(goal_name, all_nodes, edges, hp, priority_goals):
         return None
 
     goals = [n for n in all_nodes if n.type == 'Goal']
-    ranked = _rank_goals(goals, all_nodes, edges, priority_goals, hp,
+    ranked = rank_goals(goals, all_nodes, edges, priority_goals, hp,
+                         context_weights=context_weights,
                          with_components=True)
     comps = {g.name: c for g, c in ranked}
     me = comps.get(goal_name)

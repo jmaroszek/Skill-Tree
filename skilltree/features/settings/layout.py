@@ -9,15 +9,13 @@ live under `.settings-body` in theme.css.
 
 from dash import dcc, html
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import (
-    SUBCONTEXT_SORT_DEFINITION,
-    SUBCONTEXT_SORT_ALPHABETICAL,
-    CONTEXT_SORT_DEFINITION,
+from skilltree.store.settings import DEFAULT_TITLECASE_LINTER
+from skilltree.domain.contexts import (
+    SUBCONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION,
     CONTEXT_SORT_ALPHABETICAL,
-    DEFAULT_TITLECASE_LINTER,
-    NAME_FORMAT_NONE,
-    NAME_FORMAT_TITLE,
-    NAME_FORMAT_SENTENCE,
+)
+from skilltree.domain.names import (
+    NAME_FORMAT_NONE, NAME_FORMAT_TITLE, NAME_FORMAT_SENTENCE,
 )
 from skilltree.ui import tokens
 from skilltree.store.resources import get_sections

@@ -11,10 +11,14 @@ from dash import html, Input, Output, State, ALL, MATCH, ctx
 import dash_bootstrap_components as dbc
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import (
-    CONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION, ConfigManager,
-    DEFAULT_NODE_COLORS, DEFAULT_TITLECASE_LINTER, NAME_FORMAT_MODES, NAME_FORMAT_NONE,
-    NAME_FORMAT_TITLE, SUBCONTEXT_SORT_ALPHABETICAL, SUBCONTEXT_SORT_DEFINITION,
-    SUPPORTED_NODE_TYPES, sort_subcontexts,
+    ConfigManager, DEFAULT_NODE_COLORS, DEFAULT_TITLECASE_LINTER, SUPPORTED_NODE_TYPES,
+)
+from skilltree.domain.contexts import (
+    CONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL,
+    SUBCONTEXT_SORT_DEFINITION, sort_subcontexts,
+)
+from skilltree.domain.names import (
+    NAME_FORMAT_MODES, NAME_FORMAT_NONE, NAME_FORMAT_TITLE,
 )
 from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE
@@ -1001,11 +1005,12 @@ def register_settings_callbacks(app, services=None):
         return (dash.no_update,) * 8
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
+        mode = ConfigManager.get_subcontext_sort_mode()
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []))
+            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         else:
             subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss]
+                [s for ss in subcontexts_map.values() for s in ss], mode
             )
         opts = [{"label": s, "value": s} for s in subs]
         opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]

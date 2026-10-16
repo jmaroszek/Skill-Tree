@@ -1,7 +1,8 @@
 """Canvas view preparation, independent of mutation routing and callback registration."""
 import dash
 from skilltree.ui import payloads as bridge_payloads
-from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
+from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES
+from skilltree.domain.contexts import sort_contexts
 pass
 from skilltree.engine.response import CoreResponse
 from skilltree.ui.canvas.registry import CANVASES
@@ -126,7 +127,8 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
             search_options.append({'label': f"{alias} \u2192 {node_name}", 'value': f"alias:{alias}"})
 
         # Populate dynamic contexts datalists from DB + Config, sorted per user setting.
-        base_ctx = sort_contexts(ConfigManager.get_contexts())
+        base_ctx = sort_contexts(ConfigManager.get_contexts(),
+                                 ConfigManager.get_context_sort_mode())
 
         ctx_list = [{"label": c, "value": c} for c in base_ctx]
         f_ctx_list = [{"label": c, "value": c} for c in base_ctx]

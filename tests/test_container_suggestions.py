@@ -10,7 +10,7 @@ from typing import Any
 import dash
 from dash.development.base_component import Component
 
-from skilltree.domain.goals import _rank_goals, explain_goal, normalize_goal_scores
+from skilltree.domain.goals import rank_goals, explain_goal, normalize_goal_scores
 from skilltree.features.details.explore import select_explore_goals
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
@@ -101,7 +101,7 @@ def _add_graph(manager, nodes, edges):
 def _ranked(manager):
     nodes = manager.get_all_nodes()
     edges = manager.get_edges()
-    ranked = _rank_goals([n for n in nodes if n.type == "Goal"], nodes, edges,
+    ranked = rank_goals([n for n in nodes if n.type == "Goal"], nodes, edges,
                          ConfigManager.get_priority_goals(),
                          ConfigManager.get_hyperparams(), with_scores=True)
     return ranked, nodes, edges

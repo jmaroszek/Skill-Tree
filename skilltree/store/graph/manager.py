@@ -22,6 +22,7 @@ from skilltree.store.graph.state import GraphCaches, CacheValue, RevisionValue, 
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.settings import ConfigManager
 from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
+from skilltree.domain.names import format_name
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -615,7 +616,7 @@ class GraphManager:
             cursor.execute("DELETE FROM Aliases WHERE node_name=?", (node_name,))
             for alias in aliases:
                 if alias and alias.strip():
-                    clean = ConfigManager.apply_name_formatting(alias.strip())
+                    clean = format_name(alias.strip(), ConfigManager.get_name_formatting())
                     problem = graph_rules.name_problem(clean, "Alias")
                     if problem:
                         raise ValueError(problem)

@@ -23,6 +23,7 @@ from skilltree.ui.sidebars_layout import goal_list_cover
 from skilltree.ui.components.list_toolbar import merge_manual_order
 from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.sidebars import left_sidebar_is_open
+from skilltree.domain.goals import normalize_goal_scores, rank_goals
 
 graph_manager = GraphManager()
 
@@ -66,16 +67,17 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
     score_map = {}
     if sort_mode == "priority":
         # Goals are sinks, so the forward priority_score collapses to
-        # ~nothing. _rank_goals ranks them by the average worth of the work
+        # ~nothing. rank_goals ranks them by the average worth of the work
         # left in their hard subtree, boosted by priority rank and context
         # weight. Every Goal is ranked, not just
         # the ones the search leaves, so the corner numbers keep the same
         # base as the Explain modal and the Details suggestions.
-        from skilltree.domain.goals import _rank_goals, normalize_goal_scores
         edges = graph_manager.get_edges()
-        ranked = _rank_goals([n for n in all_nodes if n.type == "Goal"],
-                             all_nodes, edges, priority_goals,
-                             ConfigManager.get_hyperparams(), with_scores=True)
+        ranked = rank_goals([n for n in all_nodes if n.type == "Goal"],
+                            all_nodes, edges, priority_goals,
+                            ConfigManager.get_hyperparams(),
+                            context_weights=ConfigManager.get_context_weights(),
+                            with_scores=True)
         rank_order = {g.name: index for index, (g, _) in enumerate(ranked)}
         goals.sort(key=lambda g: rank_order[g.name])
         score_map = normalize_goal_scores(ranked, all_nodes, edges)

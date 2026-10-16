@@ -10,7 +10,7 @@ how its work is drawn.
 import pytest
 
 from skilltree.domain.profiles import PROFILES
-from skilltree.domain.goals import _rank_goals, explain_goal
+from skilltree.domain.goals import rank_goals, explain_goal
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 from skilltree.domain.scoring import focus_route_data, intrinsic_value, perceived_cost
 
@@ -42,7 +42,7 @@ def cost(n):
 
 def comps(nodes, edges, priority=()):
     goals = [n for n in nodes if n.type == 'Goal']
-    return {g.name: c for g, c in _rank_goals(goals, nodes, edges, list(priority), HP,
+    return {g.name: c for g, c in rank_goals(goals, nodes, edges, list(priority), HP,
                                               with_components=True)}
 
 

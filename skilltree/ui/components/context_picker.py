@@ -14,7 +14,8 @@ from typing import Any, Iterable
 from dash import Input, Output, ctx, dcc, html, no_update
 import dash_bootstrap_components as dbc
 
-from skilltree.store.settings import ConfigManager, sort_contexts, sort_subcontexts
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.contexts import sort_contexts, sort_subcontexts
 
 
 _PICKERS = (

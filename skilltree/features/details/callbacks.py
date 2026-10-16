@@ -39,6 +39,7 @@ from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.domain.scoring import explain_score, focus_route_data
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
+from skilltree.domain.goals import explain_goal, normalize_goal_scores, rank_goals
 
 graph_manager = GraphManager()
 event_manager = EventManager()
@@ -1001,10 +1002,10 @@ def register_details_callbacks(app, services=None):
         # Explore follows the Goals sidebar's Priority ranking and shows the
         # same 0-100 number, so a Goal reads the same on both surfaces. The
         # number keeps its app-wide base when filters narrow the list.
-        from skilltree.domain.goals import _rank_goals, normalize_goal_scores
-        ranked = _rank_goals(
+        ranked = rank_goals(
             [node for node in all_nodes if node.type == "Goal"], all_nodes,
             edges, priority_goals, ConfigManager.get_hyperparams(),
+            context_weights=ConfigManager.get_context_weights(),
             with_scores=True)
         priorities = normalize_goal_scores(ranked, all_nodes, edges)
         explore = select_explore_goals(
@@ -1373,12 +1374,12 @@ def register_details_callbacks(app, services=None):
             # Goals are sinks in the prereq DAG: explain_score's forward
             # cascade collapses to ~nothing and would mark them ineligible.
             # explain_goal builds the breakdown from the work left beneath
-            # the Goal and pulls the headline score from _rank_goals, so the
+            # the Goal and pulls the headline score from rank_goals, so the
             # modal matches the Goals-sidebar ranking exactly.
-            from skilltree.domain.goals import explain_goal
             result = explain_goal(node_name, all_nodes,
                                   graph_manager.get_edges(),
-                                  hypers, priority_goals)
+                                  hypers, priority_goals,
+                                  context_weights=ConfigManager.get_context_weights())
             breakdown, normalized = result if result else (None, None)
         else:
             # The repetition adjustment is a property of the whole pool, so
@@ -1413,11 +1414,12 @@ def register_details_callbacks(app, services=None):
         tv = breakdown['composition']['total_value'] if breakdown else None
         if tv is not None:
             if is_goal:
-                from skilltree.domain.goals import _rank_goals
                 goals = [n for n in all_nodes if n.type == 'Goal']
-                ranked_goals = _rank_goals(
+                ranked_goals = rank_goals(
                     goals, all_nodes, graph_manager.get_edges(),
-                    priority_goals, hypers, with_components=True,
+                    priority_goals, hypers,
+                    context_weights=ConfigManager.get_context_weights(),
+                    with_components=True,
                 )
                 peers = [c['tv'] / c['n_tasks'] for _, c in ranked_goals if c['n_tasks']]
                 n_tasks = breakdown['cost']['n_tasks']
