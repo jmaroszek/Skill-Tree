@@ -38,7 +38,7 @@ def test_settings_keep_profiles_context_priorities_and_startup_summary():
 
     options = components["setting-hp-profile"].options
     assert [option["value"] for option in options] == [
-        "Sage", "Explorer", "Investor", "Pragmatist", "Creator", "Glider"
+        "Sage", "Pragmatist", "Investor", "Creator", "Explorer", "Glider"
     ]
     # Context priorities are edited on each context's own row.
     assert "setting-context-editor" in components

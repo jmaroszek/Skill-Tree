@@ -45,27 +45,29 @@ _PAGE_DESCRIPTIONS = {
 
 # The profiles, in menu order, with what each does to your recommendations.
 # The description sits under each choice, so picking one needs no reference.
+# Sage, the balanced default, comes first. The rest run from tight focus to
+# loose and light, so the list reads as how much energy you have today.
 _PROFILES = [
     ("Sage",
      "Balances importance, interest, effort, time, and future benefits without "
      "strongly favoring any one of them. Choose this when you want the graph to "
      "speak for itself or do not have a particular working mode in mind."),
-    ("Explorer",
-     "Gives curiosity more influence. Interesting work, connections between "
-     "different areas, and parts of your life that have not surfaced recently "
-     "get a better chance—even when they are outside your current priority goal."),
-    ("Investor",
-     "Looks for foundational work that unlocks later steps. This profile is more "
-     "willing to recommend a substantial investment now when the graph suggests "
-     "it will pay off in the future."),
     ("Pragmatist",
      "Stays closely focused on what you marked as valuable and on your priority "
      "goal. Interesting detours and loosely related opportunities are much less "
      "likely to displace the work you have said matters most."),
+    ("Investor",
+     "Looks for foundational work that unlocks later steps. This profile is more "
+     "willing to recommend a substantial investment now when the graph suggests "
+     "it will pay off in the future."),
     ("Creator",
      "Favors work that connects and combines different areas, especially when "
      "those areas make one another more useful. Choose this when writing, "
      "designing, or building something that draws from several domains."),
+    ("Explorer",
+     "Gives curiosity more influence. Interesting work, connections between "
+     "different areas, and parts of your life that have not surfaced recently "
+     "get a better chance—even when they are outside your current priority goal."),
     ("Glider",
      "Brings shorter, easier work forward and gives non-priority tasks more room "
      "to appear. Choose this for low-energy days, maintenance periods, or when "
