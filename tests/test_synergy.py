@@ -6,7 +6,8 @@ import random
 import pytest
 
 from skilltree.features.details.explain import _contributor_hover
-from skilltree.store.settings import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.profiles import HYPERPARAMS_SCHEMA_VERSION, PROFILES
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import explain_score, focus_route_data, score_nodes

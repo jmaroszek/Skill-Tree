@@ -3,7 +3,8 @@ from types import SimpleNamespace
 import json
 import pytest
 
-from skilltree.store.settings import ConfigManager, PROFILES
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import score_nodes, variety_divisors
 

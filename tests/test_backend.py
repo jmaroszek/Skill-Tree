@@ -11,7 +11,8 @@ from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.graph import queries as graph_queries
 from skilltree.domain.contexts import compute_orphaned_subcontext_pairs
-from skilltree.store.settings import ConfigManager, DEFAULT_NODE_TYPES, DEFAULT_HYPERPARAMS
+from skilltree.store.settings import ConfigManager, DEFAULT_NODE_TYPES
+from skilltree.domain.profiles import DEFAULT_HYPERPARAMS
 from skilltree.domain.scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, explain_score, TIME_REF_HOURS)
 

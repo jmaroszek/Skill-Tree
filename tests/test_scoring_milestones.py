@@ -5,7 +5,7 @@ it sits one step apart, in both node scoring and the Goal ranker.
 """
 import pytest
 
-from skilltree.store.settings import PROFILES
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import explain_score
 

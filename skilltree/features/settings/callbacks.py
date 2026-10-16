@@ -11,19 +11,12 @@ from dash import html, Input, Output, State, ALL, MATCH, ctx
 import dash_bootstrap_components as dbc
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import (
-    CONTEXT_SORT_ALPHABETICAL,
-    CONTEXT_SORT_DEFINITION,
-    ConfigManager,
-    DEFAULT_NODE_COLORS,
-    DEFAULT_TITLECASE_LINTER,
-    NAME_FORMAT_MODES,
-    NAME_FORMAT_NONE,
-    NAME_FORMAT_TITLE,
-    PROFILES,
-    SUBCONTEXT_SORT_ALPHABETICAL,
-    SUBCONTEXT_SORT_DEFINITION,
-    SUPPORTED_NODE_TYPES,
-    sort_subcontexts)
+    CONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION, ConfigManager,
+    DEFAULT_NODE_COLORS, DEFAULT_TITLECASE_LINTER, NAME_FORMAT_MODES, NAME_FORMAT_NONE,
+    NAME_FORMAT_TITLE, SUBCONTEXT_SORT_ALPHABETICAL, SUBCONTEXT_SORT_DEFINITION,
+    SUPPORTED_NODE_TYPES, sort_subcontexts,
+)
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
 from skilltree.runtime.file_picker import spawn_local_file_picker

@@ -9,7 +9,7 @@ The Goal ranker averages the same kind of worth over a Goal's remaining work.
 """
 import pytest
 
-from skilltree.store.settings import PROFILES
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import explain_score, focus_route_data
 

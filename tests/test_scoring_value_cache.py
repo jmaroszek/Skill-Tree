@@ -4,7 +4,7 @@ import math
 import pytest
 
 from skilltree.domain import scoring
-from skilltree.store.settings import PROFILES
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 
 

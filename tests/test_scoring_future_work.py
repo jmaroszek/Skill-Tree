@@ -6,7 +6,8 @@ import random
 import networkx as nx
 import pytest
 
-from skilltree.store.settings import ConfigManager, DEFAULT_HYPERPARAMS, PROFILES
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.profiles import DEFAULT_HYPERPARAMS, PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import explain_score, score_nodes
 

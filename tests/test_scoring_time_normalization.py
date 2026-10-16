@@ -13,11 +13,9 @@ import json
 
 import pytest
 
-from skilltree.store.settings import (
-    ConfigManager,
-    DEFAULT_HYPERPARAMS,
-    HYPERPARAMS_SCHEMA_VERSION,
-    PROFILES,
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.profiles import (
+    DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES,
 )
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import (

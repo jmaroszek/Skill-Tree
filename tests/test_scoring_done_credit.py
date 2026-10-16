@@ -9,7 +9,8 @@ import math
 
 import pytest
 
-from skilltree.store.settings import ConfigManager, PROFILES
+from skilltree.store.settings import ConfigManager
+from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import build_adjacency, explain_score, focus_route_data, score_nodes, total_value
 
