@@ -18,7 +18,7 @@ from skilltree.features.goals import callbacks as sidebars_callbacks
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
-from skilltree.ui.sidebars_layout import build_goals_sidebar
+from skilltree.features.goals.layout import build_goals_sidebar
 
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "goals_sidebar.js"

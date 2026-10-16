@@ -436,7 +436,7 @@ def editor_form_values(
 
     All args are keyword-only so a forgotten field is a loud TypeError at the
     call site rather than a silent omission. The habit_* defaults mirror the
-    editor's component defaults (see sidebars_layout.py) so they stay aligned
+    editor's component defaults (see editor/layout.py) so they stay aligned
     with NEW_NODE_SNAPSHOT for any caller that legitimately has no habit state.
     """
     return {

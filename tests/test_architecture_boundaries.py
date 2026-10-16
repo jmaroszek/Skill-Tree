@@ -90,7 +90,6 @@ KNOWN_VIOLATIONS = {
     'layer: skilltree.store.commands -> skilltree.ui.payloads',
     'layer: skilltree.store.graph.queries -> skilltree.features.analyze.data',
     'layer: skilltree.ui.canvas.view -> skilltree.engine.response',
-    'layer: skilltree.ui.sidebars_layout -> skilltree.features.events.layout',
     'private: skilltree.app -> skilltree.store.database._db_path_cache',
     'private: skilltree.domain.goals -> skilltree.domain.scoring._done_names',
     'private: skilltree.domain.goals -> skilltree.domain.scoring._goals_above',

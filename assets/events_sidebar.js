@@ -20,7 +20,7 @@
  * so the main thread is free to glide the Events tab content alongside it.
  */
 // NOTE: 350px must match styles.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
-// transition in sidebars_layout.py.
+// transition in skilltree/features/events/layout.py.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.events = window.dash_clientside.events || {};
 

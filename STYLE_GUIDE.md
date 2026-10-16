@@ -338,7 +338,8 @@ targeting it, in a `display: contents` wrapper so it lays out as its two parts. 
 `.hover-hint` class, which shows the help cursor (a pointer with a question
 mark), so it reads as explainable before it is hovered. Give each label a unique
 id. The node editor's hover copy lives in `_EDITOR_HINTS` in
-`skilltree/ui/sidebars_layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
+`skilltree/features/editor/layout.py`, the Filters sidebar's in `_FILTER_HINTS` in
+`skilltree/features/filters/layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
 tooltip enumerates is a bullet list (`ui_kit.bullet_hint(intro, *items)`), not
 a run-on sentence. Any label, heading or table cell whose tooltip only explains takes the
 `hover-hint` class too. Explain a group of switches on their section heading, not

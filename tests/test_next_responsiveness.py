@@ -30,7 +30,7 @@ def test_selection_has_no_server_subscribers():
 
 def test_initial_next_is_populated_and_reads_the_sidebar_controls():
     from skilltree.features.home.layout import build_next_view
-    from skilltree.ui.sidebars_layout import build_all_sidebars
+    from skilltree.shell import build_all_sidebars
     # Built once and reused: the assertion below checks that hydration does not
     # mutate the template it was handed, so both uses must be the same object.
     next_view = build_next_view()

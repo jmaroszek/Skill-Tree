@@ -21,7 +21,7 @@ from skilltree.features.details.layout import build_details_tab_content
 from skilltree.features.settings.layout import build_settings_modal
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.analyze.layout import build_analyze_tab_content
-from skilltree.ui.sidebars_layout import build_all_sidebars
+pass
 from skilltree.features.links.layout import build_bridge_modal
 from skilltree.ui.components.context_picker import build_context_picker_support
 from skilltree.ui.components.list_toolbar import SORT_MENUS, sort_menu_items
@@ -51,6 +51,10 @@ from skilltree.features.review.layout import (
     build_reflection_ratings_popup, build_time_calibration_modal,
 )
 from skilltree.ui.canvas.tooltip import build_hover_tooltip
+from skilltree.features.editor.layout import build_node_editor_sidebar
+from skilltree.features.events.layout import build_events_sidebar
+from skilltree.features.filters.layout import build_filters_sidebar
+from skilltree.features.goals.layout import build_goals_sidebar
 
 
 # --- Graph View (Canvas only) ---
@@ -603,3 +607,19 @@ def build_app_layout(initial_elements, env="production"):
         ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})
+
+
+def build_all_sidebars():
+    """The four sidebars that float above every tab, in order: the node
+    editor, Goals and Events on the left, Filters on the right.
+
+    The three left sidebars share one slot: opening one closes the others
+    (engine/sidebars.py decides). Filters is independent. A tab's own filter
+    panel, such as the Details graph's, lives with that tab.
+    """
+    return [
+        build_node_editor_sidebar(),
+        build_goals_sidebar(),
+        build_events_sidebar(),
+        build_filters_sidebar(),
+    ]

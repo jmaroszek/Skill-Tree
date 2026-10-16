@@ -60,7 +60,8 @@ def _text(component):
 
 
 def _editor_surfaces():
-    from skilltree.ui.sidebars_layout import node_editor_content
+    from skilltree.features.editor.layout import build_node_editor_content
+    node_editor_content = build_node_editor_content()
 
     return (
         (node_editor_content, "node-name", "btn-alias-add", "aliases-label"),

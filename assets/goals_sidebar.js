@@ -17,7 +17,7 @@
  * anything the key misses is corrected then.
  */
 // NOTE: 350px must match styles.SIDEBAR_WIDTH, and SLIDE_MS the 0.3s
-// transition in sidebars_layout.py.
+// transition in skilltree/features/goals/layout.py.
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.goals = window.dash_clientside.goals || {};
 

@@ -11,6 +11,8 @@ from typing import List, Any
 from datetime import date, timedelta
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style
+from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
+from skilltree.ui.styles import SIDEBAR_WIDTH_PX
 pass
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import events_graph_stylesheet
@@ -857,32 +859,6 @@ def build_dormant_nodes_table(event_nodes, event=None):
 # it edits the wake date the node was given, because the delay has nothing
 # left to measure from.
 
-def delay_fields(wrapper_id, value_id, unit_id, value, unit, visible):
-    """The "[n] [unit] after it fires" row behind a Delay switch.
-
-    The wrapper carries the shown/hidden style and the inner row the flex:
-    Bootstrap's .d-flex is `!important` and would beat `display: none`.
-    """
-    return html.Div(id=wrapper_id, style={} if visible else {"display": "none"},
-                    className="w-100 mb-1", children=html.Div([
-        dbc.Input(id=value_id, type="number", min=0, value=value, size="sm",
-                  style={"width": "80px"}),
-        unit_select(unit_id, units=DURATION_UNITS, value=unit,
-                    compact=True, className="ms-2"),
-        html.Small("after it fires", className="text-muted ms-2"),
-    ], className="d-flex align-items-center"))
-
-
-def wake_switches(delay_switch, fields, now_switch):
-    """Delay and Add to Now side by side, the way the Status toggles sit.
-
-    The delay fields span the full width, so turning Delay on wraps them onto
-    their own line and pushes Add to Now below them.
-    """
-    return html.Div([delay_switch, fields, now_switch],
-                    className="d-flex flex-wrap align-items-center",
-                    style={"columnGap": "1rem", "rowGap": "0.25rem"})
-
 
 # --- Add to Event modal ---
 # Puts existing nodes to sleep under an event, several at once. Opened by the
@@ -925,3 +901,33 @@ def build_add_to_event_modal():
             dbc.Button("Add to Event", id="btn-add-to-event-save", color="primary"),
         ]),
     ], id="modal-add-to-event", size="md", is_open=False, centered=True)
+
+
+# --- Events sidebar (left) ---
+def build_events_sidebar():
+    """Container Div for the events overlay (left, closed initially).
+
+    Body content comes from events_layout.build_events_sidebar_content so the
+    Events tab module owns its own internal markup.
+    """
+    return html.Div(
+        id="events-sidebar-container",
+        children=[build_events_sidebar_content()],
+        style={
+            "position": "absolute",
+            "top": "0",
+            "left": "0",
+            "width": SIDEBAR_WIDTH_PX,
+            "height": "100%",
+            "zIndex": 100,
+            "overflowX": "hidden",
+            "overflowY": "auto",
+            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
+            "transition": "transform 0.3s ease",
+            "transform": SIDEBAR_TRANSLATE_CLOSED,
+            "willChange": "transform",
+            "backgroundColor": tokens.BG_PANEL,
+            "display": "flex",
+            "flexDirection": "column",
+        }
+    )

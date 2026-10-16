@@ -10,6 +10,15 @@ from skilltree.ui.styles import badge_style
 from typing import Any
 from typing import List
 from typing import Optional
+from skilltree.ui.components.list_toolbar import GOALS_SORT
+from skilltree.ui.components.list_toolbar import SEARCH_STYLE
+from skilltree.ui.components.list_toolbar import build_list_toolbar
+from skilltree.ui.kit import add_button
+from skilltree.ui.kit import panel_close_button
+from skilltree.ui.styles import LOADING_SPINNER_STYLE
+from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
+from skilltree.ui.styles import SIDEBAR_WIDTH_PX
+import dash_bootstrap_components as dbc
 
 
 def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
@@ -99,3 +108,68 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
            "transition": "border-color 0.2s, background-color 0.2s",
            "padding": "10px 14px",
        })
+
+
+# --- Goals sidebar (left) ---
+def goal_list_cover():
+    """What the Goals list shows while the sidebar is closed or still building.
+
+    The cards are only mounted while the sidebar is open. Dash re-checks every
+    mounted component on each store update, so a list of hidden cards slowed
+    every interaction elsewhere, the Details graph's opening animation most
+    of all.
+    """
+    return html.Div([
+        dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE),
+        html.Div("Preparing your goals…", className="canvas-cover-label"),
+    ], className="loading-cover", role="status",
+        **{"aria-live": "polite"})  # type: ignore[reportArgumentType]
+
+
+def build_goals_sidebar():
+    """Container Div for the goals overlay (left, closed initially)."""
+    return html.Div(
+        id="details-goal-sidebar",
+        children=[
+            html.Div([
+                html.Div([
+                    html.H4("Goals", className="mb-0"),
+                    add_button("btn-goals-sidebar-new", "New goal", large=True),
+                ], className="d-flex align-items-center"),
+                panel_close_button("btn-details-goals-close", "Close goals sidebar",
+                                   large=True),
+            ], className="d-flex justify-content-between align-items-center mb-2 mt-2 px-3"),
+
+            build_list_toolbar(
+                dbc.Input(id="details-goal-search", type="text",
+                          placeholder="Search goals...", size="sm",
+                          debounce=False, style=SEARCH_STYLE),
+                GOALS_SORT,
+            ),
+
+            # The list is built once the open slide finishes and cleared once
+            # the close slide does. The first open slides in over this cover;
+            # later ones use the remembered list while it is current.
+            html.Div(
+                goal_list_cover(),
+                id="details-goal-list-container",
+                style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
+        ],
+        style={
+            "position": "absolute",
+            "top": "0",
+            "left": "0",
+            "width": SIDEBAR_WIDTH_PX,
+            "height": "100%",
+            "zIndex": 100,
+            "overflowX": "hidden",
+            "overflowY": "auto",
+            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
+            "transition": "transform 0.3s ease",
+            "transform": SIDEBAR_TRANSLATE_CLOSED,
+            "willChange": "transform",
+            "backgroundColor": tokens.BG_PANEL,
+            "display": "flex",
+            "flexDirection": "column",
+        }
+    )

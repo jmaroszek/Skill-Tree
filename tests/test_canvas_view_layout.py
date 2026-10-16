@@ -6,7 +6,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.features.details.layout import build_details_tab_content
 from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.shell import build_app_layout
-from skilltree.ui.sidebars_layout import build_filters_content
+from skilltree.features.filters.layout import build_filters_content
 
 
 def _walk(component):
@@ -95,7 +95,7 @@ def test_search_leads_the_filters_sidebar_and_applies_on_enter():
 
 
 def test_the_editor_separates_search_from_general_like_every_other_section():
-    from skilltree.ui.sidebars_layout import build_node_editor_content
+    from skilltree.features.editor.layout import build_node_editor_content
 
     items = list(_walk(build_node_editor_content()))
     kinds = [type(item).__name__ for item in items]

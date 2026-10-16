@@ -17,7 +17,7 @@ import pytest
 from skilltree.features.events.layout import build_dormant_nodes_table
 from skilltree.domain.models import Node
 from skilltree.features.goals.callbacks import register_sidebars_callbacks
-from skilltree.ui.sidebars_layout import build_node_editor_content
+from skilltree.features.editor.layout import build_node_editor_content
 from skilltree.ui.kit import Tooltip, add_button, edit_button, info_button
 
 ROOT = Path(__file__).resolve().parents[1]
