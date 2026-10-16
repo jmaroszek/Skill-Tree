@@ -11,6 +11,7 @@ from skilltree.store import database
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.store import schema
 
 
 def _node(name):
@@ -43,8 +44,7 @@ def db_in(monkeypatch, tmp_path):
         folder.mkdir()
         path = str(folder / "skilltree.db")
         monkeypatch.setattr(database, "get_db_path", lambda: path)
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
         return path
     return move
 
@@ -136,55 +136,53 @@ def _set_user_version(version):
 
 class TestSafeStartup:
     def test_a_newer_database_is_refused_and_left_alone(self):
-        _set_user_version(database.SCHEMA_VERSION + 1)
-        database._initialized = False
+        _set_user_version(schema.SCHEMA_VERSION + 1)
 
         with pytest.raises(database.NewerDatabaseError, match="newer version"):
-            database.init_db()
+            schema.init_db(recheck=True)
 
         # It used to be stamped back down to this build's version.
-        assert _user_version(database.get_db_path()) == database.SCHEMA_VERSION + 1
+        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION + 1
 
     def test_a_damaged_file_is_refused_and_left_alone(self):
         path = Path(database.get_db_path())
         path.write_bytes(b"not a database" * 100)
-        database._initialized = False
 
         with pytest.raises(database.DatabaseCorruptError, match="damaged"):
-            database.init_db()
+            schema.init_db(recheck=True)
         assert path.read_bytes() == b"not a database" * 100
 
     def test_an_upgrade_is_backed_up_first(self):
         GraphManager().add_node(_node("Sleep"))
-        _set_user_version(database.SCHEMA_VERSION - 1)
-        database._initialized = False
+        _set_user_version(schema.SCHEMA_VERSION - 1)
 
-        database.init_db()
+        schema.init_db(recheck=True)
 
         (snapshot,) = backup.list_backups("pre-migration")
-        assert _user_version(snapshot["path"]) == database.SCHEMA_VERSION - 1
+        assert _user_version(snapshot["path"]) == schema.SCHEMA_VERSION - 1
         assert _names_in(snapshot["path"]) == ["Sleep"]
-        assert _user_version(database.get_db_path()) == database.SCHEMA_VERSION
+        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION
 
     def test_a_failed_upgrade_changes_nothing(self, monkeypatch):
         GraphManager().add_node(_node("Sleep"))
-        _set_user_version(database.SCHEMA_VERSION - 1)
-        database._initialized = False
+        _set_user_version(schema.SCHEMA_VERSION - 1)
 
         def failing_step(cursor, from_version):
             cursor.execute("DELETE FROM Nodes")
             raise RuntimeError("step failed")
-        monkeypatch.setattr(database, "_migrate", failing_step)
+        monkeypatch.setattr(schema, "_migrate", failing_step)
 
         with pytest.raises(RuntimeError, match="step failed"):
-            database.init_db()
+            schema.init_db(recheck=True)
 
         assert _names_in(database.get_db_path()) == ["Sleep"]
-        assert _user_version(database.get_db_path()) == database.SCHEMA_VERSION - 1
-        assert database._initialized is False
+        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION - 1
+        # A failed upgrade isn't recorded, so the next open tries again.
+        monkeypatch.setattr(schema, "_migrate", lambda cursor, from_version: None)
+        schema.init_db()
+        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION
 
     def test_an_old_sqlite_is_refused_with_a_reason(self, monkeypatch):
         monkeypatch.setattr(sqlite3, "sqlite_version_info", (3, 31, 1))
-        database._initialized = False
         with pytest.raises(database.SQLiteTooOldError, match="3.35.0"):
-            database.init_db()
+            schema.init_db(recheck=True)

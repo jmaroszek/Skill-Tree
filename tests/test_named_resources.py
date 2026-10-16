@@ -12,6 +12,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from dash.development.base_component import Component
 from skilltree.runtime import paths
+from skilltree.store import schema
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -295,7 +296,6 @@ def test_a_new_database_starts_with_one_neutral_links_section(tmp_path, monkeypa
     from skilltree.store import database
     path = str(tmp_path / "brand_new.db")
     monkeypatch.setattr(database, "get_db_path", lambda: path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     assert [(s["id"], s["name"]) for s in resources.get_sections()] == [
         ("links", "Links")]

@@ -67,8 +67,6 @@ KNOWN_VIOLATIONS = {
     'deferred: skilltree.shell -> skilltree.features.home.view',
     'deferred: skilltree.store.backup -> skilltree.store.settings',
     'deferred: skilltree.store.commands -> skilltree.domain.models',
-    'deferred: skilltree.store.database -> skilltree.store.backup',
-    'deferred: skilltree.store.database -> skilltree.store.resources',
     'deferred: skilltree.store.events -> skilltree.domain.rules',
     'deferred: skilltree.store.events -> skilltree.store.graph.manager',
     'deferred: skilltree.store.events -> skilltree.store.settings',
@@ -90,7 +88,6 @@ KNOWN_VIOLATIONS = {
     'layer: skilltree.store.commands -> skilltree.ui.payloads',
     'layer: skilltree.store.graph.queries -> skilltree.features.analyze.data',
     'layer: skilltree.ui.canvas.view -> skilltree.engine.response',
-    'private: skilltree.app -> skilltree.store.database._db_path_cache',
     'private: skilltree.domain.goals -> skilltree.domain.scoring._done_names',
     'private: skilltree.domain.goals -> skilltree.domain.scoring._goals_above',
     'private: skilltree.domain.goals -> skilltree.domain.scoring._milestone_names',
@@ -123,9 +120,6 @@ KNOWN_VIOLATIONS = {
     'private: skilltree.store.graph.manager -> skilltree.domain.rules._is_prereq_satisfied',
     'private: skilltree.store.graph.manager -> skilltree.store.graph.queries._build_nx_graph',
     'private: skilltree.store.transfer -> skilltree.domain.rules._canonicalize_edge',
-    'private: skilltree.store.transfer -> skilltree.store.backup._read_only_uri',
-    'private: skilltree.store.transfer -> skilltree.store.database._initialized',
-    'private: skilltree.store.transfer -> skilltree.store.database._refusal_for',
 }
 
 

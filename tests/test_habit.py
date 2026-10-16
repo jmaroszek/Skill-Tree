@@ -17,6 +17,7 @@ from skilltree.domain.time import (
 from skilltree.store.commands import handle_save
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.store import schema
 
 
 # ============================================================================
@@ -417,10 +418,7 @@ class TestHandleSaveWithHabit:
 
 class TestMigrationIdempotency:
     def test_double_init_db_does_not_raise(self):
-        from skilltree.store import database
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
         # Reset the flag so the second call actually runs the DDL/migrations
         # (init_db short-circuits when _initialized is True).
-        database._initialized = False
-        database.init_db()  # should not raise even though columns exist
+        schema.init_db(recheck=True)  # should not raise even though columns exist

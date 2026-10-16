@@ -16,6 +16,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
+from skilltree.store import schema
 
 
 def _node(name):
@@ -112,8 +113,7 @@ def test_import_fills_an_empty_graph_then_reloads(data, monkeypatch, tmp_path):
     bundle = data_transfer.export_data()
     fresh = str(tmp_path / "fresh.db")
     monkeypatch.setattr(database, "get_db_path", lambda: fresh)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
 
     status, reload_trigger = data["import_export"](_upload(bundle), "mine.json")
 

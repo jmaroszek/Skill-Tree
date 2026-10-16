@@ -79,7 +79,7 @@ def _digest(path) -> str:
     return h.hexdigest()
 
 
-def _read_only_uri(path) -> str:
+def read_only_uri(path) -> str:
     # as_uri() percent-encodes the path, so a folder named with "?", "#" or
     # "%" can't be misread as part of the URI.
     return f"{Path(path).resolve().as_uri()}?mode=ro"
@@ -89,7 +89,7 @@ def opens_cleanly(path) -> bool:
     """Whether SQLite reads ``path`` as a database that passes quick_check.
     Read-only, so checking a backup never changes it."""
     try:
-        conn = sqlite3.connect(_read_only_uri(path), uri=True,
+        conn = sqlite3.connect(read_only_uri(path), uri=True,
                                timeout=database.BUSY_TIMEOUT_S)
     except sqlite3.Error:
         return False
@@ -147,7 +147,7 @@ def copy_database(destination) -> None:
     # Under the coordination lock the copy can't interleave with this
     # process's own writes. SQLite's own locking covers everyone else.
     with database.state_lock:
-        conn = sqlite3.connect(_read_only_uri(database.get_db_path()), uri=True,
+        conn = sqlite3.connect(read_only_uri(database.get_db_path()), uri=True,
                                timeout=database.BUSY_TIMEOUT_S)
         try:
             conn.execute("VACUUM INTO ?", (str(destination),))

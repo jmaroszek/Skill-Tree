@@ -16,6 +16,7 @@ import pytest
 from skilltree.store import backup
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
+from skilltree.store import schema
 
 FIXTURES = sorted(Path(__file__).parent.glob("fixtures/schema_v*.db"),
                   key=lambda p: int(p.stem.split("_v")[1]))
@@ -49,8 +50,7 @@ def _upgrade(source, tmp_path, monkeypatch):
     shutil.copy(source, copy)
     before = _snapshot(copy)
     monkeypatch.setattr(database, "get_db_path", lambda: str(copy))
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     return before, copy
 
 
@@ -74,7 +74,7 @@ def upgraded_with_sections(request, tmp_path, monkeypatch):
 
 def test_there_is_a_fixture_for_every_older_version():
     versions = [int(p.stem.split("_v")[1]) for p in FIXTURES]
-    assert versions == list(range(4, database.SCHEMA_VERSION))
+    assert versions == list(range(4, schema.SCHEMA_VERSION))
 
 
 def test_the_graph_comes_through_intact(upgraded):
@@ -86,7 +86,7 @@ def test_the_graph_comes_through_intact(upgraded):
 
 def test_it_is_stamped_current_and_passes_the_integrity_check(upgraded):
     _before, path = upgraded
-    assert _rows(path, "PRAGMA user_version") == {(database.SCHEMA_VERSION,)}
+    assert _rows(path, "PRAGMA user_version") == {(schema.SCHEMA_VERSION,)}
     database.check_integrity(str(path))
 
 
@@ -95,7 +95,7 @@ def test_the_original_is_backed_up_first(upgraded):
     (kept,) = backup.list_backups("pre-migration")
     conn = sqlite3.connect(kept["path"])
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] < database.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] < schema.SCHEMA_VERSION
     finally:
         conn.close()
 
@@ -158,7 +158,6 @@ def test_opening_it_again_changes_nothing(upgraded):
     _before, path = upgraded
     first = _snapshot(path)
     backups = len(backup.list_backups())
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     assert _snapshot(path) == first
     assert len(backup.list_backups()) == backups

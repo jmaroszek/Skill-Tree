@@ -14,6 +14,7 @@ from skilltree.runtime.paths import get_log_dir, resource_path
 from skilltree.store import database
 from skilltree.runtime.version import __version__
 from skilltree.runtime import paths
+from skilltree.store import schema
 
 _logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def create_app(settings=None, services=None):
     settings = settings or AppSettings()
     if settings.environment not in {"production", "sandbox"}:
         raise ValueError("Unknown application environment")
-    if database._db_path_cache is not None and paths.ENVIRONMENT != settings.environment:
+    if database.resolved_db_path() is not None and paths.ENVIRONMENT != settings.environment:
         raise RuntimeError("A process cannot switch databases after startup")
     paths.ENVIRONMENT = settings.environment
     if settings.configure_logging:
@@ -127,7 +128,7 @@ def create_app(settings=None, services=None):
 
     from skilltree.store.settings import ConfigManager
     from skilltree.services import AppServices
-    database.init_db()
+    schema.init_db()
     services = services or AppServices()
     ConfigManager.ensure_action_type()
     ConfigManager.ensure_goal_type()

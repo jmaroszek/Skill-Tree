@@ -14,6 +14,7 @@ from pathlib import Path
 
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
+from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -22,9 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 _KILLED_MID_SAVE = textwrap.dedent("""
     import os, sys
     sys.path.insert(0, {root!r})
-    from skilltree.store import database
+    from skilltree.store import database, schema
     database.get_db_path = lambda: {path!r}
-    database.init_db()
+    schema.init_db()
     from skilltree.store.graph.manager import GraphManager
     from skilltree.domain.models import Node, EDGE_NEEDS_HARD
     def node(name):
@@ -49,8 +50,7 @@ def test_a_server_killed_mid_save_keeps_the_last_committed_graph(tmp_path, monke
     assert child.returncode == 137, child.stderr
 
     monkeypatch.setattr(database, "get_db_path", lambda: path)
-    database._initialized = False
-    database.init_db()                      # rolls back the hot journal
+    schema.init_db(recheck=True)                      # rolls back the hot journal
     database.check_integrity(path)
 
     manager = GraphManager()
@@ -65,8 +65,7 @@ def test_no_journal_is_left_once_it_has_been_recovered(tmp_path, monkeypatch):
                     _KILLED_MID_SAVE.format(root=str(ROOT), path=str(path))],
                    capture_output=True, timeout=120)
     monkeypatch.setattr(database, "get_db_path", lambda: str(path))
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     GraphManager().get_all_nodes()
     assert not Path(str(path) + "-journal").exists()
     conn = sqlite3.connect(path)

@@ -12,6 +12,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.settings.callbacks import register_settings_callbacks
 import pytest
+from skilltree.store import schema
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -49,8 +50,7 @@ def _reopen_at(version):
     with database.get_connection() as conn:
         conn.execute(f"PRAGMA user_version = {version}")
         conn.commit()
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
 
 
 def test_a_fresh_database_starts_with_three_plain_sections():

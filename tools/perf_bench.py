@@ -27,6 +27,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLS = Path(__file__).resolve().parent
@@ -67,8 +68,7 @@ def server_timings(db_path, repeats=5):
     """Time the server's share of each interaction, in this process."""
     from skilltree.store import database
     database.get_db_path = lambda: str(db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
 
     from skilltree.store import backup
     from skilltree.engine import callbacks

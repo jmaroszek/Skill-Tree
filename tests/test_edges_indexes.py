@@ -8,6 +8,7 @@ storage without improving query plans.
 """
 
 from skilltree.store import database
+from skilltree.store import schema
 
 
 def test_idx_edges_target_type_present():
@@ -47,10 +48,8 @@ def test_edges_target_type_query_uses_new_index():
 
 def test_init_db_is_idempotent_with_indexes():
     """CREATE INDEX IF NOT EXISTS must allow safe repeat invocations."""
-    database._initialized = False
-    database.init_db()
-    database._initialized = False
-    database.init_db()  # second call: index already exists; should silently pass
+    schema.init_db(recheck=True)
+    schema.init_db(recheck=True)  # second call: index already exists; should silently pass
     with database.get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(

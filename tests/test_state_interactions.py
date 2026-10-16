@@ -15,6 +15,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event
 from test_atomic_saves import graph, node, save
 from support.triggers import fire
+from skilltree.store import schema
 
 
 @pytest.fixture(autouse=True)
@@ -400,8 +401,7 @@ def test_existing_missing_done_dates_stay_unknown():
     manager = graph('A')
     with database.get_connection() as conn:
         conn.execute("UPDATE Nodes SET status='Done', done_date=NULL WHERE name='A'")
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     item = manager.get_node('A')
     assert item.done_date is None
     item.description = 'edited'

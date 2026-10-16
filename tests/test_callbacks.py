@@ -17,6 +17,7 @@ from skilltree.store.commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
 from skilltree.store.settings import ConfigManager, DEFAULT_NODE_COLORS
+from skilltree.store import schema
 
 
 @pytest.fixture(autouse=True)
@@ -24,8 +25,7 @@ def temp_database(monkeypatch, tmp_path):
     """Creates a temporary database for each test, ensuring full isolation."""
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 

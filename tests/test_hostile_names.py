@@ -21,6 +21,7 @@ from skilltree.ui.canvas.elements import CanvasNodeStyles, build_node_element
 from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
+from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -93,8 +94,7 @@ def test_export_and_import_keep_every_name(manager, tmp_path, monkeypatch):
 
     fresh = str(tmp_path / "fresh.db")
     monkeypatch.setattr(database, "get_db_path", lambda: fresh)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     data_transfer.import_data(bundle)
 
     assert {n.name for n in GraphManager().get_all_nodes()} == set(HOSTILE)

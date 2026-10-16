@@ -36,6 +36,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE,
                     Event, Node)
 from skilltree.store import commands as node_commands
+from skilltree.store import schema
 
 # Half the draws come from a few plain names, so operations keep meeting the
 # same nodes; the rest are hostile ("sleep" collides with "Sleep" by case).
@@ -63,8 +64,7 @@ class GraphMachine(RuleBasedStateMachine):
         self._dir = tempfile.mkdtemp(prefix="stateful-")
         path = str(Path(self._dir) / "graph.db")
         database.get_db_path = lambda: path
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
         self.manager = GraphManager()
         self.events = EventManager()
 

@@ -21,8 +21,7 @@ from skilltree.ui import payloads as bridge_payloads
 def temp_database(monkeypatch, tmp_path):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 
@@ -348,6 +347,7 @@ class TestDependencyViewTraversal:
 
 from skilltree.features.details.callbacks import _build_milestones_section
 from skilltree.features.details.layout import build_milestone_tile
+from skilltree.store import schema
 
 
 class TestBuildMilestonesSection:

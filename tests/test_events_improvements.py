@@ -15,14 +15,14 @@ from skilltree.domain.models import Node, Event
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
+from skilltree.store import schema
 
 
 @pytest.fixture(autouse=True)
 def temp_database(monkeypatch, tmp_path):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 

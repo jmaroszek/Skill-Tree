@@ -14,6 +14,7 @@ from skilltree.store import transfer as data_transfer
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.store import schema
 
 
 def _node(name):
@@ -49,9 +50,8 @@ def _read_only(monkeypatch):
 
 
 def test_a_busy_database_is_in_use_not_damaged(fast_busy_timeout, held_by_another_program):
-    database._initialized = False
     with pytest.raises(database.DatabaseError) as refused:
-        database.init_db()
+        schema.init_db(recheck=True)
 
     assert type(refused.value) is database.DatabaseLockedError
     assert refused.value.exit_code == 6
@@ -61,15 +61,14 @@ def test_a_busy_database_is_in_use_not_damaged(fast_busy_timeout, held_by_anothe
 
 def test_a_database_that_cant_be_written_is_named_as_such(monkeypatch):
     GraphManager().add_node(_node("Sleep"))
-    database._initialized = False
     _read_only(monkeypatch)
     # Force the upgrade path, which has to write.
-    monkeypatch.setattr(database, "SCHEMA_VERSION", database.SCHEMA_VERSION + 1)
-    monkeypatch.setattr(database, "_migrate", lambda cursor, version: None)
+    monkeypatch.setattr(schema, "SCHEMA_VERSION", schema.SCHEMA_VERSION + 1)
+    monkeypatch.setattr(schema, "_migrate", lambda cursor, version: None)
     monkeypatch.setattr("skilltree.store.backup.create_backup", lambda kind: None)
 
     with pytest.raises(database.DatabaseError) as refused:
-        database.init_db()
+        schema.init_db(recheck=True)
 
     assert type(refused.value) is database.DatabaseUnwritableError
     assert refused.value.exit_code == 7
@@ -80,10 +79,9 @@ def test_a_file_that_isnt_a_database_is_still_damaged(tmp_path, monkeypatch):
     garbage = tmp_path / "garbage.db"
     garbage.write_bytes(b"garbage" * 500)
     monkeypatch.setattr(database, "get_db_path", lambda: str(garbage))
-    database._initialized = False
 
     with pytest.raises(database.DatabaseCorruptError):
-        database.init_db()
+        schema.init_db(recheck=True)
 
 
 def test_the_integrity_check_of_a_busy_file_is_in_use_not_damaged(
@@ -154,12 +152,12 @@ def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
     from skilltree.store import backup
     GraphManager().add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
-    real_init = database.init_db
+    real_init = schema.init_db
 
-    def refuse_once():
-        monkeypatch.setattr(database, "init_db", real_init)
+    def refuse_once(**kwargs):
+        monkeypatch.setattr(schema, "init_db", real_init)
         raise database.DatabaseLockedError("in use")
-    monkeypatch.setattr(database, "init_db", refuse_once)
+    monkeypatch.setattr(schema, "init_db", refuse_once)
 
     with pytest.raises(data_transfer.TransferRefused, match="Restart Skill Tree"):
         data_transfer.restore_backup(saved)

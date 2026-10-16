@@ -16,6 +16,7 @@ from skilltree.domain.profiles import DEFAULT_HYPERPARAMS
 from skilltree.domain.scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, explain_score, TIME_REF_HOURS)
 from skilltree.ui.components.duration import format_time_friendly, time_unit
+from skilltree.store import schema
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -28,8 +29,7 @@ def temp_database(monkeypatch, tmp_path):
     """Creates a temporary database for each test, ensuring full isolation."""
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 
@@ -441,9 +441,8 @@ class TestLifecycleEvents:
             conn.execute("PRAGMA user_version = 6")
             conn.commit()
 
-        monkeypatch.setattr(database, "_utc_now_ts", lambda: 123456)
-        database._initialized = False
-        database.init_db()
+        monkeypatch.setattr(schema, "_utc_now_ts", lambda: 123456)
+        schema.init_db(recheck=True)
 
         with database.get_connection() as conn:
             marker = conn.execute(
@@ -452,7 +451,7 @@ class TestLifecycleEvents:
             ).fetchone()[0]
             version = conn.execute("PRAGMA user_version").fetchone()[0]
         assert marker == "123456"
-        assert version == database.SCHEMA_VERSION
+        assert version == schema.SCHEMA_VERSION
         assert mgr.get_node_lifecycle_events("Already Active") == [{
             "id": 1,
             "node_name": "Already Active",

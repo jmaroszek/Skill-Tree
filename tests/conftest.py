@@ -7,6 +7,7 @@ from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
 from skilltree.store import database
+from skilltree.store import schema
 
 
 @pytest.fixture(autouse=True)
@@ -26,9 +27,7 @@ def new_database(tmp_path_factory):
     path = str(tmp_path_factory.mktemp("new_database") / "skilltree.db")
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(database, "get_db_path", lambda: path)
-        database._initialized = False
-        database.init_db()
-    database._initialized = False
+        schema.init_db(recheck=True)
     return path
 
 
@@ -38,7 +37,7 @@ def temp_database(monkeypatch, tmp_path, new_database):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     shutil.copyfile(new_database, tmp_db_path)
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = True
+    schema.mark_current(tmp_db_path)
     yield tmp_db_path
 
 
@@ -53,5 +52,5 @@ def legacy_resource_sections(temp_database):
             "INSERT INTO ResourceSections (id, name, kind, root_path, position) "
             "VALUES (?, ?, ?, '', ?)",
             [(section_id, name, kind, position) for position, (section_id, name, kind, *_)
-             in enumerate(database._LEGACY_RESOURCE_SECTIONS)])
+             in enumerate(schema.LEGACY_RESOURCE_SECTIONS)])
     return temp_database

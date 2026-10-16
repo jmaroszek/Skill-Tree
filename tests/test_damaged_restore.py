@@ -17,7 +17,7 @@ import pytest
 
 from skilltree import app as app_module
 from skilltree.store import backup
-from skilltree.store import database
+from skilltree.store import database, schema
 from skilltree.runtime import server as server_runtime
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
@@ -49,7 +49,7 @@ def launch(monkeypatch):
     monkeypatch.setattr(server_runtime, "serve", lambda *args: served.append(True))
 
     def run(*args):
-        database._initialized = False
+        schema.forget(database.get_db_path())
         app_module.main(["--no-browser", *args])
         return bool(served)
     return run

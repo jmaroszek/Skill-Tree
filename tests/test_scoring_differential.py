@@ -48,6 +48,7 @@ from skilltree.domain.scoring import (
     variety_divisors,
     _get_goal_subtree_from_adjacency,
 )
+from skilltree.store import schema
 
 
 # ---------------------------------------------------------------------------
@@ -427,7 +428,7 @@ def _run_real_db_differential(monkeypatch, tmp_path, db_name: str):
     # even while the app is saving, and the real file is never written. A
     # plain file copy taken mid-commit could come out torn.
     target = tmp_path / "real_copy.db"
-    source = sqlite3.connect(backup._read_only_uri(src), uri=True,
+    source = sqlite3.connect(backup.read_only_uri(src), uri=True,
                              timeout=database.BUSY_TIMEOUT_S)
     copied = sqlite3.connect(target)
     try:
@@ -438,8 +439,7 @@ def _run_real_db_differential(monkeypatch, tmp_path, db_name: str):
     monkeypatch.setattr(database, "get_db_path", lambda: str(target))
     # Allow init_db to run on the copy so any schema migrations (e.g. drop
     # deprecated `progress` column) apply before GraphManager reads nodes.
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
 
     mgr = GraphManager()
     all_nodes = mgr.get_all_nodes()

@@ -13,6 +13,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.store.graph.state import revisions
 from skilltree.domain.models import Event, Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
 from skilltree.store.resources import save_node_links
+from skilltree.store import schema
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -54,8 +55,7 @@ def _fresh_database(monkeypatch, tmp_path, name="fresh"):
     folder.mkdir()
     path = str(folder / "skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     return path
 
 
@@ -92,7 +92,7 @@ class TestExportImport:
         _rich_graph()
         bundle = json.loads(data_transfer.export_json())
         assert bundle["format"] == data_transfer.EXPORT_FORMAT
-        assert bundle["schema_version"] == database.SCHEMA_VERSION
+        assert bundle["schema_version"] == schema.SCHEMA_VERSION
         assert bundle["app_version"]
 
     def test_the_database_file_export_opens_with_the_graph(self, tmp_path):
@@ -155,7 +155,7 @@ class TestExportImport:
     @pytest.mark.parametrize("bundle, fragment", [
         ({"format": "something-else"}, "isn't a Skill Tree export"),
         ({"format": data_transfer.EXPORT_FORMAT, "version": 1,
-          "schema_version": database.SCHEMA_VERSION + 1, "tables": {}}, "newer version"),
+          "schema_version": schema.SCHEMA_VERSION + 1, "tables": {}}, "newer version"),
         ({"format": data_transfer.EXPORT_FORMAT, "version": 1,
           "schema_version": 1, "tables": {"Nodes": "oops"}}, "malformed"),
     ])
@@ -328,14 +328,14 @@ class TestRestore:
         _rich_graph()
         saved = backup.create_backup("manual")
         conn = sqlite3.connect(saved)
-        conn.execute(f"PRAGMA user_version = {database.SCHEMA_VERSION - 1}")
+        conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION - 1}")
         conn.commit()
         conn.close()
 
         data_transfer.restore_backup(saved)
 
         conn = sqlite3.connect(database.get_db_path())
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == database.SCHEMA_VERSION
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
         conn.close()
 
     def test_a_damaged_backup_is_refused_and_nothing_changes(self, tmp_path):
@@ -354,7 +354,7 @@ class TestRestore:
         _rich_graph()
         saved = backup.create_backup("manual")
         conn = sqlite3.connect(saved)
-        conn.execute(f"PRAGMA user_version = {database.SCHEMA_VERSION + 1}")
+        conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION + 1}")
         conn.commit()
         conn.close()
 

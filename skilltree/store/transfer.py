@@ -19,6 +19,7 @@ from skilltree.domain import rules as graph_rules
 from skilltree.store.graph.state import revisions
 from skilltree.domain.models import ALL_STATUSES, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from skilltree.runtime.version import __version__
+from skilltree.store import schema
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ def export_data() -> dict:
         "format": EXPORT_FORMAT,
         "version": EXPORT_VERSION,
         "app_version": __version__,
-        "schema_version": database.SCHEMA_VERSION,
+        "schema_version": schema.SCHEMA_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "tables": tables,
     }
@@ -73,10 +74,10 @@ def _validated_tables(bundle) -> dict:
     if not isinstance(bundle, dict) or bundle.get("format") != EXPORT_FORMAT:
         raise TransferRefused("That file isn't a Skill Tree export.")
     version = bundle.get("version")
-    schema = bundle.get("schema_version")
-    if not isinstance(version, int) or not isinstance(schema, int):
+    schema_version = bundle.get("schema_version")
+    if not isinstance(version, int) or not isinstance(schema_version, int):
         raise TransferRefused("That export is missing its version, so it can't be read safely.")
-    if version > EXPORT_VERSION or schema > database.SCHEMA_VERSION:
+    if version > EXPORT_VERSION or schema_version > schema.SCHEMA_VERSION:
         raise TransferRefused("That export was made by a newer version of Skill Tree. "
                               "Update Skill Tree to import it.")
     tables = bundle.get("tables")
@@ -345,7 +346,7 @@ def import_data(bundle) -> dict:
 # --- Restore ----------------------------------------------------------------
 
 def _user_version(path) -> int:
-    conn = sqlite3.connect(backup._read_only_uri(path), uri=True,
+    conn = sqlite3.connect(backup.read_only_uri(path), uri=True,
                            timeout=database.BUSY_TIMEOUT_S)
     try:
         return conn.execute("PRAGMA user_version").fetchone()[0]
@@ -367,11 +368,11 @@ def restore_backup(path) -> None:
         database.check_integrity(str(path))
         version = _user_version(path)
     except sqlite3.DatabaseError as exc:
-        refusal = database._refusal_for(exc, str(path))
+        refusal = database.refusal_for(exc, str(path))
         raise _refused_backup(path, refusal or exc) from exc
     except database.DatabaseError as exc:
         raise _refused_backup(path, exc) from exc
-    if version > database.SCHEMA_VERSION:
+    if version > schema.SCHEMA_VERSION:
         raise TransferRefused("That backup was made by a newer version of Skill Tree.")
     try:
         # Nothing is restored unless the current graph was backed up first.
@@ -381,10 +382,9 @@ def restore_backup(path) -> None:
         with database.state_lock:
             _copy_into_live_database(path)
             # The restored copy may predate the current schema.
-            database._initialized = False
-            database.init_db()
+            schema.init_db(recheck=True)
     except sqlite3.Error as exc:
-        refusal = database._refusal_for(exc)
+        refusal = database.refusal_for(exc)
         if refusal is None:
             raise
         logger.warning("Couldn't restore %s: %s", path, exc)
@@ -400,7 +400,7 @@ def restore_backup(path) -> None:
 
 
 def _copy_into_live_database(path):
-    source = sqlite3.connect(backup._read_only_uri(path), uri=True,
+    source = sqlite3.connect(backup.read_only_uri(path), uri=True,
                              timeout=database.BUSY_TIMEOUT_S)
     target = sqlite3.connect(database.get_db_path(), timeout=database.BUSY_TIMEOUT_S)
     try:

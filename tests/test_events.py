@@ -12,6 +12,7 @@ from skilltree.store import database
 from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD, EDGE_HELPS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
+from skilltree.store import schema
 
 
 # --- Fixtures ---
@@ -20,8 +21,7 @@ from skilltree.store.events import EventManager
 def temp_database(monkeypatch, tmp_path):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 
@@ -657,8 +657,7 @@ class TestOneEventPerNode:
             conn.execute("PRAGMA user_version = 7")
             conn.commit()
 
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
 
         assert em.get_event_for_node("Waiting") == "B"
         assert em.get_event_for_node("Woken") == "C"

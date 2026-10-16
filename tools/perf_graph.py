@@ -21,6 +21,7 @@ import random
 import sys
 import tempfile
 from pathlib import Path
+from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -44,8 +45,7 @@ def build(path, nodes=1000, seed=7):
     os.environ.setdefault("SKILLTREE_HOME", tempfile.mkdtemp(prefix="skilltree-perf-"))
     from skilltree.store import database
     database.get_db_path = lambda: str(path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
 
     from skilltree.store.settings import ConfigManager, DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
     from skilltree.store.events import EventManager

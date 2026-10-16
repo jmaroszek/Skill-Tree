@@ -18,14 +18,14 @@ from skilltree.domain.models import Node, Event, TRIGGER_MODE_ALL, TRIGGER_MODE_
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
+from skilltree.store import schema
 
 
 @pytest.fixture(autouse=True)
 def temp_database(monkeypatch, tmp_path):
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 
@@ -303,8 +303,7 @@ class TestV5Migration:
         self._build_v4_db(db_path)
 
         monkeypatch.setattr(database, "get_db_path", lambda: db_path)
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
 
         em = EventManager()
         assert em.get_event("Legacy").trigger_nodes == ["Key"]
@@ -314,7 +313,7 @@ class TestV5Migration:
 
         with database.get_connection() as conn:
             version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert version == database.SCHEMA_VERSION
+        assert version == schema.SCHEMA_VERSION
 
     def test_migration_is_idempotent(self, monkeypatch, tmp_path):
         db_path = str(tmp_path / "legacy2.db")
@@ -322,8 +321,7 @@ class TestV5Migration:
         monkeypatch.setattr(database, "get_db_path", lambda: db_path)
 
         for _ in range(3):
-            database._initialized = False
-            database.init_db()
+            schema.init_db(recheck=True)
 
         assert EventManager().get_event("Legacy").trigger_nodes == ["Key"]
 
@@ -331,8 +329,7 @@ class TestV5Migration:
         db_path = str(tmp_path / "legacy3.db")
         self._build_v4_db(db_path)
         monkeypatch.setattr(database, "get_db_path", lambda: db_path)
-        database._initialized = False
-        database.init_db()
+        schema.init_db(recheck=True)
 
         mgr, em = GraphManager(), EventManager()
         mgr.add_node(_node("Reward"))

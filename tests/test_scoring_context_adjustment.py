@@ -5,6 +5,7 @@ import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 from skilltree.domain.scoring import score_nodes, explain_score
+from skilltree.store import schema
 
 
 @pytest.fixture
@@ -12,8 +13,7 @@ def temp_database(monkeypatch, tmp_path):
     """Per-test SQLite file so GraphManager-based tests stay isolated."""
     tmp_db_path = str(tmp_path / "test_skilltree.db")
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     yield tmp_db_path
 
 

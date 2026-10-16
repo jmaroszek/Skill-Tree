@@ -12,6 +12,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
 from skilltree.runtime.version import __version__
+from skilltree.store import schema
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,7 +44,7 @@ def test_diagnostics_name_the_build_and_the_data(monkeypatch):
     text = about.diagnostics()
     assert f"Skill Tree {__version__}" in text
     assert "Python" in text and "SQLite" in text and "Dash" in text
-    assert f"schema {database.SCHEMA_VERSION}" in text
+    assert f"schema {schema.SCHEMA_VERSION}" in text
     assert "1 nodes" in text
 
 
@@ -54,8 +55,7 @@ def test_diagnostics_hide_the_home_folder(monkeypatch, tmp_path):
     monkeypatch.setenv(app_paths.HOME_ENV, str(home / "AppData" / "Skill Tree"))
     monkeypatch.setattr(database, "get_db_path",
                         lambda: str(home / "AppData" / "Skill Tree" / "Data" / "skilltree.db"))
-    database._initialized = False
-    database.init_db()
+    schema.init_db(recheck=True)
     text = about.diagnostics()
     assert "alice" not in text
     assert "~" in text

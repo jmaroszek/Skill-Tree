@@ -15,7 +15,7 @@ logic has a home of its own, rather than living in whichever tab first needed it
 - **State gateway** (`skilltree/store/graph/manager.py`, `skilltree/store/events.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `skilltree/store/graph/repository.py`, queries to `skilltree/store/graph/queries.py`, and scoring orchestration to `skilltree/store/graph/scoring.py`. `skilltree/store/graph/state.py` owns shared revisions and per-manager caches.
 - **Config** (`skilltree/store/settings.py` / `ConfigManager`) — a classmethod-only facade over the `Settings` table. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
 - **Pure compute** (`skilltree/domain/scoring.py`, `skilltree/domain/simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
-- **Persistence** (`skilltree/store/database.py`) — resolves the DB path from `paths.ENVIRONMENT` and runs `init_db` on first connect.
+- **Persistence** (`skilltree/store/database.py`, `skilltree/store/schema.py`) — connections, snapshots and transactions; the DB path comes from `paths.ENVIRONMENT`. `schema.init_db` creates or upgrades the tables at startup.
 
 Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `skilltree/ui/canvas/registry.py` before any asset runs.
 
@@ -39,7 +39,7 @@ manager reads one database per process, and the revision counters in
 |---|---|
 | [skilltree/app.py](../skilltree/app.py) | Entry point (the root `app.py` only launches it). Sets `paths.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
 | [skilltree/domain/models.py](../skilltree/domain/models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [skilltree/store/database.py](../skilltree/store/database.py) | Thin `sqlite3` wrapper. Production/sandbox filename from `paths.ENVIRONMENT`, stored beneath the platform's per-user app-data directory; `init_db` on first connection. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
+| [skilltree/store/database.py](../skilltree/store/database.py), [skilltree/store/schema.py](../skilltree/store/schema.py) | Thin `sqlite3` wrapper: connections, read snapshots, transactions, and the errors that refuse a file. Production/sandbox filename from `paths.ENVIRONMENT`, stored beneath the platform's per-user app-data directory. `schema` holds the tables and the migration ladder; `schema.init_db` checks each database once per process. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
 | [skilltree/store/resources.py](../skilltree/store/resources.py) | Named Resource settings, per-node ordered links, relative-path storage, and the shared Windows/macOS/Linux file and URI opener. Web URLs use `webbrowser`. |
 | [skilltree/store/settings.py](../skilltree/store/settings.py) | Module-level defaults and `ConfigManager`, a classmethod-only facade over the `Settings` key/value table. |
 | [skilltree/store/graph/manager.py](../skilltree/store/graph/manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
@@ -118,7 +118,7 @@ of this. Switching databases after startup is rejected; tests replace
 browser does next, and why the page stays covered while it does, is in Startup
 readiness below.
 
-**Refusals.** `database.init_db` refuses a database it can't safely open by raising
+**Refusals.** `schema.init_db` refuses a database it can't safely open by raising
 a `DatabaseError` subclass. The file is left untouched. `main()` logs the message
 and exits with the class's `exit_code`, which is how the desktop shell tells the
 cases apart:
@@ -132,7 +132,7 @@ cases apart:
 | 6 | `DatabaseLockedError`: another program holds the file | Close that program |
 | 7 | `DatabaseUnwritableError`: read-only, no permission, or disk full | Fix it and relaunch |
 
-Only code 4 may lead to an offer to restore a backup. `database._refusal_for` maps
+Only code 4 may lead to an offer to restore a backup. `database.refusal_for` maps
 SQLite's error names, so a file that is only busy or read-only is never called
 damaged. Restoring over it would discard good data. Code 8 comes from
 `server_runtime`: another Skill Tree owns this database (below).
