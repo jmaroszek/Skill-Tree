@@ -4,7 +4,7 @@ import sqlite3
 import pytest
 
 from skilltree.store import database
-from skilltree.ui.callback_helpers import format_suggestions_table
+from skilltree.features.home.table import format_suggestions_table
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD as HARD

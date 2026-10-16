@@ -19,8 +19,9 @@ from skilltree.store.settings import ConfigManager, SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.details.layout import build_goal_card
 from skilltree.ui.sidebars_layout import goal_list_cover
-from skilltree.ui.callback_helpers import (node_menu_attributes, left_sidebar_is_open,
-                              merge_manual_order)
+from skilltree.ui.components.list_toolbar import merge_manual_order
+from skilltree.ui.components.menus import node_menu_attributes
+from skilltree.ui.sidebars import left_sidebar_is_open
 
 graph_manager = GraphManager()
 

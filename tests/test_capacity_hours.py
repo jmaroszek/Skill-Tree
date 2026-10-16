@@ -9,7 +9,7 @@ import inspect
 import dash
 import pytest
 
-from skilltree.ui.callback_helpers import capacity_hours
+from skilltree.domain.time import capacity_hours
 from skilltree.store.settings import ConfigManager, DEFAULT_TIME_SETTINGS
 from skilltree.features.settings import layout as settings_layout
 

@@ -26,9 +26,10 @@ from skilltree.store.settings import (
     sort_subcontexts)
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE
 from typing import Tuple, Any
-from skilltree.ui.callback_helpers import (
-    get_trigger_id, build_context_editor_rows, sync_time_fields,
-    spawn_local_file_picker, capacity_hours)
+from skilltree.runtime.file_picker import spawn_local_file_picker
+from skilltree.features.settings.contexts import build_context_editor_rows
+from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.domain.time import sync_time_fields, capacity_hours
 from skilltree.domain import contexts as context_rules
 from skilltree.store.resources import (get_sections, save_sections, validate_sections,
                             section_link_counts, live_sections, MAX_SECTIONS)

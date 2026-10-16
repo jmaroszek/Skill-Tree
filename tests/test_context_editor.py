@@ -17,7 +17,7 @@ from dash._utils import AttributeDict
 
 from skilltree.domain import contexts as cr
 from skilltree.features.settings import callbacks as settings_callbacks
-from skilltree.ui.callback_helpers import build_context_editor_rows
+from skilltree.features.settings.contexts import build_context_editor_rows
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node

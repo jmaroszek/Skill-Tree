@@ -14,7 +14,7 @@ from skilltree.ui import payloads as bridge
 from skilltree.engine import callbacks
 from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.goals import callbacks as sidebars_callbacks
-from skilltree.ui.callback_helpers import resolve_active_node_id
+from skilltree.engine.callbacks import resolve_active_node_id
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN

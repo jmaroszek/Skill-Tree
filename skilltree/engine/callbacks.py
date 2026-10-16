@@ -36,22 +36,29 @@ from skilltree.store.commands import (
     plan_bridge, bridge_form, finish_bridge, done_names, ReopensDoneNodes,
 )
 from skilltree.ui.callback_helpers import (
-    get_trigger_id, get_all_triggered_ids,
-    node_options, build_filters, is_filters_active, empty_canvas_detail,
-    filter_summary, filter_chip_state, filter_chip_updates,
-    render_alias_rows, alias_rows_label, update_alias_rows,
-    resource_link_values, reopen_body,
-    resolve_active_node_id, normalize_name_for_comparison,
+    render_alias_rows, alias_rows_label, update_alias_rows, resource_link_values,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, EDITOR_FORM, editor_form_values_from, dormancy_for_save,
-    NEW_NODE_DORMANCY, woke_during_edit,
-    follow_done_status, resolve_done_intent,
+    NEW_NODE_DORMANCY, woke_during_edit, follow_done_status, resolve_done_intent,
     RELATIONSHIP_FIELDS, stored_relationships, follow_relationships,
-    resolve_relationship_intent,
-    compute_habit_time_omp, resolve_time_mode, resolve_value_mode, time_estimate_problem,
-    habit_editor_view, ALL_WEEKDAYS, habit_preview_text,
+    resolve_relationship_intent, habit_editor_view, habit_preview_text,
+)
+from skilltree.features.nodes.layout import empty_canvas_detail
+from skilltree.ui.components.confirm import reopen_body
+from skilltree.ui.canvas.view import node_options
+from skilltree.ui.canvas.elements import (
     build_node_element, build_edge_element, canvas_node_styles,
 )
+from skilltree.ui.filters import (
+    build_filters, is_filters_active, filter_summary, filter_chip_state,
+    filter_chip_updates,
+)
+from skilltree.ui.dash_tools import get_trigger_id, get_all_triggered_ids
+from skilltree.domain.time import (
+    compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
+    time_estimate_problem, ALL_WEEKDAYS,
+)
+from skilltree.domain.names import normalize_name_for_comparison
 from skilltree.ui import tokens
 from skilltree.ui.kit import (progress_bar_color)
 from skilltree.ui.components.duration import work_time_tooltip
@@ -3417,3 +3424,27 @@ def register_callbacks(app, services=None):
             import time as _time
             return f"reorder|{int(_time.time() * 1000)}"
         return no_update
+
+
+def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
+                           search_val, tapped_node, current_name):
+    """Determine which node the editor should display.
+
+    Prefers ``edit-trigger-input`` (carries the node ID explicitly) even when
+    it is batched with another trigger like tapNodeData.
+    """
+    if ('edit-trigger-input' in all_triggered_ids or 'details-edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
+        return bridge_payloads.strip_stamp(edit_trigger_data)
+    if trigger_id in ('background-click-input', 'btn-editor-new'):
+        return None
+    if trigger_id == 'search-node' and search_val:
+        if search_val.startswith('alias:'):
+            _mgr = GraphManager()
+            alias_key = search_val[6:]
+            # Case-insensitive resolve so 'alias:mathnotes' finds 'MathNotes'.
+            resolved = _mgr.resolve_alias(alias_key)
+            return resolved if resolved is not None else search_val
+        return search_val
+    if trigger_id == 'cytoscape-graph' and tapped_node:
+        return tapped_node.get('id')
+    return current_name

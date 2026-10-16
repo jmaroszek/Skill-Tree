@@ -12,7 +12,7 @@ from skilltree.features.review.callbacks import (
     _visible_history_count,
 )
 from skilltree.features.review.layout import build_review_hub_modal
-from skilltree.ui.callback_helpers import build_calibration_dismissed_view
+from skilltree.features.review.layout import build_calibration_dismissed_view
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"

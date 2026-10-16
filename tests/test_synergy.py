@@ -5,7 +5,7 @@ import random
 
 import pytest
 
-from skilltree.ui.callback_helpers import _contributor_hover
+from skilltree.features.details.explain import _contributor_hover
 from skilltree.store.settings import ConfigManager, HYPERPARAMS_SCHEMA_VERSION, PROFILES
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node

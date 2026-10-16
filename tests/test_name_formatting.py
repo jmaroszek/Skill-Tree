@@ -2,7 +2,7 @@
 
 import json
 
-from skilltree.ui.callback_helpers import normalize_name_for_comparison
+from skilltree.domain.names import normalize_name_for_comparison
 from skilltree.store.settings import ConfigManager
 
 

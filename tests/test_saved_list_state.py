@@ -93,7 +93,7 @@ def test_manual_event_list_uses_the_saved_order():
 # every hidden item back in database order once the search was cleared.
 
 def test_a_drag_reorders_the_shown_names_within_the_saved_order():
-    from skilltree.ui.callback_helpers import merge_manual_order
+    from skilltree.ui.components.list_toolbar import merge_manual_order
 
     saved = ["A", "B", "C", "D", "E"]
     # A search shows B and D, and D is dragged above B.

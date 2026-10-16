@@ -2,7 +2,7 @@
 import dash
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES, sort_contexts
-from skilltree.ui.callback_helpers import node_options
+pass
 from skilltree.engine.response import CoreResponse
 from skilltree.ui.canvas.registry import CANVASES
 
@@ -283,3 +283,8 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         community_value=community_value,
         community_memory=community_memory_out,
     )
+
+
+def node_options(nodes, exclude=None):
+    """Build dropdown options from a list of nodes, optionally excluding one by name."""
+    return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]

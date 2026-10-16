@@ -11,7 +11,7 @@ import dash_bootstrap_components as dbc
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.kit import Tooltip
 from skilltree.store.graph.manager import GraphManager
-from skilltree.ui.callback_helpers import build_calibration_dismissed_view
+from skilltree.features.review.layout import build_calibration_dismissed_view
 from skilltree.ui import tokens
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.review.layout import (

@@ -10,8 +10,9 @@ import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 from skilltree.engine.callbacks import generate_elements, manager
-from skilltree.ui.callback_helpers import (build_filters, empty_canvas_detail, is_filters_active,
-                              node_options)
+from skilltree.features.nodes.layout import empty_canvas_detail
+from skilltree.ui.canvas.view import node_options
+from skilltree.ui.filters import build_filters, is_filters_active
 from skilltree.store.commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )

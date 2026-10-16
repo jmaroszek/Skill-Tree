@@ -6,7 +6,9 @@ import dash
 from dash.development.base_component import Component
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import format_now_nodes_section, format_suggestions_table
+from skilltree.features.home.table import (
+    format_now_nodes_section, format_suggestions_table,
+)
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.ui import tokens

@@ -20,6 +20,7 @@ from typing import Optional
 from skilltree.store.database import get_connection
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
+from skilltree.domain.names import DEFAULT_TITLECASE_EXCLUSIONS
 
 ENVIRONMENT = "production" # Options: sandbox, production (case sensitive!)
 
@@ -437,7 +438,6 @@ DEFAULT_REFLECTION_RATINGS_DEFINITIONS = [
      "effort": "Herculean: it took more than I thought I was capable of when I started."},
 ]
 
-DEFAULT_TITLECASE_EXCLUSIONS = ["a", "an", "or", "not", "with", "the", "but", "and", "vs", "vs.", "at", "of", "are", "as", "is", "in"]
 
 NAME_FORMAT_NONE = "none"
 NAME_FORMAT_TITLE = "title"
@@ -456,10 +456,6 @@ DEFAULT_TITLECASE_LINTER = {
     'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
 }
 
-# Duplicate-name comparison is a separate concern from display formatting.
-# Keep its connector words stable when the user changes capitalization modes or
-# title-case exceptions.
-DEFAULT_DUPLICATE_STOP_WORDS = frozenset(DEFAULT_TITLECASE_EXCLUSIONS)
 
 DEFAULT_NEXT_TABLE_ROWS = 10
 

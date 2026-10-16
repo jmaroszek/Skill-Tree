@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from skilltree.runtime import paths as app_paths
-from skilltree.ui import callback_helpers
+from skilltree.runtime import file_picker
 from skilltree.store import resources as resource_links
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,7 +76,7 @@ def test_the_tkinter_picker_is_off_in_a_frozen_build(frozen, monkeypatch):
     def must_not_run(*args, **kwargs):
         raise AssertionError("spawned the frozen server as a file picker")
     monkeypatch.setattr("subprocess.run", must_not_run)
-    assert callback_helpers.spawn_local_file_picker("", "Select file", []) == ""
+    assert file_picker.spawn_local_file_picker("", "Select file", []) == ""
 
 
 @pytest.fixture

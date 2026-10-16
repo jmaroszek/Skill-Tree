@@ -11,7 +11,9 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.ui.callback_helpers import CanvasNodeStyles, build_node_element, node_fill_color
+from skilltree.ui.canvas.elements import (
+    CanvasNodeStyles, build_node_element, node_fill_color,
+)
 from skilltree.engine.callbacks import generate_elements, register_callbacks
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
@@ -194,7 +196,7 @@ def test_elements_carry_every_field_their_readers_use():
     import inspect
     import re
     from pathlib import Path
-    from skilltree.ui.callback_helpers import CANVAS_NODE_FIELDS
+    from skilltree.ui.canvas.elements import CANVAS_NODE_FIELDS
 
     carried = set(CANVAS_NODE_FIELDS) | {'id', 'label', 'color', 'shape'}
 

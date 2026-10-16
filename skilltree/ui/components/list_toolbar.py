@@ -167,3 +167,23 @@ def register_list_toolbar_callbacks(app) -> None:
             *[Output(sort.item_id(value), "className") for value in values],
             Input(sort.store_id, "data"),
         )
+
+
+def merge_manual_order(saved, shown):
+    """The saved manual order after a drag reordered the ``shown`` names.
+
+    A list posts only the cards it shows. A search hides some, and finished
+    or pinned items aren't shown in the manual run. Saving the post as the
+    whole order dropped every other name back to database order. So the
+    shown names take the slots they held in the saved order, in their new
+    order, and every other name keeps its slot. A shown name the saved order
+    lacks joins at its end first, where the list shows unsaved names.
+    """
+    shown = list(dict.fromkeys(name for name in shown if isinstance(name, str)))
+    merged = list(dict.fromkeys(saved or []))
+    known = set(merged)
+    merged += [name for name in shown if name not in known]
+    slots = sorted(merged.index(name) for name in shown)
+    for slot, name in zip(slots, shown):
+        merged[slot] = name
+    return merged

@@ -13,7 +13,8 @@ import time
 from dash import Input, Output, State, no_update
 
 from skilltree.ui import payloads as bridge_payloads
-from skilltree.ui.callback_helpers import get_trigger_id, reopen_body
+from skilltree.ui.components.confirm import reopen_body
+from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.commands import change_link, link_change_reopens
 

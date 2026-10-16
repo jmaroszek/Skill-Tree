@@ -12,7 +12,11 @@ from skilltree.store import database
 from dash import Input, Output, State, ALL, ClientsideFunction, no_update
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
-from skilltree.ui.callback_helpers import get_trigger_id, format_now_nodes_section, format_suggestions_table, build_filters
+from skilltree.features.home.table import (
+    format_now_nodes_section, format_suggestions_table,
+)
+from skilltree.ui.filters import build_filters
+from skilltree.ui.dash_tools import get_trigger_id
 
 manager = GraphManager()
 

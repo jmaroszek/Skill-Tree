@@ -400,12 +400,12 @@ class TestCalibrationModalLayout:
     (("", None, float("nan")), (None, None, None)),
 ])
 def test_actual_bracket_hours(entered, expected):
-    from skilltree.ui.callback_helpers import actual_bracket_hours
+    from skilltree.domain.time import actual_bracket_hours
     assert actual_bracket_hours(entered, 1.0) == expected
 
 
 def test_an_unchanged_submit_keeps_the_stored_hours():
-    from skilltree.ui.callback_helpers import actual_bracket_hours
+    from skilltree.domain.time import actual_bracket_hours
     stored = (20 / 7, 40 / 7, None)   # shown in days as 1.0 and 2.0 at 20/7 h a day
     shown = tuple(None if h is None else round(h / (20 / 7), 2) for h in stored)
 

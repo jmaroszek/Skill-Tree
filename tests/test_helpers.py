@@ -4,19 +4,20 @@ Tests for callback_helpers.py serialization functions and styles.py.
 Tests pure functions that don't require a database.
 """
 
-from dash import html
 import dash
-from skilltree.store.settings import BADGE_PALETTE
-from skilltree.domain.models import STATUS_DONE, STATUS_BLOCKED
 from skilltree.ui.callback_helpers import (
-    get_all_triggered_ids, should_open_editor, resolve_active_node_id,
-    _bool_icon,
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
-    snapshot_from_form_state, build_explain_summary,
-    resolve_time_mode, resolve_value_mode,
-    editor_form_values, ALL_WEEKDAYS,
-    format_value_rank, format_priority_rank, _ordinal, _contributor_hover,
-    alias_rows_label, update_alias_rows, sync_time_fields,
+    snapshot_from_form_state, editor_form_values, alias_rows_label, update_alias_rows,
+)
+from skilltree.engine.callbacks import resolve_active_node_id
+from skilltree.features.details.explain import (
+    build_explain_summary, format_value_rank, format_priority_rank, _ordinal,
+    _contributor_hover,
+)
+from skilltree.ui.sidebars import should_open_editor
+from skilltree.ui.dash_tools import get_all_triggered_ids
+from skilltree.domain.time import (
+    resolve_time_mode, resolve_value_mode, ALL_WEEKDAYS, sync_time_fields,
 )
 from skilltree.ui.styles import stylesheet, mini_stylesheet
 import pytest
@@ -355,48 +356,6 @@ class TestResolveActiveNodeId:
             {'cytoscape-graph', 'edit-trigger-input'}, 'cytoscape-graph',
             None, None, {'id': 'TappedNode'}, 'stale')
         assert result == 'TappedNode'
-
-
-# ============================================================================
-# _bool_icon
-# ============================================================================
-
-class TestBoolIcon:
-    """Tests for the boolean check/cross icon helper.
-
-    These used to assert the Unicode glyphs U+2713 and U+2717 in stock
-    Bootstrap green and red. The app is on one icon family (Bootstrap Icons)
-    and one status palette, so the assertions name those instead.
-    """
-
-    def test_truthy_returns_check(self):
-        result = _bool_icon(True)
-        assert isinstance(result, html.I)
-        assert result.className == "bi bi-check-lg"
-        assert result.style["color"] == BADGE_PALETTE[STATUS_DONE][0]
-        assert result.title == "Yes"
-
-    def test_falsy_returns_cross(self):
-        result = _bool_icon(False)
-        assert isinstance(result, html.I)
-        assert result.className == "bi bi-x-lg"
-        assert result.style["color"] == BADGE_PALETTE[STATUS_BLOCKED][0]
-        assert result.title == "No"
-
-    def test_none_returns_cross(self):
-        assert _bool_icon(None).className == "bi bi-x-lg"
-
-    def test_nonempty_string_returns_check(self):
-        assert _bool_icon("some/path.md").className == "bi bi-check-lg"
-
-    def test_empty_string_returns_cross(self):
-        assert _bool_icon("").className == "bi bi-x-lg"
-
-    def test_uses_the_shared_palette_not_bootstrap_defaults(self):
-        """Regression: stock #198754 / #dc3545 made a "yes" here a different
-        green from a Done node one panel over."""
-        assert _bool_icon(True).style["color"] != "#198754"
-        assert _bool_icon(False).style["color"] != "#dc3545"
 
 
 # ============================================================================
@@ -794,7 +753,7 @@ class TestEditorFormValues:
     def test_new_node_starts_without_an_estimate(self):
         """The estimate is the user's own call: nothing is pre-filled, and an
         empty bracket is refused on save."""
-        from skilltree.ui.callback_helpers import time_estimate_problem
+        from skilltree.domain.time import time_estimate_problem
         bracket = [NEW_NODE_SNAPSHOT[k] for k in ('time_o', 'time_m', 'time_p')]
         assert bracket == [None, None, None]
         assert time_estimate_problem(*bracket)

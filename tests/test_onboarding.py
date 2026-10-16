@@ -169,7 +169,7 @@ def test_the_card_can_be_dismissed(card):
 # --- Empty states ------------------------------------------------------------
 
 def test_an_empty_graph_says_how_to_begin():
-    from skilltree.ui.callback_helpers import format_suggestions_table
+    from skilltree.features.home.table import format_suggestions_table
     empty = str(format_suggestions_table([], GraphManager()))
     assert "Add a goal" in empty and "No suggestions found" not in empty
 

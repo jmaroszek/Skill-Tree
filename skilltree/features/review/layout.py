@@ -20,6 +20,7 @@ import dash_bootstrap_components as dbc
 
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
+from skilltree.ui.kit import restore_button
 
 
 # History sort criteria, in dropdown order. "Completed" has no column, so the
@@ -215,3 +216,22 @@ def build_review_hub_modal():
         ),
     ], id="modal-review-hub", dialog_class_name="review-hub-dialog",
        is_open=False, centered=True, scrollable=True)
+
+
+def build_calibration_dismissed_view(dismissed_names, limit=None):
+    """List of nodes marked "Don't ask again" during a calibration review,
+    each row with a Restore button (pattern-matched id
+    `{'type': 'calibration-restore', 'index': <name>}`). Returns a Dash
+    component tree for the Review Hub's Excluded tab. Names arrive sorted."""
+    if not dismissed_names:
+        return (html.Small("No nodes excluded from reflection.",
+                           className="text-muted d-block"), 0)
+    rows = []
+    for name in dismissed_names[:limit]:
+        rows.append(html.Div([
+            html.Span(name, className="text-truncate"),
+            restore_button({'type': 'calibration-restore', 'index': name},
+                           tooltip="Include in future reflections",
+                           placement="right"),
+        ], className="d-flex align-items-center mb-1"))
+    return html.Div(rows), len(dismissed_names)

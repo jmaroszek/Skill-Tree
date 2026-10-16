@@ -160,7 +160,7 @@ def test_web_url_uses_browser(monkeypatch):
 
 
 def test_home_dots_use_named_section_labels():
-    from skilltree.ui.callback_helpers import format_suggestions_table
+    from skilltree.features.home.table import format_suggestions_table
     manager = GraphManager()
     manager.add_node(_node("Reading", resource_links={"website": ["https://example.com"]}))
     rows = resources.get_sections()
@@ -222,7 +222,7 @@ def test_saved_resource_route_uses_shared_opener(monkeypatch):
 
 
 def test_browser_picker_passes_a_local_root_as_an_argument(monkeypatch):
-    from skilltree.ui import callback_helpers
+    from skilltree.runtime import file_picker
     import subprocess
     calls = []
 
@@ -234,14 +234,14 @@ def test_browser_picker_passes_a_local_root_as_an_argument(monkeypatch):
     monkeypatch.setattr(subprocess, 'run',
                         lambda args, **kwargs: calls.append(args) or Result())
     root = 'C:/Library/has"quote' if sys.platform == 'win32' else '/tmp/Library/has"quote'
-    assert callback_helpers.spawn_local_file_picker(
+    assert file_picker.spawn_local_file_picker(
         root, 'Select file', [('All files', '*.*')]) == 'C:/chosen/book.pdf'
     assert calls[0][1] == '-c'
     assert calls[0][3] == root
 
 
 def test_browser_picker_can_choose_a_folder(monkeypatch):
-    from skilltree.ui import callback_helpers
+    from skilltree.runtime import file_picker
     import subprocess
     calls = []
 
@@ -252,7 +252,7 @@ def test_browser_picker_can_choose_a_folder(monkeypatch):
 
     monkeypatch.setattr(subprocess, 'run',
                         lambda args, **kwargs: calls.append(args) or Result())
-    assert callback_helpers.spawn_local_file_picker(
+    assert file_picker.spawn_local_file_picker(
         '', 'Select folder', None, directory=True) == 'C:/Library'
     assert calls[0][-1] == '1'
 

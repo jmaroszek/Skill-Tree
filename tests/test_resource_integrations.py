@@ -6,7 +6,7 @@ import sys
 from types import SimpleNamespace
 
 from skilltree.store import database
-from skilltree.ui.callback_helpers import spawn_local_file_picker
+from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.store import resources
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node

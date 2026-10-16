@@ -1,8 +1,10 @@
 """Sidebar visibility and draft-preservation decisions shared by core paths."""
 import dash
 from skilltree.store.settings import SIDEBAR_WIDTH_PX, SIDEBAR_TRANSLATE_CLOSED
-from skilltree.ui.callback_helpers import (should_open_editor, left_sidebar_is_open,
-                              is_form_dirty_vs_snapshot, editor_form_values_from)
+from skilltree.ui.callback_helpers import (
+    is_form_dirty_vs_snapshot, editor_form_values_from,
+)
+from skilltree.ui.sidebars import should_open_editor, left_sidebar_is_open
 from skilltree.ui import tokens
 
 _DEFAULT_EDITOR_SIDEBAR_STYLE = {

@@ -9,7 +9,7 @@ import dash
 import pytest
 
 from skilltree.features.details import callbacks as details_callbacks
-from skilltree.ui.callback_helpers import SIDEBAR_FILTERS, build_filters, filters_from
+from skilltree.ui.filters import SIDEBAR_FILTERS, build_filters, filters_from
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 

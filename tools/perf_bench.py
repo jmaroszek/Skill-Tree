@@ -75,7 +75,7 @@ def server_timings(db_path, repeats=5):
     from skilltree.store import transfer as data_transfer
     from skilltree.features.home import view as next_view
     from skilltree.store import commands as node_commands
-    from skilltree.ui.callback_helpers import format_suggestions_table
+    from skilltree.features.home.table import format_suggestions_table
     from skilltree.store.settings import ConfigManager
     from skilltree.store.graph.manager import GraphManager
     from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE

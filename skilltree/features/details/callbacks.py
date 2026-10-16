@@ -20,16 +20,20 @@ from skilltree.domain.simulation import SimulationCancelled
 from skilltree.features.details.simulation_service import simulation_service
 from skilltree.ui.components.duration import simulation_figure
 from skilltree.ui.prerender import prerendered
-from skilltree.ui.callback_helpers import (build_filters, FILTER_INPUTS, FILTER_STATES,
-                              filters_from,
-                              is_filters_active, filter_summary,
-                              filter_chip_state, filter_chip_updates,
-                              select_explore_goals,
-                              build_explain_summary, build_explain_chart,
-                              format_value_rank, format_priority_rank,
-                              get_trigger_id,
-                              build_node_element, build_edge_element,
-                              canvas_node_styles, reopen_body)
+from skilltree.features.details.explore import select_explore_goals
+from skilltree.features.details.explain import (
+    build_explain_summary, build_explain_chart, format_value_rank,
+    format_priority_rank,
+)
+from skilltree.ui.components.confirm import reopen_body
+from skilltree.ui.canvas.elements import (
+    build_node_element, build_edge_element, canvas_node_styles,
+)
+from skilltree.ui.filters import (
+    build_filters, FILTER_INPUTS, FILTER_STATES, filters_from, is_filters_active,
+    filter_summary, filter_chip_state, filter_chip_updates,
+)
+from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.domain.scoring import explain_score, focus_route_data
 from skilltree.ui import tokens

@@ -1,7 +1,7 @@
 """The "Filtered" chip's label list must agree with is_filters_active."""
 import pytest
 
-from skilltree.ui.callback_helpers import filter_chip_state, filter_summary, is_filters_active
+from skilltree.ui.filters import filter_chip_state, filter_summary, is_filters_active
 
 CASES = [
     {},

@@ -4,7 +4,10 @@ from copy import deepcopy
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
-from skilltree.ui.callback_helpers import format_now_nodes_section, format_suggestions_table, build_filters
+from skilltree.features.home.table import (
+    format_now_nodes_section, format_suggestions_table,
+)
+from skilltree.ui.filters import build_filters
 
 manager = GraphManager()
 

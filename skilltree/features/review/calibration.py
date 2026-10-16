@@ -8,7 +8,8 @@ History tab). Its helpers are in editor_values.
 from dash import html, Input, Output, State, no_update
 
 from skilltree.ui import tokens
-from skilltree.ui.callback_helpers import actual_bracket_hours, get_trigger_id
+from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.domain.time import actual_bracket_hours
 from skilltree.store.settings import ConfigManager
 from skilltree.features.editor.values import (PROJECT_NOTES_PLACEHOLDER, _calibration_modal_text,
                            _calibration_prepop,

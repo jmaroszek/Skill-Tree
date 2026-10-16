@@ -11,8 +11,8 @@ import logging
 import dash
 from dash import Input, Output, State, ALL, ctx
 
-from skilltree.ui.callback_helpers import (render_resource_sections, resource_link_values,
-                              spawn_local_file_picker)
+from skilltree.ui.callback_helpers import render_resource_sections, resource_link_values
+from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.ui.prerender import prerendered
 from skilltree.store.resources import NeedsConfirmation, get_sections, open_resource, store_path
 
