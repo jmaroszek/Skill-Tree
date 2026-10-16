@@ -378,7 +378,7 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
 
 
 def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
-    from skilltree.features.events import callbacks as event_callbacks
+    from skilltree.features.events import graph as event_graph
 
     node = Node(
         name="Dormant", type="Action", description="A future action",
@@ -389,16 +389,16 @@ def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
     )
     app = _app_with(register_event_callbacks)
     monkeypatch.setattr(
-        event_callbacks.event_manager, "get_event_nodes",
+        event_graph.event_manager, "get_event_nodes",
         lambda _event: [{"node": node}],
     )
-    monkeypatch.setattr(event_callbacks.graph_manager, "get_edges", lambda: [])
+    monkeypatch.setattr(event_graph.graph_manager, "get_edges", lambda: [])
     monkeypatch.setattr(
-        event_callbacks.graph_manager, "get_node",
+        event_graph.graph_manager, "get_node",
         lambda name: node if name == node.name else None,
     )
     monkeypatch.setattr(
-        event_callbacks.event_manager, "get_trigger_node_names", lambda: set(),
+        event_graph.event_manager, "get_trigger_node_names", lambda: set(),
     )
 
     callback = next(

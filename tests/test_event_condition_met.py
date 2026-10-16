@@ -22,6 +22,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node, STATUS_DONE
+from skilltree.features.events import announcements
 
 
 def _node(name, **overrides):
@@ -209,9 +210,9 @@ def test_the_editor_shows_the_refusal_for_a_new_event():
 def test_the_announcement_says_the_nodes_were_already_complete():
     base = {"kind": "node_triggered", "event": "Ready", "trigger_node": "Draft",
             "already_met": True, "activated": ["Publish"], "when": "2026-10-12"}
-    one = event_callbacks._render_announcements(
+    one = announcements.render_announcements(
         [{**base, "trigger_nodes": ["Draft"], "trigger_mode": "any"}])
-    every = event_callbacks._render_announcements(
+    every = announcements.render_announcements(
         [{**base, "trigger_nodes": ["Draft", "Edit"], "trigger_mode": "all"}])
 
     assert "Draft was already complete" in str(one)

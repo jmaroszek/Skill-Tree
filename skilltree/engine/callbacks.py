@@ -55,6 +55,7 @@ from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 from skilltree.features.nodes.callbacks import register_nodes_callbacks
 from skilltree.features.home.now import register_now_callbacks
 from skilltree.features.review.ratings import register_reflection_ratings_callbacks
+from skilltree.ui.tabs import register_tab_callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -1229,6 +1230,7 @@ def register_callbacks(app, services=None):
     register_nodes_callbacks(app, services)
     register_now_callbacks(app, services)
     register_reflection_ratings_callbacks(app, services)
+    register_tab_callbacks(app, services)
 
 
 def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
