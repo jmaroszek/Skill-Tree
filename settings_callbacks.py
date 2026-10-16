@@ -29,7 +29,6 @@ from callback_helpers import (
     get_trigger_id, build_context_editor_rows, sync_time_fields,
     spawn_local_file_picker, capacity_hours)
 import context_rules
-import style_tokens as tokens
 from resource_links import (get_sections, save_sections, validate_sections,
                             section_link_counts, live_sections, MAX_SECTIONS)
 from settings_layout import build_resource_setting_rows
@@ -95,39 +94,41 @@ def _shape_options():
 def _build_shape_rows(display_types, shapes):
     return [
         html.Div([
-            html.Div(dbc.Label(t, className="mb-0"),
-                     className="d-flex align-items-center",
-                     style={"width": "92px", "flex": "0 0 auto"}),
+            html.Span(t, className="settings-swatch-label"),
             dbc.Select(
                 id={"type": "setting-shape", "index": t},
                 options=_shape_options(),
                 value=shapes.get(t, "ellipse"),
-                style={"width": "156px"},
+                className="settings-shape-select",
             ),
-        ], className="d-flex align-items-center gap-2 mb-2")
+        ], className="settings-swatch-row")
         for t in display_types
+    ]
+
+
+def _color_swatch(key, color_val):
+    """A color input and its hex, for matching exact colours or checking contrast."""
+    return [
+        dbc.Input(
+            id={"type": "setting-color", "index": key},
+            type="color",
+            value=color_val,
+            className="settings-swatch",
+        ),
+        html.Small(
+            color_val,
+            id={"type": "setting-color-hex", "index": key},
+            className="settings-swatch-hex",
+        ),
     ]
 
 
 def _build_color_row(label, key, colors):
     color_val = colors.get(key, DEFAULT_NODE_COLORS.get(key, "#6c757d"))  # literal: colour-input value
     return html.Div([
-        html.Div(dbc.Label(label, className="mb-0"),
-                 className="d-flex align-items-center",
-                 style={"width": "92px", "flex": "0 0 auto"}),
-        dbc.Input(
-            id={"type": "setting-color", "index": key},
-            type="color",
-            value=color_val,
-            style={"height": "38px", "width": "52px", "padding": "2px"},
-        ),
-        html.Small(
-            color_val,
-            id={"type": "setting-color-hex", "index": key},
-            className="text-muted",
-            style={"fontSize": tokens.FS_CAP, "fontVariantNumeric": "tabular-nums"},
-        ),
-    ], className="d-flex align-items-center gap-2 mb-2")
+        html.Span(label, className="settings-swatch-label"),
+        *_color_swatch(key, color_val),
+    ], className="settings-swatch-row")
 
 
 def _build_status_color_rows(colors):
@@ -139,25 +140,13 @@ def _build_status_color_rows(colors):
 
 
 def _build_type_color_rows(display_types, colors):
-    rows = []
-    for t in display_types:
-        color_val = colors.get(t, DEFAULT_NODE_COLORS.get(t, "#6c757d"))  # literal: colour-input value
-        rows.append(html.Div([
-            dbc.Input(
-                id={"type": "setting-color", "index": t},
-                type="color",
-                value=color_val,
-                style={"height": "38px", "width": "52px", "padding": "2px"},
-            ),
-            # The hex is for matching exact colours or checking contrast.
-            html.Small(
-                color_val,
-                id={"type": "setting-color-hex", "index": t},
-                className="text-muted",
-                style={"fontSize": tokens.FS_CAP, "fontVariantNumeric": "tabular-nums"},
-            ),
-        ], className="d-flex align-items-center gap-2 mb-2"))
-    return rows
+    # No label: these sit beside the shape rows, which name each type.
+    return [
+        html.Div(_color_swatch(
+            t, colors.get(t, DEFAULT_NODE_COLORS.get(t, "#6c757d"))),  # literal: colour-input value
+            className="settings-swatch-row")
+        for t in display_types
+    ]
 
 
 def _clamp(val, lo, hi, default):
@@ -517,16 +506,6 @@ def register_settings_callbacks(app, services=None):
         Output('settings-save-error', 'children'),
         Input('settings-save-status', 'children'),
     )
-
-    # --- Settings: Toggle the Scoring Profile info popover ---
-    @app.callback(
-        Output("popover-hp-profile-info", "is_open"),
-        Input("btn-hp-profile-info", "n_clicks"),
-        State("popover-hp-profile-info", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_hp_profile_info_popover(_n_clicks, is_open):
-        return not is_open
 
     # --- Settings: Show Title Case options only when they apply ---
     @app.callback(

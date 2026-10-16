@@ -182,11 +182,11 @@ class TestProfileTable:
     def test_no_two_profiles_share_a_cost_curve(self):
         """Sage, Explorer and Creator shared one cost curve before the retune.
 
-        They are allowed to again, but Compounder, Pragmatist and Glider carry
+        They are allowed to again, but Investor, Pragmatist and Glider carry
         the profile system's spread on the cost axis and must stay distinct.
         """
         curves = {n: (PROFILES[n]["beta"], PROFILES[n]["w_t"], PROFILES[n]["w_e"])
-                  for n in ("Sage", "Compounder", "Pragmatist", "Glider")}
+                  for n in ("Sage", "Investor", "Pragmatist", "Glider")}
         assert len(set(curves.values())) == len(curves)
 
     def test_discount_convention_holds(self):

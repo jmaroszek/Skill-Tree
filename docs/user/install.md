@@ -80,7 +80,7 @@ the background and installs it the next time you quit. On macOS and with the .de
 it tells you a new version is out and offers the download page; install it over
 the old one. Your graph stays where it is.
 
-Settings → App & Data → Application has a switch to turn the check off.
+Settings → App → Application has a switch to turn the check off.
 The check asks GitHub for the latest release and sends nothing about you or your
 graph.
 
@@ -97,14 +97,14 @@ it up there too, in `Backups`, and keeps its logs beside it.
 
 **Backups.** Skill Tree copies the graph into `Data/Backups` once a day when it
 starts, if anything changed. It keeps the last 30 of those, and makes one more
-before every upgrade, restore or import. Settings → App & Data has **Back up now**,
+before every upgrade, restore or import. Settings → App has **Back up now**,
 **Restore…** from any of them, and exports you can keep anywhere.
 
-**Moving to another computer.** In Settings → App & Data, choose **Export graph (.json)**.
+**Moving to another computer.** In Settings → App, choose **Export graph (.json)**.
 Install Skill Tree on the other computer, and on its welcome screen choose
 **Import a graph…**. The import keeps your resource links but clears their root
 folders. Choose those folders again in Settings → Resources. Choose an extra
-backup folder on this computer in Settings → App & Data if you want one.
+backup folder on this computer in Settings → App if you want one.
 
 ## Uninstalling
 

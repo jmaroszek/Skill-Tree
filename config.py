@@ -477,7 +477,8 @@ HYPERPARAMS_SCHEMA_VERSION = 6
 
 # Old profile names, and the profile each became.
 PROFILE_ALIASES = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
-                   'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider'}
+                   'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider',
+                   'Compounder': 'Investor'}
 
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
@@ -527,7 +528,7 @@ PROFILES = {
     # along *hard* prerequisite chains only, so nodes that unlock large
     # subtrees rise without repeatedly counting the same beneficiary.
     # A high d_S would flood value everywhere and erase the distinction.
-    'Compounder': {
+    'Investor': {
         'w_v': 1.60, 'w_i': 0.40, 'value_exponent': 1.50,
         'd_H': 0.92, 'd_S': 0.20,
         'd_Syn_pair': 0.02, 'd_Syn_mul': 0.10,
@@ -574,7 +575,7 @@ PROFILES = {
 # Premiums are percent extra merit needed after one previous recommendation.
 SUGGESTION_PREMIUMS = {
     'Sage': (5.0, 15.0), 'Explorer': (10.0, 20.0),
-    'Compounder': (0.0, 0.0), 'Pragmatist': (2.0, 5.0),
+    'Investor': (0.0, 0.0), 'Pragmatist': (2.0, 5.0),
     'Creator': (5.0, 15.0), 'Glider': (5.0, 20.0),
 }
 for _name, _profile in PROFILES.items():
@@ -1067,6 +1068,7 @@ class ConfigManager:
         #   Default     → Sage                   (2026-05)
         #   Curious     → Explorer               (2026-05)
         #   Sprinter    → Glider                 (2026-05)
+        #   Compounder  → Investor               (2026-10)
         if val in PROFILE_ALIASES:
             cls._set_db_value("HP_PROFILE", PROFILE_ALIASES[val])
             return PROFILE_ALIASES[val]

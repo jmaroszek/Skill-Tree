@@ -1,4 +1,4 @@
-"""Application update preferences in Settings > App & Data.
+"""Application update preferences in Settings > App.
 
 The desktop shell persists the toggle through preload.js's bridge. Browsers
 have no updater, so only the version number is shown there.

@@ -5,10 +5,12 @@
    context_rules.py for the model and assets/context_editor_sortable.js for
    the drag wiring.
 
-   The rows sit straight on the modal, outlined but unfilled: a panel fill
-   here would be a second dark grey of a different hue from the modal's. The
-   name, chips and priority are part of the app's light form layer and share
-   one control height, so each row reads along a single centre line. */
+   The rows sit straight on the page, unboxed, divided by hairlines like the
+   page's sections. Names in a list editor read as titles and tags rather
+   than as form fields: the context name is text until hovered or focused,
+   and subcontexts are quiet dark pills. Values keep the light form layer, so
+   the priority is the one white field in a row. Everything shares one
+   control height, so each row reads along a single centre line. */
 
 /* Column headings. The paddings mirror .ctx-row's so each label sits over the
    control it names; the leading offset is the row's padding, the handle's
@@ -19,7 +21,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0 0.5rem 0.3rem calc(0.5rem + var(--ctx-handle-width) + 0.5rem);
+    padding: 0 0 6px calc(var(--ctx-handle-width) + 0.5rem);
+    border-bottom: 1px solid var(--st-border-hairline);
     color: var(--st-text-secondary);
     font-size: var(--st-fs-cap);
     font-weight: 500;
@@ -59,19 +62,12 @@
     --ctx-name-gap: 0.4rem;
 }
 
-.ctx-editor-box {
-    border: 1px solid var(--st-border-panel);
-    border-radius: var(--st-radius);
-    background-color: transparent;
-    overflow: hidden;
-}
-
 .ctx-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.4rem 0.5rem;
-    border-bottom: 1px solid var(--st-border-panel);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--st-border-hairline);
 }
 
 /* The same three-line handle as the goal and event cards. */
@@ -99,15 +95,42 @@
     margin-right: var(--ctx-name-gap);
 }
 
-/* No taller than the controls beside it. Shape, a type step and the column
-   gap set the name apart from its chips without bold. */
-.form-control.ctx-row-name {
-    width: var(--ctx-name-width);
-    height: var(--ctx-control-height);
+/* No taller than the controls beside it. The name reads as the row's title:
+   text on the page until hovered or focused, when it shows the outline of the
+   field it is. Medium weight and the strong text colour set it apart from its
+   chips; bold was tried on the old white fields and was too much. Shared with
+   the Resources rows. */
+.form-control.ctx-row-name,
+.form-control.settings-name-input {
+    height: var(--ctx-control-height, 30px);
     min-height: 0;
     padding: 0 0.5rem;
-    flex: 0 0 auto;
     font-size: var(--st-fs-base);
+    font-weight: 500;
+    color: var(--st-text-strong);
+    background-color: transparent;
+    border: 1px solid transparent;
+    box-shadow: none;
+    transition: border-color var(--st-transition-fast), background-color var(--st-transition-fast);
+}
+.form-control.ctx-row-name {
+    width: var(--ctx-name-width);
+    flex: 0 0 auto;
+}
+.form-control.ctx-row-name:hover,
+.form-control.settings-name-input:hover {
+    border-color: var(--st-border-hairline-strong);
+}
+.form-control.ctx-row-name:focus,
+.form-control.settings-name-input:focus {
+    color: var(--st-text-strong);
+    background-color: var(--st-ghost-hover-dark);
+    border-color: var(--st-field-focus-border);
+}
+.form-control.ctx-row-name::placeholder,
+.form-control.settings-name-input::placeholder {
+    color: var(--st-text-dim);
+    font-weight: 400;
 }
 
 /* Padded like the input (its padding plus its 1px border), so a removed
@@ -135,8 +158,8 @@
 .ctx-chip {
     display: inline-flex;
     align-items: center;
-    background-color: var(--st-field-bg);
-    border: 1px solid var(--st-menu-border);
+    background-color: var(--st-ghost-hover-dark);
+    border: 1px solid var(--st-border-hairline-strong);
     border-radius: 999px;
     height: var(--ctx-chip-height);
     padding: 0 3px 0 9px;
@@ -153,7 +176,7 @@
     display: flex;
     align-items: center;
     margin-left: -5px;
-    padding-right: 1px;
+    padding-right: 5px;
     color: var(--st-text-dim);
     font-size: var(--st-fs-sm);
     cursor: grab;
@@ -183,7 +206,11 @@
     min-height: 0;
     line-height: 1.5;
     font-size: var(--st-fs-cap);
-    color: var(--st-text-on-field);
+    color: var(--st-text-primary);
+}
+.form-control.ctx-chip-input:focus {
+    color: var(--st-text-strong);
+    background-color: transparent;
 }
 
 .btn.ctx-chip-remove,
@@ -200,17 +227,17 @@
 
 .btn.ctx-chip-remove {
     --bs-btn-color: var(--st-text-dim);
-    --bs-btn-hover-bg: var(--st-ghost-hover-light);
-    --bs-btn-hover-color: var(--st-danger);
-    --bs-btn-active-bg: var(--st-ghost-active-light);
-    --bs-btn-active-color: var(--st-danger);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-color: var(--st-danger-text);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-color: var(--st-danger-text);
     padding: 0 3px;
     border-radius: 999px;
     font-size: var(--st-fs-sm);
 }
 
 /* Same height and shape as a chip, so it reads as the next chip to be. It
-   stays outlined rather than white because it is an action, not a value. */
+   is dashed and unfilled because it is an action, not a value. */
 .btn.ctx-chip-add {
     --bs-btn-color: var(--st-text-soft);
     --bs-btn-hover-bg: var(--st-ghost-hover-dark);
@@ -220,7 +247,7 @@
     display: inline-flex;
     align-items: center;
     height: var(--ctx-chip-height);
-    border: 1px dashed var(--st-text-dim);
+    border: 1px dashed var(--st-border-hairline-strong);
     border-radius: 999px;
     padding: 0 10px 0 8px;
     font-size: var(--st-fs-cap);
@@ -310,10 +337,11 @@
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
     border: none;
-    border-radius: 0;
+    border-radius: var(--st-radius);
     width: 100%;
     text-align: left;
-    padding: 0.4rem 0.5rem 0.4rem 0.6rem;
+    margin-top: 4px;
+    padding: 6px 0.5rem;
     font-size: var(--st-fs-base);
 }
 
@@ -387,58 +415,97 @@ body.ctx-dragging * {
     z-index: var(--st-z-drag-clone) !important;
 }
 
-/* --- Settings ▸ Resources: Add resource --------------------------------- */
+/* --- Settings ▸ Resources: the row list --------------------------------- */
 
-/* Full width and dashed, like the subcontext adder chip: it reads as the next
-   resource to be. The Contexts adder can stay borderless because its outlined
-   box frames it; this one sits loose on the modal, so it carries its own. */
+/* One row per resource under column heads, the same anatomy as the Contexts
+   editor: name, the Obsidian switch, root folder (its switch and the field it
+   reveals), and a remove that shows on hover. */
+.resource-head,
+.resource-row {
+    display: grid;
+    grid-template-columns: 180px 72px minmax(0, 1fr) 28px;
+    align-items: center;
+    column-gap: 16px;
+}
+/* The head takes no side padding, or every column would shift off its
+   control. Only Name is indented, to the name field's text. */
+.resource-head {
+    padding: 0 0 6px;
+    border-bottom: 1px solid var(--st-border-hairline);
+    color: var(--st-text-secondary);
+    font-size: var(--st-fs-cap);
+    font-weight: 500;
+}
+.resource-head-name {
+    padding-left: calc(0.5rem + 1px);
+}
+.resource-head-center {
+    justify-self: center;
+}
+.resource-row {
+    min-height: calc(var(--st-control-height) + 16px);
+    padding: 8px 0;
+    border-bottom: 1px solid var(--st-border-hairline);
+}
+.resource-row .form-check {
+    margin: 0;
+    min-height: 0;
+}
+.resource-root-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+.resource-root-cell > .collapse,
+.resource-root-cell > .collapsing {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+/* With its switch off the folder field is gone, so the cell says what
+   happens instead. */
+.resource-root-cell:has(.form-check-input:not(:checked))::after {
+    content: "Off — links keep full paths";
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-cap);
+}
+.resource-row > .btn.ctx-row-btn-danger {
+    width: 28px;
+}
+.resource-row:hover > .btn.ctx-row-btn-danger {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Same treatment as the Add context row. */
 .btn.resource-adder {
     --bs-btn-bg: transparent;
-    --bs-btn-color: var(--st-text-soft);
-    --bs-btn-border-color: var(--st-text-dim);
+    --bs-btn-border-color: transparent;
+    --bs-btn-color: var(--st-text-dim);
     --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
     --bs-btn-hover-color: var(--st-text-primary);
-    --bs-btn-hover-border-color: var(--st-text-soft);
     --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-color: var(--st-text-primary);
-    --bs-btn-active-border-color: var(--st-text-soft);
     --bs-btn-disabled-bg: transparent;
-    --bs-btn-disabled-color: var(--st-text-dim);
-    --bs-btn-disabled-border-color: var(--st-text-dim);
+    --bs-btn-disabled-color: var(--st-text-faint);
+    --bs-btn-disabled-border-color: transparent;
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
+    border: none;
     width: 100%;
-    border-style: dashed;
     border-radius: var(--st-radius);
     text-align: left;
-    padding: 0.4rem 0.6rem;
+    margin-top: 4px;
+    padding: 6px 0.5rem;
     font-size: var(--st-fs-base);
 }
 
-/* One outlined card per resource, the same outline as the Contexts row
-   editor, so each resource reads as a unit instead of rows split by rules. */
-.resource-card {
-    border: 1px solid var(--st-border-panel);
-    border-radius: var(--st-radius);
-    padding: 0.6rem;
-    margin-bottom: 0.6rem;
-}
-/* The card's two switches share one line. */
-.resource-card-switches {
-    display: flex;
-    flex-wrap: wrap;
-    column-gap: 1.5rem;
-    margin: 0.5rem 0 0;
-}
-.resource-card .collapse,
-.resource-card .collapsing {
-    margin-top: 0.5rem;
-}
 /* A removed resource is held until Save, like a removed context. */
-.resource-card-removed {
+.resource-row.resource-card-removed {
     display: flex;
-    align-items: center;
     gap: 0.75rem;
+    padding-left: 0.5rem;
     background-color: var(--st-danger-wash);
 }
 .resource-card-name-removed {
@@ -450,10 +517,4 @@ body.ctx-dragging * {
     min-width: 0;
     color: var(--st-danger-text);
     font-size: var(--st-fs-sm);
-}
-.resource-card-removed > .btn.editor-icon-btn {
-    --bs-btn-color: var(--st-text-soft);
-    --bs-btn-hover-color: var(--st-text-primary);
-    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
-    height: 30px;
 }

@@ -177,12 +177,12 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
         assert len(inspect.signature(fn).parameters) == sum(isinstance(d, (Input, State)) for d in deps)
     load, deps = registry.callbacks['load_settings']
     assert len(load(False)) == sum(isinstance(d, Output) for d in deps)
-    ConfigManager.set_hp_profile('Compounder')
+    ConfigManager.set_hp_profile('Investor')
     loaded = load(True)
     outputs = [d for d in deps if isinstance(d, Output)]
     assert len(loaded) == len(outputs)
     values = {d.component_id: value for d, value in zip(outputs, loaded)}
-    assert values['setting-hp-profile'] == 'Compounder'
+    assert values['setting-hp-profile'] == 'Investor'
 
     save, _ = registry.callbacks['save_settings']
     args = {key: None for key in inspect.signature(save).parameters}

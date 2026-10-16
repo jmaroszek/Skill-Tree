@@ -47,7 +47,7 @@ def test_premiums_are_total_and_accumulate(previous, subcontext, threshold):
 
 def test_zero_premiums_leave_merit_alone():
     pool = [entry('Low', 1), entry('High', 2)]
-    assert variety_divisors(pool, PROFILES['Compounder']) == {}
+    assert variety_divisors(pool, PROFILES['Investor']) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +188,8 @@ def test_the_named_profile_decides_without_writing(profile):
     assert ConfigManager._get_db_value('HYPERPARAMS') == raw
 
 
-@pytest.mark.parametrize('old,new', [('Curious','Explorer'), ('Sprinter','Glider'), ('Industrious','Pragmatist')])
+@pytest.mark.parametrize('old,new', [('Curious','Explorer'), ('Sprinter','Glider'), ('Industrious','Pragmatist'),
+                                     ('Compounder','Investor')])
 def test_legacy_profile_alias_migrates_without_write(old, new):
     ConfigManager._set_db_value('HP_PROFILE', old)
     ConfigManager._set_db_value('HYPERPARAMS', json.dumps({'_schema': 3}))

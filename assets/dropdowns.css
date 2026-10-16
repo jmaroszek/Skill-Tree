@@ -77,9 +77,6 @@ select.form-select:has(> option[value=""][hidden]:checked) {
     cursor: pointer;
 }
 
-/* Two selects are deliberately narrower than their container. */
-#setting-hp-profile { max-width: 150px; }
-#setting-default-time-unit { max-width: 140px; }
 
 
 /* =====================================================================

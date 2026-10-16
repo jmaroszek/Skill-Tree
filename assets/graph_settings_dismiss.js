@@ -1,16 +1,10 @@
-// Close any open graph-settings panel, or the scoring profile info popover,
-// when the user clicks outside of it. Works by simulating a click on the
-// panel's toggle button so Dash's existing toggle callback keeps its State
-// in sync with the DOM.
+// Close any open graph-settings panel when the user clicks outside of it.
+// Works by simulating a click on the panel's toggle button so Dash's existing
+// toggle callback keeps its State in sync with the DOM.
 (function () {
     const PANELS = window.SkillTree.canvases.map(function (canvas) {
         return [canvas.settingsPanelId, canvas.settingsToggleId];
-    }).concat([['popover-hp-profile-info', 'btn-hp-profile-info']]);
-    window.SkillTree.keyboardFocus.register({id: 'popover-hp-profile-info',
-        modalId: 'settings-modal',
-        triggerId: 'btn-hp-profile-info', isOpen: function (el) {
-            return window.SkillTree.keyboardFocus.visible(el);
-        }, dismiss: function () { document.getElementById('btn-hp-profile-info').click(); }});
+    });
 
     function handleOutsideClick(e) {
         for (const [panelId, btnId] of PANELS) {

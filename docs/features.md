@@ -1020,7 +1020,7 @@ The sections are listed down the left side. The modal keeps one size, so switchi
 | **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
 | **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Turn on Open in Obsidian to send its notes to the Obsidian app. Removing a kind that holds links shows how many; they are deleted when you save. |
 | **Appearance** | Customize node shapes and colors by type, and set status colors. |
-| **App & Data** | View the installed version, control automatic update checks in the desktop app, and optionally show the startup graph summary on the Home tab. Back up, restore, export or import your graph, and choose an extra backup folder. |
+| **App** | View the installed version, control automatic update checks in the desktop app, and optionally show the startup graph summary on the Home tab. Back up, restore, export or import your graph, and choose an extra backup folder. |
 
 Graph-layout behavior, scoring coefficients, forecast assumptions, and other implementation policy use maintained defaults behind the scenes rather than asking you to tune the model yourself.
 

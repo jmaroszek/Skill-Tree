@@ -38,7 +38,7 @@ def test_settings_keep_profiles_context_priorities_and_startup_summary():
 
     options = components["setting-hp-profile"].options
     assert [option["value"] for option in options] == [
-        "Sage", "Explorer", "Compounder", "Pragmatist", "Creator", "Glider"
+        "Sage", "Explorer", "Investor", "Pragmatist", "Creator", "Glider"
     ]
     # Context priorities are edited on each context's own row.
     assert "setting-context-editor" in components
@@ -131,7 +131,7 @@ def test_graph_statistics_is_an_app_preference_named_for_what_it_shows():
 
     It was "Startup Analysis", which described the timing and left the content
     to be guessed at. It changes no recommendation, so it sits with the app's
-    own preferences in App & Data.
+    own preferences in App.
     """
     modal = build_settings_modal()
     data_tab = next(
@@ -141,18 +141,20 @@ def test_graph_statistics_is_an_app_preference_named_for_what_it_shows():
     toggle = _by_id(data_tab)["setting-show-scoring-perf"]
     copy = _text(data_tab)
 
-    assert toggle.options[0]["label"] == "Show graph statistics on the Home tab"
-    assert "Node and edge counts, and how long scoring took at startup." in copy
+    assert toggle.options[0]["label"] == "Show graph statistics on Home"
+    assert "Node and edge counts, and how long scoring took." in copy
     assert "Startup Analysis" not in copy
 
 
-def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
-    modal = build_settings_modal()
-    copy = _text(_by_id(modal)["popover-hp-profile-info"])
+def test_scoring_profile_choices_explain_recommendation_tradeoffs_plainly():
+    """Each profile says what it does under its own name, so choosing one
+    needs no reference popover."""
+    options = _by_id(build_settings_modal())["setting-hp-profile"].options
+    copy = " ".join(_text(option["label"]) for option in options)
 
     assert "want the graph to speak for itself" in copy
     assert "curiosity more influence" in copy
-    assert "foundational work that will unlock many later steps" in copy
+    assert "foundational work that unlocks later steps" in copy
     assert "priority goal" in copy
     assert "connects and combines different areas" in copy
     assert "shorter, easier work" in copy
@@ -161,24 +163,31 @@ def test_scoring_profile_help_explains_recommendation_tradeoffs_plainly():
         assert technical_phrase not in copy
 
 
-def test_resources_tab_holds_resource_cards_in_a_bounded_column():
+def test_every_settings_page_opens_with_a_title_and_a_description():
+    modal = build_settings_modal()
+    tabs = [component for component in _walk(modal)
+            if getattr(component, "tab_id", None)]
+    for tab in tabs:
+        header = tab.children[0]
+        assert header.className == "settings-page-header"
+        title, description = header.children
+        assert title.children == tab.label
+        assert description.className == "settings-page-desc"
+        assert description.children
+
+
+def test_resources_tab_holds_resource_rows_under_column_heads():
     modal = build_settings_modal()
     resources_tab = next(
         component for component in _walk(modal)
         if getattr(component, "tab_id", None) == "tab-resources"
     )
-    containers = [
-        component for component in _walk(resources_tab)
-        if getattr(component, "style", None) == {
-            "width": "100%", "maxWidth": "640px"
-        }
-    ]
-
-    assert len(containers) == 1
-    ids = _by_id(containers[0])
+    ids = _by_id(resources_tab)
     assert {"resource-section-settings-store", "resource-section-settings-rows",
             "btn-resource-section-add"} <= set(ids)
     assert " Add resource" in ids["btn-resource-section-add"].children
+    copy = _text(resources_tab)
+    assert "Root folder" in copy and "Obsidian" in copy
 
 
 def test_type_and_status_colors_show_their_hex():
@@ -246,7 +255,7 @@ def test_tabs_group_settings_by_what_they_adjust():
         "tab-resources", "tab-appearance", "tab-data",
     ]
     assert [tab.label for tab in tabs.values()] == [
-        "Recommendations", "Editing", "Contexts", "Resources", "Appearance", "App & Data",
+        "Recommendations", "Editing", "Contexts", "Resources", "Appearance", "App",
     ]
     assert {"btn-backup-now", "restore-backup-select", "btn-export-json",
             "upload-import", "setting-show-scoring-perf"} <= _tab_ids(tabs["tab-data"])

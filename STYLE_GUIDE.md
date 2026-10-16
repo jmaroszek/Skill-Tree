@@ -269,10 +269,16 @@ Dividers are focusable separators and resize with their axis's arrow keys.
 | Section title | `html.H5` | `mt-2 mb-1` | Section headers everywhere |
 | Section title in a flex row | `html.H5` | `mb-0` | Where a bottom margin would break the row's centring |
 | Major section in a modal | `html.H5` | `mt-3 mb-2` | The migration modal's blocks |
-| Settings field group | `html.H6` | `mt-3 mb-2` | Editing Hints beneath the time defaults |
+| Settings page title | `html.H4` | `settings-page-title` | Added by `_titled` from the nav label |
+| Settings section title | `html.H5` | `settings-section-title` | Built by `_section` in `settings_layout.py` |
+| Settings subgroup | `html.H6` | `settings-subhead` | New Node Defaults inside Time Estimates |
 | Inline heading | `html.H6` | `style=tokens.SECTION_TITLE_STYLE` | Home-tab section headings |
 
 **Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
+
+Headings keep Bootstrap's heading weight (500). The vendored Lato has only
+400 and 700, so 500 renders regular and anything from 600 up renders bold. A
+heading set to 600 looks like a different font beside the app's others.
 
 ### The type scale
 
@@ -347,10 +353,10 @@ ticks mix units says "Work time". Calendar axes, such as the Throughput buckets,
 stay calendar.
 | Context | Pattern | Usage |
 |---------|---------|-------|
-| Top-level settings label | `dbc.Label("Name", className="fw-bold mt-2")` | Section-level fields in Settings |
+| Settings field label | `dbc.Label("Name", className="settings-field-label")` | Small label over a field in Settings (`_field`) |
 | Standard input label | `dbc.Label("Name", className="mt-2")` | Form fields in sidebars, modals, and under section headers (Name, Type, Hours per Week) |
 | Compact inline label | `dbc.Label("Name", className="small text-muted mb-0")` | Grouped inputs in a Row (Lower, Expected, Upper) |
-| Subsection helper | `html.Small("description", className="text-muted d-block mb-1")` | Under settings section headers |
+| Settings help | `html.Small("…", className="settings-help")`, or `_switch_help` under a switch | Under a field in Settings |
 | Helper text (paragraph) | `html.P("description", className="text-muted small")` | After textarea inputs in settings |
 | Formula | `html.Small("formula", className="text-muted d-block mb-1", style={"fontFamily": "monospace"})` | Algorithm formulas |
 
@@ -391,6 +397,15 @@ never resize it. Only the section pane scrolls, and the section list stays put.
 Settings has many sections, so it lists them down the left. The vertical list
 takes Up/Down arrows instead of Left/Right. Its styles live under
 `.settings-body` in `theme.css`.
+
+Every Settings page has one anatomy. A header gives the page's title and one
+sentence on what the page is for (`_PAGE_DESCRIPTIONS`). Sections follow, each
+built by `_section`: a title, one sentence on what it does, then its controls.
+Hairlines (`--st-border-hairline`) divide sections, and nothing is boxed, so a
+page reads as one sheet. Fields that sit in a row take a small label above
+(`_field`) and share one width (`settings-input-num`). A list of options that
+each need explaining is a choice-card radio list (`settings-choice-list`), with
+the explanation under each name, rather than a select plus an (i) reference.
 
 Reflection has three tabs and a wide History table, so its tabs stay on top.
 Its styles live under `.review-hub-body`. Both modals share one height.
@@ -541,7 +556,7 @@ When a bar is split by node type, the segments take the type's `BADGE_PALETTE` c
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
-- **Settings sections**: a tab whose sections are long (Editing) separates them with `html.Hr(className="my-3")`; a tab of short sections uses space alone, with the next `H5` taking `mt-4`
+- **Settings sections**: `_section` draws a `--st-border-hairline` rule above each section but the first; no `html.Hr` inside Settings
 - **Standalone section dividers**: `html.Hr(className="my-3")` — more spacious, for filter panels and major sections
 - **Context menu dividers**: `_menu_divider()` in `layout.py` (`html.Hr(style={"margin": "2px"})`) — ultra-tight
 - Never use bare `html.Hr()` — always specify a margin class
@@ -845,23 +860,24 @@ Settings → Resources owns up to five named Resource sections. Every section
 is ordinary: Obsidian, Google Drive and Website are just the three a new graph
 starts with, and any of them can be renamed or removed.
 
-- **One card each.** A section is an outlined `.resource-card`, the same
-  outline as the Contexts row editor, so each reads as a unit without rules
-  between them. The card opens with its name in an `.editor-field-group`
-  carrying a trailing remove `×` (`editor-icon-btn-danger`).
-- **Switches on one line.** `Root folder` and `Open in Obsidian` share
-  `.resource-card-switches`. Root folder starts on only when a root is set,
-  reveals the folder field, and saves no root when off. A folder field ends in
-  a folder-browse icon: the native folder dialog in the desktop window,
-  tkinter in a browser. There is no show/hide switch; a section you don't want
-  is removed.
-- **Removal is held.** Removing a saved section turns its card into a struck
+- **One row each.** A section is a `.resource-row` under column heads (Name,
+  Obsidian, Root folder), the same anatomy as the Contexts row editor. Obsidian
+  comes before Root folder, so a row never has a switch on both sides of its
+  folder field. The heads take no side padding, so each sits over its control. The name
+  is a `settings-name-input`, text until hovered or focused. The row's remove
+  `×` is a progressive-disclosure row action.
+- **Root folder.** Its switch starts on only when a root is set, reveals the
+  folder field beside it, and saves no root when off; the empty cell then says
+  links keep full paths. A folder field ends in a folder-browse icon: the native
+  folder dialog in the desktop window, tkinter in a browser. The column heads
+  explain both switches on hover. There is no show/hide switch; a section you
+  don't want is removed.
+- **Removal is held.** Removing a saved section turns its row into a struck
   `.resource-card-removed` on `--st-danger-wash`, naming how many links it
   will delete, with an undo until Save. A section that was never saved simply
   disappears.
-- **Adder.** `+ Add resource` is a full-width dashed `.resource-adder` below the
-  cards, so it reads as the next card to be. New sections are named
-  `New Resource`, then `New Resource 2`.
+- **Adder.** `+ Add resource` is a borderless row below the list, the same as
+  Add context. New sections are named `New Resource`, then `New Resource 2`.
   It stays enabled at the five-resource limit; a click then shows a
   `text-warning` note below it, which clears once a removal makes room.
 - **Editor rows.** The node editor renders every section the same way, with
@@ -879,16 +895,22 @@ a free-text field. The row's identity is what turns an edit into a rename
 instead of a delete plus an add. The Contexts tab is the example; its model is
 in `context_rules.py` and its rows in `build_context_editor_rows`.
 
-- **One row, one centre line.** The rows sit straight on the modal inside an
-  outline, with no panel fill. `--st-bg-panel` is a cool grey that clashes
-  with the modal's neutral `#303030`. The name, priority and row buttons share
-  one 30px control height, and chips are 26px. Chip text is one step smaller
-  (`--st-fs-cap`) than the name, and the name column carries extra trailing
-  space (`--ctx-name-gap`), so a name reads as the label for its chips. The
-  name stays regular weight; bold was tried and was too much. Column
-  headings use
-  `--st-text-secondary`, not the dim caption colour. The row's remove `×` is a
-  progressive-disclosure row action. Enter leaves a name or priority field.
+- **One row, one centre line.** The rows sit straight on the page, unboxed
+  and unfilled, divided by hairlines like the page's sections. `--st-bg-panel`
+  is a cool grey that clashes with the modal's neutral `#303030`. The name,
+  priority and row buttons share one 30px control height, and chips are 26px.
+  Chip text is one step smaller (`--st-fs-cap`) than the name, and the name
+  column carries extra trailing space (`--ctx-name-gap`), so a name reads as
+  the label for its chips. Column headings use `--st-text-secondary`, not the
+  dim caption colour; Priority explains itself on hover. The row's remove `×`
+  is a progressive-disclosure row action. Enter leaves a name or priority
+  field.
+- **Names are titles, values are fields.** In a list editor the names read as
+  titles and tags, not form fields. A row's name is medium-weight text in the
+  strong colour that shows its field outline on hover and focus; bold was tried
+  on the old white fields and was too much. Chips are dark translucent pills.
+  Values such as the priority keep the light form layer. A wall of white
+  inputs is what made the old editor feel heavy.
 - **Drag handles are three lines.** Every drag handle in the app is `bi-list`:
   goal cards, event cards, context rows and subcontext chips.
 - **Children as chips.** A context's subcontexts are pills holding an inline

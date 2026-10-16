@@ -1,4 +1,4 @@
-"""App & Data application controls, plus standalone diagnostic/build helpers."""
+"""Settings > App controls, plus standalone diagnostic/build helpers."""
 import re
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse

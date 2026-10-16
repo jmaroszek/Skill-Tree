@@ -755,11 +755,6 @@
 .settings-dialog .modal-content {
     height: min(90vh, 980px);
 }
-/* Each section opens with its name, so every page starts the same way. */
-.settings-page-title {
-    margin: 4px 0 12px;
-    padding: 0 0.5rem;
-}
 .modal-body.settings-body {
     display: flex;
     padding: 0;
@@ -799,7 +794,225 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow-y: auto;
-    padding: 12px 20px 20px;
+    padding: 20px 28px 28px;
+}
+
+/* --- Settings pages: one anatomy for every page --- */
+/* A page is a header (title and one line on its purpose) and then sections.
+   A section is a title, one line on what it does, and its controls. Hairlines
+   divide sections; nothing is boxed, so the page reads as one sheet. Two type
+   sizes do the work three heading levels used to: the page title, and a
+   section title one step above body text. */
+
+.settings-page-header {
+    padding-bottom: 4px;
+}
+.settings-page-title {
+    margin: 0 0 4px;
+}
+.settings-page-desc {
+    margin: 0;
+    max-width: 76ch;
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-md);
+}
+
+.settings-section {
+    padding: 20px 0;
+    border-top: 1px solid var(--st-border-hairline);
+}
+.settings-page-header + .settings-section {
+    border-top: none;
+    padding-top: 16px;
+}
+.settings-section-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 2px;
+}
+.settings-section-title {
+    margin: 0 0 2px;
+    font-size: var(--st-fs-xl);
+    color: var(--st-text-strong);
+}
+.settings-section-head .settings-section-title {
+    margin: 0;
+}
+.settings-section-desc {
+    margin: 0 0 12px;
+    max-width: 76ch;
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-base);
+}
+/* A titled group inside a section, such as the new-node defaults. */
+.settings-subhead {
+    margin: 20px 0 2px;
+    font-size: var(--st-fs-row-meta);
+    color: var(--st-text-strong);
+}
+.settings-subblock {
+    margin-top: 16px;
+}
+
+/* Small labels over the fields of a row, and help under a field. */
+.settings-field-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+}
+.settings-field .settings-field-label,
+.settings-subblock > .settings-field-label,
+.settings-label-grid > .settings-field-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--st-fs-cap);
+    font-weight: 500;
+    color: var(--st-text-secondary);
+}
+.settings-help {
+    display: block;
+    margin-top: 6px;
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-cap);
+}
+/* Indented to the switch's label text: Bootstrap's .form-switch padding,
+   in the switch's own em, so only the inner text is set small. */
+.settings-switch-help {
+    padding-left: 2.5em;
+    margin: -2px 0 6px;
+    line-height: 1.3;
+}
+.settings-switch-help > small {
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-cap);
+}
+.settings-section .form-check:last-child {
+    margin-bottom: 0;
+}
+
+/* Numbers and short selects share one width, so a row of them lines up. */
+.form-control.settings-input-num,
+.form-select.settings-input-num {
+    width: 128px;
+}
+/* A folder path: room for a long one without spanning the page. */
+.form-control.settings-input-path {
+    max-width: 440px;
+}
+
+/* A label column beside its control, for short rows of choices. */
+.settings-label-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    align-items: center;
+    gap: 8px 24px;
+}
+.settings-label-grid > .settings-field-label {
+    margin: 0;
+    font-size: var(--st-fs-md);
+    color: var(--st-text-primary);
+}
+.settings-label-grid .form-check-inline:last-child {
+    margin-right: 0;
+}
+
+/* --- Settings: choice cards (Scoring Profile) --- */
+/* A radio list whose every option says what it does, so choosing needs no
+   reference. The whole card is the click target; the checked card takes the
+   accent border and a faint accent wash. */
+.settings-choice-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.settings-choice-list .form-check {
+    position: relative;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--st-border-hairline-strong);
+    border-radius: var(--st-radius);
+    transition: border-color var(--st-transition-fast), background-color var(--st-transition-fast);
+}
+.settings-choice-list .form-check:hover {
+    background-color: var(--st-ghost-hover-dark);
+}
+.settings-choice-list .form-check:has(.form-check-input:checked) {
+    border-color: var(--st-accent);
+    background-color: var(--st-accent-wash);
+}
+.settings-choice-list .form-check-input {
+    position: absolute;
+    top: 12px;
+    left: 14px;
+    margin: 0;
+}
+.settings-choice-list .form-check-label {
+    display: block;
+    padding: 9px 14px 10px 42px;
+    cursor: pointer;
+}
+.settings-choice-name {
+    display: block;
+    font-weight: 600;
+    color: var(--st-text-strong);
+}
+.settings-choice-desc {
+    display: block;
+    margin-top: 2px;
+    color: var(--st-text-soft);
+    font-size: var(--st-fs-base);
+    line-height: 1.45;
+}
+
+/* --- Settings: Appearance --- */
+/* Shapes (with the type names) and colors are two callback outputs side by
+   side. Every row is one control tall, so they line up across. */
+.settings-appearance-grid {
+    display: flex;
+    gap: 32px;
+}
+.settings-col-head-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 28px;
+    margin-bottom: 4px;
+}
+/* The shape column's head starts over the selects, past the type names. */
+.settings-appearance-grid > div:first-child .settings-col-head-row {
+    padding-left: calc(92px + 0.5rem);
+}
+.settings-col-head {
+    font-size: var(--st-fs-cap);
+    font-weight: 500;
+    color: var(--st-text-secondary);
+}
+.settings-swatch-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: var(--st-control-height);
+    margin-bottom: 8px;
+}
+.settings-swatch-label {
+    flex: 0 0 92px;
+    color: var(--st-text-primary);
+}
+.form-control.settings-swatch {
+    width: 44px;
+    height: 30px;
+    padding: 2px;
+    border-radius: var(--st-radius-sm);
+    cursor: pointer;
+}
+.settings-swatch-hex {
+    color: var(--st-text-dim);
+    font-size: var(--st-fs-cap);
+    font-variant-numeric: tabular-nums;
+}
+.form-select.settings-shape-select {
+    width: 156px;
 }
 
 /* --- Reflection modal: fixed-size frame --- */
