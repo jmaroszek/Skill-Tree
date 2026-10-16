@@ -143,7 +143,7 @@ def test_history_sorts_numeric_time_and_rating_change_with_missing_last():
 
 def test_a_bracket_without_a_best_estimate_has_an_actual_time():
     # History showed a dash for it, while Analyze plotted it.
-    from skilltree.features.analyze.data import _compute_estimation_accuracy
+    from skilltree.features.analyze.data import compute_estimation_accuracy
     from skilltree.features.review.callbacks import _fmt_delta_hours, _fmt_hours
     bracket = _reviewed_node("Bracket")
     bracket.time_o = bracket.time_m = bracket.time_p = 80
@@ -154,7 +154,7 @@ def test_a_bracket_without_a_best_estimate_has_an_actual_time():
     point.actual_time_point = 100
 
     analyzed = {row["name"]: row["actual"]
-                for row in _compute_estimation_accuracy([bracket, point])}
+                for row in compute_estimation_accuracy([bracket, point])}
     actual = bracket.actual_time
     assert actual == analyzed["Bracket"] > 300
 

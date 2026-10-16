@@ -528,7 +528,7 @@ def name_community(manager, community: Set[str]) -> str:
 
 def _labels(manager, communities, nodes) -> List[str]:
     from skilltree.domain import communities as community_labels
-    from skilltree.features.analyze.data import hub_scores
+    from skilltree.domain.communities import hub_scores
     edges = manager.get_edges()
     hubs = {name: row['score'] for name, row in hub_scores(nodes, edges).items()}
     return community_labels.label_communities(

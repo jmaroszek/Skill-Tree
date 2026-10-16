@@ -1,15 +1,15 @@
 """Graph analytics data preparation; rendering belongs to the Analyze view."""
-import math
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
 from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS, ConfigManager
 from skilltree.store.graph.queries import summarize_completion
-from skilltree.domain.models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN,
+from skilltree.domain.models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN,
                     STATUS_BLOCKED, STATUS_DONE)
 from skilltree.domain.goals import rank_goals
+from skilltree.domain.communities import CONTAINER_TYPES
 
-def _build_adjacency(edges):
+def adjacency_maps(edges):
     """Build in-memory forward and reverse adjacency maps from edge list.
 
     Returns:
@@ -37,7 +37,7 @@ def _build_adjacency(edges):
     return hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev
 
 
-def _compute_overview(nodes, edges):
+def compute_overview(nodes, edges):
     active = [n for n in nodes if n.status != STATUS_DONE]
     blocked = [n for n in active if n.status == STATUS_BLOCKED]
     goals = [n for n in nodes if n.type == 'Goal']
@@ -53,15 +53,7 @@ def _compute_overview(nodes, edges):
     }
 
 
-# Goals are containers and Milestones are checkpoints. Neither is work, so the
-# structure charts walk through them without ranking or counting them.
-_CONTAINER_TYPES = ('Goal', 'Milestone')
-# Node types whose incoming edges count as a hub's inputs. A Resource linked to
-# a topic is reading material for it, not a concept feeding into it.
-_CONCEPT_TYPES = ('Learn', 'Action')
-
-
-def _compute_bottlenecks(nodes, hard_fwd, limits):
+def compute_bottlenecks(nodes, hard_fwd, limits):
     """Rank Open work nodes by the hours of unfinished work they gate, with
     each row's own estimated time beside it.
 
@@ -76,7 +68,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
     groups = defaultdict(list)
 
     for n in nodes:
-        if n.status != STATUS_OPEN or n.type in _CONTAINER_TYPES:
+        if n.status != STATUS_OPEN or n.type in CONTAINER_TYPES:
             continue
         reached = set()
         queue = [t for t in hard_fwd.get(n.name, []) if t in non_done]
@@ -88,7 +80,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
             queue.extend(t for t in hard_fwd.get(current, [])
                          if t in non_done and t not in reached)
         work = frozenset(r for r in reached
-                         if node_map[r].type not in _CONTAINER_TYPES)
+                         if node_map[r].type not in CONTAINER_TYPES)
         if work:
             groups[work].append(n.name)
 
@@ -107,63 +99,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
     return results[:limits.get('bottlenecks', DEFAULT_ANALYZE_LIMITS['bottlenecks'])]
 
 
-def hub_scores(nodes, edges):
-    """Every unfinished work node's hub score, keyed by name —
-    ``sqrt(in_count * out_count) + 0.5 * helps_count`` over Hard + Soft
-    prereq edges, with Helps edges counted as symmetric synergy partners.
-
-    Only Learn and Action prerequisites count as inputs, and Goals and
-    Milestones are not ranked. A Goal's incoming edges are its members, so
-    every umbrella Goal used to top the list; a Resource's edge into a topic
-    measures the length of its reading list, not how central the topic is.
-
-    The geometric mean punishes asymmetry (a pure root or pure leaf scores
-    0 on the first term), so hubs are exactly the nodes with traffic in
-    both directions — concepts that absorb prereqs AND feed dependents.
-    The Helps term gives synergy partners half-weight credit on top.
-
-    The community labels use it to name a cluster after its most central
-    nodes. Each value is a row with the score components. Nodes scoring 0
-    are left out."""
-    node_map = {n.name: n for n in nodes}
-    candidates = {n.name for n in nodes
-                  if n.status != STATUS_DONE and n.type not in _CONTAINER_TYPES}
-
-    in_ct: dict = defaultdict(int)
-    out_ct: dict = defaultdict(int)
-    helps_ct: dict = defaultdict(int)
-
-    for e in edges:
-        s, t, etype = e['source'], e['target'], e['type']
-        if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
-            out_ct[s] += 1
-            if s in node_map and node_map[s].type in _CONCEPT_TYPES:
-                in_ct[t] += 1
-        elif etype == EDGE_HELPS:
-            helps_ct[s] += 1
-            helps_ct[t] += 1
-
-    results = {}
-    for name in candidates:
-        i, o = in_ct[name], out_ct[name]
-        h = helps_ct[name]
-        score = math.sqrt(i * o) + 0.5 * h
-        if score <= 0:
-            continue
-        n = node_map[name]
-        results[name] = {
-            'name': name,
-            'score': score,
-            'in_count': i,
-            'out_count': o,
-            'helps_count': h,
-            'type': n.type,
-            'status': n.status,
-        }
-    return results
-
-
-def _compute_estimation_accuracy(nodes):
+def compute_estimation_accuracy(nodes):
     """Pair each completed node's forecast estimate against its captured
     actual time. Both figures run through the same `expected_time_estimate`
     blend so they are directly comparable. Nodes with no actual-time data,
@@ -188,11 +124,11 @@ def _compute_estimation_accuracy(nodes):
     return rows
 
 
-_REFLECTION_MIN_N = 4  # min reflected nodes per context for the drift chart
+REFLECTION_MIN_N = 4  # min reflected nodes per context for the drift chart
 
 
-def _compute_reflection_drift(nodes):
-    """For each context with at least ``_REFLECTION_MIN_N`` reflected nodes,
+def compute_reflection_drift(nodes):
+    """For each context with at least ``REFLECTION_MIN_N`` reflected nodes,
     compute mean ``reflect_X - X`` across V/I/D. A null reflect_X is skipped
     for that metric only; nodes count toward the context's reflected total
     if any of the three reflection fields is populated.
@@ -201,7 +137,7 @@ def _compute_reflection_drift(nodes):
     un-marked Done (so re-completing restores the reflection), so without this
     gate a reverted node would keep skewing the drift chart. Milestones and
     nodes in inherited ratings mode are left out, as in
-    _compute_rating_distribution: their stored ratings are placeholders, so a
+    compute_rating_distribution: their stored ratings are placeholders, so a
     reflection has nothing real to drift from."""
     by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
     for n in nodes:
@@ -227,7 +163,7 @@ def _compute_reflection_drift(nodes):
 
     results = []
     for ctx, d in by_ctx.items():
-        if d['count'] < _REFLECTION_MIN_N:
+        if d['count'] < REFLECTION_MIN_N:
             continue
         results.append({
             'context': ctx, 'count': d['count'],
@@ -241,7 +177,7 @@ def _compute_reflection_drift(nodes):
 
 # The order a Throughput chart colored by node type stacks its segments,
 # bottom up: study, reading, then practice.
-_TYPE_ORDER = ('Learn', 'Resource', 'Action', 'Goal', 'Milestone')
+TYPE_ORDER = ('Learn', 'Resource', 'Action', 'Goal', 'Milestone')
 
 
 def _bucket_span(key, granularity):
@@ -259,7 +195,7 @@ def _bucket_span(key, granularity):
     return first, after - timedelta(days=1)
 
 
-def _compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
+def compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
                         start_date=None, end_date=None,
                         by=DEFAULT_ANALYZE_LIMITS['throughput_color'],
                         today=None):
@@ -363,8 +299,8 @@ def _compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_gr
                 'nodes': items,
             })
         if by == 'type':
-            segments.sort(key=lambda s: (_TYPE_ORDER.index(s['key'])
-                                         if s['key'] in _TYPE_ORDER else 99))
+            segments.sort(key=lambda s: (TYPE_ORDER.index(s['key'])
+                                         if s['key'] in TYPE_ORDER else 99))
         else:
             segments.sort(key=lambda s: s['hours'], reverse=True)
         span_first, span_last = _bucket_span(k, granularity)
@@ -393,7 +329,7 @@ _MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
 
 
 # How far back the Completion rows' brighter "recent" segment reaches.
-_RECENT_DAYS = 182
+RECENT_DAYS = 182
 
 
 def _walk_back(name, adjacency):
@@ -409,7 +345,7 @@ def _walk_back(name, adjacency):
     return visited
 
 
-def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
+def compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     """The Completion rows: the top Goals and how far along each one is.
 
     Ranks goals via rank_goals (average worth of the work left in the hard
@@ -427,7 +363,7 @@ def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     hp = ConfigManager.get_hyperparams()
     ranked = rank_goals(all_goals, nodes, edges, priority_goals, hp,
                         context_weights=ConfigManager.get_context_weights())
-    cutoff = ((today or date.today()) - timedelta(days=_RECENT_DAYS)).isoformat()
+    cutoff = ((today or date.today()) - timedelta(days=RECENT_DAYS)).isoformat()
 
     rows = []
     for g in ranked[:limits.get('goals', DEFAULT_ANALYZE_LIMITS['goals'])]:
@@ -451,7 +387,7 @@ _RATING_KEYS = (('value', 'value'), ('interest', 'interest'),
                 ('effort', 'difficulty'))
 
 
-def _compute_rating_distribution(nodes):
+def compute_rating_distribution(nodes):
     """How the open nodes' Value, Interest and Effort ratings spread from 1
     to 10, for the whole graph, each context and each subcontext.
 

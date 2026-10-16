@@ -23,11 +23,11 @@ TOKENS_CSS = ASSETS / "tokens.css"
 #   ui/styles.py       - BADGE_PALETTE, and the Cytoscape stylesheet, which
 #                        reads values, not CSS
 #   ui/tokens.py       - the var() references themselves
-# analyze/callbacks.py builds Plotly figures, which read computed values and
+# analyze/charts.py builds Plotly figures, which read computed values and
 # cannot resolve a CSS variable; its chart constants stay literal and are
 # pinned to the tokens by test_plotly_chart_colours_match_their_tokens below.
 VALUE_OWNERS = {"skilltree/store/settings.py", "skilltree/ui/styles.py",
-                "skilltree/ui/tokens.py", "skilltree/features/analyze/callbacks.py"}
+                "skilltree/ui/tokens.py", "skilltree/features/analyze/charts.py"}
 
 # UI modules: every module in the layers that build Dash components, so a
 # module split out of another one is checked from its first commit.
@@ -152,13 +152,13 @@ def test_text_secondary_matches_what_bootstraps_text_muted_resolves_to():
 
 
 def test_plotly_chart_colours_match_their_tokens():
-    """Plotly reads computed values, so analyze_callbacks keeps real hex.
+    """Plotly reads computed values, so analyze/charts.py keeps real hex.
 
     That is a legitimate exception, but an unwatched one drifts: its status map
     used to paint Blocked in stock Bootstrap red while the rest of the app used
     the palette's darker red.
     """
-    from skilltree.features.analyze import callbacks as analyze_callbacks
+    from skilltree.features.analyze import charts as analyze_charts
 
     css = TOKENS_CSS.read_text(encoding="utf-8")
     for const, token in [("_BG", "--st-bg-canvas"),
@@ -167,8 +167,8 @@ def test_plotly_chart_colours_match_their_tokens():
                          ("_SOFT", "--st-text-soft"),
                          ("_TEXT", "--st-text-primary")]:
         expected = re.search(rf"{token}:\s*([^;]+);", css).group(1).strip()
-        assert getattr(analyze_callbacks, const) == expected, (
-            f"analyze_callbacks.{const} has drifted from {token}.")
+        assert getattr(analyze_charts, const) == expected, (
+            f"analyze/charts.{const} has drifted from {token}.")
 
 
 def test_the_three_data_tables_share_one_definition():

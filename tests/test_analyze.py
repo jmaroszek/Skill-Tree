@@ -12,11 +12,10 @@ from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.features.analyze.callbacks import (
-    _trunc, _build_adjacency, _compute_overview, _compute_bottlenecks,
-    _compute_goal_progress,
-    _compute_throughput, _compute_reflection_drift,
-    _compute_rating_distribution,
+    adjacency_maps, compute_overview, compute_bottlenecks, compute_goal_progress,
+    compute_throughput, compute_reflection_drift, compute_rating_distribution,
 )
+from skilltree.features.analyze.charts import _trunc
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.store import schema
 
@@ -102,7 +101,7 @@ class TestTrunc:
 
 
 # ============================================================================
-# _compute_overview
+# compute_overview
 # ============================================================================
 
 class TestComputeOverview:
@@ -114,7 +113,7 @@ class TestComputeOverview:
             _make_node("G", type="Goal", status="Open"),
         ]
         edges = []
-        result = _compute_overview(nodes, edges)
+        result = compute_overview(nodes, edges)
 
         assert result['active_count'] == 3  # A, B, G (not C)
         assert result['blocked_count'] == 1
@@ -127,18 +126,18 @@ class TestComputeOverview:
             _make_node("A", status="Open"),
             _make_node("B", status="Blocked"),
         ]
-        result = _compute_overview(nodes, [])
+        result = compute_overview(nodes, [])
         assert result['blocked_pct'] == 50
 
     def test_empty_graph(self):
-        result = _compute_overview([], [])
+        result = compute_overview([], [])
         assert result['active_count'] == 0
         assert result['blocked_pct'] == 0
         assert result['milestone_count'] == 0
 
 
 # ============================================================================
-# _compute_bottlenecks
+# compute_bottlenecks
 # ============================================================================
 
 class TestComputeBottlenecks:
@@ -149,8 +148,8 @@ class TestComputeBottlenecks:
     def test_ranks_by_hours_of_work_gated(self):
         """A → B → C: A gates B and C, B gates only C."""
         nodes = [_make_node(n, status="Open") for n in "ABC"]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B"), ("B", "C")))
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "B"), ("B", "C")))
+        result = compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
 
         assert [r['names'] for r in result] == [['A'], ['B']]
         assert result[0]['count'] == 2
@@ -161,8 +160,8 @@ class TestComputeBottlenecks:
         """B's gated work already sits inside A's row."""
         nodes = [_make_node("A", status="Open"), _make_node("B", status="Blocked"),
                  _make_node("C", status="Blocked")]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B"), ("B", "C")))
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "B"), ("B", "C")))
+        result = compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
         assert [r['names'] for r in result] == [['A']]
 
     def test_goals_and_milestones_are_walked_through_not_counted(self):
@@ -170,26 +169,28 @@ class TestComputeBottlenecks:
                  _make_node("M", type="Milestone", status="Blocked"),
                  _make_node("G", type="Goal", status="Blocked"),
                  _make_node("B", status="Blocked")]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "M"), ("M", "G"), ("G", "B")))
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "M"), ("M", "G"), ("G", "B")))
+        result = compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
         assert [(r['names'], r['count']) for r in result] == [(['A'], 1)]
 
     def test_nodes_gating_the_same_work_share_a_row(self):
         nodes = [_make_node("B", status="Open"), _make_node("A", status="Open"),
                  _make_node("C", status="Blocked")]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "C"), ("B", "C")))
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "C"), ("B", "C")))
+        result = compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25})
         assert [r['names'] for r in result] == [['A', 'B']]
         # Both stand in the way of C, so the row costs both.
         assert result[0]['own_hours'] == pytest.approx(nodes[0].time + nodes[1].time)
 
     def test_chart_draws_own_time_before_what_is_unlocked(self):
-        from skilltree.features.analyze.callbacks import _render_bottleneck_chart
+        from skilltree.features.analyze.charts import (
+            render_bottleneck_chart as _render_bottleneck_chart,
+        )
         nodes = [_make_node("A", status="Open", time_o=5, time_m=5, time_p=5),
                  _make_node("B", status="Blocked", time_o=40, time_m=40, time_p=40)]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "B")))
         parts = list(_walk(_render_bottleneck_chart(
-            _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}))))
+            compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}))))
         track = next(p for p in parts if getattr(p, 'className', None) == "gp-track")
         assert [s.className for s in track.children] == ["bn-own", "bn-unlocks"]
         # The widest row fills the track; the stub is its share of that.
@@ -207,20 +208,20 @@ class TestComputeBottlenecks:
             _make_node("A", status="Done"),
             _make_node("B", status="Open"),
         ]
-        hard_fwd, *_ = _build_adjacency(self._edges(("A", "B")))
+        hard_fwd, *_ = adjacency_maps(self._edges(("A", "B")))
         # A is Done, so it shouldn't appear; B has no outgoing
-        assert _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}) == []
+        assert compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 25}) == []
 
     def test_respects_limit(self):
         nodes = [_make_node(f"N{i}", status="Open") for i in range(10)]
-        hard_fwd, *_ = _build_adjacency(
+        hard_fwd, *_ = adjacency_maps(
             self._edges(*[(f"N{i}", f"N{i+1}") for i in range(9)]))
-        result = _compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 3})
+        result = compute_bottlenecks(nodes, hard_fwd, {'bottlenecks': 3})
         assert len(result) == 3
 
 
 # ============================================================================
-# _compute_goal_progress
+# compute_goal_progress
 # ============================================================================
 
 class TestComputeGoalProgress:
@@ -228,8 +229,8 @@ class TestComputeGoalProgress:
     def _rows(mgr, limit=25, today=None):
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        _, hard_rev, _, _, _ = _build_adjacency(edges)
-        return _compute_goal_progress(nodes, edges, hard_rev, {'goals': limit},
+        _, hard_rev, _, _, _ = adjacency_maps(edges)
+        return compute_goal_progress(nodes, edges, hard_rev, {'goals': limit},
                                       today=today)
 
     def test_progress_weighs_each_node_by_its_estimate(self, mgr):
@@ -282,7 +283,9 @@ class TestComputeGoalProgress:
         assert row['share'] == pytest.approx(0.4)
 
     def test_rows_put_the_priority_badge_after_the_name(self, mgr):
-        from skilltree.features.analyze.callbacks import _render_goal_progress
+        from skilltree.features.analyze.charts import (
+            render_goal_progress as _render_goal_progress,
+        )
         _setup_graph(mgr, [
             _make_node("Goal1", type="Goal", time_mode='inherited'),
             _make_node("Done1", status="Done", done_date="2026-05-01", time_o=1, time_m=1, time_p=1),
@@ -619,7 +622,7 @@ class TestGoalDensityNormalization:
 
 
 # ============================================================================
-# _compute_rating_distribution
+# compute_rating_distribution
 # ============================================================================
 
 class TestComputeRatingDistribution:
@@ -627,7 +630,7 @@ class TestComputeRatingDistribution:
         nodes = [_make_node("A", context="Mind", value=3),
                  _make_node("B", context="Mind", value=3),
                  _make_node("C", context="Mind", value=9)]
-        dist = _compute_rating_distribution(nodes)
+        dist = compute_rating_distribution(nodes)
         v = dist['all']['value']
         assert v['counts'] == [0, 0, 2, 0, 0, 0, 0, 0, 1, 0]
         assert v['mean'] == pytest.approx(5.0)
@@ -638,10 +641,10 @@ class TestComputeRatingDistribution:
                  _make_node("B", context="Mind", status="Done"),
                  _make_node("C", context="Mind", type="Milestone"),
                  _make_node("D", context="Mind", value_mode="inherited")]
-        assert _compute_rating_distribution(nodes)['all']['count'] == 1
+        assert compute_rating_distribution(nodes)['all']['count'] == 1
 
     def test_effort_reads_difficulty(self, mgr):
-        dist = _compute_rating_distribution([_make_node("A", difficulty=8)])
+        dist = compute_rating_distribution([_make_node("A", difficulty=8)])
         assert dist['all']['effort']['counts'][7] == 1
 
     def test_order_by_time_with_no_subcontext_and_no_context_last(self, mgr):
@@ -652,7 +655,7 @@ class TestComputeRatingDistribution:
             _make_node("D", context="Body", subcontext="Strength", time_m=900),
             _make_node("E", context=None, time_m=5000),
         ]
-        groups = _compute_rating_distribution(nodes)['groups']
+        groups = compute_rating_distribution(nodes)['groups']
         assert [g['row']['context'] for g in groups] == ['Body', 'Mind', 'No Context']
         mind = groups[1]
         assert mind['row']['subcontext'] is None
@@ -670,7 +673,7 @@ class TestComputeRatingDistribution:
             _make_node("C", context="Mind", subcontext="Logic", status="Done"),
             _make_node("D", context="Body"),
         ]
-        dist = _compute_rating_distribution(nodes)
+        dist = compute_rating_distribution(nodes)
         per = nodes[0].time
         mind = next(g for g in dist['groups'] if g['row']['context'] == 'Mind')
         assert mind['row']['count'] == 1
@@ -685,7 +688,7 @@ class TestComputeRatingDistribution:
             _make_node("A", context="Mind", type="Action", time_o=20, time_m=20, time_p=20),
             _make_node("C", context="Mind", time_mode="inherited"),
         ]
-        row = _compute_rating_distribution(nodes)['groups'][0]['row']
+        row = compute_rating_distribution(nodes)['groups'][0]['row']
         assert row['time_by_type'] == {
             'Learn': pytest.approx(30), 'Resource': pytest.approx(10),
             'Action': pytest.approx(20)}
@@ -694,7 +697,7 @@ class TestComputeRatingDistribution:
         assert row['median_time'] == pytest.approx(20)
 
     def test_lone_no_subcontext_gets_no_child_rows(self, mgr):
-        dist = _compute_rating_distribution(
+        dist = compute_rating_distribution(
             [_make_node("A", context="Mind", subcontext=None)])
         assert dist['groups'][0]['subs'] == []
 
@@ -702,10 +705,12 @@ class TestComputeRatingDistribution:
 class TestRenderRatingDistribution:
     def test_contexts_fold_and_cells_carry_definitions(self, mgr):
         from dash import html
-        from skilltree.features.analyze.callbacks import _render_rating_distribution
+        from skilltree.features.analyze.charts import (
+            render_rating_distribution as _render_rating_distribution,
+        )
         nodes = [_make_node("A", context="Mind", subcontext="Logic", value=4),
                  _make_node("B", context="Mind", subcontext="Memory", value=6)]
-        card = _render_rating_distribution(_compute_rating_distribution(nodes))
+        card = _render_rating_distribution(compute_rating_distribution(nodes))
 
         def walk(c):
             yield c
@@ -726,8 +731,10 @@ class TestRenderRatingDistribution:
 
     @staticmethod
     def _parts(nodes):
-        from skilltree.features.analyze.callbacks import _render_rating_distribution
-        card = _render_rating_distribution(_compute_rating_distribution(nodes))
+        from skilltree.features.analyze.charts import (
+            render_rating_distribution as _render_rating_distribution,
+        )
+        card = _render_rating_distribution(compute_rating_distribution(nodes))
 
         def walk(c):
             yield c
@@ -780,19 +787,21 @@ class TestRenderRatingDistribution:
         assert len(segs) == 3   # Mind's two, Body's one
 
     def test_empty_graph_message(self, mgr):
-        from skilltree.features.analyze.callbacks import _render_rating_distribution
-        card = _render_rating_distribution(_compute_rating_distribution([]))
+        from skilltree.features.analyze.charts import (
+            render_rating_distribution as _render_rating_distribution,
+        )
+        card = _render_rating_distribution(compute_rating_distribution([]))
         assert "No open rated nodes." in str(card)
 
 
 # ============================================================================
-# _build_adjacency
+# adjacency_maps
 # ============================================================================
 
 class TestBuildAdjacency:
     def test_hard_edges(self):
         edges = [{'source': 'A', 'target': 'B', 'type': EDGE_NEEDS_HARD}]
-        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = adjacency_maps(edges)
         assert 'B' in hard_fwd['A']
         assert 'A' in hard_rev['B']
         # Hard edges feed into prereq_rev as well
@@ -804,7 +813,7 @@ class TestBuildAdjacency:
             {'source': 'C', 'target': 'D', 'type': EDGE_NEEDS_SOFT},
             {'source': 'E', 'target': 'F', 'type': EDGE_HELPS},
         ]
-        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency(edges)
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = adjacency_maps(edges)
         assert 'B' in hard_fwd['A']
         assert 'D' in all_fwd['C']
         assert 'F' in all_fwd['E']
@@ -818,13 +827,13 @@ class TestBuildAdjacency:
             {'source': 'S', 'target': 'X', 'type': EDGE_NEEDS_SOFT},
             {'source': 'P', 'target': 'X', 'type': EDGE_HELPS},
         ]
-        _, _, prereq_rev, _, _ = _build_adjacency(edges)
+        _, _, prereq_rev, _, _ = adjacency_maps(edges)
         assert 'H' in prereq_rev['X']
         assert 'S' in prereq_rev['X']
         assert 'P' not in prereq_rev['X']
 
     def test_empty_edges(self):
-        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = _build_adjacency([])
+        hard_fwd, hard_rev, prereq_rev, all_fwd, all_rev = adjacency_maps([])
         assert len(hard_fwd) == 0
         assert len(prereq_rev) == 0
 
@@ -840,20 +849,20 @@ class TestThroughputStatusGate:
 
     def test_done_node_charted(self):
         nodes = [_make_node("DoneA", status="Done", done_date="2026-01-15")]
-        assert "DoneA" in _throughput_node_names(_compute_throughput(nodes))
+        assert "DoneA" in _throughput_node_names(compute_throughput(nodes))
 
     def test_undone_node_with_lingering_done_date_excluded(self):
         nodes = [
             _make_node("DoneA", status="Done", done_date="2026-01-15"),
             _make_node("RevertedB", status="Open", done_date="2026-01-20"),
         ]
-        names = _throughput_node_names(_compute_throughput(nodes))
+        names = _throughput_node_names(compute_throughput(nodes))
         assert "DoneA" in names
         assert "RevertedB" not in names
 
     def test_blocked_node_with_done_date_excluded(self):
         nodes = [_make_node("X", status="Blocked", done_date="2026-02-01")]
-        assert _compute_throughput(nodes) == []
+        assert compute_throughput(nodes) == []
 
     def test_a_date_that_isnt_one_is_skipped(self):
         # Month 13, read as plain numbers, sent the bucket walk on forever.
@@ -861,7 +870,7 @@ class TestThroughputStatusGate:
         for bad in ("2025-13-05", "2025-00-05", "2025-02-30", "soon", "2025-1"):
             nodes.append(_make_node(f"Bad {bad}", status="Done", done_date=bad))
         for granularity in ("month", "quarter", "year"):
-            rows = _compute_throughput(nodes, granularity=granularity,
+            rows = compute_throughput(nodes, granularity=granularity,
                                        today=date(2026, 10, 11))
             assert _throughput_node_names(rows) == {"Good"}
 
@@ -876,7 +885,7 @@ class TestThroughputCapacity:
 
     def test_runs_to_today_with_the_current_month_prorated(self):
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
-        rows = _compute_throughput(nodes, granularity='month',
+        rows = compute_throughput(nodes, granularity='month',
                                    today=date(2026, 3, 10))
         assert [r['label'] for r in rows] == ['Jan 2026', 'Feb 2026', 'Mar 2026']
         assert [r['capacity'] for r in rows] == [
@@ -886,7 +895,7 @@ class TestThroughputCapacity:
 
     def test_dates_trim_the_buckets_they_fall_in(self):
         nodes = [_make_node("A", status="Done", done_date="2026-02-15")]
-        rows = _compute_throughput(nodes, granularity='quarter',
+        rows = compute_throughput(nodes, granularity='quarter',
                                    start_date="2026-02-01", end_date="2026-02-20",
                                    today=date(2026, 9, 1))
         assert [r['label'] for r in rows] == ['2026 Q1']
@@ -896,19 +905,21 @@ class TestThroughputCapacity:
         nodes = [_make_node("A", type="Action", status="Done", done_date="2026-01-15"),
                  _make_node("L", status="Done", done_date="2026-01-20"),
                  _make_node("R", type="Resource", status="Done", done_date="2026-01-21")]
-        rows = _compute_throughput(nodes, granularity='month', by='type',
+        rows = compute_throughput(nodes, granularity='month', by='type',
                                    today=date(2026, 1, 31))
         assert [s['key'] for s in rows[0]['segments']] == ['Learn', 'Resource', 'Action']
 
     def test_chart_is_html_with_no_capacity_line(self):
         from dash import dcc
-        from skilltree.features.analyze.callbacks import _render_throughput_chart
+        from skilltree.features.analyze.charts import (
+            render_throughput_chart as _render_throughput_chart,
+        )
 
         def _classes(card):
             return [getattr(p, 'className', None) for p in _walk(card)]
 
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
-        rows = _compute_throughput(nodes, granularity='month', today=date(2026, 2, 14))
+        rows = compute_throughput(nodes, granularity='month', today=date(2026, 2, 14))
         card = _render_throughput_chart(rows, granularity='month')
         parts = list(_walk(card))
         assert not any(isinstance(p, dcc.Graph) for p in parts)   # HTML, not Plotly
@@ -917,15 +928,17 @@ class TestThroughputCapacity:
         assert not any('tp-cap' in str(c) for c in _classes(card))
         assert 'gp-legend' not in _classes(card)   # contexts name themselves on hover
         by_type = _render_throughput_chart(
-            _compute_throughput(nodes, granularity='month', by='type',
+            compute_throughput(nodes, granularity='month', by='type',
                                 today=date(2026, 2, 14)),
             granularity='month', by='type')
         assert 'gp-legend' in _classes(by_type)
 
     def test_a_segment_carries_its_tooltip_text(self):
-        from skilltree.features.analyze.callbacks import _render_throughput_chart
+        from skilltree.features.analyze.charts import (
+            render_throughput_chart as _render_throughput_chart,
+        )
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]
-        rows = _compute_throughput(nodes, granularity='month', today=date(2026, 1, 31))
+        rows = compute_throughput(nodes, granularity='month', today=date(2026, 1, 31))
         seg = next(p for p in _walk(_render_throughput_chart(rows, granularity='month'))
                    if getattr(p, 'className', None) == 'tp-seg')
         lines = getattr(seg, 'data-tip').splitlines()
@@ -939,10 +952,12 @@ class TestReflectionDriftChart:
 
     @staticmethod
     def _chart(reflect):
-        from skilltree.features.analyze.callbacks import _render_reflection_drift_chart
+        from skilltree.features.analyze.charts import (
+            render_reflection_drift_chart as _render_reflection_drift_chart,
+        )
         nodes = [_make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
                  for n, v in zip("ABCD", reflect)]
-        return list(_walk(_render_reflection_drift_chart(_compute_reflection_drift(nodes))))
+        return list(_walk(_render_reflection_drift_chart(compute_reflection_drift(nodes))))
 
     def test_a_rise_in_rating_draws_a_blue_bar_right_of_centre(self):
         from dash import dcc
@@ -972,7 +987,7 @@ class TestReflectionDriftStatusGate:
             # Reverted to Open but still carrying a reflection — must be ignored.
             _make_node("E", status="Open", context="Mind", value=5, reflect_value=2),
         ]
-        rows = _compute_reflection_drift(nodes)
+        rows = compute_reflection_drift(nodes)
         mind = next(r for r in rows if r["context"] == "Mind")
         assert mind["count"] == 4                      # E excluded from the total
         assert mind["d_value"] == 2.0                  # mean over A-D ((3+2+1+2)/4)
@@ -982,11 +997,11 @@ class TestReflectionDriftStatusGate:
         # Four Done reflected nodes => context qualifies (MIN_N == 4).
         done = [_make_node(n, status="Done", context="Body", value=5,
                            reflect_value=6) for n in names]
-        assert any(r["context"] == "Body" for r in _compute_reflection_drift(done))
+        assert any(r["context"] == "Body" for r in compute_reflection_drift(done))
         # Revert one: only three reflected Done nodes remain => context drops out.
         reverted = done[:3] + [_make_node("D", status="Open", context="Body",
                                           value=5, reflect_value=6)]
-        assert all(r["context"] != "Body" for r in _compute_reflection_drift(reverted))
+        assert all(r["context"] != "Body" for r in compute_reflection_drift(reverted))
 
     def test_nodes_without_their_own_ratings_are_left_out(self):
         """A Milestone's or an inheriting header's stored ratings don't score,
@@ -997,7 +1012,7 @@ class TestReflectionDriftStatusGate:
                                value=5, reflect_value=1)
         header = _make_node("H", status="Done", context="Mind", value=5,
                             reflect_value=1, value_mode="inherited")
-        mind = next(r for r in _compute_reflection_drift(rated + [milestone, header])
+        mind = next(r for r in compute_reflection_drift(rated + [milestone, header])
                     if r["context"] == "Mind")
         assert (mind["count"], mind["d_value"]) == (4, 2.0)
 

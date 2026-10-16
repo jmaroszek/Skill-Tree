@@ -11,6 +11,9 @@ from collections import Counter, defaultdict
 from typing import Dict, List, Optional, Set, Tuple
 
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from skilltree.domain.models import EDGE_HELPS
+from skilltree.domain.models import STATUS_DONE
+import math
 
 # A context or subcontext appears as a prefix only when it holds this share
 # of the cluster. A bare majority would name a half-mixed cluster after one
@@ -201,3 +204,69 @@ def build_listing(communities, labels, priority,
     candidates.sort(key=lambda i: (-importance(i), -len(communities[i]),
                                    labels[i].casefold()))
     return [(labels[i], set(communities[i])) for i in candidates[:MAX_LISTED]]
+
+
+def hub_scores(nodes, edges):
+    """Every unfinished work node's hub score, keyed by name —
+    ``sqrt(in_count * out_count) + 0.5 * helps_count`` over Hard + Soft
+    prereq edges, with Helps edges counted as symmetric synergy partners.
+
+    Only Learn and Action prerequisites count as inputs, and Goals and
+    Milestones are not ranked. A Goal's incoming edges are its members, so
+    every umbrella Goal used to top the list; a Resource's edge into a topic
+    measures the length of its reading list, not how central the topic is.
+
+    The geometric mean punishes asymmetry (a pure root or pure leaf scores
+    0 on the first term), so hubs are exactly the nodes with traffic in
+    both directions — concepts that absorb prereqs AND feed dependents.
+    The Helps term gives synergy partners half-weight credit on top.
+
+    The community labels use it to name a cluster after its most central
+    nodes. Each value is a row with the score components. Nodes scoring 0
+    are left out."""
+    node_map = {n.name: n for n in nodes}
+    candidates = {n.name for n in nodes
+                  if n.status != STATUS_DONE and n.type not in CONTAINER_TYPES}
+
+    in_ct: dict = defaultdict(int)
+    out_ct: dict = defaultdict(int)
+    helps_ct: dict = defaultdict(int)
+
+    for e in edges:
+        s, t, etype = e['source'], e['target'], e['type']
+        if etype in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            out_ct[s] += 1
+            if s in node_map and node_map[s].type in CONCEPT_TYPES:
+                in_ct[t] += 1
+        elif etype == EDGE_HELPS:
+            helps_ct[s] += 1
+            helps_ct[t] += 1
+
+    results = {}
+    for name in candidates:
+        i, o = in_ct[name], out_ct[name]
+        h = helps_ct[name]
+        score = math.sqrt(i * o) + 0.5 * h
+        if score <= 0:
+            continue
+        n = node_map[name]
+        results[name] = {
+            'name': name,
+            'score': score,
+            'in_count': i,
+            'out_count': o,
+            'helps_count': h,
+            'type': n.type,
+            'status': n.status,
+        }
+    return results
+
+
+# Goals are containers and Milestones are checkpoints. Neither is work, so the
+# structure charts walk through them without ranking or counting them.
+CONTAINER_TYPES = ('Goal', 'Milestone')
+
+
+# Node types whose incoming edges count as a hub's inputs. A Resource linked to
+# a topic is reading material for it, not a concept feeding into it.
+CONCEPT_TYPES = ('Learn', 'Action')
