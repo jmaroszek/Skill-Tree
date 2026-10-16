@@ -845,12 +845,6 @@
     color: var(--st-text-soft);
     font-size: var(--st-fs-base);
 }
-/* A titled group inside a section, such as the new-node defaults. */
-.settings-subhead {
-    margin: 20px 0 2px;
-    font-size: var(--st-fs-row-meta);
-    color: var(--st-text-strong);
-}
 .settings-subblock {
     margin-top: 16px;
 }

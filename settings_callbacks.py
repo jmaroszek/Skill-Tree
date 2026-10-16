@@ -15,6 +15,7 @@ from config import (
     CONTEXT_SORT_DEFINITION,
     ConfigManager,
     DEFAULT_NODE_COLORS,
+    DEFAULT_TITLECASE_LINTER,
     NAME_FORMAT_MODES,
     NAME_FORMAT_NONE,
     NAME_FORMAT_TITLE,
@@ -158,7 +159,7 @@ def _clamp(val, lo, hi, default):
 # The same complete draft is committed after an ordinary close or after the
 # migration dialog. Validation and migration planning happen before any write.
 _SETTING_METHODS = {
-    'hp_profile': 'hp_profile', 'ts': 'time_settings', 'ted': 'time_estimate_defaults',
+    'hp_profile': 'hp_profile', 'ts': 'time_settings',
     'contexts': 'contexts', 'subcontexts': 'subcontexts',
     'context_weights': 'context_weights', 'shapes': 'node_shapes',
     'colors': 'node_colors', 'name_formatting': 'name_formatting',
@@ -608,7 +609,7 @@ def register_settings_callbacks(app, services=None):
         return rows, dash.no_update
 
     # --- Settings: Load when Settings tab activates ---
-    @app.callback(
+    load_outputs = [
         Output('context-editor-store', 'data'),
         Output('setting-hp-profile', 'value'),
         Output('setting-node-shapes-container', 'children'),
@@ -618,10 +619,6 @@ def register_settings_callbacks(app, services=None):
         Output('setting-hpw', 'value'),
         Output('setting-hpm', 'value'),
         Output('setting-hpy', 'value'),
-        Output('setting-default-time-unit', 'value'),
-        Output('setting-default-time-o', 'value'),
-        Output('setting-default-time-m', 'value'),
-        Output('setting-default-time-p', 'value'),
         Output('setting-name-format-mode', 'value'),
         Output('setting-linter-exclusions', 'value'),
         Output('setting-show-scoring-perf', 'value'),
@@ -631,12 +628,13 @@ def register_settings_callbacks(app, services=None):
         Output('setting-now-node-cap', 'value'),
         Output('setting-show-hour-equivalents', 'value'),
         Output('settings-save-status', 'children', allow_duplicate=True),
-        Input('settings-modal', 'is_open'),
-        prevent_initial_call=True,
-    )
+    ]
+
+    @app.callback(*load_outputs, Input('settings-modal', 'is_open'),
+                  prevent_initial_call=True)
     def load_settings(is_open: bool) -> Tuple[Any, ...]:
         if not is_open:
-            return (dash.no_update,) * 22
+            return (dash.no_update,) * len(load_outputs)
 
         editor_state = _editor_state(manager)
         profile = ConfigManager.get_hp_profile()
@@ -651,14 +649,9 @@ def register_settings_callbacks(app, services=None):
         type_color_rows = _build_type_color_rows(display_types, colors)
 
         ts = ConfigManager.get_time_settings()
-        from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
-        ted = ConfigManager.get_time_estimate_defaults()
 
         name_formatting = ConfigManager.get_name_formatting()
-        name_format_mode = name_formatting.get('mode', NAME_FORMAT_TITLE)
-        if name_format_mode not in NAME_FORMAT_MODES:
-            name_format_mode = (NAME_FORMAT_TITLE if name_formatting.get('enabled', True)
-                                else NAME_FORMAT_NONE)
+        name_format_mode = name_formatting['mode']
         linter_exclusions_val = ', '.join(name_formatting.get('exclusions', []))
 
         # Length sorting remains readable for legacy/programmatic settings, but
@@ -683,10 +676,6 @@ def register_settings_callbacks(app, services=None):
             ts['hours_per_week'],
             ts['hours_per_month'],
             ConfigManager.get_hours_per_year(),
-            ted.get('unit', DEFAULT_TIME_ESTIMATE_DEFAULTS['unit']),
-            ted.get('optimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic']),
-            ted.get('expected', DEFAULT_TIME_ESTIMATE_DEFAULTS['expected']),
-            ted.get('pessimistic', DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic']),
             name_format_mode,
             linter_exclusions_val,
             ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
@@ -733,10 +722,6 @@ def register_settings_callbacks(app, services=None):
         State({"type": "setting-color", "index": ALL}, "value"),
         State({"type": "setting-color", "index": ALL}, "id"),
         State('setting-hpw', 'value'), State('setting-hpm', 'value'),
-        State('setting-default-time-unit', 'value'),
-        State('setting-default-time-o', 'value'),
-        State('setting-default-time-m', 'value'),
-        State('setting-default-time-p', 'value'),
         State('setting-hp-profile', 'value'),
         State('setting-name-format-mode', 'value'),
         State('setting-linter-exclusions', 'value'),
@@ -755,7 +740,7 @@ def register_settings_callbacks(app, services=None):
     def save_settings(n_clicks,
                       shape_values, shape_ids, color_values, color_ids,
                       hpw, hpm,
-                      def_time_unit, def_time_o, def_time_m, def_time_p, hp_profile,
+                      hp_profile,
                       name_format_mode, linter_exclusions_val,
                       show_scoring_perf_val, subcontext_sort_mode_val,
                       context_sort_mode_val, time_calibration_val,
@@ -795,14 +780,6 @@ def register_settings_callbacks(app, services=None):
                 new_ts.update(capacity_hours(hpw, hpm, new_ts))
                 if show_hour_equivalents_val is not None:
                     new_ts['show_hour_equivalents'] = 'enabled' in show_hour_equivalents_val
-
-                from config import DEFAULT_TIME_ESTIMATE_DEFAULTS
-                new_ted = {
-                    'optimistic': float(def_time_o) if def_time_o is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['optimistic'],
-                    'expected': float(def_time_m) if def_time_m is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['expected'],
-                    'pessimistic': float(def_time_p) if def_time_p is not None else DEFAULT_TIME_ESTIMATE_DEFAULTS['pessimistic'],
-                    'unit': def_time_unit or DEFAULT_TIME_ESTIMATE_DEFAULTS['unit'],
-                }
 
                 # The editor rows are the taxonomy. They are diffed against the
                 # config as it stands right now, not against the snapshot the
@@ -869,7 +846,7 @@ def register_settings_callbacks(app, services=None):
 
                 new_name_formatting = {
                     'mode': (name_format_mode if name_format_mode in NAME_FORMAT_MODES
-                             else NAME_FORMAT_TITLE),
+                             else DEFAULT_TITLECASE_LINTER['mode']),
                     'exclusions': [w.strip() for w in (linter_exclusions_val or '').split(',') if w.strip()],
                 }
                 new_name_formatting['enabled'] = new_name_formatting['mode'] != NAME_FORMAT_NONE
@@ -877,7 +854,6 @@ def register_settings_callbacks(app, services=None):
                 draft = {
                         'hp_profile': profile_name,
                         'ts': new_ts,
-                        'ted': new_ted,
                         'resource_sections': sections,
                         'contexts': new_contexts,
                         'subcontexts': new_subcontexts,

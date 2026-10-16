@@ -3,7 +3,7 @@ import math
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
-from config import ConfigManager
+from config import DEFAULT_ANALYZE_LIMITS, ConfigManager
 from graph_queries import summarize_completion
 from models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN,
                     STATUS_BLOCKED, STATUS_DONE)
@@ -104,7 +104,7 @@ def _compute_bottlenecks(nodes, hard_fwd, limits):
             'own_hours': sum(node_map[name].time for name in names),
         })
     results.sort(key=lambda r: (-r['hours'], -r['count'], r['names'][0].casefold()))
-    return results[:limits.get('bottlenecks', 15)]
+    return results[:limits.get('bottlenecks', DEFAULT_ANALYZE_LIMITS['bottlenecks'])]
 
 
 def hub_scores(nodes, edges):
@@ -259,8 +259,9 @@ def _bucket_span(key, granularity):
     return first, after - timedelta(days=1)
 
 
-def _compute_throughput(nodes, granularity='quarter',
-                        start_date=None, end_date=None, by='context',
+def _compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
+                        start_date=None, end_date=None,
+                        by=DEFAULT_ANALYZE_LIMITS['throughput_color'],
                         today=None):
     """Bucket currently-Done nodes with ``done_date`` into calendar buckets,
     segmented by context, or by node type when ``by`` is 'type'. The status
@@ -280,7 +281,7 @@ def _compute_throughput(nodes, granularity='quarter',
     The bucket under way counts only the days so far, and a start or end
     date trims the capacity of the bucket it falls in."""
     if granularity not in ('month', 'quarter', 'year'):
-        granularity = 'quarter'
+        granularity = DEFAULT_ANALYZE_LIMITS['throughput_granularity']
     today = today or date.today()
     _hours = _completed_hours
 
@@ -349,7 +350,7 @@ def _compute_throughput(nodes, granularity='quarter',
         full_keys.append(cur)
         cur = _next_key(cur)
 
-    per_week = ConfigManager.get_time_settings().get('hours_per_week', 40)
+    per_week = ConfigManager.get_time_settings()['hours_per_week']
     rows = []
     for k in full_keys:
         groups = buckets.get(k, {})
@@ -428,7 +429,7 @@ def _compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     cutoff = ((today or date.today()) - timedelta(days=_RECENT_DAYS)).isoformat()
 
     rows = []
-    for g in ranked[:limits.get('goals', 15)]:
+    for g in ranked[:limits.get('goals', DEFAULT_ANALYZE_LIMITS['goals'])]:
         members = [node_map[name] for name in _walk_back(g.name, hard_rev)
                    if name in node_map]
         recent = [n for n in members

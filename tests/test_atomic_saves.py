@@ -69,7 +69,7 @@ def test_rejected_editor_save_preserves_fields_versions_and_edges():
 
 def test_rename_alias_and_settings_failure_rolls_back_everything():
     m = graph("A", "B")
-    m.set_aliases("A", ["Original alias"])
+    m.set_aliases("A", ["Original Alias"])
     m.set_aliases("B", ["Taken"])
     ConfigManager.set_priority_goals(["A"])
     with pytest.raises(ValueError, match="already belongs"):

@@ -194,9 +194,9 @@ In order to standardize the rating process, there is a table that describes what
 
 
 ## Time
-Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Tree's approach to solving this difficult problem. For now, the short version: you can estimate a project's duration with one, two, or three inputs. And the more you provide, the better the result.
+Time estimation is the most valuable thing in project management to get right — and the hardest. [Time.md](time.md) walks through Skill Tree's approach to solving this difficult problem. For now, the short version: you can estimate a project's duration with one, two, or three inputs. And the more you provide, the better the result. A new node starts with no estimate, and Save waits until it has one: how long something takes you is yours to judge.
 
-Every time in the app is work time. It counts hours of focused effort, not days on the calendar. The letters mean hours, days, weeks, months, and years of work. In Settings you choose how many productive hours make up each one. By default a week is 20 hours, so "2w" means 40 hours of work. Hover the **Time Estimates** heading in the node editor to see the rates you have set.
+Every time in the app is work time. It counts hours of focused effort, not days on the calendar. The letters mean hours, days, weeks, months, and years of work. In Settings you choose how many productive hours make up each one. By default a week is 10 hours, so "2w" means 20 hours of work. Hover the **Time Estimates** heading in the node editor to see the rates you have set.
 
 | Inputs | Values | Time Estimation Method |
 |---|---|---|
@@ -998,7 +998,7 @@ The dashed line is your capacity: the hours a week from your [time settings](#se
 <em> The Throughput chart on sandbox data (I am not actually doing 2 years of work in one month). </em>
 </p>
 
-The gear icon by the title opens four controls: **Granularity** (months, quarters, or years), **Color by** (context or node type), and **Start / End date** to clip the range. The defaults — quarterly buckets by context, covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in. Color by node type shows what kind of work you finish: study, reading, or practice.
+The gear icon by the title opens four controls: **Granularity** (months, quarters, or years), **Color by** (context or node type), and **Start / End date** to clip the range. The defaults — monthly buckets by context, covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in. Color by node type shows what kind of work you finish: study, reading, or practice.
 
 <p align="center">
   <img src="../images/analyze-throughput-gear.png" width=200>
@@ -1019,7 +1019,7 @@ The sections are listed down the left side. The modal keeps one size, so switchi
 | Section | What lives here |
 |---|---|
 | **Recommendations** | Choose a plain-language [scoring profile](scoring.md#scoring-profiles) and set the maximum number of Now nodes. |
-| **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year, plus the time estimates and unit pre-filled for new nodes. Choose whether completing a node opens a reflection prompt. |
+| **Editing** | Choose how node names and aliases are capitalized. Set how many productive hours make up a day, week, month, and year. Choose whether completing a node opens a reflection prompt. |
 | **Contexts** | Define contexts and subcontexts, one row per context, with its priority beside it. Renaming a context or subcontext renames it on your nodes too. Drag a row or a subcontext to reorder it. Removing a context shows how many nodes it holds. You choose where those nodes go before anything is saved. Dropdowns keep the defined order or sort alphabetically. |
 | **Resources** | Name up to five kinds of resource. Give a kind a root folder to save its files relative to it. Removing a kind that holds links shows how many; they are deleted when you save. |
 | **Appearance** | Customize node shapes and colors by type, and set status colors. |

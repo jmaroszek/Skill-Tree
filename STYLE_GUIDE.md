@@ -214,7 +214,7 @@ Every canvas fills a node by the same precedence, in
 `callback_helpers.node_fill_color`. Done and Blocked come first. Otherwise the
 node takes its type color. Settings → Appearance sets all of these colors. A
 dormant node keeps its fill and adds the dashed `.dormant` style on top; a Now
-node keeps its fill and adds the pulsing amber border. Neither dormant nor Now
+node keeps its fill and adds the pulsing amber ring. Neither dormant nor Now
 ever changes the fill, so status and type stay readable underneath.
 
 ## Typography
@@ -271,7 +271,6 @@ Dividers are focusable separators and resize with their axis's arrow keys.
 | Major section in a modal | `html.H5` | `mt-3 mb-2` | The migration modal's blocks |
 | Settings page title | `html.H4` | `settings-page-title` | Added by `_titled` from the nav label |
 | Settings section title | `html.H5` | `settings-section-title` | Built by `_section` in `settings_layout.py` |
-| Settings subgroup | `html.H6` | `settings-subhead` | New Node Defaults inside Time Estimates |
 | Inline heading | `html.H6` | `style=tokens.SECTION_TITLE_STYLE` | Home-tab section headings |
 
 **Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
@@ -558,7 +557,9 @@ slide finishes. On the Events tab, the content glides aside with the sidebar.
 Its style comes back in the same callback return as the sidebar's, so both
 animations start on the same frame.
 
-Now nodes keep a solid border in the configured Now color. Their outer edge
+Now nodes wear a solid ring in the configured Now color, drawn as a Cytoscape
+`outline`. A 3px border in the canvas color parts the ring from the fill, so the
+ring reads on every fill, the yellow Goal included. The ring's outer edge
 breathes on a two-second cycle in a transparent SVG beneath the graph's drawing
 layers, so labels and selection remain clear. The pulse follows pan, zoom and
 node movement without redrawing the whole graph while idle. It pauses on hidden

@@ -6,12 +6,12 @@ from callback_helpers import normalize_name_for_comparison
 from config import ConfigManager
 
 
-def test_default_name_formatting_is_title_case():
+def test_default_name_formatting_keeps_names_as_entered():
     formatting = ConfigManager.get_name_formatting()
 
-    assert formatting["mode"] == "title"
-    assert formatting["enabled"] is True
-    assert ConfigManager.apply_name_formatting("learn the Python API") == "Learn the Python API"
+    assert formatting["mode"] == "none"
+    assert formatting["enabled"] is False
+    assert ConfigManager.apply_name_formatting("learn iOS basics") == "learn iOS basics"
 
 
 def test_legacy_enabled_switch_migrates_when_read():

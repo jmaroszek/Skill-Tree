@@ -30,12 +30,9 @@ def _draft(callbacks):
     save = callbacks['save_settings']
     args = dict.fromkeys(inspect.signature(save).parameters)
     ts = ConfigManager.get_time_settings()
-    ted = ConfigManager.get_time_estimate_defaults()
     formatting = ConfigManager.get_name_formatting()
     args.update(
         n_clicks='close-1', hpw=ts['hours_per_week'], hpm=ts['hours_per_month'],
-        def_time_unit=ted['unit'], def_time_o=ted['optimistic'],
-        def_time_m=ted['expected'], def_time_p=ted['pessimistic'],
         hp_profile=ConfigManager.get_hp_profile(), name_format_mode=formatting['mode'],
         linter_exclusions_val=', '.join(formatting['exclusions']),
         show_scoring_perf_val=['enabled'] if ConfigManager.get_show_scoring_perf() else [],

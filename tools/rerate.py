@@ -36,16 +36,13 @@ DB = pathlib.Path(os.environ["LOCALAPPDATA"]) / "Skill Tree" / "Data" / "skilltr
 def load_data():
     con = sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
+    sys.path.insert(0, str(ROOT))
+    from config import DEFAULT_RATINGS_DEFINITIONS, DEFAULT_TIME_SETTINGS
     raw = con.execute("select value from Settings where key='TIME_SETTINGS'").fetchone()
-    ts = json.loads(raw[0]) if raw else {}
-    settings = {"hw": ts.get("hours_per_week", 40.0), "hm": ts.get("hours_per_month", 160.0)}
+    ts = {**DEFAULT_TIME_SETTINGS, **(json.loads(raw[0]) if raw else {})}
+    settings = {"hw": ts["hours_per_week"], "hm": ts["hours_per_month"]}
     raw = con.execute("select value from Settings where key='RATINGS_DEFINITIONS'").fetchone()
-    if raw:
-        ratings = json.loads(raw[0])
-    else:
-        sys.path.insert(0, str(ROOT))
-        from config import DEFAULT_RATINGS_DEFINITIONS
-        ratings = DEFAULT_RATINGS_DEFINITIONS
+    ratings = json.loads(raw[0]) if raw else DEFAULT_RATINGS_DEFINITIONS
     nodes = []
     # Done nodes are left out: re-rating finished work has no effect on ranking.
     for r in con.execute("select * from Nodes where status != 'Done'"):

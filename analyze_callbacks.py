@@ -30,7 +30,7 @@ import database
 import ui_kit
 from graph_manager import GraphManager
 from models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from config import ConfigManager, BADGE_PALETTE, badge_style
+from config import ConfigManager, BADGE_PALETTE, DEFAULT_ANALYZE_LIMITS, badge_style
 import style_tokens as tokens
 
 graph_manager = GraphManager()
@@ -151,8 +151,8 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     if max_val <= 0:
         return [0], ["0h"]
     settings = ConfigManager.get_time_settings()
-    hw = max(1, settings.get('hours_per_week', 40))
-    hm = max(1, settings.get('hours_per_month', 160))
+    hw = max(1, settings['hours_per_week'])
+    hm = max(1, settings['hours_per_month'])
     hy = ConfigManager.HOURS_PER_YEAR_MULT * hm
     hd = hw / ConfigManager.DAYS_PER_WEEK
 
@@ -600,7 +600,9 @@ def _render_reflection_drift_chart(rows):
 _THROUGHPUT_MAX_BARS = 24
 
 
-def _render_throughput_chart(quarter_rows, granularity='quarter', by='context'):
+def _render_throughput_chart(quarter_rows,
+                             granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
+                             by=DEFAULT_ANALYZE_LIMITS['throughput_color']):
     """Stacked vertical bars of hours completed per calendar bucket
     (month/quarter/year), segmented by context or by node type. Contexts get
     no legend: their name and a top-N list of completed nodes (with hours)
@@ -1116,12 +1118,12 @@ def _build_analyze_sections(al):
     est_accuracy = _compute_estimation_accuracy(nodes)
     rating_dist = _compute_rating_distribution(nodes)
     drift_rows = _compute_reflection_drift(nodes)
-    color_by = al.get('throughput_color', 'context')
+    color_by = al['throughput_color']
     throughput_rows = _compute_throughput(
         nodes,
-        granularity=al.get('throughput_granularity', 'quarter'),
-        start_date=al.get('throughput_start'),
-        end_date=al.get('throughput_end'),
+        granularity=al['throughput_granularity'],
+        start_date=al['throughput_start'],
+        end_date=al['throughput_end'],
         by=color_by,
     )
 
@@ -1179,7 +1181,7 @@ def _build_analyze_sections(al):
         _render_reflection_drift_chart(drift_rows),
     ]
 
-    gran = al.get('throughput_granularity', 'quarter')
+    gran = al['throughput_granularity']
     gran_label = {'month': 'month', 'quarter': 'quarter',
                   'year': 'year'}[gran]
     throughput_note = "Hours of completed work per time period."

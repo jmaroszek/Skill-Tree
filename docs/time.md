@@ -8,12 +8,12 @@ Every time in the app is work time. It counts hours of focused effort. It does n
 
 The letters you see mean this: `h` is an hour, `d` a day, `w` a week, `m` a month, and `y` a year. A week is not seven days of the calendar. It is the number of productive hours you set for a week in Settings. The same goes for a day, a month, and a year.
 
-With the default settings, a week is 20 hours, a month is 80, and a year is 1,040. A day is a seventh of a week, so it comes to about 2.9 hours. A project estimated at "2w" is 40 hours of work. It takes two calendar weeks only if you really do 20 hours of it each week.
+With the default settings, a week is 10 hours, a month is 40, and a year is 520. The default assumes hobbies and personal interests, worked on outside a job. A day is a seventh of a week, so it comes to about 1.4 hours. A project estimated at "2w" is 20 hours of work. It takes two calendar weeks only if you really do 10 hours of it each week.
 
 Change those hours in Settings and every time in the app changes with them. The stored estimates are hours, so nothing is lost.
 
 The node editor shows the hour equivalent beneath each non-hour time estimate,
-such as `= 40h` for two work weeks at 20 hours per week. These hints update as
+such as `= 20h` for two work weeks at 10 hours per week. These hints update as
 you type. Turn off **Show hour equivalents** in Settings under Time Estimates
 to hide them; the setting is on by default.
 

@@ -26,19 +26,22 @@ stylesheet = [
         }
     },
     {
-        # Now flag: nodes the user is currently working on. Layered ON
-        # TOP of the status color via a border. Placed BEFORE :selected so
-        # selection feedback (white border) wins during click interaction —
-        # a Now node briefly shows the white border on click, returns
-        # to amber when deselected. The color is sourced per-element via
-        # data(now_color) so the settings-modal color picker can change
-        # it without restyling the canvas. The pulse animation is driven
-        # separately by assets/now_pulse.js.
+        # Now flag: nodes the user is currently working on. An amber ring
+        # outside the node, parted from its fill by a gap in the canvas
+        # color, so it reads on any fill: a yellow Goal took a border in
+        # the same yellow as its own. Placed BEFORE :selected, whose white
+        # border replaces the gap while the ring stays. The color is sourced
+        # per-element via data(now_color) so the settings-modal color picker
+        # can change it without restyling the canvas. The pulse animation is
+        # driven separately by assets/now_pulse.js.
         'selector': '.now',
         'style': {
-            'border-width': 5,
-            'border-color': 'data(now_color)',
+            'border-width': 3,
+            'border-color': '#1a1d21',
             'border-opacity': 1,
+            'outline-width': 5,
+            'outline-color': 'data(now_color)',
+            'outline-opacity': 1,
         }
     },
     {
@@ -51,6 +54,7 @@ stylesheet = [
             'border-width': 2,
             'border-color': '#adb5bd',
             'border-style': 'dashed',
+            'outline-width': 0,
             'opacity': 0.6,
         }
     },

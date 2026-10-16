@@ -78,7 +78,11 @@
         var live = new Set();
         cy.nodes('.now').forEach(function (node) {
             if (!node.visible() || node.hasClass('locate-pulse') || node.hasClass('dormant')) return;
-            var path = outline(node.style('shape'), node.width(), node.height());
+            // Pulse at the ring's outer edge: the ring sits outside the
+            // border, and anything nearer is hidden behind it.
+            var ring = 2 * (parseFloat(node.style('border-width')) +
+                            parseFloat(node.style('outline-width')));
+            var path = outline(node.style('shape'), node.width() + ring, node.height() + ring);
             if (!path) return;
             var id = node.id(), el = layer.nodes.get(id);
             live.add(id);
@@ -91,7 +95,7 @@
             var pos = node.position();
             attr(el, 'd', path);
             attr(el, 'transform', 'translate(' + pos.x + ' ' + pos.y + ')');
-            attr(el, 'stroke', node.style('border-color'));
+            attr(el, 'stroke', node.style('outline-color'));
             attr(el, 'opacity', node.style('opacity'));
         });
         layer.nodes.forEach(function (el, id) {

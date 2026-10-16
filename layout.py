@@ -16,6 +16,7 @@ from config import (
     TOOLTIP_NODE_HIDE_DELAY_MS,
     LOADING_SPINNER_STYLE,
     TOAST_CLEAR_INTERVAL_MS,
+    DEFAULT_CONTEXTS,
     DEFAULT_GRAPH_LAYOUT,
     sort_subcontexts,
 )
@@ -519,12 +520,12 @@ def build_welcome_modal():
                        "goals and the things that lead to them, connect them, and it "
                        "ranks what's worth doing now."),
                 html.P("Contexts are the areas of your life that nodes belong to, and "
-                       "every node has one. Start with a suggested set (Mind, Body, "
-                       "Social, Life, STEM, Humanities, Creation, Money), or with a "
-                       "single one called General, and change them any time in "
+                       "every node has one. Start with a suggested set "
+                       f"({', '.join(DEFAULT_CONTEXTS)}), or with a single one "
+                       "called General, and change them any time in "
                        "Settings > Contexts."),
                 html.P(["Coming from another computer? Import your export in ",
-                        html.Em("Settings > Data"), "."], className="mb-0"),
+                        html.Em("Settings > App"), "."], className="mb-0"),
             ]),
             dbc.ModalFooter([
                 cancel_action("Import a graph…", "btn-welcome-import", className="me-auto"),

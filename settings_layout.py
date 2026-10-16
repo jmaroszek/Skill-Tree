@@ -7,7 +7,6 @@ then sections, each with its own title and description, divided by hairlines.
 live under `.settings-body` in theme.css.
 """
 
-from duration_ui import bracket_label, unit_select
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from config import (
@@ -15,6 +14,7 @@ from config import (
     SUBCONTEXT_SORT_ALPHABETICAL,
     CONTEXT_SORT_DEFINITION,
     CONTEXT_SORT_ALPHABETICAL,
+    DEFAULT_TITLECASE_LINTER,
     NAME_FORMAT_NONE,
     NAME_FORMAT_TITLE,
     NAME_FORMAT_SENTENCE,
@@ -152,7 +152,7 @@ def _build_editing_tab():
                     {"label": "Title Case", "value": NAME_FORMAT_TITLE},
                     {"label": "Sentence case", "value": NAME_FORMAT_SENTENCE},
                 ],
-                value=NAME_FORMAT_TITLE,
+                value=DEFAULT_TITLECASE_LINTER['mode'],
                 inline=True,
             ),
             dbc.Collapse(html.Div([
@@ -164,11 +164,12 @@ def _build_editing_tab():
                     "Comma-separated words that stay lowercase unless they begin a name.",
                     className="settings-help",
                 ),
-            ], className="settings-subblock"), id="setting-titlecase-options", is_open=True),
+            ], className="settings-subblock"), id="setting-titlecase-options",
+               is_open=DEFAULT_TITLECASE_LINTER['mode'] == NAME_FORMAT_TITLE),
         ),
 
         # The hour rates convert durations entered in days, weeks, months, or
-        # years, so they sit with the new-node defaults.
+        # years, so they sit with the editor's other settings.
         _section(
             "Time Estimates",
             "The hours of work in a day, week, month, and year. An estimate "
@@ -186,31 +187,6 @@ def _build_editing_tab():
                 _field("Hours per year", dbc.Input(
                     id="setting-hpy", type="number", min=1, step="any",
                     className="settings-input-num"), "setting-hpy"),
-            ], className="settings-field-row"),
-            html.H6("New Node Defaults", className="settings-subhead"),
-            html.P("Pre-filled values when creating new nodes.",
-                   className="settings-section-desc"),
-            html.Div([
-                _field("Unit", unit_select("setting-default-time-unit",
-                                           className="settings-input-num")),
-                html.Div([
-                    *bracket_label("Lower", "setting-default-time-o-label",
-                                   className="settings-field-label"),
-                    dbc.Input(id="setting-default-time-o", type="number",
-                              min=0, step=1, className="settings-input-num"),
-                ], className="settings-field"),
-                html.Div([
-                    *bracket_label("Expected", "setting-default-time-m-label",
-                                   className="settings-field-label"),
-                    dbc.Input(id="setting-default-time-m", type="number",
-                              min=0, step=1, className="settings-input-num"),
-                ], className="settings-field"),
-                html.Div([
-                    *bracket_label("Upper", "setting-default-time-p-label",
-                                   className="settings-field-label"),
-                    dbc.Input(id="setting-default-time-p", type="number",
-                              min=0, step=1, className="settings-input-num"),
-                ], className="settings-field"),
             ], className="settings-field-row"),
             html.Div([
                 dbc.Checklist(

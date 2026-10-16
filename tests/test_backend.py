@@ -2267,12 +2267,12 @@ class TestFormatTimeFriendly:
         assert ConfigManager.format_time_friendly(-5) == "0h"
 
     def test_small_hours(self):
-        result = ConfigManager.format_time_friendly(2.5)
-        assert result == "2.5h"
+        result = ConfigManager.format_time_friendly(1.2)
+        assert result == "1.2h"
 
     def test_integer_hours_no_decimal(self):
-        result = ConfigManager.format_time_friendly(2.0)
-        assert result == "2h"  # Should not show ".0"
+        result = ConfigManager.format_time_friendly(1.0)
+        assert result == "1h"  # Should not show ".0"
 
     def test_exactly_one_week(self):
         hw = ConfigManager.get_time_settings().get('hours_per_week', 40)

@@ -264,7 +264,7 @@ def test_tabs_group_settings_by_what_they_adjust():
     recommendations = _tab_ids(tabs["tab-recommendations"])
     assert {"setting-hp-profile", "setting-now-node-cap"} <= recommendations
     assert "setting-show-scoring-perf" not in recommendations
-    assert {"setting-name-format-mode", "setting-hpd", "setting-default-time-unit",
+    assert {"setting-name-format-mode", "setting-hpd",
             "setting-time-calibration-enabled"} <= _tab_ids(tabs["tab-editing"])
     appearance = _tab_ids(tabs["tab-appearance"])
     assert "setting-node-shapes-container" in appearance

@@ -5,6 +5,7 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
+import database
 import onboarding
 import onboarding_callbacks
 from config import DEFAULT_CONTEXTS, ConfigManager
@@ -86,6 +87,10 @@ def test_keeping_the_suggested_contexts(welcome):
     assert is_open is False and reload is dash.no_update
     assert settings_open is dash.no_update
     assert ConfigManager.get_contexts() == DEFAULT_CONTEXTS
+    # Stored, not read from the code's list, so changing the list later
+    # leaves this user's contexts where they are.
+    assert database.get_connection().execute(
+        "SELECT 1 FROM Settings WHERE key IN ('CONTEXTS', 'SUBCONTEXTS')").fetchall() == [(1,), (1,)]
     assert ConfigManager.get_welcome_done() is True
 
 

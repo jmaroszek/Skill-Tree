@@ -3,7 +3,7 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html
 
-from config import ConfigManager
+from config import DEFAULT_TIME_SETTINGS, ConfigManager
 from ui_kit import Tooltip
 
 _BRACKET_HINTS = {
@@ -36,8 +36,8 @@ def work_time_unit_items(time_settings=None):
         per_unit = {unit: ConfigManager.get_time_multiplier(unit)
                     for unit in ("days", "weeks", "months", "years")}
     else:
-        week = time_settings.get("hours_per_week", 40)
-        month = time_settings.get("hours_per_month", 160)
+        settings = {**DEFAULT_TIME_SETTINGS, **time_settings}
+        week, month = settings["hours_per_week"], settings["hours_per_month"]
         per_unit = {"days": week / ConfigManager.DAYS_PER_WEEK, "weeks": week,
                     "months": month, "years": ConfigManager.HOURS_PER_YEAR_MULT * month}
     return [f"1 {unit[:-1]} = {_compact_hours(hours)} {'hour' if hours == 1 else 'hours'}"
@@ -96,6 +96,9 @@ def time_estimates_heading(id_prefix, kind="estimate"):
 
 #: Elapsed-time units. Anything measuring how long work takes.
 TIME_UNITS = ("hours", "days", "weeks", "months", "years")
+
+#: The unit a new node's blank estimate starts in.
+NEW_NODE_TIME_UNIT = "weeks"
 
 #: Calendar-duration units. Habit windows and activation delays, which are
 #: counted in days rather than worked hours.

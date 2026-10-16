@@ -64,20 +64,22 @@ DB_FILENAME = "skilltree.db"
 
 DEFAULT_NODE_TYPES = ["Learn", "Action", "Resource"]
 SUPPORTED_NODE_TYPES = ("Learn", "Action", "Resource", "Goal", "Milestone")
+# The welcome dialog offers these to a new user, who saves them as their own
+# list (onboarding_callbacks.py). Editing them never moves an existing user's
+# contexts. Broad pillars anyone has, a few common subcontexts in each.
 DEFAULT_CONTEXTS = [
-    "Mind", "Body", "Social", "Life",
-    "STEM", "Humanities", "Creation", "Money",
+    "Health", "Mind", "Relationships", "Learning",
+    "Creative", "Career", "Money", "Leisure",
 ]
 DEFAULT_SUBCONTEXTS = {
-    "Mind":       ["Sensory", "Rational", "Judgment"],
-    "Body":       ["Stress", "Rhythms", "Exercise", "Nutrition"],
-    "Social":     ["Dating", "Morality", "Influence", "Relationships"],
-    "Life":       ["Fun", "Life Skills", "Productivity", "Satisfaction"],
-    "STEM":       ["Math", "Biology", "Physics", "Computers",
-                   "Chemistry", "Psychology", "Engineering", "Data Science"],
-    "Humanities": ["Art", "History", "Religion", "Literature"],
-    "Creation":   ["Music", "Video", "Writing", "Software"],
-    "Money":      ["Business", "Economics", "Personal Finance"],
+    "Health":        ["Exercise", "Nutrition", "Sleep"],
+    "Mind":          ["Habits", "Mindfulness", "Emotions"],
+    "Relationships": ["Family", "Friends", "Partner", "Community"],
+    "Learning":      ["Science", "Languages", "History", "Philosophy"],
+    "Creative":      ["Art", "Music", "Writing", "Crafts"],
+    "Career":        ["Skills", "Projects", "Networking"],
+    "Money":         ["Budgeting", "Saving", "Investing"],
+    "Leisure":       ["Games", "Sports", "Outdoors", "Travel"],
 }
 
 # Sort modes for subcontext dropdown menus. 'definition' preserves the
@@ -296,8 +298,9 @@ def info_strip_segment_style(name: str, is_first: bool = False) -> dict:
     return style
 
 DEFAULT_TIME_SETTINGS = {
-    'hours_per_week': 20,
-    'hours_per_month': 80,
+    # Hobbies and personal interests, outside a working week.
+    'hours_per_week': 10,
+    'hours_per_month': 40,
     'show_hour_equivalents': True,
 }
 
@@ -313,13 +316,6 @@ DEFAULT_MONTE_CARLO_TRIALS = 10000
 # requires original forecasts and grouped outcomes across projects or periods
 # to separate common variation from task-specific error and persistent bias.
 DEFAULT_ESTIMATE_CORRELATION = 0.4
-
-DEFAULT_TIME_ESTIMATE_DEFAULTS = {
-    'optimistic': 2,
-    'expected': 4,
-    'pessimistic': 6,
-    'unit': 'weeks',
-}
 
 DEFAULT_GRAPH_LAYOUT = {
     'edge_length': 100,
@@ -342,7 +338,8 @@ DEFAULT_EVENTS_GRAPH_LAYOUT = {
 DEFAULT_ANALYZE_LIMITS = {
     'bottlenecks': 15,
     'goals': 15,
-    'throughput_granularity': 'quarter',  # 'month' | 'quarter' | 'year'
+    # A new graph has weeks of history, not quarters: one quarterly bar says little.
+    'throughput_granularity': 'month',  # 'month' | 'quarter' | 'year'
     'throughput_color': 'context',  # 'context' | 'type': what stacks the bars
     'throughput_start': None,  # ISO date string; None = earliest done_date
     'throughput_end': None,    # ISO date string; None = latest done_date
@@ -451,9 +448,11 @@ NAME_FORMAT_MODES = {
     NAME_FORMAT_SENTENCE,
 }
 
+# Names stay as typed unless the user opts in: Title Case would turn "iOS"
+# into "IOS".
 DEFAULT_TITLECASE_LINTER = {
-    'mode': NAME_FORMAT_TITLE,
-    'enabled': True,
+    'mode': NAME_FORMAT_NONE,
+    'enabled': False,
     'exclusions': DEFAULT_TITLECASE_EXCLUSIONS,
 }
 
@@ -802,7 +801,8 @@ class ConfigManager:
     @classmethod
     def get_analyze_limits(cls):
         val = cls._get_db_value("ANALYZE_LIMITS")
-        return json.loads(val) if val else copy.deepcopy(DEFAULT_ANALYZE_LIMITS)
+        # A stored value missing a key reads that key's default.
+        return {**DEFAULT_ANALYZE_LIMITS, **json.loads(val)} if val else copy.deepcopy(DEFAULT_ANALYZE_LIMITS)
 
     @classmethod
     def set_analyze_limits(cls, params: dict):
@@ -867,15 +867,6 @@ class ConfigManager:
         if not 0.0 <= rho <= 1.0:
             return DEFAULT_ESTIMATE_CORRELATION
         return rho
-
-    @classmethod
-    def get_time_estimate_defaults(cls):
-        val = cls._get_db_value("TIME_ESTIMATE_DEFAULTS")
-        return json.loads(val) if val else copy.deepcopy(DEFAULT_TIME_ESTIMATE_DEFAULTS)
-
-    @classmethod
-    def set_time_estimate_defaults(cls, params: dict):
-        cls._set_db_value("TIME_ESTIMATE_DEFAULTS", json.dumps(params))
 
     @classmethod
     def get_goal_order(cls):
@@ -944,7 +935,7 @@ class ConfigManager:
 
     @classmethod
     def get_hours_per_year(cls) -> float:
-        return cls.HOURS_PER_YEAR_MULT * cls.get_time_settings().get('hours_per_month', 160)
+        return cls.HOURS_PER_YEAR_MULT * cls.get_time_settings()['hours_per_month']
 
     # A day is a seventh of a week. Derived from hours_per_week so a user-tuned
     # weekly rate flows through, and not stored as a setting.
@@ -952,7 +943,7 @@ class ConfigManager:
 
     @classmethod
     def get_hours_per_day(cls) -> float:
-        return cls.get_time_settings().get('hours_per_week', 40.0) / cls.DAYS_PER_WEEK
+        return cls.get_time_settings()['hours_per_week'] / cls.DAYS_PER_WEEK
 
     @classmethod
     def get_time_multiplier(cls, unit: str) -> float:
@@ -967,9 +958,9 @@ class ConfigManager:
         if unit == 'days':
             return cls.get_hours_per_day()
         elif unit == 'weeks':
-            return cls.get_time_settings().get('hours_per_week', 40.0)
+            return cls.get_time_settings()['hours_per_week']
         elif unit == 'months':
-            return cls.get_time_settings().get('hours_per_month', 160.0)
+            return cls.get_time_settings()['hours_per_month']
         elif unit == 'years':
             return cls.get_hours_per_year()
         return 1.0
@@ -982,9 +973,10 @@ class ConfigManager:
         hours. `format_time_friendly` picks its unit this way. A chart can call
         it once and draw every value in that one unit.
         """
-        settings = cls.get_time_settings() if time_settings is None else time_settings
-        hw = settings.get('hours_per_week', 40)
-        hm = settings.get('hours_per_month', 160)
+        settings = (cls.get_time_settings() if time_settings is None
+                    else {**DEFAULT_TIME_SETTINGS, **time_settings})
+        hw = settings['hours_per_week']
+        hm = settings['hours_per_month']
         hy = cls.HOURS_PER_YEAR_MULT * hm
         hd = hw / cls.DAYS_PER_WEEK
         hours = hours or 0.0
@@ -1035,8 +1027,8 @@ class ConfigManager:
         if hours is None or hours <= 0:
             return (0, 'hours')
         settings = cls.get_time_settings()
-        hw = settings.get('hours_per_week', 40)
-        hm = settings.get('hours_per_month', 160)
+        hw = settings['hours_per_week']
+        hm = settings['hours_per_month']
         hy = cls.HOURS_PER_YEAR_MULT * hm
         hd = hw / cls.DAYS_PER_WEEK
 
@@ -1398,10 +1390,7 @@ class ConfigManager:
     def apply_name_formatting(cls, name: str) -> str:
         """Apply the configured name formatting to a node name or alias."""
         linter = cls.get_name_formatting()
-        mode = linter.get('mode')
-        if mode not in NAME_FORMAT_MODES:
-            mode = (NAME_FORMAT_TITLE if linter.get('enabled', True)
-                    else NAME_FORMAT_NONE)
+        mode = linter['mode']
         if mode == NAME_FORMAT_NONE:
             return name
         if mode == NAME_FORMAT_SENTENCE:

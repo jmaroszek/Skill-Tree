@@ -158,7 +158,7 @@ def test_restore_asks_first_then_replaces_the_graph_and_reloads(data):
 def test_settings_save_keeps_the_extra_backup_folder(tmp_path):
     save = _callbacks(settings_callbacks.register_settings_callbacks)["save_settings"]
     status, *_ = save(
-        1, [], [], [], [], 40, 160, "hours", 1, 2, 4, "Sage", "title", "",
+        1, [], [], [], [], 40, 160, "Sage", "title", "",
         [], "definition", "definition", [], 5,
         None, None, None, None, None, None, None,
         backup_extra_dir=f"  {tmp_path}  ")

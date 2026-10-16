@@ -12,6 +12,7 @@ import logging
 import math
 from dataclasses import dataclass
 import bridge_payloads
+from duration_ui import NEW_NODE_TIME_UNIT
 import database
 
 import dash
@@ -1239,7 +1240,8 @@ NEW_NODE_SNAPSHOT = {
     'context': '', 'subctx': '',
     'status_done': [],
     'val': 5, 'interest': 5, 'diff': 5,
-    'time_o': 2, 'time_m': 4, 'time_p': 6, 'time_unit': 'weeks',
+    # Blank: an estimate is the user's own call, and Save requires one.
+    'time_o': None, 'time_m': None, 'time_p': None, 'time_unit': NEW_NODE_TIME_UNIT,
     'e_needs_h': [], 'e_needs_s': [],
     'e_supp_h': [], 'e_supp_s': [], 'e_helps': [],
     'resource_links': {},

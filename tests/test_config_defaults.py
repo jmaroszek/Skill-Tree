@@ -20,7 +20,6 @@ MUTABLE_DEFAULTS = [
     (ConfigManager.get_events_graph_layout_defaults, "DEFAULT_EVENTS_GRAPH_LAYOUT"),
     (ConfigManager.get_analyze_limits, "DEFAULT_ANALYZE_LIMITS"),
     (ConfigManager.get_time_settings, "DEFAULT_TIME_SETTINGS"),
-    (ConfigManager.get_time_estimate_defaults, "DEFAULT_TIME_ESTIMATE_DEFAULTS"),
 ]
 
 

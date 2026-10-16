@@ -773,8 +773,8 @@ class TestRenderRatingDistribution:
         ])
         tips = [getattr(p, 'data-tip') for p in parts
                 if getattr(p, 'className', None) == 'rd-work']
-        assert tips[0] == "All nodes\nLearn 88% · Action 12%\nMedian node time: 1.5w"
-        assert "Mind\n50% of all remaining work\nLearn 75% · Action 25%\nMedian node time: 1w" in tips
+        assert tips[0] == "All nodes\nLearn 88% · Action 12%\nMedian node time: 3w"
+        assert "Mind\n50% of all remaining work\nLearn 75% · Action 25%\nMedian node time: 2w" in tips
         segs = [p for p in parts if getattr(p, 'className', None) == 'rd-work-seg']
         assert len(segs) == 3   # Mind's two, Body's one
 

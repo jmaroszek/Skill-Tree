@@ -5,7 +5,9 @@ from dash import ALL, Input, Output, html, no_update
 import dash_bootstrap_components as dbc
 
 import onboarding
-from config import ConfigManager
+import copy
+
+from config import DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS, ConfigManager
 from graph_manager import GraphManager
 
 
@@ -25,6 +27,10 @@ def register_onboarding_callbacks(app, services=None):
         if choice not in ("btn-welcome-suggested", "btn-welcome-empty", "btn-welcome-import"):
             return no_update, no_update, no_update, no_update
         ConfigManager.set_welcome_done(True)
+        if choice == "btn-welcome-suggested":
+            # Saved, so a later edit to the suggestions leaves this list alone.
+            ConfigManager.set_contexts(list(DEFAULT_CONTEXTS))
+            ConfigManager.set_subcontexts(copy.deepcopy(DEFAULT_SUBCONTEXTS))
         if choice == "btn-welcome-empty":
             # Every node needs a context, so "none" is one plain one to rename.
             ConfigManager.set_contexts(["General"])

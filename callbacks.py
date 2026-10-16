@@ -748,12 +748,12 @@ def register_callbacks(app, services=None):
         # new node silently claimed a type nobody chose; saving without one is
         # already refused below ("Node type is required").
         def_out = [
-            "", "", "", "", "", 5, 5, 5, 2, 4, 6, STATUS_OPEN, [],
+            "", "", "", "", "", 5, 5, 5, None, None, None, STATUS_OPEN, [],
             [], [], [], [], [],
             options, options, options, options, options,
             {},  # resource-links-store
             # Type-specific defaults
-            "weeks", "weeks",
+            NEW_NODE_SNAPSHOT['time_unit'], NEW_NODE_SNAPSHOT['time_unit'],
             None,  # node-original-name
             dash.no_update,  # search-node — don't change; avoids retriggering core_engine
             "none",  # node-priority-rank

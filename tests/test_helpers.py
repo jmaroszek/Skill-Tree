@@ -547,6 +547,8 @@ class TestIsFormDirtyVsSnapshot:
         post-save snapshot refresh, a form holding the linted alias must not
         flag as dirty."""
         from graph_manager import GraphManager
+        from config import NAME_FORMAT_TITLE, ConfigManager
+        ConfigManager.set_name_formatting({'mode': NAME_FORMAT_TITLE})
         mgr = GraphManager()
         node = self._seed(mgr)
         # Save aliases through the manager — which applies the linter.
@@ -784,10 +786,18 @@ class TestEditorFormValues:
         """A blank new-node form (component defaults) built through the helper
         must not register dirty against NEW_NODE_SNAPSHOT."""
         blank = editor_form_values(**self._full_kwargs(
-            name='', n_type='', desc='', context='', subctx='', time_o=2, time_m=4,
-            time_p=6, time_unit='weeks',
+            name='', n_type='', desc='', context='', subctx='', time_o=None, time_m=None,
+            time_p=None, time_unit='weeks',
         ))
         assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, blank)
+
+    def test_new_node_starts_without_an_estimate(self):
+        """The estimate is the user's own call: nothing is pre-filled, and an
+        empty bracket is refused on save."""
+        from callback_helpers import time_estimate_problem
+        bracket = [NEW_NODE_SNAPSHOT[k] for k in ('time_o', 'time_m', 'time_p')]
+        assert bracket == [None, None, None]
+        assert time_estimate_problem(*bracket)
 
     def test_omitting_habit_args_uses_layout_defaults(self):
         """A caller with no habit state (the historical modal-gate case) gets
@@ -957,7 +967,7 @@ class TestExplainSummary:
 
     def test_cost_is_shown_as_time_and_effort(self):
         text = _render_text(build_explain_summary(_minimal_breakdown(), normalized=80))
-        assert "Time 2h" in text
+        assert "Time 1.4d" in text
         assert "Effort 5 of 10" in text
 
     def test_inherited_value_and_time_read_as_none_of_its_own(self):
@@ -1032,7 +1042,7 @@ class TestExplainSummary:
         assert "Ratings of the work left 60%" in text
         assert "Credit for this goal Value 5 · Interest 5 30%" in text
         assert "Credit for other goals 10%" in text
-        assert "Work left 2 tasks 2.1d" in text
+        assert "Work left 2 tasks 4.2d" in text
         assert "Effort" not in text
         assert "Priority goal X (#2) +50%" in text
 

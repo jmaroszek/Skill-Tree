@@ -14,7 +14,8 @@ Per-tab filter sidebars (e.g. the Details tab's mini-graph filter at
 `details-filters-sidebar`) live with their owning tab module, not here.
 """
 
-from duration_ui import DURATION_UNITS, bracket_label, time_estimates_heading, unit_select
+from duration_ui import (DURATION_UNITS, NEW_NODE_TIME_UNIT, bracket_label,
+                         time_estimates_heading, unit_select)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 from config import (
@@ -101,7 +102,6 @@ _EDITOR_HINTS = {
 # --- Node Editor sidebar (left) ---
 def build_node_editor_content():
     CONTEXTS = sort_contexts(ConfigManager.get_contexts())
-    _TED = ConfigManager.get_time_estimate_defaults()
     return html.Div(
         [
             html.Div([
@@ -388,7 +388,7 @@ def build_node_editor_content():
                                 target="node-time-habit-mode", placement="left",
                             ),
                         ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
-                        unit_select("node-time-unit", value=_TED.get('unit', 'weeks'),
+                        unit_select("node-time-unit", value=NEW_NODE_TIME_UNIT,
                                     compact=True),
                     ], className="d-flex align-items-center mb-2"),
                     html.Div(id="time-mode-warning",

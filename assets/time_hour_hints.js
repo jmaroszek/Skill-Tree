@@ -6,8 +6,9 @@
     // three hint texts, then the three styles, then whether any hint shows.
     function hints(ids, values, unit, settings) {
         settings = settings || {};
-        var week = settings.hours_per_week == null ? 20 : settings.hours_per_week;
-        var month = settings.hours_per_month == null ? 80 : settings.hours_per_month;
+        // The store holds the full saved settings. Without a rate, no hint.
+        var week = settings.hours_per_week;
+        var month = settings.hours_per_month;
         var multipliers = {days: week / 7, weeks: week, months: month, years: month * 13};
         var multiplier = multipliers[unit];
         var enabled = settings.show_hour_equivalents !== false && multiplier > 0;
