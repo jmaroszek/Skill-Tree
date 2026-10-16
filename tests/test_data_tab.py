@@ -57,7 +57,7 @@ def _ids(component, found=None):
 
 def test_the_settings_modal_has_a_data_tab():
     ids = _ids(build_app_layout([], env="sandbox"))
-    assert {"btn-backup-now", "btn-open-backup-folder", "setting-backup-extra-dir",
+    assert {"btn-backup-now", "btn-open-backup-folder", "setting-backup-extra-dir", "setting-auto-backup",
             "restore-backup-select", "btn-restore-confirm", "btn-export-json",
             "download-export-json", "download-export-db", "upload-import",
             "data-status"} <= ids
@@ -78,10 +78,17 @@ def test_opening_the_tab_loads_backups_and_the_extra_folder(data, tmp_path):
     ConfigManager.set_backup_extra_dir(str(tmp_path))
     backup.create_backup("manual")
 
-    options, extra = data["load_data_tab"]("tab-data")
+    options, extra, auto = data["load_data_tab"]("tab-data")
 
-    assert len(options) == 1 and extra == str(tmp_path)
-    assert data["load_data_tab"]("tab-recommendations") == (dash.no_update, dash.no_update)
+    assert len(options) == 1 and extra == str(tmp_path) and auto is True
+    assert data["load_data_tab"]("tab-recommendations") == (dash.no_update,) * 3
+
+
+def test_the_automatic_backup_switch_is_saved_at_once(data):
+    data["save_auto_backup"](False)
+    assert ConfigManager.get_auto_backup() is False
+    data["save_auto_backup"](True)
+    assert ConfigManager.get_auto_backup() is True
 
 
 def test_exports_download_as_files(data):

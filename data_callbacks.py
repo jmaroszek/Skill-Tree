@@ -52,13 +52,22 @@ def register_data_callbacks(app, services=None):
     @app.callback(
         Output("restore-backup-select", "options"),
         Output("setting-backup-extra-dir", "value"),
+        Output("setting-auto-backup", "value"),
         Input("settings-modal-tabs", "active_tab"),
         prevent_initial_call=True,
     )
     def load_data_tab(active_tab):
         if active_tab != "tab-data":
-            return no_update, no_update
-        return backup_options(), ConfigManager.get_backup_extra_dir()
+            return no_update, no_update, no_update
+        return (backup_options(), ConfigManager.get_backup_extra_dir(),
+                ConfigManager.get_auto_backup())
+
+    @app.callback(
+        Input("setting-auto-backup", "value"),
+        prevent_initial_call=True,
+    )
+    def save_auto_backup(enabled):
+        ConfigManager.set_auto_backup(bool(enabled))
 
     @app.callback(
         Output("data-status", "children", allow_duplicate=True),

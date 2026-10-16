@@ -1261,6 +1261,20 @@ def register_callbacks(app, services=None):
         Input('editor-time-settings', 'data'),
     )
 
+    # The reflection modal's actual-time inputs get the same hints.
+    app.clientside_callback(
+        ClientsideFunction(namespace='time_hour_hints', function_name='render_actual'),
+        [Output(f'time-calibration-{field}-hours', 'children')
+         for field in ('lower', 'point', 'upper')],
+        [Output(f'time-calibration-{field}-hours', 'style')
+         for field in ('lower', 'point', 'upper')],
+        Input('time-calibration-lower', 'value'),
+        Input('time-calibration-point', 'value'),
+        Input('time-calibration-upper', 'value'),
+        Input('time-calibration-unit', 'value'),
+        Input('editor-time-settings', 'data'),
+    )
+
     # --- Live total-hours preview for habit mode ---
     @app.callback(
         Output('node-habit-total-preview', 'children'),

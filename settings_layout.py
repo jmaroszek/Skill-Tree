@@ -394,6 +394,11 @@ def _build_data_tab():
             "Backups",
             "Skill Tree copies your graph once a day when it has changed, "
             f"and keeps the last {backup.KEEP['daily']} copies.",
+            dbc.Switch(id="setting-auto-backup", value=True,
+                       label="Back up automatically"),
+            _switch_help("Takes effect at once. Turn it off to save disk space; "
+                         "Back up now still works, and your graph is still "
+                         "backed up before a restore or an upgrade."),
             html.Div([
                 primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
                 cancel_action("Open backups folder", "btn-open-backup-folder", size="sm"),

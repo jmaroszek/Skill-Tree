@@ -680,14 +680,23 @@ def build_time_calibration_modal():
                     dbc.Col([
                         dbc.Label("Lower Bound"),
                         dbc.Input(id="time-calibration-lower", type="number", min=0),
+                        html.Small(id="time-calibration-lower-hours",
+                                   className="time-hour-hint text-muted mt-1",
+                                   style={"display": "none"}),
                     ], width=3),
                     dbc.Col([
                         dbc.Label("Best Estimate"),
                         dbc.Input(id="time-calibration-point", type="number", min=0),
+                        html.Small(id="time-calibration-point-hours",
+                                   className="time-hour-hint text-muted mt-1",
+                                   style={"display": "none"}),
                     ], width=3),
                     dbc.Col([
                         dbc.Label("Upper Bound"),
                         dbc.Input(id="time-calibration-upper", type="number", min=0),
+                        html.Small(id="time-calibration-upper-hours",
+                                   className="time-hour-hint text-muted mt-1",
+                                   style={"display": "none"}),
                     ], width=3),
                     dbc.Col([
                         dbc.Label("Unit"),

@@ -1322,6 +1322,15 @@ class ConfigManager:
         cls._set_db_value("SHOW_SCORING_PERF", "1" if enabled else "0")
 
     @classmethod
+    def get_auto_backup(cls) -> bool:
+        """Whether the app makes its once-a-day backup. On unless switched off."""
+        return cls._get_db_value("AUTO_BACKUP") != "0"
+
+    @classmethod
+    def set_auto_backup(cls, enabled: bool):
+        cls._set_db_value("AUTO_BACKUP", "1" if enabled else "0")
+
+    @classmethod
     def get_backup_extra_dir(cls) -> str:
         """A second folder each new backup is also copied to, or ''.
 

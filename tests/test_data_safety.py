@@ -107,6 +107,17 @@ class TestBackups:
 
         assert (extra / path.name).exists()
 
+    def test_automatic_backups_can_be_switched_off(self):
+        GraphManager().add_node(_node("Sleep"))
+        ConfigManager.set_auto_backup(False)
+
+        assert backup.run_daily_backup() is None
+        assert backup.list_backups("daily") == []
+        assert backup.create_backup("manual") is not None
+
+        ConfigManager.set_auto_backup(True)
+        assert backup.run_daily_backup() is not None
+
     def test_an_unreachable_extra_folder_does_not_stop_the_backup(self, tmp_path):
         ConfigManager.set_backup_extra_dir(str(tmp_path / "Unmounted"))
         GraphManager().add_node(_node("Sleep"))

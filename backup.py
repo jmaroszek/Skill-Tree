@@ -221,9 +221,13 @@ def mirror(path) -> Optional[Path]:
 
 def run_daily_backup(now=None) -> Optional[Path]:
     """The day's automatic backup: at most one per calendar day, skipped when
-    nothing changed since the newest backup. Never raises; a failed backup is
+    nothing changed since the newest backup, and skipped entirely when the
+    user has switched automatic backups off. Never raises; a failed backup is
     logged and must not stop the app."""
     try:
+        from config import ConfigManager
+        if not ConfigManager.get_auto_backup():
+            return None
         today = (now or datetime.now()).date()
         if any(info["when"].date() == today for info in list_backups("daily")):
             return None
