@@ -593,10 +593,58 @@ assert.notDeepEqual(x, y);
 def test_an_arrival_with_no_placed_route_lands_inside_the_graph():
     _run_async(r'''
 const cy = ready('main', placedCy(
-    {a: {x: 100, y: 100}, b: {x: 300, y: 400}, c: {x: 200, y: 250}}, ['lonely']));
+    {a: {x: 100, y: 100}, b: {x: 300, y: 400}, c: {x: 200, y: 250}}, ['p', 'q'],
+    [['a', 'b'], ['b', 'c'], ['p', 'q']]));
 cy.layout({name: 'fcose', randomize: false});
-const p = cy.byId.lonely.position();
-assert(p.x >= 100 && p.x <= 300 && p.y >= 100 && p.y <= 400, JSON.stringify(p));
+for (const id of ['p', 'q']) {
+    const p = cy.byId[id].position();
+    assert(p.x >= 100 && p.x <= 300 && p.y >= 100 && p.y <= 400, JSON.stringify(p));
+}
+''')
+
+
+def test_nodes_without_edges_start_beside_the_graph():
+    """fCoSE packs the nodes with no edges in the view into one grid, centered
+    on where they start. Incremental from where the old view had them,
+    scattered through the graph, the sandbox's Learn-only view drew its 85 of
+    them as a block in the middle of the graph."""
+    _run_async(r'''
+const connected = {a: {x: 100, y: 100}, b: {x: 500, y: 100}, c: {x: 500, y: 300}, d: {x: 100, y: 300}};
+const edges = [['a', 'b'], ['b', 'c'], ['c', 'd']];
+const inside = {o1: {x: 200, y: 150}, o2: {x: 400, y: 250}, o3: {x: 300, y: 200}};
+const within = p => p.x >= 100 && p.x <= 500 && p.y >= 100 && p.y <= 300;
+let cy = ready('main', placedCy({...connected, ...inside}, ['o4'], edges));
+cy.layout({name: 'fcose', randomize: false, idealEdgeLength: 100});
+
+assert.equal(cy.runs[0].randomize, false);
+for (const id of ['o1', 'o2', 'o3', 'o4']) {
+    const p = cy.byId[id].position();
+    assert(!within(p), id + ' ' + JSON.stringify(p));
+    assert(p.y > 300, 'below a footprint wider than it is tall: ' + JSON.stringify(p));
+}
+const spots = new Set(['o1', 'o2', 'o3', 'o4'].map(id => JSON.stringify(cy.byId[id].position())));
+assert.equal(spots.size, 4, 'one cell each');
+for (const [id, p] of Object.entries(connected)) {
+    assert.deepEqual(cy.byId[id].position(), p, id + ' stays where it was');
+}
+
+// A footprint taller than it is wide gets them on its right.
+const tall = Object.fromEntries(Object.entries(connected).map(([id, p]) => [id, {x: p.y, y: p.x}]));
+cy = ready('main', placedCy({...tall, ...inside}, [], edges));
+cy.layout({name: 'fcose', randomize: false});
+assert(['o1', 'o2', 'o3'].every(id => cy.byId[id].position().x > 300));
+
+// A grid that already sits outside the graph stays where the user saw it.
+const outside = {o1: {x: 800, y: 150}, o2: {x: 840, y: 150}};
+cy = ready('main', placedCy({...connected, ...outside}, [], edges));
+cy.layout({name: 'fcose', randomize: false});
+assert.deepEqual(cy.byId.o1.position(), outside.o1);
+assert.deepEqual(cy.byId.o2.position(), outside.o2);
+
+// A fresh run places them itself.
+cy = ready('main', placedCy({...connected, ...inside}, [], edges));
+cy.layout({name: 'fcose', randomize: true});
+assert.deepEqual(cy.byId.o1.position(), inside.o1);
 ''')
 
 

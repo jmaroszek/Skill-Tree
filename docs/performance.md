@@ -217,8 +217,15 @@ edge crossings against a fresh run's 23 for Wisdom, 166 against 85 for STEM.
 Filters that turned over a quarter to a third of the view came out within
 about 20% of a fresh run's crossings, and from 37% to 48%, comparable by eye.
 So a layout starts fresh when the nodes added and removed since the last one
-outnumber half the larger view. A Learn-only view, at 44%, stays incremental,
-and drops its grid of orphaned nodes in the middle of the graph.
+outnumber half the larger view. A Learn-only view, at 44%, stays incremental.
+
+That view first dropped its 85 nodes without edges in a block in the middle of
+the graph. fCoSE tiles such nodes into one grid, centered on where they stand
+when the run starts. A fresh run starts them apart from the graph. An
+incremental one started them where the full view had them, scattered through
+it. Now they start in a grid beside the connected nodes' footprint, and fCoSE's
+grid lands there, off the graph as in a fresh run. The connected nodes moved
+121 px on average, against 151 px when they had to clear a hole for the grid.
 
 ## CoSE or fCoSE, proof or default
 

@@ -313,7 +313,8 @@
             });
         }
         // Newcomers with no route to a placed node land anywhere in the
-        // placed graph's footprint.
+        // placed graph's footprint. Those with no edges at all then move
+        // out to placeIsolated's grid.
         waiting.forEach(function (node) {
             placed[node.id()] = {
                 x: box.x1 + Math.random() * (box.x2 - box.x1),
@@ -321,6 +322,55 @@
             };
         });
         newcomers.forEach(function (node) { node.position(placed[node.id()]); });
+    }
+
+    // fCoSE packs the nodes with no edges in the view into one grid, centered
+    // on where they stand when the run starts. A fresh run starts them apart
+    // from the graph. An incremental one starts them where the old view had
+    // them, scattered through the graph, so their grid landed in its middle:
+    // filtering the sandbox to Learn left 85 such nodes there. When any of
+    // them sits inside the connected nodes' footprint, they start in a grid
+    // beside it, on its narrow side, where a fresh run puts them. A grid that
+    // already sits outside stays where the user last saw it.
+    var TILE_PADDING = 10;  // fCoSE's tilingPaddingVertical and Horizontal
+
+    function placeIsolated(nodes, spacing) {
+        var isolated = [];
+        var box = { x1: Infinity, y1: Infinity, x2: -Infinity, y2: -Infinity };
+        nodes.forEach(function (node) {
+            if (!node.neighborhood('node').length) { isolated.push(node); return; }
+            var p = node.position();
+            box.x1 = Math.min(box.x1, p.x); box.x2 = Math.max(box.x2, p.x);
+            box.y1 = Math.min(box.y1, p.y); box.y2 = Math.max(box.y2, p.y);
+        });
+        if (!isolated.length || box.x1 > box.x2) return;
+        var inside = isolated.some(function (node) {
+            var p = node.position();
+            return p.x >= box.x1 && p.x <= box.x2 && p.y >= box.y1 && p.y <= box.y2;
+        });
+        if (!inside) return;
+        var cell = TILE_PADDING;
+        isolated.forEach(function (node) {
+            var size = typeof node.width === 'function'
+                ? Math.max(node.width(), node.height()) : 0;
+            cell = Math.max(cell, size + TILE_PADDING);
+        });
+        var columns = Math.ceil(Math.sqrt(isolated.length));
+        var rows = Math.ceil(isolated.length / columns);
+        var below = box.x2 - box.x1 >= box.y2 - box.y1;
+        // The grid's first cell, centered on the side it sits beside.
+        var x0 = below
+            ? (box.x1 + box.x2) / 2 - (columns - 1) * cell / 2
+            : box.x2 + spacing + cell / 2;
+        var y0 = below
+            ? box.y2 + spacing + cell / 2
+            : (box.y1 + box.y2) / 2 - (rows - 1) * cell / 2;
+        isolated.forEach(function (node, i) {
+            node.position({
+                x: x0 + (i % columns) * cell,
+                y: y0 + Math.floor(i / columns) * cell
+            });
+        });
     }
 
     // How two-dimensional a drawing is: the square root of the ratio of the
@@ -419,9 +469,12 @@
                 var newcomers = nodes.filter(function (node) { return !isPlaced(node); });
                 if (newcomers.length * 2 > nodes.length || turnedOver(cy._skillTreeShown, nodes)) {
                     options = Object.assign({}, options, { randomize: true });
-                } else if (newcomers.length) {
+                } else {
                     var spacing = Number(options.idealEdgeLength) || 100;
-                    cy.batch(function () { placeNewcomers(nodes, newcomers, spacing); });
+                    cy.batch(function () {
+                        if (newcomers.length) placeNewcomers(nodes, newcomers, spacing);
+                        placeIsolated(nodes, spacing);
+                    });
                 }
             }
             // A frozen canvas stops this run, but its nodes are still the
