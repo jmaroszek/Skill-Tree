@@ -20,6 +20,8 @@ from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, CANVAS_DE
 
 
 import dash
+from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
+from skilltree.ui.toast import register_toast_timer
 from dash import ClientsideFunction, html, Input, Output, State, no_update
 
 from skilltree.store import settings
@@ -402,8 +404,6 @@ def register_engine_callbacks(app, services):
         undo_pending = outcome.undo_pending
         return view._replace(
             message=outcome.message,
-            clear_disabled=False if outcome.message else True,
-            clear_intervals=0,
             editor_style=next_ed_style,
             goal_style=next_goal_style,
             events_style=next_events_sidebar_style,
@@ -586,15 +586,7 @@ def register_engine_callbacks(app, services):
             return dash.no_update
         return json.dumps(names) + '|' + str(time.time())
 
-    @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
-        Output('clear-interval', 'disabled', allow_duplicate=True),
-        Input('clear-interval', 'n_intervals'),
-        prevent_initial_call=True
-    )
-    def clear_message(n):
-        if n > 0: return "", True
-        return dash.no_update, dash.no_update
+    register_toast_timer(app, 'save-output', TOAST_CLEAR_INTERVAL_MS)
 
 
     # The unexpected-error modal opens from app.report_callback_error, through

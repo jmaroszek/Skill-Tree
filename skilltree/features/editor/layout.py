@@ -30,8 +30,6 @@ from skilltree.ui.kit import info_button
 from skilltree.ui.kit import primary_action
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
-from skilltree.ui.timing import LOCATE_TOAST_CLEAR_INTERVAL_MS
-from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 
 
 def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-remove"):
@@ -316,7 +314,6 @@ def build_node_editor_content():
                 Tooltip("Locate node in current view",
                             target="btn-locate-node", placement="right"),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
-                dcc.Interval(id='locate-clear-interval', interval=LOCATE_TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='locate-animate-trigger', data=None),
                 dcc.Store(id='locate-request-store', data=None),
                 dcc.Store(id='locate-result-store', data=None),
@@ -693,7 +690,6 @@ def build_node_editor_content():
                 Tooltip("Discard unsaved changes and revert this node to its last saved state", id="editor-revert-tooltip", target="btn-revert", placement="top"),
                 Tooltip("Save changes", id="editor-save-tooltip", target="btn-save", placement="top"),
                 Tooltip("Delete this node", id="editor-delete-tooltip", target="btn-delete", placement="top"),
-                dcc.Interval(id='clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
                 dcc.Store(id='node-time-unit-prev', data='weeks'),
                 dcc.Store(id='node-original-name', data=None)
             ])

@@ -62,11 +62,9 @@ def test_locate_routes_the_active_tab_to_the_live_canvas(locate_node):
     fn = _locate_callback()
     assert len(inspect.signature(fn).parameters) == 3
 
-    message, interval_disabled, interval_count, request = fn(
+    message, request = fn(
         1, "Some Node", "tab-details")
     assert message == ""
-    assert interval_disabled is True
-    assert interval_count == 0
     assert request == {
         "name": "Some Node",
         "activeTab": "tab-details",
@@ -80,7 +78,7 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
 
     monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Dormant())
     fn = _locate_callback()
-    _message, _disabled, _count, request = fn(1, "Asleep", "tab-events")
+    _message, request = fn(1, "Asleep", "tab-events")
     assert request["name"] == "Asleep"
     assert request["activeTab"] == "tab-events"
 
@@ -88,9 +86,8 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
 def test_deleted_node_reports_in_editor(monkeypatch):
     monkeypatch.setattr(GraphManager, "get_node", lambda self, name: None)
     fn = _locate_callback()
-    message, interval_disabled, _n, request = fn(1, "Gone", "tab-canvas")
+    message, request = fn(1, "Gone", "tab-canvas")
     assert message == "This node no longer exists."
-    assert interval_disabled is False
     assert request is dash.no_update
 
 

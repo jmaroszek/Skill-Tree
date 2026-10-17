@@ -6,6 +6,8 @@ import time
 from datetime import date
 
 import dash
+from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
+from skilltree.ui.toast import register_toast_timer
 from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_update
 
 from skilltree.domain.models import Event
@@ -503,7 +505,6 @@ def register_events_callbacks(app, services):
         Output("event-status-badge", "children", allow_duplicate=True),
         Output("event-status-badge", "color", allow_duplicate=True),
         Output("event-status-badge", "style", allow_duplicate=True),
-        Output("event-clear-interval", "disabled", allow_duplicate=True),
         Input("btn-event-save", "n_clicks"),
         State("selected-event-store", "data"),
         State("event-name", "value"),
@@ -517,7 +518,7 @@ def register_events_callbacks(app, services):
     def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date,
                    trigger_nodes, trigger_mode):
         if not n_clicks or not name or not name.strip():
-            return no_update, no_update, "Event name is required.", no_update, no_update, no_update, no_update, no_update
+            return no_update, no_update, "Event name is required.", no_update, no_update, no_update, no_update
 
         name = name.strip()
         description = (description or "").strip()
@@ -529,7 +530,7 @@ def register_events_callbacks(app, services):
 
         if trigger_type == "node" and not resolved_nodes:
             return (no_update, no_update, "Pick at least one trigger node.",
-                    no_update, no_update, no_update, no_update, no_update)
+                    no_update, no_update, no_update, no_update)
         # A Date event saved without one was stored with an empty date, which
         # the sweep read as already due: it fired on the next click and woke
         # every node it held, while its card still said Manual.
@@ -538,7 +539,7 @@ def register_events_callbacks(app, services):
                 resolved_date = date.fromisoformat((trigger_date or "").strip()).isoformat()
             except ValueError:
                 return (no_update, no_update, "Pick a date.",
-                        no_update, no_update, no_update, no_update, no_update)
+                        no_update, no_update, no_update, no_update)
 
         before = event_manager.get_event(selected_event) if selected_event else None
         try:
@@ -557,7 +558,7 @@ def register_events_callbacks(app, services):
                     trigger_mode=resolved_mode,
                 ))
         except ValueError as e:
-            return no_update, no_update, str(e), no_update, no_update, no_update, no_update, no_update
+            return no_update, no_update, str(e), no_update, no_update, no_update, no_update
 
         event = event_manager.get_event(name)
         fired = event is not None and event.status == "Triggered"
@@ -570,19 +571,10 @@ def register_events_callbacks(app, services):
                    if fired and before is not None and before.status == "Pending"
                    else "Saved.")
 
-        return name, f"save-{name}", message, trigger_style, "", "primary", _badge_hidden, False
+        return name, f"save-{name}", message, trigger_style, "", "primary", _badge_hidden
 
     # --- Auto-dismiss save status ---
-    @app.callback(
-        Output("event-save-status", "children", allow_duplicate=True),
-        Output("event-clear-interval", "disabled", allow_duplicate=True),
-        Input("event-clear-interval", "n_intervals"),
-        prevent_initial_call=True,
-    )
-    def clear_event_save_status(n):
-        if n and n > 0:
-            return "", True
-        return no_update, no_update
+    register_toast_timer(app, "event-save-status", TOAST_CLEAR_INTERVAL_MS)
 
     # --- Delete Event ---
     @app.callback(

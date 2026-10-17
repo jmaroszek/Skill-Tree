@@ -13,7 +13,6 @@ from skilltree.store import settings
 from skilltree.ui.styles import badge_style
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
-from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.styles import events_graph_stylesheet
 from skilltree.ui.canvas.settings_panel import (
     build_graph_settings_panel, freeze_indicator,
@@ -419,7 +418,6 @@ def build_events_tab_content():
         # The manual order lives in Settings, not the browser, so it survives
         # a new port or a cleared profile. A drag writes it there first.
         dcc.Store(id='event-order-store', data=settings.EVENT_ORDER.get()),
-        dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
         # Fires event_callbacks.run_event_clock while the app sits open.
         dcc.Interval(id='event-clock', interval=EVENT_CLOCK_INTERVAL_MS, n_intervals=0),
         # Hidden input for drag-and-drop reorder (set by JS SortableJS)

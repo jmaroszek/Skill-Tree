@@ -126,7 +126,7 @@ def _refused(message, request, *, editor_style=None):
     and nothing that would touch the graph, the filters or a modal."""
     ed_style, goal_style, events_style = request.sidebars
     return Outcome(response=CoreResponse(
-        message=message, clear_disabled=False, clear_intervals=0,
+        message=message,
         editor_style=ed_style if editor_style is None else editor_style,
         goal_style=goal_style, events_style=events_style))
 

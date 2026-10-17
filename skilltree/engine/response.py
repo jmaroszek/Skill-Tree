@@ -13,8 +13,6 @@ from dash import Output, no_update
 class CoreResponse(NamedTuple):
     elements: object = no_update
     message: object = no_update
-    clear_disabled: object = no_update
-    clear_intervals: object = no_update
     community_options: object = no_update
     search_options: object = no_update
     editor_style: object = no_update
@@ -57,8 +55,6 @@ class CoreResponse(NamedTuple):
 CORE_OUTPUTS = dict(
     elements=Output('elements-pending-store', 'data', allow_duplicate=True),
     message=Output('save-output', 'children'),
-    clear_disabled=Output('clear-interval', 'disabled'),
-    clear_intervals=Output('clear-interval', 'n_intervals'),
     community_options=Output('filter-community', 'options'),
     search_options=Output('search-node', 'options'),
     editor_style=Output('sidebar-editor-container', 'style'),

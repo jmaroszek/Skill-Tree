@@ -1,6 +1,8 @@
 """Behavior every canvas shares: the hover tooltip, Locate, freezing positions
 and layout requests. Each loops over CANVASES rather than naming a canvas."""
 import dash
+from skilltree.ui.timing import LOCATE_TOAST_CLEAR_INTERVAL_MS
+from skilltree.ui.toast import register_toast_timer
 from dash import ClientsideFunction, Input, Output, State, ctx, html
 
 from skilltree.ui import tokens
@@ -135,8 +137,6 @@ def register_canvas_callbacks(app, services):
     # cached `elements` prop is not authoritative for membership.
     @app.callback(
         Output('locate-message', 'children'),
-        Output('locate-clear-interval', 'disabled'),
-        Output('locate-clear-interval', 'n_intervals'),
         Output('locate-request-store', 'data'),
         Input('btn-locate-node', 'n_clicks'),
         State('node-original-name', 'data'),
@@ -145,11 +145,11 @@ def register_canvas_callbacks(app, services):
     )
     def handle_locate_click(n_clicks, name, current_tab):
         if not n_clicks or not name:
-            return (dash.no_update,) * 4
+            return (dash.no_update,) * 2
         node = manager.get_node(name)
         if not node:
-            return "This node no longer exists.", False, 0, dash.no_update
-        return "", True, 0, {
+            return "This node no longer exists.", dash.no_update
+        return "", {
             'name': name,
             'activeTab': current_tab,
             'request': n_clicks,
@@ -249,16 +249,7 @@ def register_canvas_callbacks(app, services):
         prevent_initial_call=True,
     )
 
-    @app.callback(
-        Output('locate-message', 'children', allow_duplicate=True),
-        Output('locate-clear-interval', 'disabled', allow_duplicate=True),
-        Input('locate-clear-interval', 'n_intervals'),
-        prevent_initial_call=True,
-    )
-    def clear_locate_message(n):
-        if n > 0:
-            return "", True
-        return dash.no_update, dash.no_update
+    register_toast_timer(app, 'locate-message', LOCATE_TOAST_CLEAR_INTERVAL_MS)
 
     # --- Freeze feature: per-canvas clientside wiring ---
     # Each canvas in canvases.CANVASES gets three parameterized

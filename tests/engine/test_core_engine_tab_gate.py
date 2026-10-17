@@ -166,7 +166,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
     out = _call(cb)
 
     assert out.elements is not dash.no_update
-    for field in ("message", "clear_disabled", "clear_intervals",
+    for field in ("message",
                   "undo_open", "undo_body", "undo_pending",
                   "calibration_open", "calibration_reference",
                   "calibration_pending"):

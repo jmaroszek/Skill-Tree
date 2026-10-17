@@ -838,18 +838,16 @@ def register_editor_callbacks(app, services):
 
     @app.callback(
         Output('save-output', 'children', allow_duplicate=True),
-        Output('clear-interval', 'disabled', allow_duplicate=True),
-        Output('clear-interval', 'n_intervals', allow_duplicate=True),
         Input('btn-revert', 'n_clicks'),
         State('node-original-name', 'data'),
         prevent_initial_call=True,
     )
     def revert_message(n_clicks, name):
         if not n_clicks or not name:
-            return dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update
         if manager.get_node(name) is None:
-            return (f"Couldn't revert: '{name}' no longer exists.", False, 0)
-        return "Changes reverted.", False, 0
+            return f"Couldn't revert: '{name}' no longer exists."
+        return "Changes reverted."
 
     # Either answer closes the reopen confirmation. The core engine reads the
     # held Save from the store on a yes, so only a no clears it.
