@@ -1,0 +1,150 @@
+"""A priority rank belongs to an unfinished Goal.
+
+A priority Goal converted to another type kept its rank. Its old subtree went
+on being boosted, and the Goals sidebar, which lists only Goals, could not
+clear the slot it held. A finished Goal kept its rank too, and the sidebar,
+which hides finished Goals, could not clear that slot either.
+"""
+import dash
+import pytest
+
+from skilltree.store import database
+from skilltree.features.goals import callbacks as sidebars_callbacks
+from skilltree.store import settings
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
+from support.graphs import make_node
+from skilltree.services import AppServices
+
+
+@pytest.fixture
+def manager():
+    manager = GraphManager()
+    for name in ("Neuroscience", "Literature", "Video"):
+        manager.add_node(make_node(name, type="Goal", time_mode="inherited"))
+    manager.add_node(make_node("Essay"))
+    manager.add_edge("Essay", "Literature", "Needs_Hard")
+    settings.PRIORITY_GOALS.set(["Neuroscience", "Literature", "Video"])
+    return manager
+
+
+def _convert(manager, name, to_type="Action"):
+    item = manager.get_node(name)
+    item.type, item.time_mode = to_type, "manual"
+    manager.update_node(item)
+
+
+def test_a_goal_turned_into_another_type_loses_its_rank(manager):
+    _convert(manager, "Literature")
+
+    # The ranks after it move up, and the third slot is free again.
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Video"]
+
+
+def test_its_old_subtree_is_no_longer_boosted(manager):
+    def essay_score():
+        nodes = manager.get_all_nodes()
+        scored = manager.calculate_priority_scores(
+            nodes, priority_goals=settings.PRIORITY_GOALS.get())
+        return next(n.priority_score for n in scored if n.name == "Essay")
+
+    settings.set_hyperparams({**settings.hyperparams(), "goal_boost": 1.5})
+    boosted = essay_score()
+    _convert(manager, "Literature")
+
+    assert essay_score() < boosted
+
+
+def _set_status(manager, name, status):
+    item = manager.get_node(name)
+    item.status = status
+    manager.update_node(item)
+
+
+def test_a_finished_goal_frees_its_slot(manager):
+    _set_status(manager, "Neuroscience", STATUS_DONE)
+
+    assert settings.PRIORITY_GOALS.get() == ["Literature", "Video"]
+
+    # Reopening it doesn't take a slot back.
+    _set_status(manager, "Neuroscience", STATUS_OPEN)
+    assert settings.PRIORITY_GOALS.get() == ["Literature", "Video"]
+
+
+def test_a_finished_goal_cannot_take_a_rank(manager):
+    _set_status(manager, "Video", STATUS_DONE)
+
+    assert _set_priority()("Video|1|1700000000000") is dash.no_update
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature"]
+
+
+def test_other_edits_keep_the_rank(manager):
+    item = manager.get_node("Literature")
+    item.description = "Reading and writing"
+    manager.update_node(item)
+
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature", "Video"]
+
+
+def test_a_rolled_back_save_keeps_the_rank(manager):
+    with pytest.raises(RuntimeError):
+        with database.transaction():
+            _convert(manager, "Literature")
+            raise RuntimeError("the save was refused")
+
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature", "Video"]
+    assert manager.get_node("Literature").type == "Goal"
+
+
+def test_the_launch_repair_clears_ranks_held_by_non_goals(manager):
+    # Older data: a rank kept by a node converted before the save dropped it,
+    # and one kept by a name no node has.
+    item = manager.get_node("Video")
+    item.type, item.time_mode = "Action", "manual"
+    manager.update_node(item)
+    settings.PRIORITY_GOALS.set(["Video", "Neuroscience", "Ghost"])
+
+    assert manager.prune_priority_goals() == ["Video", "Ghost"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience"]
+    assert manager.prune_priority_goals() == []
+
+
+def test_the_launch_repair_clears_ranks_held_by_finished_goals(manager):
+    # Older data: a Goal finished before the save dropped its rank.
+    with database.get_connection() as conn:
+        conn.execute("UPDATE Nodes SET status='Done' WHERE name='Literature'")
+
+    assert manager.prune_priority_goals() == ["Literature"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Video"]
+
+
+def _set_priority():
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    sidebars_callbacks.register_goals_callbacks(app, AppServices())
+    for spec in app.callback_map.values():
+        fn = spec.get("callback")
+        while hasattr(fn, "__wrapped__"):
+            fn = fn.__wrapped__
+        if getattr(fn, "__name__", None) == "handle_goal_priority_change":
+            return fn
+    raise LookupError("handle_goal_priority_change")
+
+
+def test_only_a_goal_takes_a_rank(manager):
+    settings.PRIORITY_GOALS.set([])
+    handle = _set_priority()
+
+    assert handle("Essay|1|1700000000000") is dash.no_update
+    assert settings.PRIORITY_GOALS.get() == []
+
+    handle("Video|1|1700000000000")
+    assert settings.PRIORITY_GOALS.get() == ["Video"]
+
+
+def test_clearing_a_rank_works_whatever_holds_it(manager):
+    settings.PRIORITY_GOALS.set(["Essay", "Video"])
+
+    _set_priority()("Essay|clear|1700000000000")
+
+    assert settings.PRIORITY_GOALS.get() == ["Video"]

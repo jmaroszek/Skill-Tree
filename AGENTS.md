@@ -90,19 +90,21 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 - Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`skilltree/ui/canvas/elements.py`](skilltree/ui/canvas/elements.py). That function is the single source of truth for what the Nodes canvas shows.
 - Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set. Milestones can be marked Done before their hard prereqs, and a Done Milestone never re-blocks (`_KEEPS_DONE_TYPES` in `skilltree/store/graph/manager.py`).
 - The JS-Dash bridge uses native HTML `value` setters (via `Object.getOwnPropertyDescriptor`) to get React to notice programmatic input changes — plain `el.value = ...` is silently ignored.
-- Each stored setting is a `Setting` in [`skilltree/store/settings.py`](skilltree/store/settings.py): `settings.NOW_NODE_CAP.get()` reads it, and `.set(value)` writes it. A new setting is one line there, with its key and default, plus a sample value in `tests/test_setting_registry.py`. Everything round-trips through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
+- Each stored setting is a `Setting` in [`skilltree/store/settings.py`](skilltree/store/settings.py): `settings.NOW_NODE_CAP.get()` reads it, and `.set(value)` writes it. A new setting is one line there, with its key and default, plus a sample value in `tests/store/test_setting_registry.py`. Everything round-trips through the `Settings` SQLite table. There is no persistent settings cache. Read operations may share a `database.read_snapshot()`; it expires at the end of the operation and is invalidated by local writes, so subsequent operations see fresh state across tab modules.
 
 ## Testing
 
 Run the tests for what you changed while you work, and the whole suite once before you commit:
 
 ```bash
-pytest tests/test_simulation.py tests/test_simulation_service.py   # while working: the tests for what you changed
-python -m ruff check .                                              # before committing: a lint error fails CI
-pytest -n auto                                                      # before committing: the whole suite, on every core
+pytest tests/domain/test_simulation.py   # while working: the tests for what you changed
+python -m ruff check .                    # before committing: a lint error fails CI
+pytest -n auto                            # before committing: the whole suite, on every core
 ```
 
 - To find the tests for a file, search `tests/` for its name: a module's, or a JS or CSS asset's. Shared code (`skilltree/domain`, `skilltree/store`, `skilltree/ui`) is tested all over the suite: after changing it, run all of it.
+- Tests mirror the package: `tests/domain`, `store`, `ui`, `engine`, `features/<name>`, `runtime`, `app` and `packaging`. An asset's tests sit with the code that owns it. Basenames stay unique, because pytest imports test modules by name.
+- Shared test helpers live in `tests/support`: `paths` (the repository's files), `graphs` (nodes and small graphs), `editor_forms`, `callbacks` (a feature's callbacks as written), `layout` (finding components) and `triggers` (`fire()`, what fired a callback). Use them rather than writing another copy.
 - `pytest --lf` reruns only what failed last time. `-n auto` needs pytest-xdist, which `requirements-dev.txt` and `environment.yml` install.
 - Don't wait on CI after pushing: it runs everything, on four platforms, on every push. Look at the last run before you push again (`gh run list --limit 3`); when it's red, fixing it comes first.
 

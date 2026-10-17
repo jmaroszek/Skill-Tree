@@ -1,0 +1,360 @@
+"""
+Tests for the Events-system improvements:
+- PENDING_EVENT_NOTIFICATIONS (app-load announcement queue)
+- Silent auto-trigger by node completion
+- Notification hooks in check_scheduled_triggers / check_pending_activations
+- now_on_trigger: an event moving the node it wakes onto the Now list
+"""
+
+from datetime import date, timedelta
+from typing import Any
+from unittest.mock import patch
+import pytest
+from skilltree.store import database
+from skilltree.domain.models import Node, Event
+from skilltree.store.events import EventManager
+from skilltree.store import settings
+from skilltree.store import schema
+
+
+@pytest.fixture(autouse=True)
+def temp_database(monkeypatch, tmp_path):
+    tmp_db_path = str(tmp_path / "test_skilltree.db")
+    monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
+    schema.init_db(recheck=True)
+    yield tmp_db_path
+
+
+@pytest.fixture
+def em(services):
+    return services.events
+
+
+def _node(name: str, **overrides: Any) -> Node:
+    defaults: dict[str, Any] = dict(
+        name=name, type="Learn", description="",
+        value=5, time_o=1.0, time_m=2.0, time_p=4.0,
+        interest=5, difficulty=5, status="Open", context="Mind",
+    )
+    defaults.update(overrides)
+    return Node(**defaults)
+
+
+# ---------------------------------------------------------------------------
+# PENDING_EVENT_NOTIFICATIONS — CRUD
+# ---------------------------------------------------------------------------
+
+class TestPendingNotifications:
+    def test_crud_roundtrip(self):
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
+        settings.add_event_notification({
+            "kind": "date_triggered", "event": "E1", "when": "2026-04-17",
+        })
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
+        assert len(entries) == 1
+        assert entries[0]["event"] == "E1"
+
+        settings.add_event_notification({
+            "kind": "node_triggered", "event": "E2", "when": "2026-04-17",
+        })
+        assert len(settings.PENDING_EVENT_NOTIFICATIONS.get()) == 2
+
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
+
+
+# ---------------------------------------------------------------------------
+# Auto-trigger notification hooks
+# ---------------------------------------------------------------------------
+
+class TestNotificationHooks:
+    def test_check_scheduled_triggers_writes_notification(self, em, mgr):
+        mgr.add_node(_node("D1"))
+        em.add_event(Event(
+            name="DateEvent",
+            description="",
+            trigger_date=(date.today() - timedelta(days=1)).isoformat(),
+        ))
+        em.add_node_to_event("DateEvent", "D1", delay_days=0)
+
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        triggered = em.check_scheduled_triggers()
+        assert "DateEvent" in triggered
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
+        date_entries = [e for e in entries if e["kind"] == "date_triggered"]
+        assert len(date_entries) == 1
+        assert date_entries[0]["event"] == "DateEvent"
+        assert "D1" in date_entries[0]["activated"]
+
+    def test_check_pending_activations_writes_notification(self, em, mgr):
+        mgr.add_node(_node("Delayed"))
+        em.add_event(Event(name="DelayEvent", description=""))
+        em.add_node_to_event("DelayEvent", "Delayed", delay_days=1)
+        # Manually set activation_date in the past to simulate a due delayed node
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        with em.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE EventNodes SET activation_date=? WHERE event_name=? AND node_name=?",
+                (yesterday, "DelayEvent", "Delayed"),
+            )
+            conn.commit()
+
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        activated = em.check_pending_activations()
+        assert "Delayed" in activated
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
+        delayed_entries = [e for e in entries if e["kind"] == "delayed_activated"]
+        assert len(delayed_entries) == 1
+        assert delayed_entries[0]["event"] == "DelayEvent"
+        assert "Delayed" in delayed_entries[0]["nodes"]
+
+
+# ---------------------------------------------------------------------------
+# Silent node-completion auto-trigger
+# ---------------------------------------------------------------------------
+
+class TestNodeCompletionAutoTrigger:
+    def test_auto_trigger_by_node_completion_silently_activates_dormant_nodes(self, em, mgr):
+        mgr.add_node(_node("Key"))
+        mgr.add_node(_node("Reward"))
+        em.add_event(Event(name="OnKey", description="", trigger_nodes=["Key"]))
+        em.add_node_to_event("OnKey", "Reward", delay_days=0)
+        # Done behind the save's back, so the call below is the firing.
+        with database.get_connection() as conn:
+            conn.execute("UPDATE Nodes SET status='Done' WHERE name='Key'")
+
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        triggered = em.auto_trigger_by_node_completion("Key")
+        assert "OnKey" in triggered
+
+        reward = mgr.get_node("Reward")
+        assert reward.dormant == 0
+
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
+        node_entries = [e for e in entries if e["kind"] == "node_triggered"]
+        assert len(node_entries) == 1
+        assert node_entries[0]["event"] == "OnKey"
+        assert node_entries[0]["trigger_node"] == "Key"
+        assert "Reward" in node_entries[0]["activated"]
+
+    def test_auto_trigger_does_nothing_when_no_matching_event(self, em, mgr):
+        mgr.add_node(_node("Lonely"))
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        triggered = em.auto_trigger_by_node_completion("Lonely")
+        assert triggered == []
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
+
+
+# ---------------------------------------------------------------------------
+# now_on_trigger: the event intent that replaced the priority override
+# ---------------------------------------------------------------------------
+
+class TestNowOnTrigger:
+    def test_intent_round_trips_on_the_event_node(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Wakes"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Sleeps"), "E")
+
+        rows = {r['node'].name: r['now_on_trigger'] for r in em.get_event_nodes("E")}
+        assert rows == {"Wakes": True, "Sleeps": False}
+
+    def test_triggering_moves_flagged_nodes_onto_now(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Pinned"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Plain"), "E")
+
+        result = em.trigger_event("E")
+        assert result['now_intent'] == ["Pinned"]
+
+        pinned, skipped = em._apply_now_intent(result['now_intent'])
+        assert (pinned, skipped) == (["Pinned"], [])
+        assert [n.name for n in mgr.get_now_nodes()] == ["Pinned"]
+
+    def test_the_now_cap_wins_and_the_skip_is_reported(self, em, mgr):
+        """An event must not be able to blow past the limit set by hand."""
+        settings.NOW_NODE_CAP.set(1)
+        mgr.add_node(_node("Already", now=1))
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Wants In"), "E", now_on_trigger=True)
+
+        result = em.trigger_event("E")
+        pinned, skipped = em._apply_now_intent(result['now_intent'])
+
+        assert (pinned, skipped) == ([], ["Wants In"])
+        assert [n.name for n in mgr.get_now_nodes()] == ["Already"]
+        # Skipped means un-pinned, not un-woken.
+        assert mgr.get_node("Wants In").dormant == 0
+
+    def test_an_auto_trigger_pins_without_asking(self, em, mgr):
+        """No conflict prompt survives — Now is a plain list."""
+        mgr.add_node(_node("Gate"))
+        em.add_event(Event(name="E", trigger_nodes=["Gate"]))
+        em.create_dormant_node(_node("Waiting"), "E", now_on_trigger=True)
+
+        mgr.update_node(_node("Gate", status="Done"))
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Waiting"]
+        kinds = [e["kind"] for e in settings.PENDING_EVENT_NOTIFICATIONS.get()]
+        assert kinds == ["node_triggered"]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[0]
+        assert entry["now_pinned"] == ["Waiting"]
+        assert entry["now_skipped"] == []
+
+
+# ---------------------------------------------------------------------------
+# A delayed node's Add-to-Now intent, which used to be dropped on the floor
+# ---------------------------------------------------------------------------
+
+def _sweep_on(em, day):
+    """Run the delayed-activation sweep as if today were `day`."""
+    with patch("skilltree.store.events.date") as mock_date:
+        mock_date.today.return_value = day
+        mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+        return em.check_pending_activations()
+
+
+class TestDelayedNowIntent:
+    """Triggering put a delayed node into now_intent while it was still
+    dormant, and _apply_now_intent skips dormant nodes -- so the pin was
+    silently dropped and never retried. The intent now waits for the wake."""
+
+    def test_a_delayed_flagged_node_is_not_pinned_at_trigger_time(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+
+        result = em.trigger_event("E")
+
+        assert result["now_intent"] == [], "still dormant, nothing to pin yet"
+        assert result["now_deferred"] == ["Later"]
+        assert mgr.get_now_nodes() == []
+
+    def test_it_is_pinned_when_it_actually_wakes(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+        em.trigger_event_manually("E")
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+
+        assert _sweep_on(em, date.today() + timedelta(days=7)) == ["Later"]
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Later"]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[0]
+        assert entry["kind"] == "delayed_activated"
+        assert entry["now_pinned"] == ["Later"]
+        assert entry["now_skipped"] == []
+
+    def test_an_unflagged_delayed_node_is_left_off_now(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7)
+        em.trigger_event("E")
+
+        _sweep_on(em, date.today() + timedelta(days=7))
+
+        assert mgr.get_now_nodes() == []
+
+    def test_the_now_cap_still_wins_at_a_delayed_wake(self, em, mgr):
+        settings.NOW_NODE_CAP.set(1)
+        mgr.add_node(_node("Already", now=1))
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
+        em.trigger_event("E")
+
+        _sweep_on(em, date.today() + timedelta(days=7))
+
+        assert [n.name for n in mgr.get_now_nodes()] == ["Already"]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[-1]
+        assert entry["now_skipped"] == ["Later"]
+        # Skipped means un-pinned, not un-woken.
+        assert mgr.get_node("Later").dormant == 0
+
+
+# ---------------------------------------------------------------------------
+# The manual path, which used to leave no durable record
+# ---------------------------------------------------------------------------
+
+class TestManualTriggerAnnouncement:
+    def test_a_manual_trigger_queues_an_announcement(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Wakes"), "E")
+        em.create_dormant_node(_node("Later"), "E", delay_days=30)
+
+        em.trigger_event_manually("E")
+
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[-1]
+        assert entry["kind"] == "manual_triggered"
+        assert entry["event"] == "E"
+        assert entry["activated"] == ["Wakes"]
+        assert entry["scheduled"] == ["Later"]
+
+    def test_pin_all_now_pins_every_node_the_firing_woke(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Flagged"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Plain"), "E")
+
+        result = em.trigger_event_manually("E", pin_all_now=True)
+
+        assert result["now_pinned"] == ["Flagged", "Plain"]
+        assert sorted(n.name for n in mgr.get_now_nodes()) == ["Flagged", "Plain"]
+
+    def test_without_the_switch_only_flagged_nodes_are_pinned(self, em, mgr):
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Flagged"), "E", now_on_trigger=True)
+        em.create_dormant_node(_node("Plain"), "E")
+
+        result = em.trigger_event_manually("E")
+
+        assert result["now_pinned"] == ["Flagged"]
+
+    def test_pin_all_now_does_not_reach_scheduled_nodes(self, em, mgr):
+        """They are still dormant. Their turn comes at the delayed wake."""
+        em.add_event(Event(name="E"))
+        em.create_dormant_node(_node("Later"), "E", delay_days=30)
+
+        result = em.trigger_event_manually("E", pin_all_now=True)
+
+        assert result["now_pinned"] == []
+        assert mgr.get_now_nodes() == []
+
+
+class TestChainedCompletionFailure:
+    """A woken node stored as Done fires the events watching it.
+
+    That chained firing used to run inside the wake's transaction, with its
+    exceptions swallowed. A failed nested write marks the whole transaction for
+    rollback, so a failure there silently undid the wake too. It now runs after
+    the wake commits, and a failure is logged.
+    """
+
+    def _chain(self, em, mgr):
+        mgr.add_node(_node("Finished"))
+        mgr.add_node(_node("Reward"))
+        em.add_event(Event(name="Wake", description=""))
+        em.add_node_to_event("Wake", "Finished", delay_days=0)
+        # Exercise recovery of a legacy sleeping completion, not a newly
+        # allowed transition.
+        with database.get_connection() as conn:
+            conn.execute("UPDATE Nodes SET status='Done' WHERE name='Finished'")
+        em.add_event(Event(name="OnFinished", description="",
+                           trigger_nodes=["Finished"]))
+        em.add_node_to_event("OnFinished", "Reward", delay_days=0)
+
+    def test_the_chain_still_fires(self, em, mgr):
+        self._chain(em, mgr)
+
+        em.trigger_event("Wake")
+
+        assert mgr.get_node("Finished").dormant == 0
+        assert mgr.get_node("Reward").dormant == 0
+
+    def test_a_failing_chain_leaves_the_wake_committed_and_logs(self, em, mgr, caplog):
+        self._chain(em, mgr)
+
+        def broken(self, node_name):
+            with database.transaction():
+                raise RuntimeError("disk full")
+        with patch.object(EventManager, "auto_trigger_by_node_completion", broken):
+            em.trigger_event("Wake")
+
+        assert mgr.get_node("Finished").dormant == 0
+        assert em.get_event("Wake").status == "Triggered"
+        assert "Chained event trigger failed for Finished" in caplog.text

@@ -1,0 +1,373 @@
+"""Community filter labels and ranking (community_labels)."""
+import functools
+from skilltree.store.events import EventManager
+from types import SimpleNamespace
+
+import dash
+
+from skilltree.domain.communities import MAX_LISTED, build_listing, label_communities
+from skilltree.store.graph.manager import GraphManager
+from skilltree.features.nodes.callbacks import register_nodes_callbacks
+
+
+def _n(name, type="Learn", context="Mind", subcontext=None):
+    return SimpleNamespace(name=name, type=type, context=context,
+                           subcontext=subcontext)
+
+
+def _e(source, target, type="Needs_Hard"):
+    return {'source': source, 'target': target, 'type': type}
+
+
+def _label(nodes, edges, hub_score=None):
+    by_name = {n.name: n for n in nodes}
+    return label_communities([set(by_name)], by_name, edges, hub_score)[0]
+
+
+def _star(goal, leaves, context="Mind", subcontext=None):
+    """A Goal fed by its leaves: leaf --Needs_Hard--> goal."""
+    nodes = [_n(goal, "Goal", context, subcontext)]
+    nodes += [_n(x, "Learn", context, subcontext) for x in leaves]
+    return nodes, [_e(x, goal) for x in leaves]
+
+
+class TestPrefix:
+    def test_pure_subcontext_shows_context_and_subcontext(self):
+        nodes, edges = _star("Sleep", ["A", "B", "C"], "Health", "Rhythms")
+        assert _label(nodes, edges) == "Health > Rhythms: Sleep"
+
+    def test_pure_context_with_mixed_subcontexts_shows_context_only(self):
+        nodes, edges = _star("Sleep", ["A", "B"], "Health", "Rhythms")
+        nodes += [_n("C", context="Health", subcontext="Exercise"),
+                  _n("D", context="Health", subcontext="Mobility")]
+        edges += [_e("C", "Sleep"), _e("D", "Sleep")]
+        assert _label(nodes, edges) == "Health: Sleep"
+
+    def test_mixed_cluster_has_no_prefix(self):
+        nodes, edges = _star("Sleep", ["A", "B"], "Health")
+        nodes += [_n("C", context="Mind"), _n("D", context="Mind")]
+        edges += [_e("C", "Sleep"), _e("D", "Sleep")]
+        assert _label(nodes, edges) == "Sleep"
+
+    def test_tied_contexts_label_the_same_every_time(self):
+        # Two subcontexts tie; the label must not depend on set order.
+        nodes = [_n("P", "Goal", "Life", "Productivity"),
+                 _n("S", "Goal", "Life", "Satisfaction"),
+                 _n("A", context="Life", subcontext="Productivity"),
+                 _n("B", context="Life", subcontext="Satisfaction")]
+        edges = [_e("A", "P"), _e("B", "S"), _e("A", "B", "Helps")]
+        by_name = {n.name: n for n in nodes}
+        labels = {label_communities([set(order)], by_name, edges)[0]
+                  for order in (["P", "S", "A", "B"], ["B", "A", "S", "P"])}
+        assert len(labels) == 1
+
+
+class TestHubs:
+    def test_goal_reach_beats_a_busier_concept(self):
+        # "Hub" has more neighbors, but the Goal sums up the cluster.
+        nodes, edges = _star("Goal", ["A", "B", "C", "D"])
+        nodes += [_n("Hub")]
+        edges += [_e("Hub", x, "Helps") for x in ("A", "B", "C", "D")]
+        assert _label(nodes, edges) == "Mind: Goal"
+
+    def test_second_goal_joins_when_it_reaches_new_nodes(self):
+        nodes, edges = _star("Big", ["A", "B", "C", "D", "E"])
+        more, more_edges = _star("Other", ["F", "G", "H"])
+        nodes += more
+        edges += more_edges + [_e("Big", "Other", "Helps")]
+        assert _label(nodes, edges) == "Mind: Big + Other"
+
+    def test_second_goal_inside_the_first_ones_reach_is_dropped(self):
+        nodes, edges = _star("Big", ["A", "B", "C", "D", "E"])
+        nodes += [_n("Small", "Goal")]
+        edges += [_e("A", "Small")]
+        assert _label(nodes, edges) == "Mind: Big"
+
+    def test_at_most_three_hubs(self):
+        nodes, edges = [], []
+        for goal in ("G1", "G2", "G3", "G4"):
+            more, more_edges = _star(goal, [f"{goal}a", f"{goal}b"])
+            nodes += more
+            edges += more_edges
+        assert _label(nodes, edges).count(" + ") == 2
+
+    def test_extra_hubs_stop_at_the_length_budget(self):
+        long_a, long_b = "A" * 30, "B" * 30
+        nodes, edges = [], []
+        for goal in (long_a, long_b):
+            more, more_edges = _star(goal, [f"{goal}1", f"{goal}2"])
+            nodes += more
+            edges += more_edges
+        # The first hub always shows; the second would pass the budget.
+        assert _label(nodes, edges) == f"Mind: {long_a}"
+
+    def test_goal_named_like_a_context_is_skipped(self):
+        nodes, edges = _star("Mind", ["A", "B"])
+        nodes += [_n("Logic", "Goal")]
+        edges += [_e("A", "Logic"), _e("B", "Logic")]
+        assert _label(nodes, edges) == "Mind: Logic"
+
+    def test_no_goal_falls_back_to_hub_score(self):
+        nodes = [_n(x) for x in ("Plan", "Draft", "Edit", "Publish")]
+        edges = [_e("Plan", "Draft"), _e("Draft", "Edit"), _e("Edit", "Publish")]
+        scores = {"Draft": 1.0, "Edit": 1.0}
+        assert _label(nodes, edges, scores) == "Mind: Draft + Edit"
+
+    def test_last_resort_is_the_best_connected_members(self):
+        nodes = [_n(x) for x in ("A", "B", "C")]
+        edges = [_e("A", "B", "Helps"), _e("A", "C", "Helps")]
+        assert _label(nodes, edges) == "Mind: A + B"
+
+
+class TestForeignHubs:
+    def test_prefixed_cluster_takes_hubs_from_its_own_context(self):
+        # Three Money nodes ride along with a Data Science cluster. Cash Flow
+        # has the best hub score, but the cluster is 79% Data Science.
+        ds = [_n(f"DS{i}", context="STEM", subcontext="Data Science") for i in range(11)]
+        money = [_n(x, context="Money", subcontext="Personal Finance")
+                 for x in ("Cash Flow", "Expenses", "Income")]
+        edges = [_e(f"DS{i}", f"DS{i + 1}") for i in range(10)]
+        edges += [_e("Expenses", "Cash Flow"), _e("Income", "Cash Flow"),
+                  _e("Cash Flow", "DS0")]
+        scores = {"Cash Flow": 5.0, "DS3": 1.0}
+        label = _label(ds + money, edges, scores)
+        assert "Cash Flow" not in label
+        assert label == "STEM > Data Science: DS3"
+
+    def test_mixed_cluster_ignores_contexts_under_a_fifth(self):
+        # Stray reaches the whole cluster, but Money is 1 node in 7.
+        nodes, edges = _star("Sleep", ["A", "B"], "Health")
+        nodes += [_n("C", context="Health"), _n("D", context="Mind"),
+                  _n("E", context="Mind"), _n("Stray", "Goal", "Money")]
+        edges += [_e(x, "Stray") for x in ("A", "B", "C", "D", "E")]
+        assert _label(nodes, edges) == "Sleep"
+
+
+class TestSmallAndEdgeCases:
+    def test_small_clusters_are_named_by_their_nodes(self):
+        nodes = [_n("beta"), _n("Alpha")]
+        assert _label(nodes, []) == "Alpha + beta"
+        assert _label([_n("Solo")], []) == "Solo"
+
+    def test_empty_and_unknown(self):
+        assert label_communities([set()], {}, []) == ["Empty"]
+        assert label_communities([{"Ghost"}], {}, []) == ["Unknown"]
+
+    def test_labels_are_unique(self):
+        a, ea = _star("G1", ["A", "B"])
+        b, eb = _star("G2", ["C", "D"])
+        by_name = {n.name: n for n in a + b}
+        labels = label_communities([{"G1", "A", "B"}, {"G2", "C", "D"}],
+                                   by_name, ea + eb)
+        assert labels == ["Mind: G1", "Mind: G2"]
+
+
+def _labels_of(rows):
+    return [label for label, _ in rows]
+
+
+class TestListing:
+    def test_ranked_by_summed_priority_not_size(self):
+        big, small = {"a", "b", "c", "d"}, {"x", "y", "z"}
+        priority = {"a": 1, "b": 1, "c": 1, "d": 1, "x": 5, "y": 5, "z": -1}
+        rows = build_listing([big, small], ["Big", "Small"], priority)
+        assert _labels_of(rows) == ["Small", "Big"]
+
+    def test_tiny_clusters_and_overflow_are_left_out(self):
+        clusters = [{f"c{i}a", f"c{i}b", f"c{i}c"} for i in range(MAX_LISTED + 2)]
+        clusters += [{"solo"}, {"p1", "p2"}]
+        labels = [f"L{i}" for i in range(len(clusters))]
+        # Lower-numbered clusters matter more, so the last two overflow.
+        priority = {x: float(-i) + 100 for i, c in enumerate(clusters) for x in c}
+        rows = build_listing(clusters, labels, priority)
+        assert _labels_of(rows) == labels[:MAX_LISTED]
+
+    def test_orphan_mode_lists_single_nodes(self):
+        rows = build_listing([{"a"}, {"b"}], ["a", "b"], {"b": 2.0},
+                             skip_small=False)
+        assert _labels_of(rows) == ["b", "a"]
+
+    def test_ties_fall_back_to_size_then_label(self):
+        rows = build_listing([{"a", "b", "c"}, {"d", "e", "f", "g"}],
+                             ["Zed", "Alpha"], {})
+        assert _labels_of(rows) == ["Alpha", "Zed"]
+
+
+class TestCanvasOptions:
+    @staticmethod
+    def _view(manager, f_community, method="components"):
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.ui.canvas.elements import generate_elements
+        render = functools.partial(generate_elements, manager, EventManager(GraphManager()))
+        return build_canvas_view(manager, render, 'filter-community',
+                                 None, method, {}, f_community, None, None, None)
+
+    @staticmethod
+    def _shown(view):
+        return {e['data']['id'] for e in view.elements if 'source' not in e['data']}
+
+    @staticmethod
+    def _graph():
+        from support.graphs import graph
+        manager = graph('Hub', 'A', 'B', 'Loner')
+        manager.add_edge('A', 'Hub', 'Needs_Hard')
+        manager.add_edge('B', 'Hub', 'Needs_Hard')
+        return manager
+
+    def test_options_are_keyed_by_label_without_a_catch_all(self, temp_database):
+        options = self._view(self._graph(), 'All').community_options
+        assert options[0] == {"label": "All", "value": "All"}
+        assert len(options) == 2
+        assert options[1]["value"] == options[1]["label"].rsplit(" (", 1)[0]
+        assert options[1]["label"].endswith("(3 nodes)")
+
+    def test_selecting_a_row_narrows_the_canvas(self, temp_database):
+        manager = self._graph()
+        label = self._view(manager, 'All').community_options[1]["value"]
+        assert self._shown(self._view(manager, label)) == {'Hub', 'A', 'B'}
+        assert self._shown(self._view(manager, 'All')) == {'Hub', 'A', 'B', 'Loner'}
+
+    def test_a_stale_selection_shows_everything(self, temp_database):
+        manager = self._graph()
+        view = self._view(manager, 'Gone')
+        assert self._shown(view) == {'Hub', 'A', 'B', 'Loner'}
+        # The Select goes back to All with it, so it and the "filtered"
+        # indicator agree with the canvas.
+        assert view.community_value == 'All'
+
+    def test_orphans_all_still_means_only_orphans(self, temp_database):
+        view = self._view(self._graph(), 'All', method="orphans")
+        assert self._shown(view) == {'Loner'}
+        assert view.community_options[1] == {"label": "Loner (1 node)", "value": "Loner"}
+
+    def test_orphans_all_includes_orphans_past_the_cap(self, temp_database):
+        from support.graphs import graph
+        names = [f"Orphan {i:02}" for i in range(MAX_LISTED + 5)]
+        view = self._view(graph(*names), 'All', method="orphans")
+        assert len(view.community_options) == MAX_LISTED + 1
+        assert self._shown(view) == set(names)
+
+    @staticmethod
+    def _two_goals():
+        """Goals K (fed by C and D) and G (fed by A and B), joined by a Soft
+        link from A to K. One cluster, labelled after both Goals."""
+        from support.graphs import graph, make_node
+        manager = graph('A', 'B', 'C', 'D')
+        manager.add_node(make_node('G', type='Goal', time_mode='inherited'))
+        manager.add_node(make_node('K', type='Goal', time_mode='inherited'))
+        for source, target in (('A', 'G'), ('B', 'G'), ('C', 'K'), ('D', 'K')):
+            manager.add_edge(source, target, 'Needs_Hard')
+        manager.add_edge('A', 'K', 'Needs_Soft')
+        return manager
+
+    def _render(self, manager, f_community, memory=None):
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.ui.canvas.elements import generate_elements
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager(GraphManager())),
+                                 'filter-community',
+                                 None, "components", {'hide_done': True},
+                                 f_community, None, None, None,
+                                 community_memory=memory)
+
+    def test_a_selection_follows_its_cluster_when_a_done_toggle_renames_it(
+            self, temp_database):
+        manager = self._two_goals()
+        picked = self._render(manager, 'Mind: K + G')
+        assert self._shown(picked) == {'A', 'B', 'C', 'D', 'G', 'K'}
+        assert picked.community_value is dash.no_update
+        memory = picked.community_memory
+        assert memory == {'label': 'Mind: K + G',
+                          'members': ['A', 'B', 'C', 'D', 'G', 'K']}
+
+        # Finishing C hides it, and the cluster is now named G first.
+        c = manager.get_node('C')
+        c.status = 'Done'
+        manager.update_node(c)
+        view = self._render(manager, 'Mind: K + G', memory)
+
+        assert view.community_value == 'Mind: G + K'
+        assert self._shown(view) == {'A', 'B', 'D', 'G', 'K'}
+        assert view.community_memory['label'] == 'Mind: G + K'
+
+    def test_a_selection_whose_cluster_is_gone_goes_back_to_all(self, temp_database):
+        manager = self._graph()
+        memory = {'label': 'Gone', 'members': ['X', 'Y', 'Z']}
+        view = self._view_with(manager, 'Gone', memory)
+
+        assert view.community_value == 'All'
+        assert view.community_memory is None
+        assert self._shown(view) == {'Hub', 'A', 'B', 'Loner'}
+
+    def test_orphans_with_none_left_shows_nothing(self, temp_database):
+        manager = self._graph()
+        manager.add_edge('Loner', 'Hub', 'Needs_Soft')
+        view = self._view(manager, 'All', method="orphans")
+        assert self._shown(view) == set()
+        assert view.community_options == [{"label": "All", "value": "All"}]
+
+    def test_the_empty_orphans_view_says_why(self, temp_database, services):
+        app = dash.Dash(__name__)
+        app.config.suppress_callback_exceptions = True
+        register_nodes_callbacks(app, services)
+        empty = next(spec['callback'] for key, spec in app.callback_map.items()
+                     if 'canvas-empty-detail.children' in key)
+        while hasattr(empty, '__wrapped__'):
+            empty = empty.__wrapped__
+        manager = self._graph()
+        manager.add_edge('Loner', 'Hub', 'Needs_Soft')
+
+        def detail(context):
+            return empty({'nodes': 0}, context, None, [], [], None, None, None,
+                         'hours', None, [], None, None, 'All', 'orphans')[1]
+
+        assert detail(None) == "No orphans: every matching node has a link."
+        # Filters that match nothing are the reason instead.
+        assert detail(['Body']) == "Widen the filters, or clear them."
+
+    def _view_with(self, manager, f_community, memory):
+        from skilltree.ui.canvas.view import build_canvas_view
+        from skilltree.ui.canvas.elements import generate_elements
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager(GraphManager())),
+                                 'filter-community',
+                                 None, "components", {}, f_community, None, None,
+                                 None, community_memory=memory)
+
+
+class TestResolveCommunity:
+    ROWS = [("Mind: Sleep", {"Sleep", "A", "B", "C"}),
+            ("Body: Run", {"Run", "D", "E"})]
+
+    @staticmethod
+    def _resolve(f_community, memory=None, rows=None):
+        from skilltree.ui.canvas.view import resolve_community
+        return resolve_community(f_community, rows or TestResolveCommunity.ROWS, memory)
+
+    def test_all_selects_nothing(self):
+        assert self._resolve("All") == ("All", None)
+        assert self._resolve(None, {"label": "Mind: Sleep", "members": ["Sleep"]}) == ("All", None)
+
+    def test_a_label_just_picked_is_taken_as_it_is(self):
+        memory = {"label": "Body: Run", "members": ["Run", "D", "E"]}
+        assert self._resolve("Mind: Sleep", memory) == ("Mind: Sleep", {"Sleep", "A", "B", "C"})
+
+    def test_a_label_just_picked_that_is_not_listed_selects_nothing(self):
+        assert self._resolve("Stale") == ("All", None)
+
+    def test_a_kept_label_holding_its_cluster_stays(self):
+        memory = {"label": "Mind: Sleep", "members": ["Sleep", "A", "B"]}
+        assert self._resolve("Mind: Sleep", memory)[0] == "Mind: Sleep"
+
+    def test_a_kept_label_that_is_gone_follows_most_of_its_members(self):
+        memory = {"label": "Mind: Nap", "members": ["Sleep", "A", "B", "X"]}
+        # 3 shared of 5 in either: 0.6.
+        assert self._resolve("Mind: Nap", memory) == ("Mind: Sleep", {"Sleep", "A", "B", "C"})
+
+    def test_too_little_in_common_selects_nothing(self):
+        memory = {"label": "Mind: Nap", "members": ["Sleep", "X", "Y", "Z"]}
+        assert self._resolve("Mind: Nap", memory) == ("All", None)
+
+    def test_a_kept_label_now_naming_another_cluster_follows_the_members(self):
+        # Unnamed clusters are numbered in order, so "Mind #2" can move.
+        rows = [("Mind #2", {"P", "Q", "R"}), ("Mind", {"S", "T", "U"})]
+        memory = {"label": "Mind #2", "members": ["S", "T", "U"]}
+        assert self._resolve("Mind #2", memory, rows) == ("Mind", {"S", "T", "U"})

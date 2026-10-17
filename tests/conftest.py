@@ -50,6 +50,12 @@ def services(temp_database):
 
 
 @pytest.fixture
+def mgr(services):
+    """The app's GraphManager on this test's database."""
+    return services.graph
+
+
+@pytest.fixture
 def legacy_resource_sections(temp_database):
     """The three Resource sections a new database started with before P5.2
     (Obsidian, Google Drive, Website), for tests written around them. A new

@@ -22,7 +22,7 @@ Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the
 The one-way rule has a payoff: a tab module sees only `app`, the shared operations
 and the managers it is handed — never another tab's internals. Tabs coordinate
 *through the database*, not with each other (a write bumps a version counter; the
-next tab notices on its next callback). `tests/test_architecture_boundaries.py`
+next tab notices on its next callback). `tests/app/test_architecture_boundaries.py`
 enforces the layers: each module may import only the layers below it, so domain
 and store code never drags in the Dash UI stack.
 

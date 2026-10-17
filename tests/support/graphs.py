@@ -4,7 +4,7 @@ from skilltree.store.commands import handle_save
 from skilltree.store.graph.manager import GraphManager
 
 
-def node(name, **kwargs):
+def make_node(name="TestNode", **kwargs):
     """A Learn node in Mind, rated 5 across, with fields overridden by ``kwargs``."""
     return Node(**dict(dict(name=name, type="Learn", description="original",
                            value=5, interest=5, difficulty=5, time_o=1,
@@ -15,7 +15,7 @@ def graph(*names):
     """A GraphManager on the test's database, holding a plain node per name."""
     manager = GraphManager()
     for name in names:
-        manager.add_node(node(name))
+        manager.add_node(make_node(name))
     return manager
 
 

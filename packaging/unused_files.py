@@ -3,7 +3,7 @@
 Dash and Dash Cytoscape ship development builds of their scripts, which Dash
 serves only in debug mode, and plotly ships the script for its Jupyter widget.
 Together they are about a quarter of the server. packaging/skilltree-server.spec
-leaves out every file unused() names, and tests/test_frozen_build.py checks
+leaves out every file unused() names, and tests/packaging/test_frozen_build.py checks
 that none of them is a file the app serves.
 
 Source maps stay, though only a browser's developer tools ask for them: each

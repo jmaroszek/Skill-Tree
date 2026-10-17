@@ -71,7 +71,7 @@ pytest -n auto
 python -m ruff check .
 ```
 
-`-n auto` runs the tests on every CPU core (pytest-xdist); plain `pytest` runs them one at a time. Name a file to run only its tests: `pytest tests/test_simulation.py`.
+`-n auto` runs the tests on every CPU core (pytest-xdist); plain `pytest` runs them one at a time. Name a file or folder to run only its tests: `pytest tests/domain/test_simulation.py`, or `pytest tests/features/editor`.
 
 Tests run against a temporary per-test database and never write to your sandbox or production data. Two scoring tests read a consistent copy of those databases when they exist, and skip when they don't. A few asset tests drive the JavaScript under Node.js and skip when `node` isn't on your `PATH`. CI (`.github/workflows/ci.yml`) runs the whole suite, with Node, on Windows, macOS and Linux.
 

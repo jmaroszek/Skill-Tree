@@ -1,0 +1,520 @@
+"""State invariants at the boundaries between editing, events, Now and history."""
+from datetime import date
+
+import dash
+
+from skilltree.services import AppServices
+import pytest
+
+from skilltree.engine import callbacks
+from skilltree.store import database
+from skilltree.features.events import callbacks as event_callbacks
+from skilltree.store import events as event_manager
+from skilltree.store import settings
+from support.editor_forms import call
+from skilltree.store.events import EventManager
+from skilltree.store.graph.manager import GraphManager
+from skilltree.domain.models import Event
+from support.graphs import graph, make_node, save
+from support.triggers import fire
+from skilltree.store import schema
+from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.home.now import register_now_callbacks
+
+
+@pytest.fixture(scope='module')
+def handlers():
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
+    register_now_callbacks(app, services)
+    event_callbacks.register_events_callbacks(app, services)
+    result = {}
+    for spec in app.callback_map.values():
+        fn = spec.get('callback')
+        while hasattr(fn, '__wrapped__'):
+            fn = fn.__wrapped__
+        if fn is not None:
+            # Both modules have a toggle_delete_modal; the qualified name
+            # tells them apart.
+            result[fn.__name__] = fn
+            result[fn.__qualname__] = fn
+    return result
+
+
+def complete(manager, name):
+    item = manager.get_node(name)
+    item.status = 'Done'
+    manager.update_node(item)
+
+
+def history(manager, name):
+    return [entry['event_type'] for entry in manager.get_node_lifecycle_events(name)]
+
+
+def run_core(handlers, monkeypatch, trigger='btn-save', **state):
+    fire(trigger)
+    form = dict(n_type='Learn', desc='edited', context='Mind', status_done=[],
+                val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
+                time_unit='hours', link_values=[], link_ids=[], aliases=[],
+                ed_style={'transform': 'translateX(0px)'})
+    form.update(state)
+    return callbacks.CoreResponse(*call(handlers['core_engine'], **form))
+
+
+def test_auto_completion_reaches_the_open_editor(handlers):
+    manager = graph('Child')
+    manager.add_node(make_node('Goal', type='Goal'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    complete(manager, 'Child')
+    assert manager.complete_suggested_node('Goal')
+    switch, snapshot, now = handlers['sync_editor_status'](
+        1, 'Goal', [], {'name': 'Goal', 'desc': 'unsaved notes', 'status_done': []}, [])
+    assert switch == ['Done'] and now is dash.no_update
+    # Only the status key is patched: the rest may be newer than this copy.
+    ops = snapshot.to_plotly_json()['operations']
+    assert [(op['operation'], op['location'], op['params']['value']) for op in ops] == [
+        ('Assign', ['status_done'], ['Done'])]
+
+
+def test_editor_keeps_a_deliberate_unsaved_flip_but_follows_now(handlers):
+    manager = graph('A')
+    item = manager.get_node('A')
+    item.now = 1
+    manager.update_node(item)
+    complete(manager, 'A')
+    switch, snapshot, now = handlers['sync_editor_status'](
+        1, 'A', ['Done'], {'name': 'A', 'status_done': []}, ['now'])
+    assert switch is dash.no_update  # already shows what is stored
+    assert now == []
+    # The user flipped Done off after loading a Done node: their flip stays.
+    switch, _, _ = handlers['sync_editor_status'](
+        2, 'A', [], {'name': 'A', 'status_done': ['Done']}, [])
+    assert switch is dash.no_update
+
+
+def test_save_preserves_completion_even_before_editor_refresh(handlers, monkeypatch):
+    manager = graph('Child')
+    manager.add_node(make_node('Goal', type='Goal'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    complete(manager, 'Child')
+    assert manager.complete_suggested_node('Goal')
+    result = run_core(handlers, monkeypatch, name='Goal', original_name='Goal',
+                      n_type='Goal', e_needs_h=['Child'], status_done=[],
+                      pristine_snapshot={'name': 'Goal', 'status_done': []})
+    assert manager.get_node('Goal').status == 'Done'
+    assert manager.get_node('Goal').description == 'edited'
+    assert history(manager, 'Goal') == ['completed']
+    assert result.editor_done == ['Done']
+    assert result.save_result['status_done'] == ['Done']
+
+
+def test_save_preserves_a_deliberate_unsaved_reopen(handlers, monkeypatch):
+    manager = graph('A')
+    complete(manager, 'A')
+    run_core(handlers, monkeypatch, name='A', original_name='A', status_done=[],
+             pristine_snapshot={'name': 'A', 'status_done': ['Done']})
+    assert manager.get_node('A').status == 'Open'
+
+
+def delete(handlers, monkeypatch, **state):
+    return run_core(handlers, monkeypatch, trigger='btn-node-delete-confirm', **state)
+
+
+def test_delete_removes_the_loaded_node_not_the_name_typed_over_it(handlers, monkeypatch):
+    manager = graph('A', 'B')
+    manager.add_edge('A', 'B', 'Needs_Hard')
+    result = delete(handlers, monkeypatch, name='B', original_name='A')
+    assert manager.get_node('A') is None
+    assert manager.get_node('B') is not None
+    assert result.message == "Deleted node 'A'"
+
+
+def test_delete_during_an_unsaved_rename_deletes_the_node(handlers, monkeypatch):
+    manager = graph('A')
+    result = delete(handlers, monkeypatch, name='A renamed ', original_name='A')
+    assert manager.get_node('A') is None
+    assert result.message == "Deleted node 'A'"
+
+
+def test_delete_on_a_form_that_never_loaded_a_node_deletes_nothing(handlers, monkeypatch):
+    manager = graph('A')
+    delete(handlers, monkeypatch, name='A', original_name=None)
+    assert manager.get_node('A') is not None
+
+
+def test_delete_of_a_node_already_gone_does_not_report_success(handlers, monkeypatch):
+    graph('A')
+    result = delete(handlers, monkeypatch, name='Gone', original_name='Gone')
+    assert result.message.startswith('Error:')
+    assert 'nothing was deleted' in result.message
+
+
+def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
+    toggle = handlers['register_editor_callbacks.<locals>.toggle_delete_modal']
+    fire('btn-delete')
+    is_open, body = toggle(1, None, None, 'A')
+    assert is_open and '"A"' in body
+    is_open, body = toggle(1, None, None, None)
+    assert is_open and "hasn't been saved" in body
+
+
+def test_add_to_event_ends_now_and_cannot_bypass_cap_on_wake(handlers):
+    manager = graph('A', 'B')
+    settings.NOW_NODE_CAP.set(1)
+    item = manager.get_node('A')
+    item.now = 1
+    manager.update_node(item)
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later'))
+    handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', [])
+    assert manager.get_node('A').now == 0
+    assert history(manager, 'A') == ['now_started', 'now_stopped']
+    item = manager.get_node('B')
+    item.now = 1
+    manager.update_node(item)
+    events.trigger_event_manually('Later')
+    assert [n.name for n in manager.get_now_nodes()] == ['B']
+    assert not manager.get_node('A').dormant
+
+
+def test_event_now_intent_still_obeys_cap_after_sleeping(handlers):
+    manager = graph('A', 'B')
+    settings.NOW_NODE_CAP.set(1)
+    handlers['handle_now_trigger']('["A"]|1')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later'))
+    handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', ['on'])
+    handlers['handle_now_trigger']('["B"]|2')
+    result = events.trigger_event_manually('Later')
+    assert result['now_skipped'] == ['A']
+    assert [n.name for n in manager.get_now_nodes()] == ['B']
+
+
+@pytest.mark.parametrize('via', ['menu', 'editor', 'manager'])
+@pytest.mark.parametrize('state', ['Done', 'Dormant'])
+def test_ineligible_nodes_cannot_enter_now(handlers, via, state):
+    manager = graph('A')
+    if state == 'Done':
+        complete(manager, 'A')
+    else:
+        EventManager(GraphManager()).add_event(Event('Later'))
+        EventManager(GraphManager()).add_node_to_event('Later', 'A')
+    before = history(manager, 'A')
+    if via == 'menu':
+        handlers['handle_now_trigger']('["A"]|1')
+    elif via == 'editor':
+        handlers['dispatch_now_toggle'](['now'], 'A')
+    else:
+        item = manager.get_node('A')
+        item.now = 1
+        manager.update_node(item)
+    assert manager.get_node('A').now == 0
+    assert history(manager, 'A') == before
+
+
+def test_sleeping_completion_is_refused_without_firing_events(handlers, monkeypatch):
+    manager = graph('A', 'Reward')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later'))
+    events.add_node_to_event('Later', 'A')
+    events.add_event(Event('On Done', trigger_nodes=['A']))
+    events.add_node_to_event('On Done', 'Reward')
+    result = run_core(handlers, monkeypatch, 'toggle-done-trigger-input',
+                      toggle_done_trigger_data='["A"]|1')
+    assert result.message.startswith('Error:')
+    assert manager.get_node('A').status == 'Open'
+    assert events.get_event('On Done').status == 'Pending'
+    assert history(manager, 'A') == []
+
+
+def test_done_node_cannot_be_attached_by_a_stale_event_dialog(handlers):
+    manager = graph('A')
+    EventManager(GraphManager()).add_event(Event('Later'))
+    complete(manager, 'A')
+    result = handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', [])
+    assert 'Reopen' in result[1]
+    assert not manager.get_node('A').dormant
+    assert EventManager(GraphManager()).get_node_membership('A') is None
+
+
+def test_removing_the_blocker_and_completing_is_one_valid_save():
+    manager = graph('A', 'B')
+    manager.add_edge('A', 'B', 'Needs_Hard')
+    save(manager, 'B', status_done=['Done'])
+    assert manager.get_node('B').status == 'Done'
+    assert manager.get_edges() == []
+    assert history(manager, 'B') == ['completed']
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_new_blocker_and_completion_refuse_the_entire_save(handlers, monkeypatch, existing):
+    manager = graph('A', *(['B'] if existing else []))
+    settings.TIME_CALIBRATION_ENABLED.set(True)
+    result = run_core(handlers, monkeypatch, name='B',
+                      original_name='B' if existing else None,
+                      status_done=['Done'], e_needs_h=['A'])
+    assert result.message.startswith('Error:')
+    assert result.save_result is dash.no_update
+    assert result.calibration_open is not True
+    assert manager.get_edges() == []
+    assert history(manager, 'B') == []
+    assert (manager.get_node('B').status if existing else manager.get_node('B')) == (
+        'Open' if existing else None)
+
+
+def test_wake_and_complete_can_share_a_save(handlers, monkeypatch):
+    manager = graph('A')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later'))
+    events.add_node_to_event('Later', 'A')
+    run_core(handlers, monkeypatch, name='A', original_name='A',
+             status_done=['Done'], dormancy={'dormant': False})
+    assert manager.get_node('A').status == 'Done'
+    assert not manager.get_node('A').dormant
+    assert events.get_node_membership('A') is None
+
+
+@pytest.mark.parametrize('change', ['prerequisite', 'dormant', 'type', 'no_prerequisites'])
+def test_stale_auto_done_is_not_accepted_or_displayed(handlers, monkeypatch, change):
+    manager = graph('Child')
+    manager.add_node(make_node('Goal', type='Goal'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    complete(manager, 'Child')
+    candidates = manager.pop_auto_done_candidates()
+    assert candidates == ['Goal']
+    item = manager.get_node('Goal' if change != 'prerequisite' else 'Child')
+    if change == 'prerequisite':
+        item.status = 'Open'
+        manager.update_node(item)
+    elif change == 'dormant':
+        EventManager(GraphManager()).add_event(Event('Later'))
+        EventManager(GraphManager()).add_node_to_event('Later', 'Goal')
+    elif change == 'type':
+        item.type, item.time_mode = 'Learn', 'manual'
+        manager.update_node(item)
+    else:
+        manager.remove_edge('Child', 'Goal', 'Needs_Hard')
+    fire('btn-auto-done-confirm')
+    result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
+    assert manager.get_node('Goal').status != 'Done'
+    assert result[0] is False and result[2] == []
+    fire('graph-version-store')
+    result = handlers['manage_auto_done_modal'](2, 0, 0, candidates)
+    assert result[0] is False and result[2] == []
+
+
+def test_accepting_auto_done_redraws_through_the_core_engine(handlers, monkeypatch):
+    # The core engine's render keeps the filters and the selection. The
+    # modal used to draw its own canvas: every node, nothing selected.
+    manager = graph('Child')
+    manager.add_node(make_node('Goal', type='Goal'))
+    manager.add_node(make_node('Elsewhere', context='Body'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    complete(manager, 'Child')
+    candidates = manager.pop_auto_done_candidates()
+    fire('btn-auto-done-confirm')
+    result = handlers['manage_auto_done_modal'](1, 1, 0, candidates)
+    assert manager.get_node('Goal').status == 'Done'
+    assert isinstance(result[3], str)  # details-refresh-trigger
+
+    response = run_core(handlers, monkeypatch, trigger='details-refresh-trigger',
+                        f_context=['Mind'], f_done=['show_done'], active_tab='tab-canvas')
+    shown = {element['data']['id'] for element in response.elements
+             if 'source' not in element['data']}
+    assert shown == {'Child', 'Goal'}
+    assert all('selected' not in element for element in response.elements)
+
+    fire('btn-auto-done-dismiss')
+    assert handlers['manage_auto_done_modal'](2, 0, 1, ['Goal'])[3] is dash.no_update
+
+
+def test_dormant_container_is_never_suggested():
+    manager = graph('Child')
+    manager.add_node(make_node('Goal', type='Goal'))
+    manager.add_edge('Child', 'Goal', 'Needs_Hard')
+    EventManager(GraphManager()).add_event(Event('Later'))
+    EventManager(GraphManager()).add_node_to_event('Later', 'Goal')
+    complete(manager, 'Child')
+    assert manager.pop_auto_done_candidates() == []
+
+
+@pytest.mark.parametrize('via', ['editor', 'manager'])
+def test_new_done_has_completion_date_and_history(handlers, monkeypatch, via):
+    manager = GraphManager()
+    if via == 'editor':
+        run_core(handlers, monkeypatch, name='A', status_done=['Done'])
+    else:
+        manager.add_node(make_node('A', status='Done'))
+    assert manager.get_node('A').done_date == date.today().isoformat()
+    assert history(manager, 'A') == ['completed']
+
+
+@pytest.fixture
+def october_11(monkeypatch):
+    class Today(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 10, 11)
+    monkeypatch.setattr(event_manager, 'date', Today)
+
+
+def test_overdue_date_event_wakes_overdue_nodes_immediately(october_11):
+    manager = graph('Overdue', 'Future')
+    events = EventManager(GraphManager())
+    events.add_event(Event('October', trigger_date='2026-10-01'))
+    events.add_node_to_event('October', 'Overdue', 2, now_on_trigger=True)
+    events.add_node_to_event('October', 'Future', 20)
+    events.check_scheduled_triggers()
+    assert not manager.get_node('Overdue').dormant
+    assert manager.get_node('Overdue').now > 0
+    woke = {row['node'].name: row['activation_date'] for row in events.get_event_nodes('October')}
+    assert woke['Overdue'] == '2026-10-03'
+    assert events.get_node_membership('Future')['activation_date'] == '2026-10-21'
+    # A fired event's date can't move its nodes again.
+    events.update_event('October', Event('Renamed', status='Triggered', trigger_date='2026-11-01'))
+    events.check_scheduled_triggers()
+    assert events.get_node_membership('Future')['activation_date'] == '2026-10-21'
+
+
+def test_late_manual_firing_also_counts_from_the_date(october_11):
+    graph('A')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Past', trigger_date='2026-10-01'))
+    events.add_node_to_event('Past', 'A', 20)
+    events.trigger_event_manually('Past')
+    assert events.get_node_membership('A')['activation_date'] == '2026-10-21'
+
+
+def test_manual_early_firing_anchors_delays_to_today(october_11):
+    graph('A')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later', trigger_date='2026-12-01'))
+    events.add_node_to_event('Later', 'A', 2)
+    events.trigger_event_manually('Later')
+    assert events.get_node_membership('A')['activation_date'] == '2026-10-13'
+
+
+def test_existing_missing_done_dates_stay_unknown():
+    manager = graph('A')
+    with database.get_connection() as conn:
+        conn.execute("UPDATE Nodes SET status='Done', done_date=NULL WHERE name='A'")
+    schema.init_db(recheck=True)
+    item = manager.get_node('A')
+    assert item.done_date is None
+    item.description = 'edited'
+    manager.update_node(item)
+    assert manager.get_node('A').done_date is None
+
+
+@pytest.mark.parametrize('via', ['menu', 'editor'])
+def test_a_refused_now_change_says_why(handlers, via):
+    # A node with no context: every save of it is refused until it gets one.
+    manager = graph('A', 'B')
+    with database.transaction() as conn:
+        conn.execute("UPDATE Nodes SET context=NULL WHERE name='A'")
+
+    if via == 'menu':
+        _, toast = handlers['handle_now_trigger']('["A", "B"]|1')
+        assert manager.get_node('B').now > 0  # the other still changed
+    else:
+        _, toast = handlers['dispatch_now_toggle'](['now'], 'A')
+
+    assert manager.get_node('A').now == 0
+    assert toast.startswith('error|') and 'must have a context' in toast
+    is_open, message, header = handlers['show_now_cap_toast'](toast)
+    assert is_open and 'must have a context' in message
+    assert header == "Couldn't change Now"
+
+
+@pytest.mark.parametrize('trigger', ['btn-save', 'btn-unsaved-save'])
+@pytest.mark.parametrize('state, fragment', [
+    (dict(time_o=5, time_m=2, time_p=4), 'Lower must be ≤ Expected'),
+    (dict(time_o=1, time_m=0, time_p=0), 'Lower alone is not enough'),
+    (dict(time_habit_mode=['habit'], habit_duration=0), 'habit duration'),
+])
+def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger,
+                                                  state, fragment):
+    # Save is disabled while the estimate is invalid, but the unsaved-changes
+    # dialog's Save, and habit mode, went around the button.
+    manager = graph('A')
+    result = run_core(handlers, monkeypatch, trigger, name='A', original_name='A',
+                      pristine_snapshot={'name': 'A'}, **state)
+
+    assert result.message.startswith('Error:') and fragment in result.message
+    assert manager.get_node('A').description != 'edited'
+
+
+@pytest.mark.parametrize('name, args', [
+    ('handle_now_trigger', lambda node: (f'["{node}"]|1',)),
+    ('dispatch_now_toggle', lambda node: (['now'], node)),
+])
+def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, services):
+    """The cap check and the write hold one lock, so a second request waits
+    for the first to finish and then sees the list full."""
+    import threading
+    import time
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
+    register_now_callbacks(app, services)
+    registered = next(spec['callback'] for spec in app.callback_map.values()
+                      if getattr(spec.get('callback'), '__name__', None) == name)
+    handler = registered.__wrapped__  # Dash's wrapper, then ours
+    manager = graph('A', 'B')
+    settings.NOW_NODE_CAP.set(1)
+    original = GraphManager.update_node
+
+    def slow_update(self, node, *a, **kw):
+        time.sleep(0.2)  # wide enough for the other request to read the count
+        return original(self, node, *a, **kw)
+
+    monkeypatch.setattr(GraphManager, 'update_node', slow_update)
+    threads = [threading.Thread(target=handler, args=args(node)) for node in 'AB']
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(10)
+    assert len(manager.get_now_nodes()) == 1
+
+
+def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, monkeypatch, services):
+    """The form still says Dormant in its event. Saving that used to ask to
+    put the awake node back to sleep, which was refused, and every other
+    edit with it."""
+    from skilltree.features.editor.form import build_dormancy_snapshot
+    manager = graph('A')
+    events = EventManager(GraphManager())
+    events.add_event(Event('Later'))
+    events.add_node_to_event('Later', 'A')
+    loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
+    events.trigger_event_manually('Later')  # another window, or the date sweep
+    result = run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
+                      dormancy=loaded,
+                      pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
+    saved = manager.get_node('A')
+    assert saved.description == 'notes' and not saved.dormant
+    assert "woke from 'Later' while you were editing" in result.message
+    assert result.save_result['woke'] == 'Later'
+    assert result.save_result['form']['dormancy']['dormant'] is False
+
+
+def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch, services):
+    """Only an untouched section gives way to the wake. Asking to sleep in
+    another event is a real request, refused with its own reason."""
+    from skilltree.features.editor.form import build_dormancy_snapshot
+    manager = graph('A')
+    events = EventManager(GraphManager())
+    for name in ('Later', 'Other'):
+        events.add_event(Event(name))
+    events.add_node_to_event('Later', 'A')
+    loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
+    events.trigger_event_manually('Later')
+    result = run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
+                      dormancy={**loaded, 'event': 'Other'},
+                      pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
+    assert "already woke from 'Later'" in result.message
+    assert manager.get_node('A').description != 'notes'

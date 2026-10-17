@@ -53,7 +53,7 @@ The snapshot does four bulk SELECTs, including one Settings read. Previously
 that table render queried the same settings once per row. Nested subtree/time
 helpers now reuse the detached graph rows rather than issuing per-node queries.
 
-`tests/test_read_snapshots.py` checks query counts, connection closure, fresh
+`tests/store/test_read_snapshots.py` checks query counts, connection closure, fresh
 reads after writes, detached node objects, and bounded cache sizes. Timing
 thresholds are deliberately not asserted in ordinary unit tests.
 
