@@ -911,7 +911,7 @@ class TestThroughputCapacity:
         assert len([p for p in parts if getattr(p, 'className', None) == 'tp-slot']) == 2
         # A part-way month's prorated capacity dropped sharply, so none is drawn.
         assert not any('tp-cap' in str(c) for c in _classes(card))
-        assert 'gp-legend' not in _classes(card)   # contexts name themselves on hover
+        assert 'gp-legend' in _classes(card)
         by_type = _render_throughput_chart(
             compute_throughput(nodes, granularity='month', by='type',
                                 today=date(2026, 2, 14)),
@@ -929,6 +929,44 @@ class TestThroughputCapacity:
         lines = getattr(seg, 'data-tip').splitlines()
         assert lines[0] == "Jan 2026 · Mind"
         assert lines[2] == "• A (" + format_time_friendly(rows[0]['total_hours']) + ")"
+
+
+class TestTimeAxes:
+    """The Time Estimates charts tick at round amounts of a unit."""
+
+    def test_log_ticks_are_round_amounts_of_one_unit(self):
+        from skilltree.features.analyze.charts import _log_time_ticks
+        ts = settings.TIME_SETTINGS.get()
+        settings.TIME_SETTINGS.set({**ts, 'hours_per_week': 20, 'hours_per_month': 80})
+        vals, text = _log_time_ticks(0.4, 4000)
+        assert len(vals) <= 8
+        assert vals == sorted(vals)
+        assert all(b / a >= 1.9 for a, b in zip(vals, vals[1:]))
+        assert text == [format_time_friendly(v) for v in vals]
+        # Every label is a whole count of halves, never "1.8d" or "2.5w".
+        assert all(t in ("0.5h",) or t[:-1].isdigit() for t in text)
+        assert "8h" not in text   # 8h is 2.8d with 20-hour weeks
+
+    def test_box_whiskers_stop_at_the_fences(self):
+        from skilltree.features.analyze.charts import render_context_accuracy_boxplot
+        rows = [{'name': f"N{i}", 'context': "Mind", 'estimate': 10, 'actual': a}
+                for i, a in enumerate((9, 10, 11, 12, 0.5))]
+        graph = next(p for p in _walk(render_context_accuracy_boxplot(rows))
+                     if hasattr(p, 'figure'))
+        points, box = graph.figure.data
+        # The 0.05 ratio is far outside the log-scale fence, so the lower
+        # whisker stops at 0.9; every point still shows.
+        assert box.lowerfence[0] == pytest.approx(0.9)
+        assert box.upperfence[0] == pytest.approx(1.2)
+        assert points.boxpoints == 'all'
+        assert len(points.customdata) == 5
+
+    def test_box_dots_shrink_as_they_accumulate(self):
+        from skilltree.features.analyze.charts import _dot_style
+        assert _dot_style(5) == _dot_style(10) == (6, 0.85)
+        assert _dot_style(20)[1] > _dot_style(40)[1]
+        assert _dot_style(60)[0] == 5
+        assert _dot_style(1000) == (4, 0.55)   # small, but still a dot
 
 
 class TestReflectionDriftChart:

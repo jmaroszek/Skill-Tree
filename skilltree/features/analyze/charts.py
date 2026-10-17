@@ -3,6 +3,7 @@
 Plotly reads computed values and can't resolve a CSS variable, so the chart
 colours here are literals; test_style_tokens pins them to their tokens."""
 import math
+import statistics
 from collections import defaultdict
 
 import plotly.graph_objects as go
@@ -158,27 +159,46 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     return tickvals, ticktext
 
 
+# Round amounts of each unit a log time axis may tick at, smallest unit first.
+_LOG_TICK_STEPS = (('h', (0.5, 1, 2, 4, 8)), ('d', (1, 2, 3)), ('w', (1, 2)),
+                   ('m', (1, 2, 3, 6)), ('y', (1, 2, 5, 10)))
+
+
+# The most ticks a log time axis draws; neighbours sit at least twice apart.
+_LOG_TICK_MAX = 8
+
+
 def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
-    """Return (tickvals, ticktext) for a log-scaled hours axis, placing ticks
-    at 1-2-5 ×10^k values within range and labelling each via
-    ``format_time_friendly``."""
+    """Return (tickvals, ticktext) for a log-scaled hours axis.
+
+    Ticks fall on round amounts of a unit: 1h, 4h, 1d, 1w, 3m. A 1-2-5 ladder
+    in hours read as "1.8d" and "2.5w" once converted to the user's units.
+    An amount only ticks where ``format_time_friendly`` would name it that
+    way, so with 20-hour weeks 8h is left out rather than labelled "2.8d"."""
     if max_val <= 0:
         return [1.0], [format_time_friendly(1.0)]
-    lo = max(0.5, min_val)
-    vals = []
-    k = math.floor(math.log10(lo))
-    while True:
-        for base in (1, 2, 5):
-            # 10.0 ** k keeps v a float — format_time_friendly rounds with
-            # ndigits, which leaves ints unchanged, and int.is_integer()
-            # only exists on Python 3.12+.
-            v = base * (10.0 ** k)
-            if v < lo / 1.5:
-                continue
-            if v > max_val * 1.5:
-                return vals, [format_time_friendly(x) for x in vals]
+    ts = settings.TIME_SETTINGS.get()
+    hw = max(1, ts['hours_per_week'])
+    hm = max(1, ts['hours_per_month'])
+    size = {'h': 1.0, 'd': hw / DAYS_PER_WEEK, 'w': float(hw), 'm': float(hm),
+            'y': float(HOURS_PER_YEAR_MULT * hm)}
+    candidates = {}
+    for suffix, amounts in _LOG_TICK_STEPS:
+        for amount in amounts:
+            v = amount * size[suffix]
+            label = f"{amount:g}{suffix}"
+            if format_time_friendly(v) == label:
+                candidates.setdefault(round(v, 6), label)
+    in_range = sorted(v for v in candidates if min_val <= v <= max_val)
+    if not in_range:
+        return [1.0], [format_time_friendly(1.0)]
+    # Thin to at most _LOG_TICK_MAX, keeping a steady spacing on the log axis.
+    gap = max(2.0, (in_range[-1] / in_range[0]) ** (1 / (_LOG_TICK_MAX - 1)))
+    vals = [in_range[0]]
+    for v in in_range[1:]:
+        if v >= vals[-1] * gap * 0.95:
             vals.append(v)
-        k += 1
+    return vals, [candidates[v] for v in vals]
 
 
 def render_overview(metrics):
@@ -389,12 +409,37 @@ def render_estimation_accuracy(rows):
 _CTX_ACCURACY_MIN_N = 3  # min completed nodes for a context to get a box
 
 
+def _log_box_stats(ratios):
+    """(q1, median, q3, lower whisker, upper whisker) of positive ratios,
+    with the quartiles and the 1.5 IQR fences taken on their logs. Each
+    whisker ends at the furthest ratio inside its fence."""
+    logs = sorted(math.log10(r) for r in ratios)
+    q1, med, q3 = statistics.quantiles(logs, n=4, method='inclusive')
+    reach = 1.5 * (q3 - q1)
+    lo_w = min(v for v in logs if v >= q1 - reach)
+    hi_w = max(v for v in logs if v <= q3 + reach)
+    return tuple(10 ** v for v in (q1, med, q3, lo_w, hi_w))
+
+
+def _dot_style(n):
+    """(size, opacity) of a box's dots. A crowded row shrinks its dots
+    rather than fading them: 6px up to 30 dots, 5px to 80, then 4px. The
+    opacity falls with the square root of the count, from 0.85 at ten dots,
+    but never below 0.55, so a dot still reads as a dot."""
+    size = 6 if n <= 30 else 5 if n <= 80 else 4
+    return size, round(max(0.55, min(0.85, 0.85 * math.sqrt(10 / n))), 2)
+
+
+def _ratio_tick(t):
+    """A ratio tick as "4×", or "1/4×" below one rather than "0.25×"."""
+    return f"{t:g}×" if t >= 1 else f"1/{round(1 / t)}×"
+
+
 def render_context_accuracy_boxplot(rows):
     """Per-context box plots of the actual/estimate ratio. One box per context
     with at least `_CTX_ACCURACY_MIN_N` completed nodes; the dashed line marks
     a perfect 1× estimate. The ratio axis is log-scaled so 2× over and 0.5×
     under read as symmetric distances from centre."""
-    import statistics
     by_ctx = defaultdict(list)
     for r in rows:
         if r.get('context'):
@@ -424,21 +469,35 @@ def render_context_accuracy_boxplot(rows):
     line_c = '#4f9ed9'
     fill_c = 'rgba(79,158,217,0.22)'
 
+    # Two traces per context. The first draws every point. The box goes over
+    # them, so its outline and median stay visible however many pile up. It
+    # is drawn from quartiles taken on the log of each ratio, the axis's own
+    # scale, with whiskers to the furthest points within 1.5 IQR. Plotly's
+    # own whiskers ran to the min and max while every point showed, so one
+    # far outlier stretched a whisker across the chart.
     fig = go.Figure()
     for context, context_rows in ordered:
         ratios = [_ratio(r) for r in context_rows]
+        dot_size, dot_opacity = _dot_style(len(ratios))
         fig.add_trace(go.Box(
-            x=ratios, name=context, orientation='h',
-            boxpoints='all', jitter=0.4, pointpos=0, whiskerwidth=0.5,
-            # Light dots with a background-colored halo so each observation
-            # reads as a distinct point on top of the box rather than
-            # dissolving into the same-blue fill.
-            marker=dict(color='#dee2e6', size=7, opacity=0.9,
-                        line=dict(color=_BG, width=1)),
-            line=dict(color=line_c, width=1.5), fillcolor=fill_c,
+            x=ratios, y=[context] * len(ratios), name=context, orientation='h',
+            boxpoints='all', jitter=0.6, pointpos=0,
+            # Light dots that shrink and soften as a context collects them, so
+            # a pile-up between 1/2× and 2× doesn't become a white bar. No
+            # halo: halos cut a crowd into separate discs.
+            marker=dict(color='#dee2e6', size=dot_size, opacity=dot_opacity),
+            line=dict(width=0), fillcolor='rgba(0,0,0,0)', whiskerwidth=0,
             hoveron='points', hoverinfo='none',
             customdata=[f"{r['name']}\n{_ratio(r):.2f}× estimate"
                         for r in context_rows],
+        ))
+        q1, med, q3, lo_w, hi_w = _log_box_stats(ratios)
+        fig.add_trace(go.Box(
+            y=[context], q1=[q1], median=[med], q3=[q3],
+            lowerfence=[lo_w], upperfence=[hi_w],
+            name=context, orientation='h', whiskerwidth=0.5,
+            line=dict(color=line_c, width=1.5), fillcolor=fill_c,
+            hoverinfo='skip',
         ))
 
     all_ratios = [_ratio(r) for _, context_rows in ordered for r in context_rows]
@@ -471,10 +530,10 @@ def render_context_accuracy_boxplot(rows):
     # growing only when there are many contexts.
     height = max(420, len(ordered) * 42 + 80)
     fig.update_layout(**_base_layout(
-        height=height, showlegend=False,
+        height=height, showlegend=False, boxmode='overlay',
         margin=dict(l=10, r=20, t=10, b=40),
         xaxis=dict(type='log', title="Actual ÷ Estimated",
-                   tickvals=ticks, ticktext=[f"{t:g}×" for t in ticks],
+                   tickvals=ticks, ticktext=[_ratio_tick(t) for t in ticks],
                    range=xrange),
         yaxis=dict(tickfont=dict(size=12, color=_TEXT)),
     ))
@@ -565,10 +624,9 @@ def render_throughput_chart(quarter_rows,
                              granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
                              by=DEFAULT_ANALYZE_LIMITS['throughput_color']):
     """Stacked vertical bars of hours completed per calendar bucket
-    (month/quarter/year), segmented by context or by node type. Contexts get
-    no legend: their name and a top-N list of completed nodes (with hours)
-    come up on hover. Node types have one, in the badge colors, since there
-    are only a few.
+    (month/quarter/year), segmented by context or by node type, with a legend
+    in stacking order. Node types take their badge colors. Hovering a segment
+    names it and lists its top completed nodes, with hours.
 
     HTML rather than Plotly, like the Plan charts, with the same tooltip.
     There is no capacity line: a part-way month's prorated capacity made it
@@ -659,12 +717,10 @@ def render_throughput_chart(quarter_rows,
         html.Div([html.Span(r['label']) for r in quarter_rows],
                  className="tp-x"),
     ], className="tp-body" + rotated)
-    children = [html.Div(plot, className="throughput-chart hist-chart")]
-    if by == 'type':
-        children.append(html.Div([
-            html.Span([html.I(className="gp-swatch", style={'backgroundColor': color[k]}), k])
-            for k in keys], className="gp-legend"))
-    return _card(children)
+    legend = html.Div([
+        html.Span([html.I(className="gp-swatch", style={'backgroundColor': color[k]}), k])
+        for k in keys], className="gp-legend")
+    return _card([html.Div(plot, className="throughput-chart hist-chart"), legend])
 
 
 # Categorical palette for the Throughput chart's context segments. Tuned to
