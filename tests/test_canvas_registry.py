@@ -13,13 +13,14 @@ from pathlib import Path
 
 import dash
 
-from skilltree.engine.callbacks import register_callbacks
+from skilltree.engine.callbacks import register_engine_callbacks
 from skilltree.ui.canvas.registry import CANVASES, client_registry, install_client_registry
 from skilltree.features.details.callbacks import register_details_callbacks
-from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.shell import build_app_layout
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
+from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 
@@ -45,7 +46,9 @@ def _walk(component):
 def _core_app():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, AppServices())
+    services = AppServices()
+    register_engine_callbacks(app, services)
+    register_canvas_callbacks(app, services)
     return app
 
 
@@ -115,8 +118,8 @@ def test_settle_lays_out_without_a_server_round_trip(services):
     the Settle's animation."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    for register in (register_callbacks, register_details_callbacks,
-                     register_event_callbacks):
+    for register in (register_engine_callbacks, register_canvas_callbacks,
+                     register_details_callbacks, register_events_callbacks):
         register(app, services)
     for canvas in CANVASES:
         settle = canvas.control_id('relayout')

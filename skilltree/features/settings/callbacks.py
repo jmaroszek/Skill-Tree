@@ -49,6 +49,9 @@ from skilltree.store.settings import (
     SUPPORTED_NODE_TYPES,
     ConfigManager,
 )
+from skilltree.store.settings import DEFAULT_NODE_SHAPES
+from skilltree.features.settings.data import register_data_callbacks
+from skilltree.features.settings.about_callbacks import register_about_callbacks
 
 logger = logging.getLogger(__name__)
 
@@ -517,7 +520,6 @@ def register_settings_callbacks(app, services):
     def restore_default_shapes(n_clicks):
         if not n_clicks:
             return dash.no_update
-        from skilltree.store.settings import DEFAULT_NODE_SHAPES
         return _build_shape_rows(_display_types(), DEFAULT_NODE_SHAPES)
 
     # --- Settings: Restore Default Status Colors ---
@@ -529,7 +531,6 @@ def register_settings_callbacks(app, services):
     def restore_default_status_colors(n_clicks):
         if not n_clicks:
             return dash.no_update
-        from skilltree.store.settings import DEFAULT_NODE_COLORS
         return _build_status_color_rows(DEFAULT_NODE_COLORS)
 
     # --- Settings: Restore Default Type Colors ---
@@ -541,10 +542,11 @@ def register_settings_callbacks(app, services):
     def restore_default_type_colors(n_clicks):
         if not n_clicks:
             return dash.no_update
-        from skilltree.store.settings import DEFAULT_NODE_COLORS
         return _build_type_color_rows(_display_types(), DEFAULT_NODE_COLORS)
 
     register_context_editor_callbacks(app, services)
     register_resource_settings_callbacks(app, services)
     register_migration_callbacks(app, services)
+    register_data_callbacks(app, services)
+    register_about_callbacks(app, services)
 

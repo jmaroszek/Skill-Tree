@@ -16,6 +16,7 @@ from skilltree.features.editor.form import (
     EDITOR_FORM, editor_form_values, editor_form_values_from,
 )
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
            "sync_original_name_after_save")
@@ -24,7 +25,9 @@ READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
 def _registered_specs():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

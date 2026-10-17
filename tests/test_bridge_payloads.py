@@ -85,7 +85,7 @@ def _callback(register, name):
 
 def test_set_priority_on_a_goal_whose_name_has_a_pipe(manager):
     ConfigManager.set_priority_goals(["A"])
-    handle = _callback(sidebars_callbacks.register_sidebars_callbacks,
+    handle = _callback(sidebars_callbacks.register_goals_callbacks,
                        "handle_goal_priority_change")
 
     handle(f"A|B|1|{STAMP}")
@@ -113,7 +113,7 @@ def test_details_navigation_selects_the_named_node():
 
 
 def test_context_menu_done_toggles_only_the_named_node(monkeypatch, manager):
-    core_engine = _callback(callbacks.register_callbacks, "core_engine")
+    core_engine = _callback(callbacks.register_engine_callbacks, "core_engine")
     trigger = "toggle-done-trigger-input"
     monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})

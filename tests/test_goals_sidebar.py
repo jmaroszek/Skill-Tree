@@ -186,7 +186,7 @@ def _render_goal_list(trigger, sidebar_style):
     """Run render_goal_list as Dash would for a single triggering input."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
+    sidebars_callbacks.register_goals_callbacks(app, AppServices())
     render = next(
         spec["callback"].__wrapped__ for spec in app.callback_map.values()
         if getattr(spec.get("callback"), "__wrapped__", None) is not None
@@ -238,7 +238,7 @@ def test_closed_goal_list_never_builds_and_clears_after_its_slide():
 def test_nothing_builds_the_goal_list_at_startup(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, services)
+    sidebars_callbacks.register_goals_callbacks(app, services)
     render = next(c for c in app._callback_list
                   if c["output"] == "details-goal-list-container.children")
     assert "elements-pending-store" not in [i["id"] for i in render["inputs"]]

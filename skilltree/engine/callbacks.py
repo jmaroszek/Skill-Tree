@@ -44,13 +44,6 @@ from skilltree.domain.time import (
     time_estimate_problem,
 )
 from skilltree.domain.names import format_name
-from skilltree.features.editor.callbacks import register_editor_callbacks
-from skilltree.features.filters.callbacks import register_filter_callbacks
-from skilltree.ui.canvas.callbacks import register_canvas_callbacks
-from skilltree.features.nodes.callbacks import register_nodes_callbacks
-from skilltree.features.home.now import register_now_callbacks
-from skilltree.features.review.ratings import register_reflection_ratings_callbacks
-from skilltree.ui.tabs import register_tab_callbacks
 from skilltree.store.graph.state import revisions
 from skilltree.ui.canvas.elements import KEEP_SELECTION, generate_elements
 
@@ -211,7 +204,7 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
     return tuple(out)
 
 
-def register_callbacks(app, services):
+def register_engine_callbacks(app, services):
     """Register all Dash callbacks for the application."""
     manager = services.graph
     event_manager = services.events
@@ -923,7 +916,7 @@ def register_callbacks(app, services):
         )
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside
-    # callbacks live in sidebars_callbacks.register_sidebars_callbacks.
+    # callbacks live in sidebars_callbacks.register_goals_callbacks.
 
     @app.callback(
         Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
@@ -978,7 +971,6 @@ def register_callbacks(app, services):
         prevent_initial_call=True,
     )
     def manage_auto_done_modal(_version, _confirm, _dismiss, current_candidates):
-        from skilltree.domain.models import STATUS_DONE
         trig = get_trigger_id()
         candidates = list(current_candidates or [])
         refresh_out = no_update
@@ -1165,13 +1157,6 @@ def register_callbacks(app, services):
 
     # The features split out of this function. create_app will register each
     # feature itself; until then the engine registers them here.
-    register_editor_callbacks(app, services)
-    register_filter_callbacks(app, services)
-    register_canvas_callbacks(app, services)
-    register_nodes_callbacks(app, services)
-    register_now_callbacks(app, services)
-    register_reflection_ratings_callbacks(app, services)
-    register_tab_callbacks(app, services)
 
 
 def resolve_active_node_id(graph, all_triggered_ids, trigger_id, edit_trigger_data,

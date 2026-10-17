@@ -13,6 +13,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -184,8 +185,7 @@ def test_an_empty_graph_says_how_to_begin():
 
 
 def test_a_disabled_save_says_why():
-    from skilltree.engine.callbacks import register_callbacks
-    validate = _callbacks(register_callbacks)["validate_time_estimates"]
+    validate = _callbacks(register_editor_callbacks)["validate_time_estimates"]
     message, _style, disabled, title = validate(None, None, None, [], [])
     assert disabled is True and "Expected" in title
     _message, _style, disabled, title = validate(None, 2, None, [], [])

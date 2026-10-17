@@ -16,7 +16,7 @@ import pytest
 
 from skilltree.features.events.layout import build_dormant_nodes_table
 from skilltree.domain.models import Node
-from skilltree.features.goals.callbacks import register_sidebars_callbacks
+from skilltree.features.goals.callbacks import register_goals_callbacks
 from skilltree.features.editor.layout import build_node_editor_content
 from skilltree.ui.kit import Tooltip, add_button, edit_button, info_button
 
@@ -92,7 +92,7 @@ def test_editor_action_tooltips_dismiss_when_sidebar_closes(services):
     assert all(tip.trigger == 'hover' for tip in tips.values())
 
     app = dash.Dash(__name__)
-    register_sidebars_callbacks(app, services)
+    register_goals_callbacks(app, services)
     callback = next(c for c in app._callback_list
                     if all(f'{tip}.is_open' in c['output'] for tip in expected))
     assert callback['inputs'] == [{'id': 'sidebar-editor-container', 'property': 'style'}]

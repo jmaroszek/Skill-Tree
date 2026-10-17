@@ -14,6 +14,7 @@ from skilltree.domain.models import Node
 from skilltree.ui import tokens
 import pytest
 from skilltree.services import AppServices
+from skilltree.features.home.now import register_now_callbacks
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -58,7 +59,9 @@ def _find(component, component_id):
 def _app():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_now_callbacks(app, services)
     return app
 
 
@@ -247,7 +250,7 @@ def test_goal_cards_open_the_shared_node_menu(services):
                            resource_links={"website": ["https://example.com"]}))
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, services)
+    sidebars_callbacks.register_goals_callbacks(app, services)
     render = _callback(app, "render_goal_list")
 
     cards = render("tab-next", None, None, None, None, "manual", None, None,

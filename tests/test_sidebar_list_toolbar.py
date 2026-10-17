@@ -107,10 +107,10 @@ def test_hide_triggered_switch_is_gone(layout):
 
 
 def _render_events_list():
-    from skilltree.features.events.callbacks import register_event_callbacks
+    from skilltree.features.events.callbacks import register_events_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_event_callbacks(app, AppServices())
+    register_events_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

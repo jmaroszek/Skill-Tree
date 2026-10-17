@@ -40,7 +40,7 @@ def _core_engine_args():
 def _core_engine_fn():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    callbacks.register_engine_callbacks(app, AppServices())
     # core_engine's first output is now the elements-pending-store (its data
     # is routed to cytoscape-graph.elements by a clientside callback that
     # injects pinned positions during freeze).

@@ -17,13 +17,8 @@ from skilltree.domain.scoring import score_nodes
 
 @pytest.fixture(autouse=True)
 def tmp_perf_log(monkeypatch, tmp_path):
-    """Redirect perf.log writes to a per-test temp file, and reset the
-    class-level startup-gate so each test starts as if the process just
-    booted (otherwise earlier tests that record a startup run leave the
-    flag True and later tests wouldn't record anything)."""
+    """Redirect perf.log writes to a per-test temp file."""
     monkeypatch.setattr(perf, "_LOG_PATH", tmp_path / "perf.log")
-    GraphManager._startup_perf_recorded = False
-    GraphManager._last_perf_timings = None
 
 
 def _make_node(name, **overrides):
@@ -154,9 +149,8 @@ def test_calculate_priority_scores_logs_when_on():
 def test_last_perf_timings_stashed():
     ConfigManager.set_show_scoring_perf(True)
     m, nodes = _populate_manager_with_small_graph()
-    GraphManager._last_perf_timings = None
     m.calculate_priority_scores(nodes)
-    t = GraphManager._last_perf_timings
+    t = m.last_perf_timings
     assert isinstance(t, dict)
     assert set(t.keys()) == {
         'adj_ms', 'goals_ms', 'score_ms', 'rank_ms', 'total_ms',
@@ -190,9 +184,9 @@ def test_only_startup_run_logs():
 def test_startup_flag_set_after_first_recorded_run():
     ConfigManager.set_show_scoring_perf(True)
     m, nodes = _populate_manager_with_small_graph()
-    assert GraphManager._startup_perf_recorded is False
+    assert m.startup_perf_recorded is False
     m.calculate_priority_scores(nodes)
-    assert GraphManager._startup_perf_recorded is True
+    assert m.startup_perf_recorded is True
 
 
 def test_subsequent_runs_return_plain_list():

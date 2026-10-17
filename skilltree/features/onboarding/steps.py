@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
+from skilltree.store import database
 
 
 @dataclass(frozen=True)
@@ -27,7 +28,6 @@ def should_welcome() -> bool:
     """
     if ConfigManager.get_welcome_done():
         return False
-    from skilltree.store import database
     conn = database.get_connection()
     try:
         return conn.execute("SELECT 1 FROM Nodes LIMIT 1").fetchone() is None

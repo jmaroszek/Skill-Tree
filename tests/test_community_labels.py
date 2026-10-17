@@ -7,6 +7,7 @@ import dash
 
 from skilltree.domain.communities import MAX_LISTED, build_listing, label_communities
 from skilltree.store.graph.manager import GraphManager
+from skilltree.features.nodes.callbacks import register_nodes_callbacks
 
 
 def _n(name, type="Learn", context="Mind", subcontext=None):
@@ -305,10 +306,9 @@ class TestCanvasOptions:
         assert view.community_options == [{"label": "All", "value": "All"}]
 
     def test_the_empty_orphans_view_says_why(self, temp_database, services):
-        from skilltree.engine import callbacks
         app = dash.Dash(__name__)
         app.config.suppress_callback_exceptions = True
-        callbacks.register_callbacks(app, services)
+        register_nodes_callbacks(app, services)
         empty = next(spec['callback'] for key, spec in app.callback_map.items()
                      if 'canvas-empty-detail.children' in key)
         while hasattr(empty, '__wrapped__'):

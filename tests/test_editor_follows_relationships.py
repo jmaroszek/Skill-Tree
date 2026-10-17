@@ -20,6 +20,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN
 from skilltree.store.commands import change_link
 from skilltree.store.events import EventManager
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 
 def _node(name):
@@ -32,7 +33,9 @@ def _node(name):
 def handlers():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

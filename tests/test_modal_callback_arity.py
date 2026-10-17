@@ -31,7 +31,7 @@ def _callbacks(register):
 
 
 def test_event_modal_callbacks_do_nothing_with_the_right_arity():
-    found = _callbacks(event_callbacks.register_event_callbacks)
+    found = _callbacks(event_callbacks.register_events_callbacks)
     for name, args in (("open_add_to_event_modal", ("", None, None)),
                        ("save_add_to_event", (None, None, None, 0, "days", []))):
         fn, outputs = found[name]

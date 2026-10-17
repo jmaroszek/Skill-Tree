@@ -12,9 +12,10 @@ from skilltree.features.home.table import (
 )
 from skilltree.ui.filters import build_filters
 from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.features.home.now import register_now_callbacks
 
 
-def register_next_callbacks(app, services):
+def register_home_callbacks(app, services):
     manager = services.graph
 
     # --- Suggestion Count +/- ---
@@ -98,7 +99,7 @@ def register_next_callbacks(app, services):
                                 f_show_dormant=dormant, f_time_min=time_min,
                                 f_search=search)
         next_rows = get_suggestions(manager, filters, count=count or 10)
-        caption = perf_stats_text()
+        caption = perf_stats_text(manager)
         return (format_suggestions_table(next_rows.rows, manager,
                                          pinned_steps=next_rows.pinned_steps),
                 caption if caption and caption != perf_caption else no_update)
@@ -121,3 +122,4 @@ def register_next_callbacks(app, services):
             manager=manager,
             selected_node_id=selected_node_id,
         )
+    register_now_callbacks(app, services)

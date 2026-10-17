@@ -38,7 +38,7 @@ def _node(name, **overrides):
 def _callbacks():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app, AppServices())
+    event_callbacks.register_events_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

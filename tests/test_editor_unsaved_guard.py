@@ -15,6 +15,7 @@ from skilltree.domain.models import Node
 from support.triggers import fire
 from skilltree.features.editor import callbacks as editor_callbacks
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 OPEN = {"transform": "translateX(0px)"}
 
@@ -28,7 +29,9 @@ def _node(name):
 def _registered():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

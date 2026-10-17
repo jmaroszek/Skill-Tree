@@ -2842,16 +2842,8 @@ class TestAutoDoneCandidates:
     drains this queue and surfaces a "Mark Done?" suggestion modal.
     """
 
-    @pytest.fixture(autouse=True)
-    def _reset_candidates(self):
-        # Class-level state — reset between every test in this class so the
-        # queue from one assertion doesn't leak into the next.
-        GraphManager._auto_done_candidates = []
-        yield
-        GraphManager._auto_done_candidates = []
-
     def test_pop_returns_and_clears(self, mgr):
-        GraphManager._auto_done_candidates = ['A', 'B', 'C']
+        mgr._auto_done_candidates = ['A', 'B', 'C']
         popped = mgr.pop_auto_done_candidates()
         assert popped == ['A', 'B', 'C']
         assert mgr.pop_auto_done_candidates() == []

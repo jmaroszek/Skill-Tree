@@ -14,12 +14,15 @@ import pytest
 
 from skilltree.engine import callbacks
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 
 def _lock(output):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
     spec = next(c for c in app._callback_list
                 if c.get("clientside_function") and output in c["output"])
     function = spec["clientside_function"]

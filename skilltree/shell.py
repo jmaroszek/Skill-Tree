@@ -395,7 +395,7 @@ def build_app_layout(graph, env="production"):
             ], style={"flex": "1", "minHeight": "0", "overflowY": "auto"}),
             # Filled here, like the table: the table no longer re-renders on
             # load, and that re-render was this caption's first update.
-            html.Div(perf_stats_text(), id="next-perf-stats",
+            html.Div(perf_stats_text(graph), id="next-perf-stats",
                      className="next-perf-overlay"),
         ],
         style={"display": "flex", "width": "100%", "height": "100%", "overflow": "hidden",
@@ -567,7 +567,7 @@ def build_app_layout(graph, env="production"):
         # modal is open. Read by handle_time_calibration on Submit.
         dcc.Store(id='time-calibration-pending-store', data=None),
         # Queue of Goal/Milestone names whose hard prereqs just became all
-        # Done. Drained from GraphManager._auto_done_candidates whenever the
+        # Done. Drained from the graph manager's auto-Done queue whenever the
         # graph version bumps, then surfaced one at a time by the auto-Done
         # suggestion modal. Persists across modal interactions so chained
         # candidates (parent container becoming ready after the child Goal

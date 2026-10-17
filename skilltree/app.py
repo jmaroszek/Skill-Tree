@@ -172,24 +172,23 @@ def create_app(settings=None, services=None):
     from skilltree.shell import build_app_layout, build_index_string
     from skilltree.ui.canvas.registry import install_client_registry
     from skilltree.ui.prerender import prerender_layout, prerendered_specs
-    from skilltree.engine.callbacks import register_callbacks
-    from skilltree.features.links.bridge import register_bridge_callbacks
-    from skilltree.features.links.menu import register_link_menu_callbacks
-    from skilltree.features.review.calibration import register_calibration_callbacks
-    from skilltree.features.editor.resources import register_resource_link_callbacks
-    from skilltree.features.events.callbacks import register_event_callbacks
-    from skilltree.features.editor.dormancy import register_dormancy_callbacks
-    from skilltree.features.details.callbacks import register_details_callbacks
-    from skilltree.features.home.callbacks import register_next_callbacks
-    from skilltree.features.settings.callbacks import register_settings_callbacks
-    from skilltree.features.review.callbacks import register_review_hub_callbacks
+    from skilltree.engine.callbacks import register_engine_callbacks
     from skilltree.features.analyze.callbacks import register_analyze_callbacks
-    from skilltree.features.goals.callbacks import register_sidebars_callbacks
+    from skilltree.features.details.callbacks import register_details_callbacks
+    from skilltree.features.editor.callbacks import register_editor_callbacks
+    from skilltree.features.events.callbacks import register_events_callbacks
+    from skilltree.features.filters.callbacks import register_filters_callbacks
+    from skilltree.features.goals.callbacks import register_goals_callbacks
+    from skilltree.features.home.callbacks import register_home_callbacks
+    from skilltree.features.links.callbacks import register_links_callbacks
+    from skilltree.features.nodes.callbacks import register_nodes_callbacks
+    from skilltree.features.onboarding.callbacks import register_onboarding_callbacks
+    from skilltree.features.review.callbacks import register_review_callbacks
+    from skilltree.features.settings.callbacks import register_settings_callbacks
+    from skilltree.ui.canvas.callbacks import register_canvas_callbacks
     from skilltree.ui.components.context_picker import register_context_picker_callbacks
     from skilltree.ui.components.list_toolbar import register_list_toolbar_callbacks
-    from skilltree.features.settings.data import register_data_callbacks
-    from skilltree.features.settings.about_callbacks import register_about_callbacks
-    from skilltree.features.onboarding.callbacks import register_onboarding_callbacks
+    from skilltree.ui.tabs import register_tab_callbacks
 
     cyto.load_extra_layouts()
     try:
@@ -205,7 +204,6 @@ def create_app(settings=None, services=None):
                     on_error=report_callback_error)
     app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
-    app.skill_tree_services = services
     install_client_registry(app)
     # Built per request, after registration below. prerender_layout runs the
     # @prerendered callbacks' initial calls into the layout, so the browser
@@ -214,18 +212,19 @@ def create_app(settings=None, services=None):
         lambda: prerender_layout(
             build_app_layout(services.graph, env=settings.environment),
             app))
-    for register in (register_callbacks, register_calibration_callbacks,
-                     register_resource_link_callbacks, register_event_callbacks,
-                     register_dormancy_callbacks,
-                     register_details_callbacks, register_next_callbacks,
-                     register_settings_callbacks, register_review_hub_callbacks,
-                     register_analyze_callbacks, register_sidebars_callbacks,
-                     register_data_callbacks, register_about_callbacks,
-                     register_onboarding_callbacks, register_bridge_callbacks,
-                     register_link_menu_callbacks):
+    # The engine, the pieces every tab shares, and each feature, which
+    # registers its own parts. When callbacks share an input, the browser
+    # asks for them in this order.
+    for register in (register_engine_callbacks, register_editor_callbacks,
+                     register_filters_callbacks, register_canvas_callbacks,
+                     register_nodes_callbacks, register_home_callbacks,
+                     register_review_callbacks, register_tab_callbacks,
+                     register_events_callbacks, register_details_callbacks,
+                     register_settings_callbacks, register_analyze_callbacks,
+                     register_goals_callbacks, register_onboarding_callbacks,
+                     register_links_callbacks, register_context_picker_callbacks,
+                     register_list_toolbar_callbacks):
         register(app, services)
-    register_context_picker_callbacks(app, services)
-    register_list_toolbar_callbacks(app, services)
     # Fails at startup, not on the first page load, if a @prerendered
     # callback would also run in the browser.
     prerendered_specs(app)

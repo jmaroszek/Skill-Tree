@@ -18,6 +18,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from support.triggers import fire
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
 
 
 def _node(name, **overrides):
@@ -31,7 +32,9 @@ def _node(name, **overrides):
 def _registered():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    services = AppServices()
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

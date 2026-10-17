@@ -14,19 +14,19 @@ import pytest
 from skilltree.ui.canvas.elements import (
     CanvasNodeStyles, build_node_element, node_fill_color,
 )
-from skilltree.engine.callbacks import register_callbacks
 from skilltree.ui.canvas.elements import generate_elements
 from skilltree.ui.canvas import callbacks as canvas_callbacks
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
 from skilltree.features.details.callbacks import _build_graph_elements
-from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 from support.triggers import fire
 from skilltree.store.graph.state import revisions
 from skilltree.services import AppServices
+from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -44,8 +44,9 @@ def _node(name, **overrides):
 def _app(*registrars):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
+    services = AppServices()
     for register in registrars:
-        register(app, AppServices())
+        register(app, services)
     return app
 
 
@@ -93,7 +94,7 @@ def canvases(services):
     assert graph.get_node('Open Prereq').now == 1
 
     show_dormant = {'show_dormant': True}
-    render_event_graph = _callback(_app(register_event_callbacks), 'render_event_graph')
+    render_event_graph = _callback(_app(register_events_callbacks), 'render_event_graph')
     rendered = {
         'main': generate_elements(services.graph, services.events, filters=show_dormant),
         'details': _build_graph_elements(services.graph, services.events, 
@@ -137,7 +138,7 @@ def test_shared_nodes_carry_the_same_classes_on_every_canvas(canvases):
 
 
 def test_hovering_a_node_shows_the_same_tooltip_on_every_canvas(canvases, monkeypatch):
-    display_hover_data = _callback(_app(register_callbacks), 'display_hover_data')
+    display_hover_data = _callback(_app(register_canvas_callbacks), 'display_hover_data')
 
     def tooltip(key, name):
         trigger = next(canvas.cytoscape_id for canvas in CANVASES if canvas.key == key)
@@ -222,7 +223,7 @@ def test_every_laid_out_canvas_redraws_when_the_graph_changes():
     """A node saved anywhere, such as a bridge linked to an event's node, has
     to reach Details and Events without reopening them."""
     from skilltree.features.details.callbacks import register_details_callbacks
-    app = _app(register_event_callbacks, register_details_callbacks)
+    app = _app(register_events_callbacks, register_details_callbacks)
     for canvas in CANVASES:
         if not canvas.lays_out_elements:
             continue

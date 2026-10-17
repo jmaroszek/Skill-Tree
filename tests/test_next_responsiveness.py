@@ -7,16 +7,16 @@ import subprocess
 import dash
 import pytest
 
-from skilltree.features.home.callbacks import register_next_callbacks
+from skilltree.features.home.callbacks import register_home_callbacks
 from skilltree.features.home.view import initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
 
 def test_selection_has_no_server_subscribers(services):
-    from skilltree.engine.callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_engine_callbacks
     app = dash.Dash(__name__)
-    register_callbacks(app, services)
-    register_next_callbacks(app, services)
+    register_engine_callbacks(app, services)
+    register_home_callbacks(app, services)
     for spec in app.callback_map.values():
         if 'callback' in spec:
             assert not any(item['id'] == 'selected-suggestion-store' or
@@ -113,7 +113,7 @@ def test_home_tables_are_not_rebuilt_on_page_load(services):
     core engine waiting for it. A row clicked meanwhile was also lost when
     the rebuilt table replaced it."""
     app = dash.Dash(__name__)
-    register_next_callbacks(app, services)
+    register_home_callbacks(app, services)
     for output in ("suggestions-table.children", "now-nodes-table.children"):
         spec = next(c for c in app._callback_list if output in c["output"])
         assert spec["prevent_initial_call"] is True, output
@@ -125,10 +125,10 @@ def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
     from skilltree.store.graph.manager import GraphManager
     from skilltree.shell import build_app_layout
 
-    monkeypatch.setattr(GraphManager, "_last_perf_timings",
-                        {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4})
-    monkeypatch.setattr(GraphManager, "_startup_perf_recorded", True)
-    caption = _components_by_id(build_app_layout(GraphManager(), env="sandbox"))["next-perf-stats"]
+    graph = GraphManager()
+    graph.last_perf_timings = {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4}
+    graph.startup_perf_recorded = True
+    caption = _components_by_id(build_app_layout(graph, env="sandbox"))["next-perf-stats"]
 
     assert caption.children == "3 nodes · 2 edges · 12ms"
 
@@ -137,5 +137,4 @@ def test_no_caption_before_any_timing_is_recorded(monkeypatch):
     from skilltree.store.graph.manager import GraphManager
     from skilltree.features.home.view import perf_stats_text
 
-    monkeypatch.setattr(GraphManager, "_last_perf_timings", None)
-    assert perf_stats_text() is None
+    assert perf_stats_text(GraphManager()) is None

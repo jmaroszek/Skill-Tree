@@ -51,7 +51,7 @@ def _render_goal_names(stale_store_order):
     """Run render_goal_list in manual sort, with whatever the store holds."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
+    sidebars_callbacks.register_goals_callbacks(app, AppServices())
     render = next(
         spec["callback"].__wrapped__ for spec in app.callback_map.values()
         if getattr(spec.get("callback"), "__wrapped__", None) is not None

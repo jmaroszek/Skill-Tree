@@ -59,7 +59,7 @@ def test_event_order_is_saved_and_follows_renames_and_deletes():
     events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch"):
         events.add_event(Event(name=name))
-    reorder = _callbacks(event_callbacks.register_event_callbacks)["reorder_event"][0]
+    reorder = _callbacks(event_callbacks.register_events_callbacks)["reorder_event"][0]
 
     reorder('["Launch", "Trip", "Move"]')
     assert ConfigManager.get_event_order() == ["Launch", "Trip", "Move"]
@@ -77,7 +77,7 @@ def test_manual_event_list_uses_the_saved_order():
     for name in ("Trip", "Move", "Launch"):
         events.add_event(Event(name=name))
     ConfigManager.set_event_order(["Move", "Launch", "Trip"])
-    render = _callbacks(event_callbacks.register_event_callbacks)["render_events_list"][0]
+    render = _callbacks(event_callbacks.register_events_callbacks)["render_events_list"][0]
 
     def run():
         context_value.set(AttributeDict(triggered_inputs=[
@@ -114,7 +114,7 @@ def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
     for name in ("Trip", "Move", "Launch", "Party"):
         events.add_event(Event(name=name))
     ConfigManager.set_event_order(["Trip", "Move", "Launch", "Party"])
-    reorder = _callbacks(event_callbacks.register_event_callbacks)["reorder_event"][0]
+    reorder = _callbacks(event_callbacks.register_events_callbacks)["reorder_event"][0]
 
     # A search for "a" shows Launch and Party; Party is dragged above Launch.
     reorder('["Party", "Launch"]')
@@ -132,7 +132,7 @@ def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
         manager.add_node(node(name, type="Goal", time_mode="inherited"))
     ConfigManager.set_goal_order(saved)
     ConfigManager.set_priority_goals(["Writing"])
-    reorder = _callbacks(sidebars_callbacks.register_sidebars_callbacks)["reorder_goals"][0]
+    reorder = _callbacks(sidebars_callbacks.register_goals_callbacks)["reorder_goals"][0]
 
     # A search for "ing" shows the pinned Writing first, then Training and
     # Running. Running is dragged above Training.

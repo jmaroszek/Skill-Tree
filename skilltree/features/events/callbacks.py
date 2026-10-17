@@ -64,7 +64,7 @@ def _trigger_mode_hint(trigger_mode, trigger_nodes):
     return "Auto-triggers as soon as any one of the selected nodes is marked complete."
 
 
-def register_event_callbacks(app, services):
+def register_events_callbacks(app, services):
     event_manager = services.events
     graph_manager = services.graph
 

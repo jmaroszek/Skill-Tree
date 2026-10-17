@@ -121,7 +121,7 @@ def test_the_launch_repair_clears_ranks_held_by_finished_goals(manager):
 def _set_priority():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
+    sidebars_callbacks.register_goals_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):

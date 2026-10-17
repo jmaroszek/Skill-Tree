@@ -28,6 +28,7 @@ from skilltree.ui.canvas.settings_panel import (
     freeze_indicator, build_graph_settings_panel,
 )
 from skilltree.ui.kit import goal_corner_badge
+from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 
 
 def build_details_tab_content():
@@ -790,7 +791,6 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     edges = edges or []
     relationship_types = {}
     if parent_name and graph_manager:
-        from skilltree.domain.models import EDGE_NEEDS_SOFT, EDGE_HELPS, EDGE_NEEDS_HARD
         hard_subtree = graph_manager.get_goal_subtree(parent_name,
                                                        edge_types=(EDGE_NEEDS_HARD,))
         synergy_nodes = set()

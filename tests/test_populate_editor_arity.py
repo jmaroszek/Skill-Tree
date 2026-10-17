@@ -12,19 +12,21 @@ unwrapped callback directly with trigger contexts that exercise each branch.
 import dash
 
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
-from skilltree.engine.callbacks import register_callbacks
+from skilltree.engine.callbacks import register_engine_callbacks
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from support.triggers import fire
 from skilltree.services import AppServices
+from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.nodes.callbacks import register_nodes_callbacks
 
 
 def _populate_editor_fn():
     """Register callbacks on a fresh Dash app and return the raw populate_editor function."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, AppServices())
+    register_editor_callbacks(app, AppServices())
     # populate_editor's composite output starts with node-name.value
     target = [k for k in app.callback_map
               if "node-name.value" in k and "node-type.value" in k and "node-desc.value" in k][0]
@@ -211,7 +213,9 @@ def test_revert_does_not_go_through_the_edit_trigger(services):
     nothing, and the trigger switches to the Nodes tab from Details."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, services)
+    register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
+    register_nodes_callbacks(app, services)
     for key, spec in app.callback_map.items():
         if "edit-trigger-input.value" in key:
             assert all(dep["id"] != "btn-revert" for dep in spec["inputs"])

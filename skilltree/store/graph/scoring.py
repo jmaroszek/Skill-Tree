@@ -36,7 +36,7 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
     if database.in_transaction():
         memo = {}  # Never read/publish committed caches for pending writes.
 
-    if ConfigManager.get_show_scoring_perf() and not type(manager)._startup_perf_recorded:
+    if ConfigManager.get_show_scoring_perf() and not manager.startup_perf_recorded:
         scored, timings = score_nodes(
             now_nodes, manager.get_all_nodes(),
             manager.get_edges(), hypers,
@@ -44,8 +44,8 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
             external_memo=memo,
             time_phases=True,
         )
-        type(manager)._last_perf_timings = timings
-        type(manager)._startup_perf_recorded = True
+        manager.last_perf_timings = timings
+        manager.startup_perf_recorded = True
         append_perf_log(timings)
         return scored
 

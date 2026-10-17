@@ -11,7 +11,7 @@ from dash.development.base_component import Component
 from skilltree.features.details import callbacks as details_callbacks
 from skilltree.store.settings import ConfigManager
 from skilltree.features.details.callbacks import register_details_callbacks
-from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 from skilltree.ui import tokens
@@ -66,7 +66,7 @@ def _walk_components(component):
 
 
 def test_hidden_heavy_callbacks_do_not_subscribe_to_every_tab_switch():
-    app = _app_with(register_details_callbacks, register_event_callbacks)
+    app = _app_with(register_details_callbacks, register_events_callbacks)
 
     details_options = _spec_for_output(app, "details-node-select.options")
     assert "main-tabs" not in _input_ids(details_options)
@@ -359,7 +359,7 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
     from skilltree.features.events import callbacks as event_callbacks
     from skilltree.domain.models import Event
 
-    app = _app_with(register_event_callbacks)
+    app = _app_with(register_events_callbacks)
     monkeypatch.setattr(event_callbacks, 'ctx', SimpleNamespace(
         triggered_id={'type': 'event-card', 'index': 'Music'}))
     monkeypatch.setattr(EventManager, 'get_event',
@@ -389,7 +389,7 @@ def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
         context="Self", subcontext="Projects", dormant=1,
         time_mode="manual", value_mode="manual",
     )
-    app = _app_with(register_event_callbacks)
+    app = _app_with(register_events_callbacks)
     monkeypatch.setattr(
         EventManager, "get_event_nodes",
         lambda _self, _event: [{"node": node}],

@@ -94,10 +94,10 @@ def test_generate_elements_active_node_marked_selected(services):
 def test_generate_elements_core_engine_callback_registered_once(services):
     """Drift guard: renames or duplicate registration of core_engine will surface here."""
     import dash
-    from skilltree.engine.callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_engine_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, services)
+    register_engine_callbacks(app, services)
     qualnames = []
     for entry in app.callback_map.values():
         cb = entry.get("callback")

@@ -17,7 +17,7 @@ from skilltree.store.settings import ConfigManager
 def handlers(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app, services)
+    event_callbacks.register_events_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

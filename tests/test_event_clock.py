@@ -19,7 +19,7 @@ from skilltree.services import AppServices
 def _clock():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app, AppServices())
+    event_callbacks.register_events_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):

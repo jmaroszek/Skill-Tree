@@ -7,7 +7,7 @@ import subprocess
 import dash
 import pytest
 
-from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_events_callbacks
 
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "events_sidebar.js"
@@ -146,7 +146,7 @@ def test_events_sidebar_browser_contract():
 def test_events_sidebar_callback_listens_for_tab_arrival_and_empty_state(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_event_callbacks(app, services)
+    register_events_callbacks(app, services)
 
     spec = next(
         callback

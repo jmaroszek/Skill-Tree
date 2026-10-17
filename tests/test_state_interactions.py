@@ -18,13 +18,8 @@ from skilltree.domain.models import Event
 from test_atomic_saves import graph, node, save
 from support.triggers import fire
 from skilltree.store import schema
-
-
-@pytest.fixture(autouse=True)
-def clean_suggestions():
-    GraphManager._auto_done_candidates = []
-    yield
-    GraphManager._auto_done_candidates = []
+from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.home.now import register_now_callbacks
 
 
 @pytest.fixture(scope='module')
@@ -32,8 +27,10 @@ def handlers():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     services = AppServices()
-    callbacks.register_callbacks(app, services)
-    event_callbacks.register_event_callbacks(app, services)
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
+    register_now_callbacks(app, services)
+    event_callbacks.register_events_callbacks(app, services)
     result = {}
     for spec in app.callback_map.values():
         fn = spec.get('callback')
@@ -461,7 +458,9 @@ def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, s
     import time
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, services)
+    callbacks.register_engine_callbacks(app, services)
+    register_editor_callbacks(app, services)
+    register_now_callbacks(app, services)
     registered = next(spec['callback'] for spec in app.callback_map.values()
                       if getattr(spec.get('callback'), '__name__', None) == name)
     handler = registered.__wrapped__  # Dash's wrapper, then ours

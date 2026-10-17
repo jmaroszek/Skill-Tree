@@ -46,6 +46,8 @@ from skilltree.ui.components.ratings_table import (
 )
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.prerender import prerendered
+from skilltree.features.editor.resources import register_resource_link_callbacks
+from skilltree.features.editor.dormancy import register_dormancy_callbacks
 
 
 def register_editor_callbacks(app, services):
@@ -1285,3 +1287,5 @@ def register_editor_callbacks(app, services):
             ts = int(time.time() * 1000)
             return f"refused|{ts}", f"error|{ts}|{e}"
         return f"{node_name}|{int(time.time() * 1000)}", no_update
+    register_resource_link_callbacks(app, services)
+    register_dormancy_callbacks(app, services)

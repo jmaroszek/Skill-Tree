@@ -22,6 +22,8 @@ from skilltree.features.review.layout import (
 )
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.features.review.values import calibration_modal_text, calibration_prepop, calibration_review_queue
+from skilltree.features.review.ratings import register_reflection_ratings_callbacks
+from skilltree.features.review.calibration import register_calibration_callbacks
 
 
 # Sentinel string for missing comparisons in the History table.
@@ -364,7 +366,7 @@ def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
     return nodes
 
 
-def register_review_hub_callbacks(app, services):
+def register_review_callbacks(app, services):
     _manager = services.graph
     # --- Toggle the hub modal from the toolbar's clock-history icon ---
     # The button used to launch the focused-review queue directly; that
@@ -548,3 +550,5 @@ def register_review_hub_callbacks(app, services):
         return (False, True, store, title, reference,
                 time_lower, time_point, time_upper, unit,
                 int(val), int(interest), int(diff), notes)
+    register_reflection_ratings_callbacks(app, services)
+    register_calibration_callbacks(app, services)

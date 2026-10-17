@@ -183,7 +183,7 @@ def test_sidebar_and_details_show_the_same_number_whatever_is_hidden(services):
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app, services)
+    sidebars_callbacks.register_goals_callbacks(app, services)
     details_callbacks.register_details_callbacks(app, services)
     render_sidebar = _callback(app, "render_goal_list")
     render_details = _callback(app, "build_empty_state_suggestions")

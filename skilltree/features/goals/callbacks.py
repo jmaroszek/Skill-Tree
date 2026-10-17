@@ -142,7 +142,7 @@ GOAL_LIST_SOURCES = (
 )
 
 
-def register_sidebars_callbacks(app, services):
+def register_goals_callbacks(app, services):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, drag-reorder), filters toggle, editor fast-path."""
     graph_manager = services.graph

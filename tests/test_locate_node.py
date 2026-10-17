@@ -10,15 +10,15 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
-from skilltree.engine import callbacks
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
+from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 
 
 def _locate_callback():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    register_canvas_callbacks(app, AppServices())
     key = next(k for k in app.callback_map if "locate-message.children" in k
                and "locate-request-store.data" in k)
     fn = app.callback_map[key]["callback"]
@@ -30,7 +30,7 @@ def _locate_callback():
 def _locate_result_callback():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app, AppServices())
+    register_canvas_callbacks(app, AppServices())
     key = next(k for k in app.callback_map if "modal-locate-missing.is_open" in k
                and "locate-missing-node-store.data" in k)
     fn = app.callback_map[key]["callback"]

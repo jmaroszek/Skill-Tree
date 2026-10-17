@@ -20,10 +20,6 @@ Three more rules hold everywhere:
   skilltree.app defers its imports, so a launch that hands over to a running
   instance exits before loading Dash.
 - __init__.py files stay empty, so importing a package runs nothing.
-
-KNOWN_VIOLATIONS lists the imports that break a rule today. The refactor that
-fixes one deletes it from the list. A new violation fails, and so does a
-listed one that no longer happens, so the list only shrinks.
 """
 import ast
 from pathlib import Path
@@ -54,16 +50,6 @@ FORBIDDEN_LIBRARIES = {
 
 # The one module that may import the package inside its functions.
 DEFERRED_IMPORTS_OK = {'skilltree.app'}
-
-KNOWN_VIOLATIONS = {
-    'deferred: skilltree.engine.callbacks -> skilltree.domain.models',
-    'deferred: skilltree.features.details.layout -> skilltree.domain.models',
-    'deferred: skilltree.features.onboarding.steps -> skilltree.store.database',
-    'deferred: skilltree.features.settings.callbacks -> skilltree.store.settings',
-    'deferred: skilltree.runtime.server -> skilltree.runtime.version',
-    'deferred: skilltree.ui.canvas.view -> skilltree.ui.styles',
-}
-
 
 def _dotted(path):
     parts = list(path.relative_to(ROOT).with_suffix('').parts)
@@ -147,13 +133,9 @@ def _violations_of(module, path):
 
 
 def test_imports_follow_the_layers():
-    found = set().union(*(_violations_of(m, p) for m, p in MODULES.items()))
-    new = sorted(found - KNOWN_VIOLATIONS)
-    fixed = sorted(KNOWN_VIOLATIONS - found)
-    assert not new, ("Imports that break the layer rules (this file's docstring "
-                     "has them):\n  " + "\n  ".join(new))
-    assert not fixed, ("These no longer happen. Delete them from "
-                       "KNOWN_VIOLATIONS:\n  " + "\n  ".join(fixed))
+    found = sorted(set().union(*(_violations_of(m, p) for m, p in MODULES.items())))
+    assert not found, ("Imports that break the layer rules (this file's docstring "
+                       "has them):\n  " + "\n  ".join(found))
 
 
 def _import_everything(check):

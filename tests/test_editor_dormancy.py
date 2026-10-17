@@ -301,7 +301,7 @@ def test_an_unset_store_matches_a_live_node():
 def _callback(name):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app, AppServices())
+    event_callbacks.register_events_callbacks(app, AppServices())
     dormancy.register_dormancy_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")

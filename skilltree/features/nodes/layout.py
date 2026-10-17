@@ -79,7 +79,7 @@ def create_graph_view():
             Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
             filter_chip("nodes-filter-chip", "filter-chip-overlay"),
-            # Shown over an empty canvas (callbacks.register_callbacks fills it
+            # Shown over an empty canvas (callbacks.register_engine_callbacks fills it
             # in and opens it): what the filters hid, and the way back.
             html.Div([
                 html.Div("No nodes match your filters", className="canvas-empty-title"),

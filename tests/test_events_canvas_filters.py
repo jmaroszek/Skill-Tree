@@ -7,7 +7,7 @@ filtering them would hide the very nodes the canvas exists to check.
 import dash
 import pytest
 
-from skilltree.features.events.callbacks import register_event_callbacks
+from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 from skilltree.services import AppServices
 
@@ -23,7 +23,7 @@ def _node(name, **overrides):
 def _callback(name):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_event_callbacks(app, AppServices())
+    register_events_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         callback = spec.get('callback')
         while callback is not None and hasattr(callback, '__wrapped__'):

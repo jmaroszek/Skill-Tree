@@ -61,11 +61,11 @@ def test_the_canvas_bridge_reports_the_first_payload_to_the_cover(services):
     """The core engine's first response carries the canvas payload together
     with the editor's search options and every other dropdown it fills, and
     Dash applies them all at once. So the payload is the sign they're in."""
-    from skilltree.engine.callbacks import register_callbacks
+    from skilltree.engine.callbacks import register_engine_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, services)
+    register_engine_callbacks(app, services)
 
     bridge = next(c for c in app._callback_list
                   if c["output"] == "canvas-payload-stamp.data")

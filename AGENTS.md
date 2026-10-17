@@ -85,7 +85,7 @@ Python 3.13, Dash + Dash Bootstrap Components (DARKLY theme), Dash Cytoscape, Ne
 
 ## Non-obvious conventions
 
-- Every tab module exposes exactly one public function: `register_*_callbacks(app, services)`. `skilltree/app.py` imports and calls each. New tab = one more `register_*` call.
+- Each feature's `callbacks.py` exposes `register_<feature>_callbacks(app, services)`, which registers the feature's other modules too. `create_app` in `skilltree/app.py` registers the engine, the shared ui pieces and every feature from one list, in order. A new feature adds one entry. Callbacks get their managers from `services` (one `GraphManager`, one `EventManager`). No module builds a manager of its own, and helpers take the managers as arguments.
 - Node `name` is the primary key; edges have composite PK `(source, target, type)` so the same pair can carry both a prerequisite and a synergy.
 - Almost all callbacks that mutate state end by returning a fresh `generate_elements(...)` element list from [`skilltree/ui/canvas/elements.py`](skilltree/ui/canvas/elements.py). That function is the single source of truth for what the Nodes canvas shows.
 - Status is cascading: a node auto-Blocks when any hard prerequisite is incomplete; `_update_dependent_nodes_state` walks the downstream chain on every Done-flip. Goals are exempt: they keep whatever status the user set. Milestones can be marked Done before their hard prereqs, and a Done Milestone never re-blocks (`_KEEPS_DONE_TYPES` in `skilltree/store/graph/manager.py`).

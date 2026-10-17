@@ -2,7 +2,6 @@
 from collections import namedtuple
 from copy import deepcopy
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.features.home.table import (
     format_now_nodes_section, format_suggestions_table,
@@ -52,14 +51,14 @@ def initial_next_view(graph, template, sidebars):
     return view
 
 
-def perf_stats_text():
+def perf_stats_text(graph):
     """The Home tab's scoring-time caption, or None before one is recorded.
 
     Timings are recorded once per process, by the first scoring pass, which
     is the one that builds the first layout. So the layout carries the
     caption, and each later table refresh reads it again.
     """
-    t = GraphManager._last_perf_timings
+    t = graph.last_perf_timings
     if not t:
         return None
     return (f"{t['n_nodes']} nodes · {t['n_edges']} edges · "

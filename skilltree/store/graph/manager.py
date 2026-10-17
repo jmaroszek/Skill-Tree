@@ -55,24 +55,10 @@ def _utc_now_ts() -> int:
 class GraphManager:
     """Single gateway for all graph state reads and writes.
 
-    Every callback module constructs its own GraphManager instance. They
-    share the SQLite file and the revisions in graph.state that their caches
-    are keyed on, so a mutation through one is seen by every other's cache.
+    The app has one, in AppServices. Another instance (a test, a tool) shares
+    the SQLite file and the revisions in graph.state that every cache is
+    keyed on, so a mutation through one is seen by every other's cache.
     """
-    # Class-level queue of container names whose hard prereqs just became
-    # all Done as a side-effect of an update_node call. Drained by the UI to
-    # surface a "Mark Done?" suggestion modal. Class-level (not instance) because
-    # every GraphManager touches the same DB and needs to see the same pending candidates regardless of which
-    # instance initiated the mutation.
-    _auto_done_candidates: List[str] = []
-    # Latest scoring-run timings (dict with adj_ms/goals_ms/score_ms/rank_ms/
-    # total_ms/n_nodes). Written by calculate_priority_scores on the single
-    # startup run; read-and-consumed by the Next-tab perf overlay.
-    _last_perf_timings: Optional[dict] = None
-    # Startup-only gate: timed scoring happens at most once per process. Once
-    # True, subsequent scoring runs skip the timing path even if the setting
-    # is on. Reset across test boundaries by the tmp_perf_log fixture.
-    _startup_perf_recorded: bool = False
 
     def __init__(self):
         self._repository = GraphRepository(lambda: self.get_connection())
@@ -82,6 +68,15 @@ class GraphManager:
         # after the commit. AppServices points them at its EventManager.
         self.on_node_done = _ignore
         self.on_trigger_set_narrowed = _ignore
+        # Goals and inherited-time containers whose hard prerequisites just
+        # all became Done through this manager. The engine drains them into
+        # the "Mark Done?" modal.
+        self._auto_done_candidates: List[str] = []
+        # The timings of the first scoring run, when the Show scoring time
+        # setting is on (adj_ms, goals_ms, score_ms, rank_ms, total_ms,
+        # n_nodes, n_edges). Only that run is timed: the Home tab's caption.
+        self.last_perf_timings: Optional[dict] = None
+        self.startup_perf_recorded = False
 
     def _prepare_read_caches(self):
         epoch = (database.get_db_path(), revisions.graph)
@@ -338,8 +333,8 @@ class GraphManager:
             for (dep_name,) in dependents:
                 if not self.is_auto_done_ready(dep_name):
                     continue
-                if dep_name not in GraphManager._auto_done_candidates:
-                    GraphManager._auto_done_candidates.append(dep_name)
+                if dep_name not in self._auto_done_candidates:
+                    self._auto_done_candidates.append(dep_name)
 
     @database.consistent_read
     def is_auto_done_ready(self, name: str) -> bool:
@@ -384,8 +379,8 @@ class GraphManager:
         inherited-time container whose hard prereqs are now all Done — the UI
         offers the user a one-click "Mark Done?" suggestion for it.
         """
-        candidates = list(GraphManager._auto_done_candidates)
-        GraphManager._auto_done_candidates = []
+        candidates = self._auto_done_candidates
+        self._auto_done_candidates = []
         return candidates
 
     @database.atomic

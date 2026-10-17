@@ -24,7 +24,7 @@ import subprocess
 
 import pytest
 
-from skilltree.engine.callbacks import register_callbacks
+from skilltree.engine.callbacks import register_engine_callbacks
 from skilltree.shell import build_app_layout
 from skilltree.features.nodes.layout import create_graph_view
 from skilltree.store.graph.manager import GraphManager
@@ -74,7 +74,7 @@ def test_element_payloads_reach_the_cover(services):
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app, services)
+    register_engine_callbacks(app, services)
 
     bridge = next(c for c in app._callback_list
                   if c["output"] == "canvas-payload-stamp.data")

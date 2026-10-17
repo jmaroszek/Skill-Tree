@@ -6,6 +6,7 @@ from skilltree.ui import payloads as bridge_payloads
 from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES
 from skilltree.domain.contexts import sort_contexts
 from skilltree.ui.canvas.registry import CANVASES
+from skilltree.ui.styles import stylesheet as base_stylesheet
 
 _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 
@@ -155,7 +156,6 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         f_type_list = [{"label": t, "value": t} for t in base_types]
 
         # Focus mode stylesheet: highlight subtree, dim others
-        from skilltree.ui.styles import stylesheet as base_stylesheet
         active_stylesheet = list(base_stylesheet)
         if focus_goal:
             if focus_subtree_override is not None:

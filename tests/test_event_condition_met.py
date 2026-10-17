@@ -179,7 +179,7 @@ def test_the_launch_safety_net_fires_events_left_waiting(services):
 def _save_event():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app, AppServices())
+    event_callbacks.register_events_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

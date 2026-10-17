@@ -29,6 +29,7 @@ import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from skilltree.runtime.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +136,6 @@ class InstanceLock:
         return True
 
     def publish(self, port: int, token: str) -> None:
-        from skilltree.runtime.version import __version__
         self._write_info({"pid": os.getpid(), "port": port, "token": token,
                           "version": __version__})
 
