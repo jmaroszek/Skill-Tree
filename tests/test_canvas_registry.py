@@ -18,6 +18,8 @@ from skilltree.ui.canvas.registry import CANVASES, client_registry, install_clie
 from skilltree.features.details.callbacks import register_details_callbacks
 from skilltree.features.events.callbacks import register_event_callbacks
 from skilltree.shell import build_app_layout
+from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
 
@@ -43,7 +45,7 @@ def _walk(component):
 def _core_app():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app)
+    register_callbacks(app, AppServices())
     return app
 
 
@@ -56,7 +58,7 @@ def _component_ids(canvas):
 
 def test_every_registered_component_exists_in_the_layout():
     layout_ids = {getattr(item, 'id', None)
-                  for item in _walk(build_app_layout([], env='sandbox'))}
+                  for item in _walk(build_app_layout(GraphManager(), env='sandbox'))}
     for canvas in CANVASES:
         for component_id in _component_ids(canvas):
             assert component_id in layout_ids, (canvas.key, component_id)
@@ -107,7 +109,7 @@ def test_every_canvas_gets_a_layout_request():
             [canvas.view_store_id] if canvas.view_store_id else []), canvas.key
 
 
-def test_settle_lays_out_without_a_server_round_trip():
+def test_settle_lays_out_without_a_server_round_trip(services):
     """Settle lays out what the canvas shows. On Nodes it also started the core
     engine, whose rebuilt payload, restyle and chained callbacks landed inside
     the Settle's animation."""
@@ -115,7 +117,7 @@ def test_settle_lays_out_without_a_server_round_trip():
     app.config.suppress_callback_exceptions = True
     for register in (register_callbacks, register_details_callbacks,
                      register_event_callbacks):
-        register(app)
+        register(app, services)
     for canvas in CANVASES:
         settle = canvas.control_id('relayout')
         listeners = [c for c in app._callback_list

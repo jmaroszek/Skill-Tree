@@ -128,7 +128,7 @@ def test_unblocking_steps_lead_the_list_and_now_nodes_are_dropped(monkeypatch):
     The steps are additive — they don't spend a slot from the count the user
     asked for — they bypass the filter, and they never repeat below.
     """
-    from skilltree.features.home import callbacks as next_callbacks
+    from skilltree.features.home import view as next_view
     step = SimpleNamespace(name='Step', priority_score=1, now=0)
     repeat = SimpleNamespace(name='Repeat', priority_score=110, now=0)
     outsider = SimpleNamespace(name='Outside', priority_score=100, now=0)
@@ -142,20 +142,19 @@ def test_unblocking_steps_lead_the_list_and_now_nodes_are_dropped(monkeypatch):
             nodes, key=lambda n: -n.priority_score),
         get_unblocking_steps=lambda targets, **kw: [(step, 'Now')],
     )
-    monkeypatch.setattr(next_callbacks, 'manager', manager)
 
-    rows, pinned = next_callbacks.get_suggestions(count=2)
+    rows, pinned = next_view.get_suggestions(manager, count=2)
     assert [n.name for n in rows] == ['Step', 'Repeat', 'Outside']
     assert pinned == {'Step': 'Now'}
 
     # Trimming the ranking never trims the step.
-    rows, _ = next_callbacks.get_suggestions(count=1)
+    rows, _ = next_view.get_suggestions(manager, count=1)
     assert [n.name for n in rows] == ['Step', 'Repeat']
 
 
 def test_an_actionable_now_node_pins_nothing(monkeypatch):
     """No steps means the table is exactly the ranking, and Now stays out of it."""
-    from skilltree.features.home import callbacks as next_callbacks
+    from skilltree.features.home import view as next_view
     top = SimpleNamespace(name='Top', priority_score=110, now=0)
     busy = SimpleNamespace(name='Busy', priority_score=1000, now=1)
     manager = SimpleNamespace(
@@ -166,9 +165,8 @@ def test_an_actionable_now_node_pins_nothing(monkeypatch):
             nodes, key=lambda n: -n.priority_score),
         get_unblocking_steps=lambda targets, **kw: [],
     )
-    monkeypatch.setattr(next_callbacks, 'manager', manager)
 
-    rows, pinned = next_callbacks.get_suggestions(count=3)
+    rows, pinned = next_view.get_suggestions(manager, count=3)
     assert [n.name for n in rows] == ['Top']
     assert pinned == {}
 

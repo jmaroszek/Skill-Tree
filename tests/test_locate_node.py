@@ -11,13 +11,14 @@ from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
 from skilltree.engine import callbacks
-from skilltree.ui.canvas import callbacks as canvas_callbacks
+from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 
 def _locate_callback():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     key = next(k for k in app.callback_map if "locate-message.children" in k
                and "locate-request-store.data" in k)
     fn = app.callback_map[key]["callback"]
@@ -29,7 +30,7 @@ def _locate_callback():
 def _locate_result_callback():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     key = next(k for k in app.callback_map if "modal-locate-missing.is_open" in k
                and "locate-missing-node-store.data" in k)
     fn = app.callback_map[key]["callback"]
@@ -53,7 +54,7 @@ def locate_node(monkeypatch):
     class _Node:
         dormant = False
 
-    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: _Node())
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Node())
     return _Node
 
 
@@ -77,7 +78,7 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
     class _Dormant:
         dormant = True
 
-    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: _Dormant())
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Dormant())
     fn = _locate_callback()
     _message, _disabled, _count, request = fn(1, "Asleep", "tab-events")
     assert request["name"] == "Asleep"
@@ -85,7 +86,7 @@ def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatc
 
 
 def test_deleted_node_reports_in_editor(monkeypatch):
-    monkeypatch.setattr(canvas_callbacks.manager, "get_node", lambda name: None)
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: None)
     fn = _locate_callback()
     message, interval_disabled, _n, request = fn(1, "Gone", "tab-canvas")
     assert message == "This node no longer exists."

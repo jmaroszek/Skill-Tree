@@ -1,4 +1,5 @@
 """Explicit application construction and the desktop/browser launch entry point."""
+import functools
 import logging
 import sys
 import os
@@ -211,7 +212,7 @@ def create_app(settings=None, services=None):
     # doesn't ask for them on load.
     app.layout = database.snapshot_read(
         lambda: prerender_layout(
-            build_app_layout(initial_elements=[], env=settings.environment),
+            build_app_layout(services.graph, env=settings.environment),
             app))
     for register in (register_callbacks, register_calibration_callbacks,
                      register_resource_link_callbacks, register_event_callbacks,
@@ -223,12 +224,13 @@ def create_app(settings=None, services=None):
                      register_onboarding_callbacks, register_bridge_callbacks,
                      register_link_menu_callbacks):
         register(app, services)
-    register_context_picker_callbacks(app)
-    register_list_toolbar_callbacks(app)
+    register_context_picker_callbacks(app, services)
+    register_list_toolbar_callbacks(app, services)
     # Fails at startup, not on the first page load, if a @prerendered
     # callback would also run in the browser.
     prerendered_specs(app)
-    app.server.add_url_rule('/open-resource', view_func=open_resource_route,
+    app.server.add_url_rule('/open-resource', 'open_resource',
+                            functools.partial(open_resource_route, services.graph),
                             methods=['POST'])
     if settings.dev:
         # hard_reload_on_restart.js reloads the page when this changes.
@@ -237,10 +239,9 @@ def create_app(settings=None, services=None):
     return app
 
 
-def open_resource_route():
+def open_resource_route(graph):
     """Open one saved link selected from a node's context menu."""
     from flask import request, jsonify
-    from skilltree.store.graph.manager import GraphManager
     from skilltree.store.resources import get_sections, get_node_links
     from skilltree.runtime.opener import NeedsConfirmation, open_resource
 
@@ -250,7 +251,7 @@ def open_resource_route():
     index = payload.get('index', 0)
     if not isinstance(name, str) or not isinstance(section_id, str) or not isinstance(index, int):
         return jsonify({"ok": False, "error": "Invalid Resource selection"}), 400
-    if GraphManager().get_node(name) is None:
+    if graph.get_node(name) is None:
         return jsonify({"ok": False, "error": "Node not found"}), 404
     section = next((s for s in get_sections() if s['id'] == section_id), None)
     links = get_node_links(name).get(section_id, [])

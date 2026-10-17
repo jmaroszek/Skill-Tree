@@ -2,34 +2,20 @@
 Callback definitions for the Home tab (priority suggestions).
 """
 
-from skilltree.features.home.view import (
-    get_suggestions as _get_suggestions,
-    perf_stats_text,
-)
+from skilltree.features.home.view import get_suggestions, perf_stats_text
 
 from skilltree.store import database
 
 from dash import Input, Output, State, ALL, ClientsideFunction, no_update
-from skilltree.store.graph.manager import GraphManager
 from skilltree.features.home.table import (
     format_now_nodes_section, format_suggestions_table,
 )
 from skilltree.ui.filters import build_filters
 from skilltree.ui.dash_tools import get_trigger_id
 
-manager = GraphManager()
 
-
-#: What the Next table renders: the ordered rows, plus a map from a pinned
-#: step's name to the Now target it unblocks (empty for an ordinary row).
-
-
-def get_suggestions(filters=None, count=5):
-    return _get_suggestions(filters, count, manager=manager)
-
-
-def register_next_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_next_callbacks(app, services):
+    manager = services.graph
 
     # --- Suggestion Count +/- ---
     @app.callback(
@@ -111,7 +97,7 @@ def register_next_callbacks(app, services=None):
                                 difficulty, types, f_time_unit=time_unit,
                                 f_show_dormant=dormant, f_time_min=time_min,
                                 f_search=search)
-        next_rows = get_suggestions(filters, count=count or 10)
+        next_rows = get_suggestions(manager, filters, count=count or 10)
         caption = perf_stats_text()
         return (format_suggestions_table(next_rows.rows, manager,
                                          pinned_steps=next_rows.pinned_steps),

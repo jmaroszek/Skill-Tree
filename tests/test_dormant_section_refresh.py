@@ -25,10 +25,10 @@ def _node(name):
 
 
 @pytest.fixture
-def populate(monkeypatch):
+def populate(monkeypatch, services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    dormancy.register_dormancy_callbacks(app)
+    dormancy.register_dormancy_callbacks(app, services)
     fn = next(spec["callback"] for spec in app.callback_map.values()
               if getattr(spec.get("callback"), "__name__", "") == "populate_node_dormancy")
     while hasattr(fn, "__wrapped__"):
@@ -51,8 +51,8 @@ def events():
     return events
 
 
-def test_an_event_change_keeps_unsaved_dormant_edits(populate, events):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"))
+def test_an_event_change_keeps_unsaved_dormant_edits(populate, events, services):
+    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
     edited = {**loaded, "event": "Other"}
     snapshot = {"name": "A", "desc": "", "dormancy": loaded}
     events.set_node_delay("Later", "A", 7)  # elsewhere: the Events tab
@@ -65,16 +65,16 @@ def test_an_event_change_keeps_unsaved_dormant_edits(populate, events):
     assert out[10]["dormancy"]["event"] == "Later"
 
 
-def test_an_event_change_reloads_an_untouched_section(populate, events):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"))
+def test_an_event_change_reloads_an_untouched_section(populate, events, services):
+    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
     snapshot = {"name": "A", "dormancy": loaded}
     events.trigger_event_manually("Later")
     out = populate("events-refresh-trigger", snapshot, loaded)
     assert out[0] == [] and out[10]["dormancy"]["dormant"] is False
 
 
-def test_a_save_that_found_the_node_awake_redraws_the_section(populate, events):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"))
+def test_a_save_that_found_the_node_awake_redraws_the_section(populate, events, services):
+    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
     events.trigger_event_manually("Later")
     out = populate("editor-save-result-store", {"name": "A", "dormancy": loaded}, loaded,
                    save_result={"name": "A", "via": "btn-save", "woke": "Later"})

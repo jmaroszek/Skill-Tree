@@ -134,7 +134,7 @@ def sort_menu_items(sort: SortMenu):
     ]
 
 
-def register_list_toolbar_callbacks(app) -> None:
+def register_list_toolbar_callbacks(app, services) -> None:
     for sort in SORT_MENUS:
         values = [value for value, _ in sort.options]
 

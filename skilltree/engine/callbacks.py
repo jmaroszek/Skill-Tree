@@ -20,8 +20,6 @@ from typing import List, Set
 import dash
 from dash import html, Input, Output, State, no_update
 
-from skilltree.store.graph.manager import GraphManager
-from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_OPEN, STATUS_DONE
@@ -37,9 +35,6 @@ from skilltree.features.editor.form import (
     resolve_relationship_intent,
 )
 from skilltree.ui.components.confirm import reopen_body
-from skilltree.ui.canvas.elements import (
-    build_node_element, build_edge_element, canvas_node_styles,
-)
 from skilltree.ui.filters import (
     build_filters,
 )
@@ -57,6 +52,7 @@ from skilltree.features.home.now import register_now_callbacks
 from skilltree.features.review.ratings import register_reflection_ratings_callbacks
 from skilltree.ui.tabs import register_tab_callbacks
 from skilltree.store.graph.state import revisions
+from skilltree.ui.canvas.elements import KEEP_SELECTION, generate_elements
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +67,6 @@ def _unexpected_error_message(action):
     logger.exception("%s failed", action)
     return (f"Error: {action} failed unexpectedly. The details are in the log, "
             "which a bug report should include.")
-
-manager = GraphManager()
-event_manager = EventManager()
 
 
 # core_engine's outputs are CoreResponse's fields. This constant and the helper
@@ -218,62 +211,11 @@ def _core_engine_save_error_tuple(msg, next_ed_style, next_goal_style, next_even
     return tuple(out)
 
 
-# What generate_elements takes as ``active_node_id`` to leave every node's
-# selection as the canvas has it. dash-cytoscape changes a node's selection
-# only when its ``selected`` differs from the previous render's, so a node
-# without one is left alone.
-KEEP_SELECTION = object()
-
-
-@database.snapshot_read
-def generate_elements(filters=None, active_node_id=None, community_names=None,
-                      graph=None, events=None):
-    """Convert nodes and edges from the database into Cytoscape elements.
-
-    ``active_node_id`` names the one node to select, None selects none, and
-    KEEP_SELECTION leaves the selection to the canvas.
-
-    `graph`/`events` default to the module-level managers so standalone callers
-    (and tests) can call this with no wiring. `register_callbacks` binds the
-    AppServices instances instead, so the canvas renders through the same
-    managers the callbacks mutate.
-    """
-    graph = manager if graph is None else graph
-    events = event_manager if events is None else events
-    if filters is None: filters = {}
-    # Always fetch dormant nodes too — filter_nodes decides whether to keep
-    # them based on the `show_dormant` filter. Fetching unconditionally keeps
-    # the include/exclude decision in one place (the filter pipeline).
-    nodes = graph.get_all_nodes(include_dormant=True)
-    filtered_nodes = graph.filter_nodes(nodes, filters)
-
-    if community_names is not None:
-        filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
-
-    valid_names = {n.name for n in filtered_nodes}
-    styles = canvas_node_styles(events)
-
-    def _selected(node):
-        if active_node_id is KEEP_SELECTION:
-            return None
-        return node.name == active_node_id if active_node_id else False
-
-    elements = [
-        build_node_element(node, styles, selected=_selected(node))
-        for node in filtered_nodes
-    ]
-    elements.extend(
-        build_edge_element(e) for e in graph.get_edges()
-        if e['source'] in valid_names and e['target'] in valid_names)
-    return elements
-
-
-def register_callbacks(app, services=None):
+def register_callbacks(app, services):
     """Register all Dash callbacks for the application."""
-    manager = services.graph if services is not None else globals()['manager']
-    event_manager = services.events if services is not None else globals()['event_manager']
-    render_elements = functools.partial(
-        generate_elements, graph=manager, events=event_manager)
+    manager = services.graph
+    event_manager = services.events
+    render_elements = functools.partial(generate_elements, manager, event_manager)
 
     # --- Graph Version Bridge ---
     # Observes cytoscape element changes and updates graph-version-store only
@@ -508,8 +450,7 @@ def register_callbacks(app, services=None):
         undo_downstream = []
 
         # Check for any delayed event nodes or scheduled events that are due
-        from skilltree.store.events import EventManager
-        EventManager().run_sweeps()
+        event_manager.run_sweeps()
 
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
                                 f_time_min=f_time_min, f_search=f_search)
@@ -526,7 +467,7 @@ def register_callbacks(app, services=None):
         # Use whichever edit trigger fired (details tab or main)
         _edit_trigger = details_edit_trigger_data if trigger_id == 'details-edit-trigger-input' else edit_trigger_data
         active_node_id = resolve_active_node_id(
-            all_triggered_ids, trigger_id, _edit_trigger,
+            manager, all_triggered_ids, trigger_id, _edit_trigger,
             search_val, tapped_node, name)
 
         # When entering focus mode, clear the selected node so only the
@@ -581,9 +522,8 @@ def register_callbacks(app, services=None):
                         manager, name, original_name)
                     status_done = resolve_done_intent(
                         _prior_for_completion, status_done, pristine_snapshot)
-                    from skilltree.store.events import EventManager
                     woke_from = woke_during_edit(
-                        EventManager(), (original_name or name).strip(), dormancy,
+                        event_manager, (original_name or name).strip(), dormancy,
                         pristine_snapshot)
                     if woke_from:
                         dormancy = None  # the wake stands; see woke_during_edit
@@ -648,9 +588,8 @@ def register_callbacks(app, services=None):
                     was_dormant = bool(_prior and _prior.dormant)
                     # Wake before applying completion intent. Both still
                     # belong to this save and roll back together on refusal.
-                    from skilltree.store.events import EventManager
                     if was_dormant and not sleeping:
-                        EventManager().detach_node_from_all_events(name)
+                        event_manager.detach_node_from_all_events(name)
                         was_dormant = False
                     # The pickers were filled when the editor loaded. The link
                     # menu, the Details tab or a bridge may have changed this
@@ -693,7 +632,7 @@ def register_callbacks(app, services=None):
 
                     # Dormant switch and Event section. A refusal raises
                     # ValueError and rolls the whole save back.
-                    apply_dormancy(manager, EventManager(), name,
+                    apply_dormancy(manager, event_manager, name,
                                    dormancy_for_save(dormancy), was_dormant)
                     if woke_from:
                         msg += (f". It woke from '{woke_from}' while you were "
@@ -1235,7 +1174,7 @@ def register_callbacks(app, services=None):
     register_tab_callbacks(app, services)
 
 
-def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
+def resolve_active_node_id(graph, all_triggered_ids, trigger_id, edit_trigger_data,
                            search_val, tapped_node, current_name):
     """Determine which node the editor should display.
 
@@ -1248,10 +1187,9 @@ def resolve_active_node_id(all_triggered_ids, trigger_id, edit_trigger_data,
         return None
     if trigger_id == 'search-node' and search_val:
         if search_val.startswith('alias:'):
-            _mgr = GraphManager()
             alias_key = search_val[6:]
             # Case-insensitive resolve so 'alias:mathnotes' finds 'MathNotes'.
-            resolved = _mgr.resolve_alias(alias_key)
+            resolved = graph.resolve_alias(alias_key)
             return resolved if resolved is not None else search_val
         return search_val
     if trigger_id == 'cytoscape-graph' and tapped_node:

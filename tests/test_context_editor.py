@@ -22,6 +22,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.settings import draft as settings_draft
+from skilltree.services import AppServices
 
 
 CONTEXTS = ["Health", "People", "Wisdom"]
@@ -363,7 +364,7 @@ class TestApplyTaxonomyMigration:
 def _callbacks():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    settings_callbacks.register_settings_callbacks(app)
+    settings_callbacks.register_settings_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -627,12 +628,12 @@ class TestStructuralEdits:
 
 
 
-def test_opening_settings_fills_every_output_and_seeds_the_rows(seeded):
+def test_opening_settings_fills_every_output_and_seeds_the_rows(seeded, services):
     """load_settings swapped the weights container for the editor store; a
     tuple one short or long is rejected by Dash at runtime, not at import."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    settings_callbacks.register_settings_callbacks(app)
+    settings_callbacks.register_settings_callbacks(app, services)
     key, spec = next((k, s) for k, s in app.callback_map.items()
                      if "context-editor-store.data" in k and "setting-hp-profile.value" in k)
     fn = spec["callback"]
@@ -675,7 +676,7 @@ def _walk(component):
     yield from _walk(getattr(component, "children", None))
 
 
-def test_the_editors_plain_ids_are_in_the_static_layout():
+def test_the_editors_plain_ids_are_in_the_static_layout(services):
     """A callback Input with a plain string id must exist in the initial layout.
 
     The app does not suppress callback exceptions, so Dash reports "ID not
@@ -692,7 +693,7 @@ def test_the_editors_plain_ids_are_in_the_static_layout():
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    settings_callbacks.register_settings_callbacks(app)
+    settings_callbacks.register_settings_callbacks(app, services)
     editor_ids = set()
     for spec in app.callback_map.values():
         for dep in spec.get("inputs", []) + spec.get("state", []):

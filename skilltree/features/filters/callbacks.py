@@ -11,7 +11,7 @@ from skilltree.ui.filters import (
 from skilltree.ui.prerender import prerendered
 
 
-def register_filter_callbacks(app, services=None):
+def register_filter_callbacks(app, services):
     # --- Clear Filters ---
     # Note: filter-subcontext.value is reset clientside (see below). The prop is
     # written by the context picker's own JS, and a server-side Output here

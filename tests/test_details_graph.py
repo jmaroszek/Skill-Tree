@@ -81,12 +81,12 @@ class TestPostFilterReachability:
         mgr.add_edge("Orphan2", "Orphan1", EDGE_NEEDS_HARD)
         mgr.add_edge("Orphan3", "Orphan2", EDGE_NEEDS_SOFT)
 
-    def test_hide_done_drops_orphans_when_bridge_filtered(self, mgr):
+    def test_hide_done_drops_orphans_when_bridge_filtered(self, mgr, services):
         """With hide_done active the Done Bridge disappears, and since it's
         the only path from Selected to the Orphan cluster, the orphans must
         also disappear."""
         self._setup_bridge_scenario(mgr)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Selected",
             include_soft_val=["include"],
             include_synergies_val=["include"],
@@ -94,13 +94,13 @@ class TestPostFilterReachability:
         )
         assert _node_ids(elements) == {"Selected"}
 
-    def test_done_shown_does_not_chain_through_downstream_helps(self, mgr):
+    def test_done_shown_does_not_chain_through_downstream_helps(self, mgr, services):
         """Under seed-only Helps semantics, a Helps edge from a downstream
         Hard prereq (Bridge --Helps-- Orphan1) must NOT cascade into the
         partner's own prereq tree. Helps only fires at the goal's seed step,
         and Selected has no direct Helps partners."""
         self._setup_bridge_scenario(mgr)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Selected",
             include_soft_val=["include"],
             include_synergies_val=["include"],
@@ -108,11 +108,11 @@ class TestPostFilterReachability:
         )
         assert _node_ids(elements) == {"Selected", "Bridge"}
 
-    def test_synergies_off_prunes_helps_leak(self, mgr):
+    def test_synergies_off_prunes_helps_leak(self, mgr, services):
         """Turning off Synergies disables Helps traversal, which independently
         prevents the orphan cluster from being pulled in."""
         self._setup_bridge_scenario(mgr)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Selected",
             include_soft_val=["include"],
             include_synergies_val=[],
@@ -120,7 +120,7 @@ class TestPostFilterReachability:
         )
         assert _node_ids(elements) == {"Selected", "Bridge"}
 
-    def test_reachability_uses_enabled_edge_types_only(self, mgr):
+    def test_reachability_uses_enabled_edge_types_only(self, mgr, services):
         """If Synergies is off, a Helps-only edge between two otherwise-
         filtered-in nodes must NOT count toward reachability — otherwise a
         hidden toggle would silently reintroduce the very nodes it's meant
@@ -131,7 +131,7 @@ class TestPostFilterReachability:
         mgr.add_edge("Mid", "Selected", EDGE_NEEDS_HARD)
         # Tail is only linked to Mid via Helps; Synergies off should exclude it.
         mgr.add_edge("Mid", "Tail", EDGE_HELPS)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Selected",
             include_soft_val=["include"],
             include_synergies_val=[],
@@ -146,12 +146,12 @@ class TestPostFilterReachability:
 
 
 class TestBuildGraphElementsInvariants:
-    def test_selected_node_is_view_root_and_cytoscape_selected(self, mgr):
+    def test_selected_node_is_view_root_and_cytoscape_selected(self, mgr, services):
         mgr.add_node(_make_node("Root"))
         mgr.add_node(_make_node("Child"))
         mgr.add_edge("Child", "Root", EDGE_NEEDS_HARD)
 
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Root",
             include_soft_val=["include"],
             include_synergies_val=[],
@@ -172,11 +172,11 @@ class TestBuildGraphElementsInvariants:
         assert nodes["Root"].get("selected") is True
         assert nodes["Child"].get("selected") is False
 
-    def test_selected_node_always_present(self, mgr):
+    def test_selected_node_always_present(self, mgr, services):
         """Even a selected node with no prereqs and filters that would normally
         hide it still appears — it's the anchor of the view."""
         mgr.add_node(_make_node("Solo", status="Done"))
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Solo",
             include_soft_val=["include"],
             include_synergies_val=["include"],
@@ -184,13 +184,13 @@ class TestBuildGraphElementsInvariants:
         )
         assert _node_ids(elements) == {"Solo"}
 
-    def test_soft_toggle_off_excludes_soft_chain(self, mgr):
+    def test_soft_toggle_off_excludes_soft_chain(self, mgr, services):
         mgr.add_node(_make_node("Target"))
         mgr.add_node(_make_node("HardDep"))
         mgr.add_node(_make_node("SoftDep"))
         mgr.add_edge("HardDep", "Target", EDGE_NEEDS_HARD)
         mgr.add_edge("SoftDep", "Target", EDGE_NEEDS_SOFT)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Target",
             include_soft_val=[],
             include_synergies_val=[],
@@ -198,13 +198,13 @@ class TestBuildGraphElementsInvariants:
         )
         assert _node_ids(elements) == {"Target", "HardDep"}
 
-    def test_depth_one_restricts_to_direct_children(self, mgr):
+    def test_depth_one_restricts_to_direct_children(self, mgr, services):
         mgr.add_node(_make_node("Root"))
         mgr.add_node(_make_node("Child"))
         mgr.add_node(_make_node("Grandchild"))
         mgr.add_edge("Child", "Root", EDGE_NEEDS_HARD)
         mgr.add_edge("Grandchild", "Child", EDGE_NEEDS_HARD)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="Root",
             include_soft_val=["include"],
             include_synergies_val=["include"],
@@ -213,7 +213,7 @@ class TestBuildGraphElementsInvariants:
         )
         assert _node_ids(elements) == {"Root", "Child"}
 
-    def test_edges_only_between_included_nodes(self, mgr):
+    def test_edges_only_between_included_nodes(self, mgr, services):
         """No dangling edges: every rendered edge must connect two rendered
         nodes. Guards against a filter dropping a node but leaving its edge
         behind."""
@@ -222,7 +222,7 @@ class TestBuildGraphElementsInvariants:
         mgr.add_node(_make_node("C"))
         mgr.add_edge("B", "A", EDGE_NEEDS_HARD)
         mgr.add_edge("C", "A", EDGE_NEEDS_HARD)
-        elements = _build_graph_elements(
+        elements = _build_graph_elements(services.graph, services.events, 
             selected_node="A",
             include_soft_val=["include"],
             include_synergies_val=["include"],
@@ -303,16 +303,16 @@ class TestDependencyViewTraversal:
         view = mgr.get_dependency_view("Root", filters={"min_time": 100})
         assert view["node_names"] == {"Root"}
 
-    def test_cross_links_change_edges_not_nodes(self, mgr):
+    def test_cross_links_change_edges_not_nodes(self, mgr, services):
         for name in ("Root", "A", "B"):
             mgr.add_node(_make_node(name))
         mgr.add_edge("A", "Root", EDGE_NEEDS_HARD)
         mgr.add_edge("B", "Root", EDGE_NEEDS_HARD)
         mgr.add_edge("A", "B", EDGE_NEEDS_HARD)
 
-        without = _build_graph_elements(
+        without = _build_graph_elements(services.graph, services.events, 
             "Root", ["include"], [], show_cross_links=False)
-        with_links = _build_graph_elements(
+        with_links = _build_graph_elements(services.graph, services.events, 
             "Root", ["include"], [], show_cross_links=True)
 
         assert _node_ids(without) == _node_ids(with_links) == {"Root", "A", "B"}
@@ -364,7 +364,7 @@ class TestBuildMilestonesSection:
         mgr.add_node(_make_node("L1", type="Learn"))
         mgr.add_node(_make_node("L2", type="Learn"))
         section_style, bottom_style, tiles = _build_milestones_section(
-            [mgr.get_node("L1"), mgr.get_node("L2")],
+            mgr, [mgr.get_node("L1"), mgr.get_node("L2")],
             parent_name="L1", edges=[])
         assert section_style == {"display": "none"}
         assert bottom_style == {}  # default = visible
@@ -372,7 +372,7 @@ class TestBuildMilestonesSection:
 
     def test_hidden_for_empty_subtree(self, mgr):
         section_style, bottom_style, tiles = _build_milestones_section(
-            [], parent_name=None, edges=[])
+            mgr, [], parent_name=None, edges=[])
         assert section_style == {"display": "none"}
         assert bottom_style == {}
         assert tiles == []
@@ -387,7 +387,7 @@ class TestBuildMilestonesSection:
         for src in ("M1", "M2", "L"):
             mgr.add_edge(src, "Goal", EDGE_NEEDS_HARD)
         section_style, bottom_style, tiles = _build_milestones_section(
-            [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")],
+            mgr, [mgr.get_node("M1"), mgr.get_node("M2"), mgr.get_node("L")],
             parent_name="Goal", edges=mgr.get_edges())
         assert section_style == {"display": "block"}
         assert bottom_style == {"display": "none"}
@@ -401,7 +401,7 @@ class TestBuildMilestonesSection:
         mgr.add_node(_make_node("R", type="Resource"))
         subtask_nodes = [mgr.get_node(n) for n in ("M", "G", "L", "A", "R")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name=None, edges=[])
+            mgr, subtask_nodes, parent_name=None, edges=[])
         assert len(tiles) == 1
 
     def test_includes_every_milestone_in_resolved_view(self, mgr):
@@ -412,7 +412,7 @@ class TestBuildMilestonesSection:
         mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
         subtask_nodes = [mgr.get_node("Direct"), mgr.get_node("Grand")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
+            mgr, subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
         assert len(tiles) == 2
 
     def test_depth_limited_caller_can_supply_only_direct_milestones(self, mgr):
@@ -423,14 +423,14 @@ class TestBuildMilestonesSection:
         mgr.add_edge("Grand", "Direct", EDGE_NEEDS_HARD)
         subtask_nodes = [mgr.get_node("Direct")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
+            mgr, subtask_nodes, parent_name="Goal", edges=mgr.get_edges())
         assert len(tiles) == 1
         assert tiles[0].id["index"] == "Direct"
 
     def test_excludes_done_milestone_when_filtered_out(self, mgr):
         mgr.add_node(_make_node("OpenMS", type="Milestone", time_mode='inherited'))
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            [mgr.get_node("OpenMS")],
+            mgr, [mgr.get_node("OpenMS")],
             parent_name=None, edges=[])
         assert len(tiles) == 1
 
@@ -446,7 +446,7 @@ class TestBuildMilestonesSection:
         subtask_nodes = [mgr.get_node(n)
                          for n in ("DoneA", "OpenB", "BlockedA", "OpenA")]
         _section_style, _bottom_style, tiles = _build_milestones_section(
-            subtask_nodes, parent_name=None, edges=[])
+            mgr, subtask_nodes, parent_name=None, edges=[])
         ordered = [t.id["index"] for t in tiles]
         assert ordered == ["OpenA", "OpenB", "BlockedA", "DoneA"]
 

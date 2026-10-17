@@ -143,10 +143,10 @@ def test_events_sidebar_browser_contract():
     _run_browser_contract()
 
 
-def test_events_sidebar_callback_listens_for_tab_arrival_and_empty_state():
+def test_events_sidebar_callback_listens_for_tab_arrival_and_empty_state(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_event_callbacks(app)
+    register_event_callbacks(app, services)
 
     spec = next(
         callback

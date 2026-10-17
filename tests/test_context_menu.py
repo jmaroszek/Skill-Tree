@@ -13,6 +13,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.ui import tokens
 import pytest
+from skilltree.services import AppServices
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -57,7 +58,7 @@ def _find(component, component_id):
 def _app():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     return app
 
 
@@ -73,7 +74,7 @@ def _callback(app, name):
 
 def _layout():
     from skilltree.shell import build_app_layout
-    return build_app_layout([], env="sandbox")
+    return build_app_layout(GraphManager(), env="sandbox")
 
 
 def _child_ids(menu):
@@ -238,7 +239,7 @@ def test_now_card_context_uses_readable_body_size():
     ]
 
 
-def test_goal_cards_open_the_shared_node_menu():
+def test_goal_cards_open_the_shared_node_menu(services):
     from skilltree.features.goals import callbacks as sidebars_callbacks
 
     manager = GraphManager()
@@ -246,7 +247,7 @@ def test_goal_cards_open_the_shared_node_menu():
                            resource_links={"website": ["https://example.com"]}))
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, services)
     render = _callback(app, "render_goal_list")
 
     cards = render("tab-next", None, None, None, None, "manual", None, None,
@@ -259,12 +260,12 @@ def test_goal_cards_open_the_shared_node_menu():
     assert getattr(card, "data-goal-name") == "Fitness"
 
 
-def test_view_details_leaves_the_tab_alone_when_already_there():
+def test_view_details_leaves_the_tab_alone_when_already_there(services):
     from skilltree.features.details import callbacks as details_callbacks
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    details_callbacks.register_details_callbacks(app)
+    details_callbacks.register_details_callbacks(app, services)
     navigate = _callback(app, "context_menu_details_navigate")
 
     assert navigate("Fitness|1", "tab-next") == ("tab-details", "Fitness")

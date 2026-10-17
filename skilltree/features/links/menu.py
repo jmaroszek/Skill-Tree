@@ -15,13 +15,11 @@ from dash import Input, Output, State, no_update
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.commands import change_link, link_change_reopens
 
-graph_manager = GraphManager()
 
-def register_link_menu_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_link_menu_callbacks(app, services):
+    graph_manager = services.graph
 
     def _apply(parts):
         """``(refresh, message)`` for a change made now."""

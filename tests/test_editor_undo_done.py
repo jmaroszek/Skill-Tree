@@ -14,6 +14,7 @@ from editor_forms import call
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
+from skilltree.services import AppServices
 
 
 def _node(name, **overrides):
@@ -27,7 +28,7 @@ def _node(name, **overrides):
 def _registered():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

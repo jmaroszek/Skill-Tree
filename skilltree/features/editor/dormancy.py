@@ -12,16 +12,11 @@ from dash import Input, Output, State, ctx, no_update
 from skilltree.features.editor.form import (
     NEW_EVENT_OPTION, build_dormancy_snapshot, norm_dormancy,
 )
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
-
-event_manager = EventManager()
-graph_manager = GraphManager()
 
 
-def register_dormancy_callbacks(app, services=None):
-    event_manager = services.events if services is not None else globals()['event_manager']
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_dormancy_callbacks(app, services):
+    event_manager = services.events
+    graph_manager = services.graph
 
     def _event_options(current=None):
         """Pending events, plus the node's own event when that one has fired

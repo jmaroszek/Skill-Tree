@@ -8,6 +8,8 @@ from skilltree.features.settings import callbacks as settings_callbacks
 from skilltree.store.settings import ConfigManager
 from skilltree.features.settings import draft as settings_draft
 from skilltree.features.settings import contexts as settings_contexts
+from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 
 def _callbacks():
@@ -24,7 +26,7 @@ def _callbacks():
             pass
 
     registry = Registry()
-    settings_callbacks.register_settings_callbacks(registry)
+    settings_callbacks.register_settings_callbacks(registry, AppServices())
     return registry.callbacks
 
 
@@ -42,7 +44,7 @@ def _draft(callbacks):
         now_node_cap_val=ConfigManager.get_now_node_cap(),
         context_sort_mode_val=ConfigManager.get_context_sort_mode(),
         subcontext_sort_mode_val=ConfigManager.get_subcontext_sort_mode(),
-        editor_store=settings_contexts.editor_state(settings_callbacks.manager),
+        editor_store=settings_contexts.editor_state(GraphManager()),
         section_store=settings_callbacks.get_sections(),
         backup_extra_dir=ConfigManager.get_backup_extra_dir())
     return args

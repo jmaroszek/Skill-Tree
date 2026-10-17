@@ -8,10 +8,9 @@ from skilltree.features.onboarding import steps as onboarding
 import copy
 
 from skilltree.store.settings import DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS, ConfigManager
-from skilltree.store.graph.manager import GraphManager
 
 
-def register_onboarding_callbacks(app, services=None):
+def register_onboarding_callbacks(app, services):
     @app.callback(
         Output("welcome-modal", "is_open"),
         Output("welcome-reload-trigger", "data"),
@@ -58,7 +57,7 @@ def register_onboarding_callbacks(app, services=None):
     def render_getting_started(_version):
         if ConfigManager.get_getting_started_dismissed():
             return None
-        steps = onboarding.getting_started(GraphManager())
+        steps = onboarding.getting_started(services.graph)
         if all(step.done for step in steps):
             return None
         return _card(steps)

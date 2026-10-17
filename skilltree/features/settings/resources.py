@@ -51,7 +51,7 @@ SECTION_FORM_STATES = [
 ]
 
 
-def register_resource_settings_callbacks(app, services=None):
+def register_resource_settings_callbacks(app, services):
     # --- Settings: Resource cards ---
     # The draft reloads when Settings opens and after a save lands, so a
     # removed card stops showing once its removal is real.

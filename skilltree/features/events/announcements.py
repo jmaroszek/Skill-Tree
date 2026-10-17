@@ -5,7 +5,7 @@ from dash import Input, Output, State, html, no_update
 from skilltree.store.settings import ConfigManager
 
 
-def register_announcement_callbacks(app, services=None):
+def register_announcement_callbacks(app, services):
     # --- Events Triggered announcement ---
     # Shown at launch, and whenever an event fires or a delayed node wakes
     # while the app is open: the clock, a save that completes a trigger node,

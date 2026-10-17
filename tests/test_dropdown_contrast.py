@@ -8,6 +8,7 @@ dropdown shipped without one: picking a backup left the field looking empty.
 from dash import dcc
 
 from skilltree.shell import build_app_layout
+from skilltree.store.graph.manager import GraphManager
 
 
 def _dropdowns(component, ancestors=()):
@@ -27,7 +28,7 @@ def _is_dark(component):
 
 
 def test_every_dropdown_sits_in_a_text_dark_wrapper():
-    found = list(_dropdowns(build_app_layout([], env="sandbox")))
+    found = list(_dropdowns(build_app_layout(GraphManager(), env="sandbox")))
     assert found, "the layout should have dropdowns"
     unreadable = [dropdown.id for dropdown, ancestors in found
                   if not any(_is_dark(a) for a in ancestors) and not _is_dark(dropdown)]

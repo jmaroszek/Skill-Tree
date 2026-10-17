@@ -20,16 +20,13 @@ from skilltree.features.details.layout import (
 )
 from skilltree.store import database
 from skilltree.store.commands import change_link, link_change_reopens
-from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.filters import FILTER_INPUTS, filters_from
 
-graph_manager = GraphManager()
 
-
-def register_subtask_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_subtask_callbacks(app, services):
+    graph_manager = services.graph
 
     # --- Subtasks table: selection placeholder, then render after layout ---
     # The full table is the largest remaining Details response. Keep it out of
@@ -86,7 +83,7 @@ def register_subtask_callbacks(app, services=None):
             global_filters["hide_blocked"] = True
 
         subtask_nodes, edges = collect_details_subtasks(
-            selected_node, include_soft, include_synergies, max_depth,
+            graph_manager, selected_node, include_soft, include_synergies, max_depth,
             global_filters)
         non_milestone_subtasks = [
             node for node in subtask_nodes if node.type != "Milestone"]
@@ -124,13 +121,13 @@ def register_subtask_callbacks(app, services=None):
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
-            selected_node, include_soft, include_synergies, max_depth,
+            graph_manager, selected_node, include_soft, include_synergies, max_depth,
             global_filters)
 
         # Milestones roster shares the same filtered, depth-limited view as
         # the table, so both surfaces stay in lockstep.
         ms_section_style, bottom_toggles_style, ms_tiles = build_milestones_section(
-            subtask_nodes, selected_node, edges)
+            graph_manager, subtask_nodes, selected_node, edges)
 
         return ms_section_style, bottom_toggles_style, ms_tiles
 
@@ -268,7 +265,7 @@ def register_subtask_callbacks(app, services=None):
         return False, f"link-{int(time.time() * 1000)}", "", no_update, no_update, no_update
 
 
-def build_milestones_section(subtask_nodes, parent_name, edges):
+def build_milestones_section(graph, subtask_nodes, parent_name, edges):
     """Compute the (section_style, bottom_toggles_style, tiles) tuple for
     the milestones strip and the canonical bottom toggle wrapper.
 
@@ -298,7 +295,7 @@ def build_milestones_section(subtask_nodes, parent_name, edges):
     tiles = [
         build_milestone_tile(
             ms,
-            graph_manager.get_goal_completion(ms.name, include_soft=False),
+            graph.get_goal_completion(ms.name, include_soft=False),
         )
         for ms in milestones
     ]
@@ -306,15 +303,15 @@ def build_milestones_section(subtask_nodes, parent_name, edges):
     return {"display": "block"}, {"display": "none"}, tiles
 
 
-def collect_details_subtasks(node_name, include_soft, include_synergies,
-                              max_depth, global_filters):
+def collect_details_subtasks(graph, node_name, include_soft, include_synergies,
+                             max_depth, global_filters):
     """Return the filtered, sorted dependency rows shared by Details views."""
-    view = graph_manager.get_dependency_view(
+    view = graph.get_dependency_view(
         node_name, include_soft=include_soft,
         include_synergies=include_synergies, max_depth=max_depth,
         filters=global_filters)
     subtree = set(view["node_names"]) - {node_name}
-    subtask_nodes = [graph_manager.get_node(name) for name in subtree]
+    subtask_nodes = [graph.get_node(name) for name in subtree]
     subtask_nodes = [node for node in subtask_nodes if node is not None]
     subtask_nodes.sort(key=lambda n: (n.status == STATUS_DONE, n.name))
-    return subtask_nodes, graph_manager.get_edges()
+    return subtask_nodes, graph.get_edges()

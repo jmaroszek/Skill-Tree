@@ -17,13 +17,14 @@ from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from support.triggers import fire
+from skilltree.services import AppServices
 
 
 def _populate_editor_fn():
     """Register callbacks on a fresh Dash app and return the raw populate_editor function."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app)
+    register_callbacks(app, AppServices())
     # populate_editor's composite output starts with node-name.value
     target = [k for k in app.callback_map
               if "node-name.value" in k and "node-type.value" in k and "node-desc.value" in k][0]
@@ -205,12 +206,12 @@ def test_revert_of_a_node_deleted_meanwhile_leaves_the_form(monkeypatch):
     assert (result[0], result[2]) == (dash.no_update, dash.no_update)
 
 
-def test_revert_does_not_go_through_the_edit_trigger():
+def test_revert_does_not_go_through_the_edit_trigger(services):
     """The Edit trigger's payload was built wrong, so Revert reloaded
     nothing, and the trigger switches to the Nodes tab from Details."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app)
+    register_callbacks(app, services)
     for key, spec in app.callback_map.items():
         if "edit-trigger-input.value" in key:
             assert all(dep["id"] != "btn-revert" for dep in spec["inputs"])

@@ -1027,7 +1027,7 @@ class TestAnalyzeRefreshGate:
              'save-output': 'children'}
 
     @pytest.fixture
-    def refresh(self, monkeypatch):
+    def refresh(self, monkeypatch, services):
         import types
         import dash
         from skilltree.features.analyze import callbacks as analyze_callbacks
@@ -1035,7 +1035,7 @@ class TestAnalyzeRefreshGate:
         monkeypatch.setattr(analyze_callbacks, '_last_render', None)
         app = dash.Dash(__name__)
         app.config.suppress_callback_exceptions = True
-        analyze_callbacks.register_analyze_callbacks(app)
+        analyze_callbacks.register_analyze_callbacks(app, services)
         spec = app.callback_map[next(k for k in app.callback_map
                                      if 'analyze-overview-content' in k)]
         fn = spec['callback']

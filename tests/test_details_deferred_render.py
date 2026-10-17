@@ -16,6 +16,8 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
 from skilltree.ui import tokens
 from support.triggers import fire
+from skilltree.store.events import EventManager
+from skilltree.services import AppServices
 
 
 THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
@@ -24,8 +26,9 @@ THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
 def _app_with(*registrars):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
+    services = AppServices()
     for registrar in registrars:
-        registrar(app)
+        registrar(app, services)
     return app
 
 
@@ -289,7 +292,7 @@ def test_details_suggestions_use_explore_copy_and_filter_aware_empty_state():
 
 
 def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore():
-    manager = details_callbacks.graph_manager
+    manager = GraphManager()
     for node in (
         Node(
             name="Priority", type="Goal", description="", value=8,
@@ -359,10 +362,10 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
     app = _app_with(register_event_callbacks)
     monkeypatch.setattr(event_callbacks, 'ctx', SimpleNamespace(
         triggered_id={'type': 'event-card', 'index': 'Music'}))
-    monkeypatch.setattr(event_callbacks.event_manager, 'get_event',
-                        lambda name: Event(name=name))
-    monkeypatch.setattr(event_callbacks.event_manager, 'get_event_nodes',
-                        lambda name: [])
+    monkeypatch.setattr(EventManager, 'get_event',
+                        lambda self, name: Event(name=name))
+    monkeypatch.setattr(EventManager, 'get_event_nodes',
+                        lambda self, name: [])
     for spec in app.callback_map.values():
         if 'callback' not in spec:
             continue
@@ -378,7 +381,6 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
 
 
 def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
-    from skilltree.features.events import graph as event_graph
 
     node = Node(
         name="Dormant", type="Action", description="A future action",
@@ -389,16 +391,16 @@ def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):
     )
     app = _app_with(register_event_callbacks)
     monkeypatch.setattr(
-        event_graph.event_manager, "get_event_nodes",
-        lambda _event: [{"node": node}],
+        EventManager, "get_event_nodes",
+        lambda _self, _event: [{"node": node}],
     )
-    monkeypatch.setattr(event_graph.graph_manager, "get_edges", lambda: [])
+    monkeypatch.setattr(GraphManager, "get_edges", lambda _self: [])
     monkeypatch.setattr(
-        event_graph.graph_manager, "get_node",
-        lambda name: node if name == node.name else None,
+        GraphManager, "get_node",
+        lambda _self, name: node if name == node.name else None,
     )
     monkeypatch.setattr(
-        event_graph.event_manager, "get_trigger_node_names", lambda: set(),
+        EventManager, "get_trigger_node_names", lambda _self: set(),
     )
 
     callback = next(

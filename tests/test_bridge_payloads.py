@@ -19,6 +19,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN
 from skilltree.store.commands import handle_group_delete
+from skilltree.services import AppServices
 
 STAMP = "1700000000000"
 
@@ -72,7 +73,7 @@ def manager():
 def _callback(register, name):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register(app)
+    register(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):
@@ -101,7 +102,7 @@ def test_group_delete_removes_only_the_named_node(manager):
 
 
 def test_edit_trigger_opens_the_named_node():
-    assert resolve_active_node_id({"edit-trigger-input"}, "edit-trigger-input",
+    assert resolve_active_node_id(GraphManager(), {"edit-trigger-input"}, "edit-trigger-input",
                                   f"A|B|{STAMP}", None, None, None) == "A|B"
 
 

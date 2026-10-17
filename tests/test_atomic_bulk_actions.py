@@ -13,6 +13,7 @@ from skilltree.engine import callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_OPEN
 from skilltree.store.commands import handle_group_delete
+from skilltree.services import AppServices
 
 
 def _node(name):
@@ -43,7 +44,7 @@ def _fail_on(monkeypatch, method, failing_name):
 def _core_engine():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     target = next(k for k in app.callback_map
                   if k.startswith("..elements-pending-store.data"))
     fn = app.callback_map[target]["callback"]

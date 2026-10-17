@@ -13,6 +13,7 @@ from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 from skilltree.store.commands import conflicting_node_name
+from skilltree.services import AppServices
 
 
 def _node(name, **overrides):
@@ -70,7 +71,7 @@ class TestConflictRule:
 def _core_engine():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     target = next(k for k in app.callback_map
                   if k.startswith("..elements-pending-store.data"))
     fn = app.callback_map[target]["callback"]

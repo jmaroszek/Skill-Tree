@@ -21,7 +21,6 @@ from datetime import date
 from dash import html, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.features.analyze.charts import (
     render_bottleneck_chart as _render_bottleneck_chart,
@@ -34,7 +33,6 @@ from skilltree.features.analyze.charts import (
 )
 from skilltree.store.graph.state import revisions
 
-graph_manager = GraphManager()
 logger = logging.getLogger(__name__)
 
 # Distinguishes this server process from an earlier one, whose version
@@ -77,7 +75,8 @@ _THROUGHPUT_MAX_BARS = 24
 # Callback registration
 # ---------------------------------------------------------------------------
 
-def register_analyze_callbacks(app, services=None):
+def register_analyze_callbacks(app, services):
+    graph = services.graph
     # Arrival gate. Listening to `main-tabs.active_tab` directly meant every
     # tab switch anywhere in the app posted a request to the server just to
     # have refresh_analyze_tab answer no_update six times — a round-trip that
@@ -177,7 +176,7 @@ def register_analyze_callbacks(app, services=None):
 
         try:
             sections = _render_sections_once(
-                signature,
+                graph, signature,
                 (bottlenecks, goals, thru_gran, thru_start, thru_end, thru_color),
                 reuse)
         except Exception:
@@ -195,7 +194,7 @@ _render_lock = threading.Lock()
 _last_render = None
 
 
-def _render_sections_once(signature, args, reuse):
+def _render_sections_once(graph, signature, args, reuse):
     """Render the sections, sharing one render between a prewarm and the click
     that follows it.
 
@@ -211,7 +210,7 @@ def _render_sections_once(signature, args, reuse):
     with _render_lock:
         if reuse and _last_render is not None and _last_render[0] == key:
             return _last_render[1]
-        sections = _render_analyze_sections(*args)
+        sections = _render_analyze_sections(graph, *args)
         _last_render = (key, sections)
         return sections
 
@@ -227,7 +226,7 @@ def _analyze_signature():
             date.today().isoformat()]
 
 
-def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
+def _render_analyze_sections(graph, bottlenecks, goals, thru_gran, thru_start,
                              thru_end, thru_color):
     """The seven section bodies of the Analyze tab, in the callback's output
     order: the overview strip; Goals and Contexts (Plan); Time Estimation
@@ -248,14 +247,14 @@ def _render_analyze_sections(bottlenecks, goals, thru_gran, thru_start,
     al['throughput_end'] = thru_end or None
     ConfigManager.set_analyze_limits(al)
 
-    return _build_analyze_sections(al)
+    return _build_analyze_sections(graph, al)
 
 
 @database.snapshot_read
-def _build_analyze_sections(al):
+def _build_analyze_sections(graph, al):
     """Share graph and formatting settings after the limit write has committed."""
-    nodes = graph_manager.get_all_nodes(include_dormant=False)
-    edges = graph_manager.get_edges()
+    nodes = graph.get_all_nodes(include_dormant=False)
+    edges = graph.get_edges()
 
     if not nodes:
         empty = html.P("No nodes in the graph yet.", className="text-muted small")

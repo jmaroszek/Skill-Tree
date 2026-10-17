@@ -35,7 +35,6 @@ from skilltree.features.editor.layout import (
 from skilltree.features.editor.values import friendly_time_estimates
 from skilltree.store import database
 from skilltree.store.commands import bridge_form, plan_bridge
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
@@ -48,11 +47,9 @@ from skilltree.ui.components.ratings_table import (
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.prerender import prerendered
 
-manager = GraphManager()
 
-
-def register_editor_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_editor_callbacks(app, services):
+    manager = services.graph
 
     # --- Editor follows status changed elsewhere ---
     # Any mutation can change the open node's Done or Now from outside the
@@ -546,7 +543,7 @@ def register_editor_callbacks(app, services=None):
             manager.get_aliases(name) or [''],  # aliases-store
             None,  # pending-navigation-store — clear on successful populate
             False,  # modal-unsaved-changes — close on successful populate
-            build_editor_snapshot(manager, name),  # editor-pristine-snapshot
+            build_editor_snapshot(manager, services.events, name),  # editor-pristine-snapshot
             value_mode_val,  # node-value-mode (appended)
             # Habit-mode fields
             time_habit_mode_val,

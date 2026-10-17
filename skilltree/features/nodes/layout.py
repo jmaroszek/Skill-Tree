@@ -29,8 +29,10 @@ def empty_canvas_detail(hidden):
     return f"{total} {noun} {verb} {'Done' if done else 'Dormant'} and hidden."
 
 
-def create_graph_view(initial_elements):
-    """Create the Cytoscape graph canvas with fullscreen toggle button."""
+def create_graph_view():
+    """Create the Cytoscape graph canvas with fullscreen toggle button.
+
+    It starts empty. The canvas gets its elements on its first visit."""
     gl = ConfigManager.get_graph_layout_defaults()
     return html.Div([
         html.Div([
@@ -53,7 +55,7 @@ def create_graph_view(initial_elements):
                 },
                 style={'width': '100%', 'height': '100%',
                        'backgroundColor': tokens.BG_CANVAS, 'borderRadius': '8px'},
-                elements=initial_elements,
+                elements=[],
                 stylesheet=stylesheet,
                 userZoomingEnabled=False,
                 boxSelectionEnabled=True,

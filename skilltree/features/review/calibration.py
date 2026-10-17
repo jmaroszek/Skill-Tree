@@ -17,15 +17,12 @@ from skilltree.features.review.values import (
     calibration_review_queue,
     calibration_unit_for, reflects_in_notes_only,
 )
-from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.prerender import prerendered
 
-graph_manager = GraphManager()
 
-
-def register_calibration_callbacks(app, services=None):
+def register_calibration_callbacks(app, services):
     """Register the calibration modal's callbacks: answer, review, and chrome."""
-    manager = services.graph if services is not None else graph_manager
+    manager = services.graph
 
     # --- Time-Calibration Modal: Submit / Skip / Don't ask again ---
     # The modal serves three flows, distinguished by the 'mode' in

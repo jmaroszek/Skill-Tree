@@ -3,7 +3,6 @@ and layout requests. Each loops over CANVASES rather than naming a canvas."""
 import dash
 from dash import ClientsideFunction, Input, Output, State, ctx, html
 
-from skilltree.store.graph.manager import GraphManager
 from skilltree.ui import tokens
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.components.duration import format_time_friendly
@@ -11,11 +10,9 @@ from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.kit import progress_bar_color
 from skilltree.ui.prerender import prerendered
 
-manager = GraphManager()
 
-
-def register_canvas_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_canvas_callbacks(app, services):
+    manager = services.graph
 
     # --- Tooltip Formatting ---
     @app.callback(

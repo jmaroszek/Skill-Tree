@@ -197,7 +197,7 @@ def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
     graph(*(f'N{i}' for i in range(count)))
     opened, statements = _trace_connections(monkeypatch)
     first = to_json(analyze_callbacks._render_analyze_sections(
-        3, 4, 'quarter', None, None, 'context'))
+        GraphManager(), 3, 4, 'quarter', None, None, 'context'))
     # One limits read, one limits write, then one bulk read for every chart.
     assert len(opened) == 3
     assert sum('SELECT key, value FROM Settings' in s for s in statements) == 1
@@ -207,17 +207,17 @@ def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
     opened.clear()
     statements.clear()
     second = to_json(analyze_callbacks._render_analyze_sections(
-        3, 4, 'quarter', None, None, 'context'))
+        GraphManager(), 3, 4, 'quarter', None, None, 'context'))
     assert len(opened) == 3
     assert sum('SELECT key, value FROM Settings' in s for s in statements) == 1
     assert first != second
     analyze_callbacks._render_analyze_sections(
-        7, 8, 'month', None, None, 'type')
+        GraphManager(), 7, 8, 'month', None, None, 'type')
     assert ConfigManager.get_analyze_limits()['bottlenecks'] == 7
     assert database.current_snapshot() is None
 
 
-def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
+def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch, services):
     import dash
     from skilltree.features.details import callbacks as details_callbacks
     from dash._utils import to_json
@@ -225,7 +225,7 @@ def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch):
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', HARD)
     app = dash.Dash(__name__)
-    details_callbacks.register_details_callbacks(app)
+    details_callbacks.register_details_callbacks(app, services)
     spec = next(v for k, v in app.callback_map.items()
                 if 'details-explain-title.children' in k)
     callback = spec['callback'].__wrapped__

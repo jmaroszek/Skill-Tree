@@ -6,8 +6,6 @@ from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 import json
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
-from skilltree.store.graph.manager import GraphManager
-from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import badge_style
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
@@ -35,9 +33,6 @@ from skilltree.features.details.layout import (
     normalize_max_depth,
 )
 
-graph_manager = GraphManager()
-event_manager = EventManager()
-
 
 # The node panel's style while a node is selected. The browser applies it as
 # soon as the selection changes; select_detail_node restates it.
@@ -45,8 +40,8 @@ DETAILS_CONTENT_SHOWN = {"display": "flex", "flexDirection": "column", "flex": "
                          "padding": "0 18px", "overflowY": "auto"}
 
 
-def register_details_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_details_callbacks(app, services):
+    graph_manager = services.graph
 
     # --- Populate node dropdown when its underlying data changes ---
     # All tab contents stay mounted, so the initial call hydrates this once;
@@ -339,13 +334,13 @@ def register_details_callbacks(app, services=None):
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
-            node_name, include_soft, include_synergies, max_depth,
+            graph_manager, node_name, include_soft, include_synergies, max_depth,
             global_filters)
 
         # Milestones roster — derived from the same filtered subtask_nodes the
         # Subtasks table uses, so the strip stays in lockstep with the table.
         ms_section_style, bottom_toggles_style, ms_tiles = build_milestones_section(
-            subtask_nodes, node_name, edges)
+            graph_manager, subtask_nodes, node_name, edges)
 
         return (
             {"display": "none"},
@@ -463,7 +458,8 @@ def register_details_callbacks(app, services=None):
         global_filters = filters_from(sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
-        return _build_graph_elements(selected_node, include_soft_val,
+        return _build_graph_elements(graph_manager, services.events,
+                                     selected_node, include_soft_val,
                                      include_synergies_val, global_filters,
                                      max_depth=normalize_max_depth(max_depth_val),
                                      show_cross_links=bool(
@@ -839,8 +835,8 @@ def register_details_callbacks(app, services=None):
     register_explain_callbacks(app, services)
 
 
-def _build_graph_elements(selected_node, include_soft_val, include_synergies_val,
-                          global_filters=None, max_depth=None,
+def _build_graph_elements(graph, events, selected_node, include_soft_val,
+                          include_synergies_val, global_filters=None, max_depth=None,
                           show_cross_links=True):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
@@ -853,7 +849,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     if include_synergies:
         edge_types.add(EDGE_HELPS)
 
-    view = graph_manager.get_dependency_view(
+    view = graph.get_dependency_view(
         selected_node,
         include_soft=include_soft,
         include_synergies=include_synergies,
@@ -863,12 +859,12 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
     node_names = set(view["node_names"])
     discovery_edges = set(view["discovery_edges"])
 
-    styles = canvas_node_styles(event_manager)
+    styles = canvas_node_styles(events)
 
     elements = []
     filtered_names = set()
     for name in sorted(node_names):
-        node = graph_manager.get_node(name)
+        node = graph.get_node(name)
         if not node:
             continue
         filtered_names.add(name)
@@ -888,7 +884,7 @@ def _build_graph_elements(selected_node, include_soft_val, include_synergies_val
         ))
 
     edges = sorted(
-        graph_manager.get_edges(),
+        graph.get_edges(),
         key=lambda edge: (edge['source'], edge['target'], edge['type']))
     for e in edges:
         edge_key = (e['source'], e['target'], e['type'])

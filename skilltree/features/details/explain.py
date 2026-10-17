@@ -9,15 +9,12 @@ from skilltree.domain.goals import explain_goal, rank_goals
 from skilltree.domain.models import EDGE_NEEDS_HARD
 from skilltree.domain.scoring import explain_score, focus_route_data
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.styles import BADGE_PALETTE
 
-# The default manager, for callers that pass none.
-graph_manager = GraphManager()
 
 # Maps the `via` field from scoring.explain_score to a bar color.
 # Cool & quiet palette. Hard is a darker rugged blue (matches subtasks-
@@ -351,9 +348,8 @@ def build_explain_chart(contributors, top_n: int = 10):
     return _explain_bar_chart(contributors or [], top_n)
 
 
-
-def register_explain_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_explain_callbacks(app, services):
+    graph_manager = services.graph
 
     # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
     # The modal renders via React Portal (dbc.Modal uses createPortal), so it is

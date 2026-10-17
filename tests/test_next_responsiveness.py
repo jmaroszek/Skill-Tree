@@ -12,11 +12,11 @@ from skilltree.features.home.view import initial_next_view, _components_by_id
 from test_atomic_saves import graph
 
 
-def test_selection_has_no_server_subscribers():
+def test_selection_has_no_server_subscribers(services):
     from skilltree.engine.callbacks import register_callbacks
     app = dash.Dash(__name__)
-    register_callbacks(app)
-    register_next_callbacks(app)
+    register_callbacks(app, services)
+    register_next_callbacks(app, services)
     for spec in app.callback_map.values():
         if 'callback' in spec:
             assert not any(item['id'] == 'selected-suggestion-store' or
@@ -42,7 +42,7 @@ def test_initial_next_is_populated_and_reads_the_sidebar_controls():
     # the sidebar always opens unfiltered, so set the control directly.
     sidebars = build_all_sidebars()
     _components_by_id(sidebars)['filter-value'].value = [4, 10]
-    view = initial_next_view(next_view, sidebars)
+    view = initial_next_view(manager, next_view, sidebars)
     table = _components_by_id(view)['suggestions-table']
     from plotly.utils import PlotlyJSONEncoder
     payload = json.dumps(table, cls=PlotlyJSONEncoder)
@@ -106,14 +106,14 @@ assert.equal(result[3][2].border, '2px solid #0d6efd');  // N2
     subprocess.run([node, '-e', script], check=True, capture_output=True, text=True)
 
 
-def test_home_tables_are_not_rebuilt_on_page_load():
+def test_home_tables_are_not_rebuilt_on_page_load(services):
     """The layout already carries both, from the same snapshot and filters.
     Rebuilding the table on load held up the whole startup: it feeds
     selected-suggestion-store, a State of the core engine, so Dash kept the
     core engine waiting for it. A row clicked meanwhile was also lost when
     the rebuilt table replaced it."""
     app = dash.Dash(__name__)
-    register_next_callbacks(app)
+    register_next_callbacks(app, services)
     for output in ("suggestions-table.children", "now-nodes-table.children"):
         spec = next(c for c in app._callback_list if output in c["output"])
         assert spec["prevent_initial_call"] is True, output
@@ -128,7 +128,7 @@ def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
     monkeypatch.setattr(GraphManager, "_last_perf_timings",
                         {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4})
     monkeypatch.setattr(GraphManager, "_startup_perf_recorded", True)
-    caption = _components_by_id(build_app_layout([], env="sandbox"))["next-perf-stats"]
+    caption = _components_by_id(build_app_layout(GraphManager(), env="sandbox"))["next-perf-stats"]
 
     assert caption.children == "3 nodes · 2 edges · 12ms"
 

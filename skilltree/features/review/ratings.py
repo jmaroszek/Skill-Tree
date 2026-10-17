@@ -8,7 +8,7 @@ from skilltree.ui.components.ratings_table import (
 )
 
 
-def register_reflection_ratings_callbacks(app, services=None):
+def register_reflection_ratings_callbacks(app, services):
     # The reflection modal's actual-time inputs get the same hints.
     app.clientside_callback(
         ClientsideFunction(namespace='time_hour_hints', function_name='render_actual'),

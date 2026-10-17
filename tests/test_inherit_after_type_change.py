@@ -13,12 +13,13 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
+from skilltree.services import AppServices
 
 
 def _lock(output):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     spec = next(c for c in app._callback_list
                 if c.get("clientside_function") and output in c["output"])
     function = spec["clientside_function"]

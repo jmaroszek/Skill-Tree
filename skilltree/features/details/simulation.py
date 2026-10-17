@@ -14,17 +14,14 @@ from skilltree.domain.simulation import SimulationCancelled
 from skilltree.features.details.layout import normalize_max_depth
 from skilltree.features.details.simulation_service import simulation_service
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.duration import simulation_figure
 from skilltree.ui.filters import build_filters
 
-# The default manager, for callers that pass none.
-graph_manager = GraphManager()
 
-
-def register_simulation_callbacks(app, services=None):
+def register_simulation_callbacks(app, services):
+    graph = services.graph
     # Browser-generated sequence numbers let both the worker and the chart
     # discard superseded selections, even if responses arrive out of order.
     # Layout-affecting changes first send a node-less request, which shows
@@ -77,7 +74,7 @@ def register_simulation_callbacks(app, services=None):
             filters['hide_blocked'] = True
         try:
             fig, results_style, empty_style = _run_simulation(
-                request['node'], request.get('soft'), request.get('helps'),
+                graph, request['node'], request.get('soft'), request.get('helps'),
                 global_filters=filters, max_depth=normalize_max_depth(request.get('depth')),
                 should_cancel=cancelled)
             if cancelled():
@@ -123,7 +120,7 @@ class NothingLeft(Exception):
     """The node has no unfinished work to simulate. The message says why."""
 
 
-def _run_simulation(node_name, include_soft_val, include_synergies_val,
+def _run_simulation(graph, node_name, include_soft_val, include_synergies_val,
                     global_filters=None, max_depth=None, should_cancel=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style).
 
@@ -133,7 +130,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_helps = bool(include_synergies_val and "include" in include_synergies_val)
     with database.read_snapshot():
-        view = graph_manager.get_dependency_view(
+        view = graph.get_dependency_view(
             node_name,
             include_soft=include_soft,
             include_synergies=include_helps,
@@ -142,7 +139,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         )
         allowed = set(view["node_names"])
         nodes_dict = {
-            name: graph_manager.get_node(name) for name in allowed
+            name: graph.get_node(name) for name in allowed
         }
         nodes_dict = {name: node for name, node in nodes_dict.items() if node is not None}
         if node_name not in nodes_dict:
@@ -154,7 +151,7 @@ def _run_simulation(node_name, include_soft_val, include_synergies_val,
         if include_helps:
             permitted_types.add(EDGE_HELPS)
         sim_edges = [
-            edge for edge in graph_manager.get_edges()
+            edge for edge in graph.get_edges()
             if edge['type'] in permitted_types
             and edge['source'] in allowed and edge['target'] in allowed
         ]

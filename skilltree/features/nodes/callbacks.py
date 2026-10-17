@@ -4,16 +4,13 @@ import dash
 from dash import Input, Output, State, no_update
 
 from skilltree.features.nodes.layout import empty_canvas_detail
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import DEFAULT_GRAPH_LAYOUT, ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.filters import build_filters
 
-manager = GraphManager()
 
-
-def register_nodes_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_nodes_callbacks(app, services):
+    manager = services.graph
 
     # The count is read in the browser from the payload's stamp, as Details
     # counts its own.

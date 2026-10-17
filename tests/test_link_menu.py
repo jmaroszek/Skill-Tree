@@ -8,6 +8,7 @@ from skilltree.features.links import menu as link_menu_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
 from skilltree.store.commands import change_link, link_change_reopens
+from skilltree.services import AppServices
 
 
 def _node(name, **overrides):
@@ -121,7 +122,7 @@ def test_a_link_that_is_gone_or_an_unknown_action_is_refused(manager):
 def _callbacks():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    link_menu_callbacks.register_link_menu_callbacks(app)
+    link_menu_callbacks.register_link_menu_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -227,7 +228,7 @@ def test_a_change_that_reopens_done_nodes_waits_for_confirmation(done_chain, mon
 def _link_existing():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    details_callbacks.register_details_callbacks(app)
+    details_callbacks.register_details_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):

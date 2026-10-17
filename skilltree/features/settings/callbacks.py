@@ -42,7 +42,6 @@ from skilltree.features.settings.resources import (
     section_form_rows,
 )
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.resources import get_sections, validate_sections
 from skilltree.store.settings import (
     DEFAULT_NODE_COLORS,
@@ -52,8 +51,6 @@ from skilltree.store.settings import (
 )
 
 logger = logging.getLogger(__name__)
-
-manager = GraphManager()
 
 
 def _display_types():
@@ -148,8 +145,8 @@ def _save_message(plan) -> str:
     return f"Settings saved — {detail}" if detail else "Settings saved"
 
 
-def register_settings_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_settings_callbacks(app, services):
+    manager = services.graph
 
     # --- Settings: Keep each type colour's hex in step with its picker ---
     app.clientside_callback(
@@ -404,8 +401,7 @@ def register_settings_callbacks(app, services=None):
                 # modal can show "(dormant — in event: X)" — gives the user context
                 # for nodes that aren't currently on the canvas but still hold the
                 # stale config value.
-                from skilltree.store.events import EventManager
-                _em = EventManager()
+                _em = services.events
 
                 def _annotate(node):
                     base = {'name': node.name}

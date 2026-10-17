@@ -1,4 +1,6 @@
 """Community filter labels and ranking (community_labels)."""
+import functools
+from skilltree.store.events import EventManager
 from types import SimpleNamespace
 
 import dash
@@ -193,8 +195,9 @@ class TestCanvasOptions:
     @staticmethod
     def _view(manager, f_community, method="components"):
         from skilltree.ui.canvas.view import build_canvas_view
-        from skilltree.engine.callbacks import generate_elements
-        return build_canvas_view(manager, generate_elements, 'filter-community',
+        from skilltree.ui.canvas.elements import generate_elements
+        render = functools.partial(generate_elements, manager, EventManager())
+        return build_canvas_view(manager, render, 'filter-community',
                                  None, method, {}, f_community, None, None, None)
 
     @staticmethod
@@ -257,8 +260,9 @@ class TestCanvasOptions:
 
     def _render(self, manager, f_community, memory=None):
         from skilltree.ui.canvas.view import build_canvas_view
-        from skilltree.engine.callbacks import generate_elements
-        return build_canvas_view(manager, generate_elements, 'filter-community',
+        from skilltree.ui.canvas.elements import generate_elements
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager()),
+                                 'filter-community',
                                  None, "components", {'hide_done': True},
                                  f_community, None, None, None,
                                  community_memory=memory)
@@ -299,11 +303,11 @@ class TestCanvasOptions:
         assert self._shown(view) == set()
         assert view.community_options == [{"label": "All", "value": "All"}]
 
-    def test_the_empty_orphans_view_says_why(self, temp_database):
+    def test_the_empty_orphans_view_says_why(self, temp_database, services):
         from skilltree.engine import callbacks
         app = dash.Dash(__name__)
         app.config.suppress_callback_exceptions = True
-        callbacks.register_callbacks(app)
+        callbacks.register_callbacks(app, services)
         empty = next(spec['callback'] for key, spec in app.callback_map.items()
                      if 'canvas-empty-detail.children' in key)
         while hasattr(empty, '__wrapped__'):
@@ -321,8 +325,9 @@ class TestCanvasOptions:
 
     def _view_with(self, manager, f_community, memory):
         from skilltree.ui.canvas.view import build_canvas_view
-        from skilltree.engine.callbacks import generate_elements
-        return build_canvas_view(manager, generate_elements, 'filter-community',
+        from skilltree.ui.canvas.elements import generate_elements
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager()),
+                                 'filter-community',
                                  None, "components", {}, f_community, None, None,
                                  None, community_memory=memory)
 

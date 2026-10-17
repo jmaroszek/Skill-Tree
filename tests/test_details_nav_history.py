@@ -12,12 +12,13 @@ import dash
 import pytest
 
 from skilltree.features.details.callbacks import register_details_callbacks
+from skilltree.services import AppServices
 
 
 def _history_source():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_details_callbacks(app)
+    register_details_callbacks(app, AppServices())
     spec = next(c for c in app._callback_list
                 if c.get("clientside_function")
                 and c["output"].startswith("..details-nav-history.data"))

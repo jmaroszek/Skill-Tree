@@ -16,12 +16,13 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.events import EventManager
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
 from skilltree.domain.models import Event
+from skilltree.services import AppServices
 
 
 def _callbacks(register):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register(app)
+    register(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

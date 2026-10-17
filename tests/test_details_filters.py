@@ -12,6 +12,7 @@ from skilltree.features.details import callbacks as details_callbacks
 from skilltree.ui.filters import SIDEBAR_FILTERS, build_filters, filters_from
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
+from skilltree.services import AppServices
 
 APPLIES_THE_FILTERS = ("select_detail_node", "render_details_subtasks",
                        "toggle_details_subtask_filters", "update_details_graph")
@@ -20,7 +21,7 @@ APPLIES_THE_FILTERS = ("select_detail_node", "render_details_subtasks",
 def _registered():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    details_callbacks.register_details_callbacks(app)
+    details_callbacks.register_details_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

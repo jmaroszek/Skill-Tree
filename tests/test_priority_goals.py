@@ -14,6 +14,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from test_atomic_saves import node
+from skilltree.services import AppServices
 
 
 @pytest.fixture
@@ -120,7 +121,7 @@ def test_the_launch_repair_clears_ranks_held_by_finished_goals(manager):
 def _set_priority():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):

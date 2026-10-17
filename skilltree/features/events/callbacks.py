@@ -19,16 +19,12 @@ from skilltree.features.events.layout import (
     build_triggered_divider,
     trigger_confirmation_body,
 )
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.list_toolbar import merge_manual_order
 from skilltree.ui.prerender import prerendered
 
-event_manager = EventManager()
-graph_manager = GraphManager()
 
 _badge_hidden = {"fontSize": tokens.FS_BASE, "display": "none"}
 
@@ -68,9 +64,9 @@ def _trigger_mode_hint(trigger_mode, trigger_nodes):
     return "Auto-triggers as soon as any one of the selected nodes is marked complete."
 
 
-def register_event_callbacks(app, services=None):
-    event_manager = services.events if services is not None else globals()['event_manager']
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_event_callbacks(app, services):
+    event_manager = services.events
+    graph_manager = services.graph
 
     # Events arrival gate. The three data-heavy Events callbacks below still
     # refresh when the user opens Events, but switching between any other tabs

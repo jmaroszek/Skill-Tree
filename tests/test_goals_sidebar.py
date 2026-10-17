@@ -19,6 +19,7 @@ from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.goals.layout import build_goals_sidebar
+from skilltree.services import AppServices
 
 
 ASSET = Path(__file__).resolve().parents[1] / "assets" / "goals_sidebar.js"
@@ -185,7 +186,7 @@ def _render_goal_list(trigger, sidebar_style):
     """Run render_goal_list as Dash would for a single triggering input."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
     render = next(
         spec["callback"].__wrapped__ for spec in app.callback_map.values()
         if getattr(spec.get("callback"), "__wrapped__", None) is not None
@@ -234,17 +235,17 @@ def test_closed_goal_list_never_builds_and_clears_after_its_slide():
     assert cover.className == "loading-cover"
 
 
-def test_nothing_builds_the_goal_list_at_startup():
+def test_nothing_builds_the_goal_list_at_startup(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, services)
     render = next(c for c in app._callback_list
                   if c["output"] == "details-goal-list-container.children")
     assert "elements-pending-store" not in [i["id"] for i in render["inputs"]]
     assert all("goals-prewarm-store" not in c["output"] for c in app._callback_list)
 
 
-def test_analyze_does_not_render_at_startup():
+def test_analyze_does_not_render_at_startup(services):
     """Its charts cost about 0.6 s of browser work, and the startup cover
     waited for them. Only the Analyze tab's own hover prewarm writes the
     store now."""
@@ -252,6 +253,6 @@ def test_analyze_does_not_render_at_startup():
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    analyze_callbacks.register_analyze_callbacks(app)
+    analyze_callbacks.register_analyze_callbacks(app, services)
     assert not any(c["output"].startswith("analyze-prewarm-store")
                    for c in app._callback_list)

@@ -3,6 +3,7 @@
 import dash
 import pytest
 from skilltree.ui.tabs import register_tab_callbacks
+from skilltree.services import AppServices
 
 
 TAB_IDS = ["tab-next", "tab-canvas", "tab-details", "tab-events", "tab-analyze"]
@@ -21,7 +22,7 @@ def _toggle_fn():
     """Register the tab callbacks on a fresh Dash app and return the raw toggle function."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_tab_callbacks(app)
+    register_tab_callbacks(app, AppServices())
     key = [k for k in app.callback_map
            if "next-tab-content.style" in k and "canvas-tab-content.style" in k][0]
     cb = app.callback_map[key]["callback"]

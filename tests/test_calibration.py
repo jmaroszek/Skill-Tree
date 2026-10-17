@@ -429,12 +429,12 @@ def test_recorded_zeros_are_no_actual_time():
 # ============================================================================
 
 @pytest.fixture
-def calibration_handlers(monkeypatch):
+def calibration_handlers(monkeypatch, services):
     import dash
     from skilltree.features.review import calibration as calibration_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    calibration_callbacks.register_calibration_callbacks(app)
+    calibration_callbacks.register_calibration_callbacks(app, services)
     handlers = {}
     for spec in app.callback_map.values():
         fn = spec.get('callback')

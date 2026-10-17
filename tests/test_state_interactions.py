@@ -2,6 +2,8 @@
 from datetime import date
 
 import dash
+
+from skilltree.services import AppServices
 import pytest
 
 from skilltree.engine import callbacks
@@ -29,8 +31,9 @@ def clean_suggestions():
 def handlers():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
-    event_callbacks.register_event_callbacks(app)
+    services = AppServices()
+    callbacks.register_callbacks(app, services)
+    event_callbacks.register_event_callbacks(app, services)
     result = {}
     for spec in app.callback_map.values():
         fn = spec.get('callback')
@@ -451,14 +454,14 @@ def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger
     ('handle_now_trigger', lambda node: (f'["{node}"]|1',)),
     ('dispatch_now_toggle', lambda node: (['now'], node)),
 ])
-def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args):
+def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, services):
     """The cap check and the write hold one lock, so a second request waits
     for the first to finish and then sees the list full."""
     import threading
     import time
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, services)
     registered = next(spec['callback'] for spec in app.callback_map.values()
                       if getattr(spec.get('callback'), '__name__', None) == name)
     handler = registered.__wrapped__  # Dash's wrapper, then ours
@@ -479,7 +482,7 @@ def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args):
     assert len(manager.get_now_nodes()) == 1
 
 
-def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, monkeypatch):
+def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, monkeypatch, services):
     """The form still says Dormant in its event. Saving that used to ask to
     put the awake node back to sleep, which was refused, and every other
     edit with it."""
@@ -488,7 +491,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     events = EventManager()
     events.add_event(Event('Later'))
     events.add_node_to_event('Later', 'A')
-    loaded = build_dormancy_snapshot(manager.get_node('A'))
+    loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
     events.trigger_event_manually('Later')  # another window, or the date sweep
     result = run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
                       dormancy=loaded,
@@ -500,7 +503,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     assert result.save_result['form']['dormancy']['dormant'] is False
 
 
-def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch):
+def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch, services):
     """Only an untouched section gives way to the wake. Asking to sleep in
     another event is a real request, refused with its own reason."""
     from skilltree.features.editor.form import build_dormancy_snapshot
@@ -509,7 +512,7 @@ def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monke
     for name in ('Later', 'Other'):
         events.add_event(Event(name))
     events.add_node_to_event('Later', 'A')
-    loaded = build_dormancy_snapshot(manager.get_node('A'))
+    loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
     events.trigger_event_manually('Later')
     result = run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
                       dormancy={**loaded, 'event': 'Other'},

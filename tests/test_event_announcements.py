@@ -14,10 +14,10 @@ from skilltree.store.settings import ConfigManager
 
 
 @pytest.fixture
-def handlers():
+def handlers(services):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
+    event_callbacks.register_event_callbacks(app, services)
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

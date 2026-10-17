@@ -6,15 +6,12 @@ from dash import Input, Output, no_update
 
 from skilltree.domain.models import STATUS_DONE
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui import payloads as bridge_payloads
 
-manager = GraphManager()
 
-
-def register_now_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_now_callbacks(app, services):
+    manager = services.graph
 
     # --- Context-Menu Now Toggle ---
     # Right-click → "Now" on the canvas / mini-graphs / goal sidebar

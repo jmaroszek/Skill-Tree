@@ -13,12 +13,13 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Event, Node
+from skilltree.services import AppServices
 
 
 def _clock():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
+    event_callbacks.register_event_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while hasattr(fn, "__wrapped__"):
@@ -41,7 +42,7 @@ def _find(component, component_id):
 
 
 def test_the_layout_runs_the_clock():
-    clock = _find(build_app_layout([], env="sandbox"), "event-clock")
+    clock = _find(build_app_layout(GraphManager(), env="sandbox"), "event-clock")
     assert clock is not None and not getattr(clock, "disabled", False)
 
 

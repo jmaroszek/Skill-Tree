@@ -6,7 +6,7 @@ have no updater, so only the version number is shown there.
 from dash import Input, Output
 
 
-def register_about_callbacks(app, services=None):
+def register_about_callbacks(app, services):
     app.clientside_callback(
         """function(activeTab) {
             const bridge = window.skillTreeDesktop && window.skillTreeDesktop.updates;

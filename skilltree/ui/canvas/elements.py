@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
 from skilltree.ui import payloads as bridge_payloads
+from skilltree.store import database
 
 
 @dataclass(frozen=True)
@@ -128,3 +129,46 @@ def build_edge_element(edge):
         # the node selection and left no outline to show for it.
         'selectable': False,
     }
+
+
+# What generate_elements takes as ``active_node_id`` to leave every node's
+# selection as the canvas has it. dash-cytoscape changes a node's selection
+# only when its ``selected`` differs from the previous render's, so a node
+# without one is left alone.
+KEEP_SELECTION = object()
+
+
+@database.snapshot_read
+def generate_elements(graph, events, filters=None, active_node_id=None,
+                      community_names=None):
+    """Convert nodes and edges from the database into Cytoscape elements.
+
+    ``active_node_id`` names the one node to select, None selects none, and
+    KEEP_SELECTION leaves the selection to the canvas.
+    """
+    if filters is None: filters = {}
+    # Always fetch dormant nodes too — filter_nodes decides whether to keep
+    # them based on the `show_dormant` filter. Fetching unconditionally keeps
+    # the include/exclude decision in one place (the filter pipeline).
+    nodes = graph.get_all_nodes(include_dormant=True)
+    filtered_nodes = graph.filter_nodes(nodes, filters)
+
+    if community_names is not None:
+        filtered_nodes = [n for n in filtered_nodes if n.name in community_names]
+
+    valid_names = {n.name for n in filtered_nodes}
+    styles = canvas_node_styles(events)
+
+    def _selected(node):
+        if active_node_id is KEEP_SELECTION:
+            return None
+        return node.name == active_node_id if active_node_id else False
+
+    elements = [
+        build_node_element(node, styles, selected=_selected(node))
+        for node in filtered_nodes
+    ]
+    elements.extend(
+        build_edge_element(e) for e in graph.get_edges()
+        if e['source'] in valid_names and e['target'] in valid_names)
+    return elements

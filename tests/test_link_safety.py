@@ -21,6 +21,7 @@ import pytest
 from skilltree.runtime import opener
 from skilltree.runtime.opener import NeedsConfirmation
 from skilltree.store import resources as stored_resources
+from skilltree.services import AppServices
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -205,7 +206,7 @@ def _callbacks():
     from skilltree.features.editor.resources import register_resource_link_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_resource_link_callbacks(app)
+    register_resource_link_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

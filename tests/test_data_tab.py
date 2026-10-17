@@ -17,6 +17,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
 from skilltree.store import schema
+from skilltree.services import AppServices
 
 
 def _node(name):
@@ -28,7 +29,7 @@ def _node(name):
 def _callbacks(register):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register(app)
+    register(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -57,7 +58,7 @@ def _ids(component, found=None):
 
 
 def test_the_settings_modal_has_a_data_tab():
-    ids = _ids(build_app_layout([], env="sandbox"))
+    ids = _ids(build_app_layout(GraphManager(), env="sandbox"))
     assert {"btn-backup-now", "btn-open-backup-folder", "setting-backup-extra-dir", "setting-auto-backup",
             "restore-backup-select", "btn-restore-confirm", "btn-export-json",
             "download-export-json", "download-export-db", "upload-import",

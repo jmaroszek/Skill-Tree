@@ -6,6 +6,7 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
+from skilltree.services import AppServices
 from skilltree.store import database
 from skilltree.store import schema
 
@@ -39,6 +40,13 @@ def temp_database(monkeypatch, tmp_path, new_database):
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
     schema.mark_current(tmp_db_path)
     yield tmp_db_path
+
+
+@pytest.fixture
+def services(temp_database):
+    """The app's GraphManager and EventManager, wired together as create_app
+    wires them, on this test's database."""
+    return AppServices()
 
 
 @pytest.fixture

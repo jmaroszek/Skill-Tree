@@ -7,6 +7,7 @@ from skilltree.features.details.layout import build_details_tab_content
 from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.shell import build_app_layout
 from skilltree.features.filters.layout import build_filters_content
+from skilltree.store.graph.manager import GraphManager
 
 
 def _walk(component):
@@ -108,7 +109,7 @@ def test_the_editor_separates_search_from_general_like_every_other_section():
 
 
 def test_the_nodes_canvas_has_an_empty_state_with_its_three_ways_out():
-    layout = build_app_layout([], env="sandbox")
+    layout = build_app_layout(GraphManager(), env="sandbox")
     ids = _ids(layout)
     state = _by_id(layout, "canvas-empty-state")
 
@@ -199,7 +200,7 @@ def test_details_panel_opts_into_max_depth_but_others_do_not():
 
 
 def test_app_layout_has_no_global_local_view_stores():
-    layout = build_app_layout([], env="sandbox")
+    layout = build_app_layout(GraphManager(), env="sandbox")
     ids = _ids(layout)
 
     assert "filter-local-view-state-store" not in ids

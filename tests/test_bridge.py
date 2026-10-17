@@ -16,6 +16,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
 from skilltree.store.commands import bridge_form, finish_bridge, plan_bridge
 from support.triggers import fire
+from skilltree.services import AppServices
 
 
 def _node(name, **overrides):
@@ -122,7 +123,7 @@ def test_the_dialog_opens_in_the_order_and_type_of_an_existing_link(manager):
 def _bridge_callbacks():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    bridge_callbacks.register_bridge_callbacks(app)
+    bridge_callbacks.register_bridge_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -211,7 +212,7 @@ def test_no_pending_bridge_changes_nothing(manager):
 def _registered():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")

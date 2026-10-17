@@ -14,7 +14,6 @@ from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunc
 
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_DONE
@@ -25,12 +24,10 @@ from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.sidebars import left_sidebar_is_open
 from skilltree.domain.goals import normalize_goal_scores, rank_goals
 
-graph_manager = GraphManager()
 
-
-def _goal_list(search_val, sort_mode, manual_order, selected_node):
+def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
     """The Goals sidebar's cards, or its empty-state message."""
-    all_nodes = graph_manager.get_all_nodes()
+    all_nodes = graph.get_all_nodes()
     goals = [n for n in all_nodes if n.type == "Goal"]
 
     if not goals:
@@ -46,7 +43,7 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
     priority_goals = ConfigManager.get_priority_goals()
     completion_cache = {}
     for g in goals:
-        completion_cache[g.name] = graph_manager.get_goal_completion(g.name, include_soft=False)
+        completion_cache[g.name] = graph.get_goal_completion(g.name, include_soft=False)
 
     def _is_done(g):
         c = completion_cache[g.name]
@@ -72,7 +69,7 @@ def _goal_list(search_val, sort_mode, manual_order, selected_node):
         # weight. Every Goal is ranked, not just
         # the ones the search leaves, so the corner numbers keep the same
         # base as the Explain modal and the Details suggestions.
-        edges = graph_manager.get_edges()
+        edges = graph.get_edges()
         ranked = rank_goals([n for n in all_nodes if n.type == "Goal"],
                             all_nodes, edges, priority_goals,
                             ConfigManager.get_hyperparams(),
@@ -145,9 +142,11 @@ GOAL_LIST_SOURCES = (
 )
 
 
-def register_sidebars_callbacks(app, services=None):
+def register_sidebars_callbacks(app, services):
     """Register the cross-tab sidebar callbacks: goals (toggle, new, render,
     priority, drag-reorder), filters toggle, editor fast-path."""
+    graph_manager = services.graph
+
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
     # Handled in the browser via assets/goals_sidebar.js to eliminate the
     # server round-trip on open/close. Once the open slide finishes it bumps
@@ -232,7 +231,7 @@ def register_sidebars_callbacks(app, services=None):
             # The manual order comes from the database, not the store. The
             # store is loaded with the page and only written by a drag, while
             # renames and deletes keep the saved order current.
-            return _goal_list(search_val, sort_mode, ConfigManager.get_goal_order(),
+            return _goal_list(graph_manager, search_val, sort_mode, ConfigManager.get_goal_order(),
                               selected_node)
 
 

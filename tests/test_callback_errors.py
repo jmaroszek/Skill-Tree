@@ -11,6 +11,7 @@ from dash import Input, Output
 
 from skilltree import app as app_module
 from skilltree.engine import callbacks
+from skilltree.services import AppServices
 
 
 @pytest.fixture
@@ -73,7 +74,7 @@ def _save_new_node(monkeypatch):
     from editor_forms import call
     probe = dash.Dash(__name__)
     probe.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(probe)
+    callbacks.register_callbacks(probe, AppServices())
     target = next(k for k in probe.callback_map
                   if k.startswith("..elements-pending-store.data"))
     core_engine = probe.callback_map[target]["callback"]

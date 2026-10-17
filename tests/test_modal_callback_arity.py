@@ -12,12 +12,13 @@ from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.services import AppServices
 
 
 def _callbacks(register):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register(app)
+    register(app, AppServices())
     found = {}
     for key, spec in app.callback_map.items():
         fn = spec.get("callback")

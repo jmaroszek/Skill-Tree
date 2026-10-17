@@ -22,6 +22,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
 from skilltree.store.commands import apply_dormancy, handle_save
+from skilltree.services import AppServices
 
 
 @pytest.fixture
@@ -242,7 +243,7 @@ def test_set_now_on_trigger(mgr, em):
     assert em.get_node_membership("Voice")["now_on_trigger"] is True
 
 
-def test_snapshot_of_a_dormant_node_shows_its_event(mgr, em):
+def test_snapshot_of_a_dormant_node_shows_its_event(mgr, em, services):
     em.add_event(Event(name="A"))
     em.create_dormant_node(_node("Voice"), "A", delay_days=14, now_on_trigger=True)
 
@@ -251,7 +252,7 @@ def test_snapshot_of_a_dormant_node_shows_its_event(mgr, em):
     assert snap == {"dormant": True, "event": "A", "event_name": "",
                     "delay_value": 2, "delay_unit": "weeks",
                     "wake_date": None, "now": True}
-    assert build_editor_snapshot(mgr, "Voice")["dormancy"] == snap
+    assert build_editor_snapshot(mgr, services.events, "Voice")["dormancy"] == snap
 
 
 def test_snapshot_of_a_scheduled_node_shows_its_wake_date(mgr, em):
@@ -265,9 +266,9 @@ def test_snapshot_of_a_scheduled_node_shows_its_wake_date(mgr, em):
     assert snap["wake_date"] == em.get_node_membership("Voice")["activation_date"]
 
 
-def test_a_live_node_snapshot_is_not_dormant(mgr):
+def test_a_live_node_snapshot_is_not_dormant(mgr, services):
     mgr.add_node(_node("Voice"))
-    assert build_dormancy_snapshot(mgr.get_node("Voice"))["dormant"] is False
+    assert build_dormancy_snapshot(mgr.get_node("Voice"), services.events)["dormant"] is False
 
 
 def test_delays_compare_in_days():
@@ -302,8 +303,8 @@ def test_an_unset_store_matches_a_live_node():
 def _callback(name):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
-    dormancy.register_dormancy_callbacks(app)
+    event_callbacks.register_event_callbacks(app, AppServices())
+    dormancy.register_dormancy_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

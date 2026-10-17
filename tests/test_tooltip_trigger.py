@@ -81,7 +81,7 @@ def test_no_module_builds_a_raw_dbc_tooltip():
     assert offenders == [], f"use ui_kit.Tooltip instead of dbc.Tooltip in {offenders}"
 
 
-def test_editor_action_tooltips_dismiss_when_sidebar_closes():
+def test_editor_action_tooltips_dismiss_when_sidebar_closes(services):
     tips = {tip.id: tip for tip in _tooltips(build_node_editor_content())
             if getattr(tip, 'id', None) and tip.id.startswith('editor-')}
     expected = {
@@ -92,7 +92,7 @@ def test_editor_action_tooltips_dismiss_when_sidebar_closes():
     assert all(tip.trigger == 'hover' for tip in tips.values())
 
     app = dash.Dash(__name__)
-    register_sidebars_callbacks(app)
+    register_sidebars_callbacks(app, services)
     callback = next(c for c in app._callback_list
                     if all(f'{tip}.is_open' in c['output'] for tip in expected))
     assert callback['inputs'] == [{'id': 'sidebar-editor-container', 'property': 'style'}]

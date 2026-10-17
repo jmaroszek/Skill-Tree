@@ -239,7 +239,7 @@ def _state_mirror(mode: str) -> str:
     """
 
 
-def register_context_picker_callbacks(app: Any) -> None:
+def register_context_picker_callbacks(app: Any, services) -> None:
     """Wire visible picker actions to the established Dash component values."""
     for picker_id, context_id, subcontext_id, mode in _PICKERS:
         app.clientside_callback(

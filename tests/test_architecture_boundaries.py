@@ -57,13 +57,10 @@ DEFERRED_IMPORTS_OK = {'skilltree.app'}
 
 KNOWN_VIOLATIONS = {
     'deferred: skilltree.engine.callbacks -> skilltree.domain.models',
-    'deferred: skilltree.engine.callbacks -> skilltree.store.events',
     'deferred: skilltree.features.details.layout -> skilltree.domain.models',
     'deferred: skilltree.features.onboarding.steps -> skilltree.store.database',
-    'deferred: skilltree.features.settings.callbacks -> skilltree.store.events',
     'deferred: skilltree.features.settings.callbacks -> skilltree.store.settings',
     'deferred: skilltree.runtime.server -> skilltree.runtime.version',
-    'deferred: skilltree.shell -> skilltree.features.home.view',
     'deferred: skilltree.store.backup -> skilltree.store.settings',
     'deferred: skilltree.store.commands -> skilltree.domain.models',
     'deferred: skilltree.store.events -> skilltree.domain.rules',

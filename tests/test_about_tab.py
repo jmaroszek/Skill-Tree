@@ -30,7 +30,7 @@ def _ids(component, found=None):
 
 
 def test_app_and_data_keeps_only_version_and_update_preference():
-    ids = _ids(build_app_layout([], env="sandbox"))
+    ids = _ids(build_app_layout(GraphManager(), env="sandbox"))
     assert {"about-version", "about-updates", "about-update-auto"} <= ids
     assert not ids & {"btn-open-data-folder", "btn-open-log-folder",
                       "about-diagnostics", "about-copy-diagnostics", "about-report-link",
@@ -88,7 +88,7 @@ def _component(root, component_id):
 
 
 def test_the_toolbar_has_no_external_help_button():
-    assert _component(build_app_layout([], env="sandbox"), "btn-help") is None
+    assert _component(build_app_layout(GraphManager(), env="sandbox"), "btn-help") is None
 
 
 def test_the_notice_file_remains_available_to_packaged_builds(monkeypatch, tmp_path):

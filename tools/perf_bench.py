@@ -70,17 +70,18 @@ def server_timings(db_path, repeats=5):
     schema.init_db(recheck=True)
 
     from skilltree.store import backup
-    from skilltree.engine import callbacks
+    from skilltree.services import AppServices
     from skilltree.store import transfer as data_transfer
     from skilltree.features.home import view as next_view
     from skilltree.store import commands as node_commands
     from skilltree.features.home.table import format_suggestions_table
     from skilltree.store.settings import ConfigManager
-    from skilltree.store.graph.manager import GraphManager
+    from skilltree.ui.canvas.elements import generate_elements
     from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
     from skilltree.features.details.simulation_service import simulation_service
 
-    manager = GraphManager()
+    services = AppServices()
+    manager = services.graph
     nodes = {n.name: n for n in manager.get_all_nodes(include_dormant=True)}
     edges = manager.get_edges()
     hard_out, hard_in = {}, {}
@@ -105,7 +106,7 @@ def server_timings(db_path, repeats=5):
                   key=lambda n: len(hard_in.get(n.name, [])) + len(hard_out.get(n.name, [])))
 
     def rank():
-        ranked = next_view.get_suggestions({}, 25)
+        ranked = next_view.get_suggestions(manager, {}, 25)
         format_suggestions_table(ranked.rows, manager, pinned_steps=ranked.pinned_steps)
 
     def rank_after_edit():
@@ -116,7 +117,8 @@ def server_timings(db_path, repeats=5):
     results["Home ranking after an edit"] = _median(rank_after_edit, repeats)
     results["Home ranking, unchanged graph"] = _median(rank, repeats)
 
-    results["Nodes canvas payload"] = _median(lambda: callbacks.generate_elements(), repeats)
+    results["Nodes canvas payload"] = _median(
+        lambda: generate_elements(manager, services.events), repeats)
 
     def relations(name):
         pick = lambda kind, end, key: sorted(  # noqa: E731

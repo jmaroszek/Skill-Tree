@@ -4,8 +4,6 @@ import time
 
 from dash import Input, Output, State, no_update
 
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.canvas.elements import (
     build_edge_element,
@@ -21,13 +19,10 @@ from skilltree.ui.filters import (
 )
 from skilltree.ui.prerender import prerendered
 
-event_manager = EventManager()
-graph_manager = GraphManager()
 
-
-def register_event_graph_callbacks(app, services=None):
-    event_manager = services.events if services is not None else globals()['event_manager']
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_event_graph_callbacks(app, services):
+    event_manager = services.events
+    graph_manager = services.graph
 
     # --- Event Graph: render dormant nodes + immediate neighbors ---
     # The Nodes outside event switch drops the neighbors, leaving the event's own

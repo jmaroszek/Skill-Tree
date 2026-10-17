@@ -157,7 +157,7 @@ def test_cached_required_work_updates_after_remote_prerequisite_edit():
     assert after == fresh
 
 
-def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_policy():
+def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_policy(services):
     import inspect
     from dash import Input, State, Output
     from skilltree.features.settings.callbacks import register_settings_callbacks
@@ -172,7 +172,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
             return register
 
     registry = Registry()
-    register_settings_callbacks(registry)
+    register_settings_callbacks(registry, services)
     for name in ['load_settings', 'save_settings']:
         fn, deps = registry.callbacks[name]
         assert len(inspect.signature(fn).parameters) == sum(isinstance(d, (Input, State)) for d in deps)

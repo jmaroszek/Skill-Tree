@@ -9,7 +9,6 @@ from skilltree.features.home.table import (
 )
 from skilltree.ui.filters import build_filters
 
-manager = GraphManager()
 
 def _components_by_id(children):
     """Index a component tree without modifying shared layout templates."""
@@ -28,7 +27,7 @@ def _components_by_id(children):
 
 
 @database.snapshot_read
-def initial_next_view(template, sidebars):
+def initial_next_view(graph, template, sidebars):
     """Ship usable Next content in the first layout, with the actual UI filters."""
     view = deepcopy(template)
     controls = _components_by_id(sidebars)
@@ -45,11 +44,11 @@ def initial_next_view(template, sidebars):
     count = ConfigManager.get_next_table_rows()
     parts['suggestion-count-store'].data = count
     parts['suggestion-count-display'].children = str(count)
-    next_rows = get_suggestions(filters, count=count)
+    next_rows = get_suggestions(graph, filters, count=count)
     parts['suggestions-table'].children = format_suggestions_table(
-        next_rows.rows, manager, pinned_steps=next_rows.pinned_steps)
+        next_rows.rows, graph, pinned_steps=next_rows.pinned_steps)
     parts['now-nodes-table'].children = format_now_nodes_section(
-        manager.get_now_nodes(), manager)
+        graph.get_now_nodes(), graph)
     return view
 
 
@@ -67,11 +66,13 @@ def perf_stats_text():
             f"{t['total_ms']:.0f}ms")
 
 
+#: What the Next table renders: the ordered rows, plus a map from a pinned
+#: step's name to the Now target it unblocks (empty for an ordinary row).
 NextRows = namedtuple("NextRows", "rows pinned_steps")
 
 
 @database.snapshot_read
-def get_suggestions(filters=None, count=5, *, manager=manager):
+def get_suggestions(graph, filters=None, count=5):
     """Build the Next table: unblocking steps on top, then the ranking.
 
     Hierarchical variety is already baked into `priority_score` by the
@@ -92,18 +93,18 @@ def get_suggestions(filters=None, count=5, *, manager=manager):
     """
     if filters is None:
         filters = {}
-    nodes = [n for n in manager.get_all_nodes() if not n.now]
-    filtered_nodes = manager.filter_nodes(nodes, filters)
+    nodes = [n for n in graph.get_all_nodes() if not n.now]
+    filtered_nodes = graph.filter_nodes(nodes, filters)
     priority_goals = ConfigManager.get_priority_goals()
 
-    steps = manager.get_unblocking_steps(
-        [n.name for n in manager.get_now_nodes()],
+    steps = graph.get_unblocking_steps(
+        [n.name for n in graph.get_now_nodes()],
         limit=ConfigManager.get_unblocking_steps_per_now(),
         priority_goals=priority_goals,
     )
     pinned_steps = {node.name: target for node, target in steps}
 
-    scored = manager.calculate_priority_scores(
+    scored = graph.calculate_priority_scores(
         [n for n in filtered_nodes if n.name not in pinned_steps],
         priority_goals=priority_goals,
     )

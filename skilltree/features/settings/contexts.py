@@ -259,7 +259,7 @@ def live_rows(state, name_vals, name_ids, weight_vals, weight_ids,
                              sub_vals, sub_ids)
 
 
-def register_context_editor_callbacks(app, services=None):
+def register_context_editor_callbacks(app, services):
     # --- Contexts editor -----------------------------------------------
     # The rows live in `context-editor-store`; the components below are only
     # how a click finds its row again. Text inputs are read as State rather

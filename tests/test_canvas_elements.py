@@ -7,13 +7,15 @@ raised them. So one graph rendered by all three canvases must give every node
 they share the same fill, classes and tooltip.
 """
 
+import functools
 import dash
 import pytest
 
 from skilltree.ui.canvas.elements import (
     CanvasNodeStyles, build_node_element, node_fill_color,
 )
-from skilltree.engine.callbacks import generate_elements, register_callbacks
+from skilltree.engine.callbacks import register_callbacks
+from skilltree.ui.canvas.elements import generate_elements
 from skilltree.ui.canvas import callbacks as canvas_callbacks
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
@@ -24,6 +26,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 from support.triggers import fire
 from skilltree.store.graph.state import revisions
+from skilltree.services import AppServices
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -42,7 +45,7 @@ def _app(*registrars):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     for register in registrars:
-        register(app)
+        register(app, AppServices())
     return app
 
 
@@ -62,7 +65,7 @@ def _nodes(elements):
 
 
 @pytest.fixture
-def canvases():
+def canvases(services):
     """The seeded graph as each canvas renders it, keyed by canvas key.
 
     Root is dormant, attached to the Trip event, and Blocked. Every other
@@ -92,8 +95,8 @@ def canvases():
     show_dormant = {'show_dormant': True}
     render_event_graph = _callback(_app(register_event_callbacks), 'render_event_graph')
     rendered = {
-        'main': generate_elements(filters=show_dormant),
-        'details': _build_graph_elements(
+        'main': generate_elements(services.graph, services.events, filters=show_dormant),
+        'details': _build_graph_elements(services.graph, services.events, 
             'Root', ['include'], ['include'], global_filters=show_dormant),
         # Show Done and Show Dormant, as the other two canvases are given.
         'events': render_event_graph('Trip', 0, True, None, {
@@ -162,9 +165,9 @@ def test_no_canvas_lets_a_link_be_selected(canvases):
         assert all(e['selectable'] is False for e in edges), key
 
 
-def test_the_nodes_canvas_can_leave_the_selection_alone(canvases):
-    from skilltree.engine.callbacks import KEEP_SELECTION
-    kept = generate_elements(filters={'show_dormant': True}, active_node_id=KEEP_SELECTION)
+def test_the_nodes_canvas_can_leave_the_selection_alone(canvases, services):
+    from skilltree.ui.canvas.elements import KEEP_SELECTION
+    kept = generate_elements(services.graph, services.events, filters={'show_dormant': True}, active_node_id=KEEP_SELECTION)
     nodes = [e for e in kept if 'source' not in e['data']]
     assert nodes and all('selected' not in e for e in nodes)
 
@@ -231,13 +234,14 @@ def test_every_laid_out_canvas_redraws_when_the_graph_changes():
 
 def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     from skilltree.ui.canvas.view import build_canvas_view
-    from skilltree.engine.callbacks import generate_elements
+    from skilltree.ui.canvas.elements import generate_elements
     from test_atomic_saves import graph
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', 'Needs_Hard')
     version = revisions.graph
     view = build_canvas_view(
-        manager, generate_elements, 'filter-context', None,
+        manager, functools.partial(generate_elements, manager, EventManager()),
+        'filter-context', None,
         'components', {}, 'All', 'B', None, None)
     assert {e['data']['id'] for e in view.elements if 'source' not in e['data']} == {'A', 'B'}
     assert view.clear_focus_style == {'display': 'inline-block'}

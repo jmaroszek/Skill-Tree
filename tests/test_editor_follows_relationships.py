@@ -6,6 +6,8 @@ the link menu while the editor was open came back on the next Save, even a
 Save that only changed the description.
 """
 import dash
+
+from skilltree.services import AppServices
 import pytest
 
 from skilltree.engine import callbacks
@@ -17,6 +19,7 @@ from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN
 from skilltree.store.commands import change_link
+from skilltree.store.events import EventManager
 
 
 def _node(name):
@@ -29,7 +32,7 @@ def _node(name):
 def handlers():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    callbacks.register_callbacks(app)
+    callbacks.register_callbacks(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -53,7 +56,7 @@ def manager():
 
 def _loaded(manager, name):
     """The editor as populate_editor leaves it for ``name``: form and snapshot."""
-    snapshot = build_editor_snapshot(manager, name)
+    snapshot = build_editor_snapshot(manager, EventManager(), name)
     form = {key: list(snapshot[key]) for key in RELATIONSHIP_FIELDS}
     return form, snapshot
 
@@ -131,11 +134,11 @@ def test_a_new_node_saves_the_links_it_was_given(handlers, monkeypatch, manager)
 
 # --- The pickers follow ---------------------------------------------------------------
 
-def test_an_untouched_picker_follows_and_an_edited_one_keeps_its_edits(manager):
+def test_an_untouched_picker_follows_and_an_edited_one_keeps_its_edits(manager, services):
     form, snapshot = _loaded(manager, "Basics")
     form["e_supp_s"] = ["Extra"]
     change_link(manager, "Basics", "Advanced", EDGE_NEEDS_HARD, "soft")
-    stored = build_editor_snapshot(manager, "Basics")
+    stored = build_editor_snapshot(manager, services.events, "Basics")
 
     values, followed = follow_relationships(stored, form, snapshot)
 
@@ -143,9 +146,9 @@ def test_an_untouched_picker_follows_and_an_edited_one_keeps_its_edits(manager):
     assert followed == {"e_supp_h": ["Applied"], "e_supp_s": ["Advanced"]}
 
 
-def test_nothing_follows_when_the_snapshot_already_matches(manager):
+def test_nothing_follows_when_the_snapshot_already_matches(manager, services):
     form, snapshot = _loaded(manager, "Basics")
-    stored = build_editor_snapshot(manager, "Basics")
+    stored = build_editor_snapshot(manager, services.events, "Basics")
     assert follow_relationships(stored, form, snapshot) == ({}, {})
     # A snapshot holding no lists gives nothing to judge by.
     assert follow_relationships(stored, form, {"name": "Basics"}) == ({}, {})

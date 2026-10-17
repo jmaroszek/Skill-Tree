@@ -47,7 +47,7 @@ def _problem(text):
     return html.Span(text, className="text-danger")
 
 
-def register_data_callbacks(app, services=None):
+def register_data_callbacks(app, services):
     # Fresh values each time the tab opens: backups appear while the app runs.
     @app.callback(
         Output("restore-backup-select", "options"),

@@ -41,7 +41,7 @@ def _component_types(block):
     return {c.id['type'] for c in _flatten(block) if isinstance(getattr(c, 'id', None), dict)}
 
 
-def test_sections_store_links_relative_to_their_root_and_follow_renames(tmp_path):
+def test_sections_store_links_relative_to_their_root_and_follow_renames(tmp_path, services):
     manager = GraphManager()
     manager.add_node(_node("Reading"))
     root = tmp_path / "library"
@@ -54,7 +54,7 @@ def test_sections_store_links_relative_to_their_root_and_follow_renames(tmp_path
     resources.save_node_links("Reading", {"books": [str(file)]})
     assert resources.get_node_links("Reading")["books"] == ["book.pdf"]
 
-    snapshot = build_editor_snapshot(manager, "Reading")
+    snapshot = build_editor_snapshot(manager, services.events, "Reading")
     assert snapshot["resource_links"] == {"books": ["book.pdf"]}
     form = dict(snapshot)
     assert not is_form_dirty_vs_snapshot(snapshot, form)

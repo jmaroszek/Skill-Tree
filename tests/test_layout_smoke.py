@@ -2,6 +2,7 @@
 
 import pytest
 from dash.development.base_component import Component
+from skilltree.store.graph.manager import GraphManager
 
 
 def _collect_ids(component):
@@ -31,7 +32,7 @@ def _collect_ids(component):
 
 def test_build_app_layout_returns_tab_containers_and_settings_modal():
     from skilltree.shell import build_app_layout
-    root = build_app_layout(initial_elements=[], env="sandbox")
+    root = build_app_layout(GraphManager(), env="sandbox")
     ids = _collect_ids(root)
     for tab_id in (
         "next-tab-content",
@@ -46,7 +47,7 @@ def test_build_app_layout_returns_tab_containers_and_settings_modal():
 
 def test_build_app_layout_has_main_tabs_and_default_next():
     from skilltree.shell import build_app_layout
-    root = build_app_layout(initial_elements=[], env="sandbox")
+    root = build_app_layout(GraphManager(), env="sandbox")
     ids = _collect_ids(root)
     assert "main-tabs" in ids
 

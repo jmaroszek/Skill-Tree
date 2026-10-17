@@ -11,6 +11,7 @@ from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store.events import EventManager
 from skilltree.domain.models import Event, Node
+from skilltree.services import AppServices
 
 
 def _node(name):
@@ -22,7 +23,7 @@ def _node(name):
 def _save_event():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
+    event_callbacks.register_event_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

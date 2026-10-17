@@ -12,6 +12,7 @@ from skilltree.store.settings import DEFAULT_CONTEXTS, ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
+from skilltree.services import AppServices
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -25,7 +26,7 @@ def _node(name, node_type="Learn", **overrides):
 def _callbacks(register):
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register(app)
+    register(app, AppServices())
     found = {}
     for spec in app.callback_map.values():
         fn = spec.get("callback")
@@ -61,7 +62,7 @@ def _clicked(fn, button, *args):
 
 def test_a_new_user_is_welcomed():
     assert onboarding.should_welcome() is True
-    modal = _find(build_app_layout([], env="sandbox"), "welcome-modal")
+    modal = _find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal")
     assert modal is not None and modal.is_open is True
 
 
@@ -74,7 +75,7 @@ def test_someone_with_a_graph_is_not_welcomed_even_the_first_time():
 def test_the_welcome_shows_once():
     ConfigManager.set_welcome_done(True)
     assert onboarding.should_welcome() is False
-    assert _find(build_app_layout([], env="sandbox"), "welcome-modal").is_open is False
+    assert _find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal").is_open is False
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
-from skilltree.engine.callbacks import generate_elements, manager
+from skilltree.ui.canvas.elements import generate_elements
 from skilltree.features.nodes.layout import empty_canvas_detail
 from skilltree.ui.canvas.view import node_options
 from skilltree.ui.filters import build_filters, is_filters_active
@@ -18,6 +18,9 @@ from skilltree.store.commands import (
 )
 from skilltree.store.settings import ConfigManager, DEFAULT_NODE_COLORS
 from skilltree.store import schema
+from skilltree.store.graph.manager import GraphManager
+
+manager = GraphManager()
 
 
 @pytest.fixture(autouse=True)
@@ -454,38 +457,38 @@ class TestResourceNodeColor:
     Done vs. Blocked, etc.).
     """
 
-    def test_resource_open_gets_resource_color(self):
+    def test_resource_open_gets_resource_color(self, services):
         manager.add_node(_make_node("Res1", type="Resource", status="Open"))
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_el = next(e for e in elements if e['data'].get('id') == 'Res1')
         assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Resource']
 
-    def test_resource_done_gets_done_color(self):
+    def test_resource_done_gets_done_color(self, services):
         manager.add_node(_make_node("Res2", type="Resource", status="Done"))
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_el = next(e for e in elements if e['data'].get('id') == 'Res2')
         assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Done']
 
-    def test_resource_blocked_gets_blocked_color(self):
+    def test_resource_blocked_gets_blocked_color(self, services):
         """Blocked resource nodes should follow the Blocked color, like other blocked types."""
         manager.add_node(_make_node("Blocker", type="Learn", status="Open"))
         manager.add_node(_make_node("Res3", type="Resource", status="Open"))
         manager.add_edge("Blocker", "Res3", EDGE_NEEDS_HARD)
         # Res3 should now be Blocked
         assert manager.get_node("Res3").status == "Blocked"
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_el = next(e for e in elements if e['data'].get('id') == 'Res3')
         assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Blocked']
 
-    def test_goal_node_gets_goal_color(self):
+    def test_goal_node_gets_goal_color(self, services):
         manager.add_node(_make_node("G1", type="Goal"))
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_el = next(e for e in elements if e['data'].get('id') == 'G1')
         assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Goal']
 
-    def test_normal_node_gets_status_color(self):
+    def test_normal_node_gets_status_color(self, services):
         manager.add_node(_make_node("Learn1", type="Learn", status="Open"))
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_el = next(e for e in elements if e['data'].get('id') == 'Learn1')
         assert node_el['data']['color'] == DEFAULT_NODE_COLORS['Open']
 
@@ -736,9 +739,9 @@ class TestGoalNodeCreation:
         hard = [e for e in edges if e['target'] == "MyGoal" and e['type'] == EDGE_NEEDS_HARD]
         assert len(hard) == 2
 
-    def test_goal_node_in_generate_elements(self):
+    def test_goal_node_in_generate_elements(self, services):
         """Goal nodes appear in the generated Cytoscape elements."""
         manager.add_node(_make_node("GoalNode", type="Goal"))
-        elements = generate_elements()
+        elements = generate_elements(services.graph, services.events)
         node_ids = [e['data']['id'] for e in elements if 'source' not in e['data']]
         assert "GoalNode" in node_ids

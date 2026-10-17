@@ -12,6 +12,7 @@ import pytest
 from skilltree.domain.time import capacity_hours
 from skilltree.store.settings import ConfigManager, DEFAULT_TIME_SETTINGS
 from skilltree.features.settings import layout as settings_layout
+from skilltree.services import AppServices
 
 STORED = {'hours_per_week': 20, 'hours_per_month': 80}
 
@@ -48,7 +49,7 @@ def _save_settings():
             return register
 
     registry = Registry()
-    register_settings_callbacks(registry)
+    register_settings_callbacks(registry, AppServices())
     save = registry.callbacks['save_settings']
     return save, {key: None for key in inspect.signature(save).parameters}
 

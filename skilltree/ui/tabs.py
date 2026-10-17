@@ -8,7 +8,7 @@ from dash import Input, Output
 from skilltree.ui.prerender import prerendered
 
 
-def register_tab_callbacks(app, services=None):
+def register_tab_callbacks(app, services):
     @app.callback(
         Output("next-tab-content", "style"),
         Output("canvas-tab-content", "style"),

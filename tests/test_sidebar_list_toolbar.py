@@ -9,6 +9,8 @@ from skilltree.store.events import EventManager
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, SORT_MENUS
 from skilltree.domain.models import Event
 from skilltree.store import schema
+from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 
 @pytest.fixture(autouse=True)
@@ -65,7 +67,7 @@ def _has_class(component, class_name):
 @pytest.fixture
 def layout():
     from skilltree.shell import build_app_layout
-    return build_app_layout([], env="sandbox")
+    return build_app_layout(GraphManager(), env="sandbox")
 
 
 @pytest.mark.parametrize("sort", SORT_MENUS, ids=lambda s: s.prefix)
@@ -108,7 +110,7 @@ def _render_events_list():
     from skilltree.features.events.callbacks import register_event_callbacks
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_event_callbacks(app)
+    register_event_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

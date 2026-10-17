@@ -13,6 +13,7 @@ from skilltree.ui.components.context_picker import (
     build_single_context_picker,
 )
 from skilltree.shell import build_app_layout
+from skilltree.store.graph.manager import GraphManager
 
 
 def _walk(component):
@@ -67,7 +68,7 @@ def test_multi_picker_keeps_encoded_filter_values():
 
 
 def test_every_ordinary_context_selection_surface_uses_the_shared_picker():
-    layout = build_app_layout([], env="sandbox")
+    layout = build_app_layout(GraphManager(), env="sandbox")
     picker_ids = {
         "node-context-picker",
         "filter-context-picker",

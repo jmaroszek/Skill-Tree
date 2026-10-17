@@ -10,19 +10,14 @@ from skilltree.features.events.layout import (
     dormant_delete_confirmation_body,
 )
 from skilltree.store import database
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.duration import duration_to_days, format_duration_days
 from skilltree.ui.prerender import prerendered
 
-event_manager = EventManager()
-graph_manager = GraphManager()
 
-
-def register_dormant_callbacks(app, services=None):
-    event_manager = services.events if services is not None else globals()['event_manager']
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_dormant_callbacks(app, services):
+    event_manager = services.events
+    graph_manager = services.graph
 
     # Nodes join a saved, untriggered event. A Triggered event will not fire
     # again, so it stops accepting nodes; an unsaved one has no name for them

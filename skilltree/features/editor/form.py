@@ -17,7 +17,6 @@ from skilltree.domain.time import (
 )
 from skilltree.features.editor.values import friendly_time_estimates
 from skilltree.store import database
-from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.components.duration import (
     NEW_NODE_TIME_UNIT,
@@ -83,13 +82,11 @@ NEW_NODE_DORMANCY = {'dormant': False, 'event': None, 'event_name': '',
                      'wake_date': None, 'now': False}
 
 
-def build_dormancy_snapshot(node, event_manager=None):
+def build_dormancy_snapshot(node, events):
     """What the editor's Dormant switch and Event section show for `node`."""
     if node is None or not node.dormant:
         return dict(NEW_NODE_DORMANCY)
-    if event_manager is None:
-        event_manager = EventManager()
-    membership = event_manager.get_node_membership(node.name)
+    membership = events.get_node_membership(node.name)
     if membership is None:
         return dict(NEW_NODE_DORMANCY, dormant=True)
     wake_date = membership.get('activation_date') or None
@@ -189,7 +186,7 @@ NEW_NODE_SNAPSHOT = {
 
 
 @database.snapshot_read
-def build_editor_snapshot(manager, node_name):
+def build_editor_snapshot(manager, events, node_name):
     """Build a snapshot of the editor form state for an existing node.
 
     The snapshot dict mirrors exactly what populate_editor writes into the form
@@ -247,7 +244,7 @@ def build_editor_snapshot(manager, node_name):
         'value_mode': ['inherited'] if node.value_mode == 'inherited' else [],
         'priority_rank': priority_rank,
         'aliases': aliases,
-        'dormancy': build_dormancy_snapshot(node),
+        'dormancy': build_dormancy_snapshot(node, events),
     }
 
 

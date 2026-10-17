@@ -10,11 +10,9 @@ from dash import Input, Output, State, no_update
 
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
-from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from skilltree.store.commands import plan_bridge
 
-graph_manager = GraphManager()
 
 _KIND_OF_EDGE = {EDGE_NEEDS_HARD: 'hard', EDGE_NEEDS_SOFT: 'soft'}
 _KIND_OF_CLICKED_EDGE = {**_KIND_OF_EDGE, EDGE_HELPS: 'synergy'}
@@ -50,8 +48,8 @@ def _notice(plan):
     return "You will make the new node in the editor next.", False
 
 
-def register_bridge_callbacks(app, services=None):
-    graph_manager = services.graph if services is not None else globals()['graph_manager']
+def register_bridge_callbacks(app, services):
+    graph_manager = services.graph
 
     @app.callback(
         Output("modal-bridge", "is_open", allow_duplicate=True),

@@ -28,8 +28,8 @@ and store code never drags in the Dash UI stack.
 
 `register_*_callbacks(app, services)` receives the graph/event managers from
 `AppServices`, and `generate_elements` is bound to those same managers, so the
-canvas renders through the managers the callbacks mutate. Each module keeps a
-module-level manager as the default for standalone callers and tests. Every
+canvas renders through the managers the callbacks mutate. No module keeps a
+manager of its own: helpers take the managers as arguments. Every
 manager reads one database per process, and the revision counters in
 `skilltree/store/graph/state.py` are process-wide, so their caches stay coherent with each other.
 
@@ -51,7 +51,7 @@ manager reads one database per process, and the revision counters in
 | [skilltree/store/events.py](../skilltree/store/events.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
 | [skilltree/domain/scoring.py](../skilltree/domain/scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
 | [skilltree/domain/simulation.py](../skilltree/domain/simulation.py) | Monte Carlo time simulation. Pure NumPy. |
-| [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app)` owns the main Cytoscape canvas, `generate_elements` (single source of truth for elements), the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
+| [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py) | **The core engine** — the largest non-test module. `register_callbacks(app, services)` owns the main Cytoscape canvas, the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
 | [skilltree/features/review/calibration.py](../skilltree/features/review/calibration.py), [skilltree/features/editor/resources.py](../skilltree/features/editor/resources.py) | Split out of the core engine and registered beside the tab modules: the time-calibration and reflection modal (after a completion, a review, or an edit from the Review Hub), and the node editor's Resources section. |
 | [skilltree/features/editor/form.py](../skilltree/features/editor/form.py), [skilltree/ui/filters.py](../skilltree/ui/filters.py) | The node editor's form state, and the shared filters. `EDITOR_FORM` declares the node editor's fields once; a callback that reads the form takes it as one grouped State and receives a dict. `FILTER_INPUTS` and `FILTER_STATES` do the same for the filters sidebar, and `filters_from` turns their values into a filter dict. |
 
@@ -226,7 +226,7 @@ flowchart TD
     V --> D["Downstream callbacks<br/>recompute — only on<br/>a real mutation"]
 ```
 
-`generate_elements` ([skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`. Both redraw on `graph-version-store`, so an edit anywhere reaches them. Events also redraws on `events-refresh-trigger`, since its roster isn't part of the graph.
+`generate_elements` ([skilltree/ui/canvas/elements.py](../skilltree/ui/canvas/elements.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`. Both redraw on `graph-version-store`, so an edit anywhere reaches them. Events also redraws on `events-refresh-trigger`, since its roster isn't part of the graph.
 
 All three canvases build their elements with `build_node_element` and `build_edge_element` in [skilltree/ui/canvas/elements.py](../skilltree/ui/canvas/elements.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. Edges are not selectable: nothing acts on a selected link.
 

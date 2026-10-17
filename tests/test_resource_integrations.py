@@ -13,6 +13,7 @@ from skilltree.domain.models import Node
 from skilltree.features.settings.callbacks import register_settings_callbacks
 import pytest
 from skilltree.store import schema
+from skilltree.services import AppServices
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -101,7 +102,7 @@ def _settings_callbacks():
             pass
 
     registry = Registry()
-    register_settings_callbacks(registry)
+    register_settings_callbacks(registry, AppServices())
     return registry.callbacks
 
 

@@ -27,6 +27,7 @@ import pytest
 from skilltree.engine.callbacks import register_callbacks
 from skilltree.shell import build_app_layout
 from skilltree.features.nodes.layout import create_graph_view
+from skilltree.store.graph.manager import GraphManager
 
 
 def _walk(component):
@@ -50,7 +51,7 @@ def _by_id(component, component_id):
 
 
 def test_cover_and_its_sink_are_in_the_layout():
-    layout = build_app_layout([], env="sandbox")
+    layout = build_app_layout(GraphManager(), env="sandbox")
     ids = _ids(layout)
 
     assert "canvas-first-paint-cover" in ids
@@ -60,20 +61,20 @@ def test_cover_and_its_sink_are_in_the_layout():
 def test_cover_is_the_last_child_of_the_canvas_container():
     """It has to cover the overlay buttons and the layout panel, not sit under
     them — they stack above the canvas on their own z-index."""
-    layout = build_app_layout([], env="sandbox")
+    layout = build_app_layout(GraphManager(), env="sandbox")
     container = _by_id(layout, "canvas-container")
 
     assert container.children[-1].id == "canvas-first-paint-cover"
 
 
-def test_element_payloads_reach_the_cover():
+def test_element_payloads_reach_the_cover(services):
     """A graph with no nodes never runs a layout, so `layoutstop` is never
     coming and only this bridge can release the cover."""
     import dash
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    register_callbacks(app)
+    register_callbacks(app, services)
 
     bridge = next(c for c in app._callback_list
                   if c["output"] == "canvas-payload-stamp.data")
@@ -89,7 +90,7 @@ def test_the_nodes_layout_prop_agrees_with_the_smooth_switch():
     graph-settings callback only rewrites it once a control is touched. A prop
     that disagreed with the switch left Animate showing on while every
     transition snapped."""
-    view = create_graph_view([])
+    view = create_graph_view()
     graph = _by_id(view, "cytoscape-graph")
     smooth = _by_id(view, "graph-settings-animate")
 

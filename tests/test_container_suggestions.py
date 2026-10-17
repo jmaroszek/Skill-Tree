@@ -169,7 +169,7 @@ def _callback(app, name):
     raise LookupError(name)
 
 
-def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
+def test_sidebar_and_details_show_the_same_number_whatever_is_hidden(services):
     from skilltree.features.details import callbacks as details_callbacks
     from skilltree.features.goals import callbacks as sidebars_callbacks
 
@@ -183,8 +183,8 @@ def test_sidebar_and_details_show_the_same_number_whatever_is_hidden():
 
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
-    details_callbacks.register_details_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, services)
+    details_callbacks.register_details_callbacks(app, services)
     render_sidebar = _callback(app, "render_goal_list")
     render_details = _callback(app, "build_empty_state_suggestions")
 

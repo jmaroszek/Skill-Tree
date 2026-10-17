@@ -23,6 +23,7 @@ from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node, STATUS_DONE
 from skilltree.features.events import announcements
+from skilltree.services import AppServices
 
 
 def _node(name, **overrides):
@@ -178,7 +179,7 @@ def test_the_launch_safety_net_fires_events_left_waiting():
 def _save_event():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    event_callbacks.register_event_callbacks(app)
+    event_callbacks.register_event_callbacks(app, AppServices())
     for spec in app.callback_map.values():
         fn = spec.get("callback")
         while fn is not None and hasattr(fn, "__wrapped__"):

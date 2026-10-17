@@ -10,7 +10,6 @@ from skilltree.domain.contexts import sort_subcontexts
 from skilltree.features.settings.contexts import editor_state
 from skilltree.features.settings.draft import apply_settings
 from skilltree.store import database
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.settings import ConfigManager
 from skilltree.ui.dash_tools import get_trigger_id
 
@@ -322,11 +321,8 @@ def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals:
                                          sub_val, new_subcontexts)
 
 
-manager = GraphManager()
-
-
-def register_migration_callbacks(app, services=None):
-    manager = services.graph if services is not None else globals()['manager']
+def register_migration_callbacks(app, services):
+    manager = services.graph
 
     # --- Migration Modal ---
     @app.callback(

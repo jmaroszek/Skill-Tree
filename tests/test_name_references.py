@@ -9,6 +9,7 @@ from skilltree.features.goals import callbacks as sidebars_callbacks
 from skilltree.store.settings import ConfigManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
+from skilltree.services import AppServices
 
 
 def _goal(name):
@@ -50,7 +51,7 @@ def _render_goal_names(stale_store_order):
     """Run render_goal_list in manual sort, with whatever the store holds."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
-    sidebars_callbacks.register_sidebars_callbacks(app)
+    sidebars_callbacks.register_sidebars_callbacks(app, AppServices())
     render = next(
         spec["callback"].__wrapped__ for spec in app.callback_map.values()
         if getattr(spec.get("callback"), "__wrapped__", None) is not None

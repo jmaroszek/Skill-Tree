@@ -23,7 +23,7 @@ import dash_bootstrap_components as dbc
 logger = logging.getLogger(__name__)
 
 
-def register_resource_link_callbacks(app, services=None):
+def register_resource_link_callbacks(app, services):
     """Register the editor's Resources callbacks. ``services`` is unused: links
     are read and saved through resource_links, not the graph managers."""
     # --- Resources ---

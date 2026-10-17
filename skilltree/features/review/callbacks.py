@@ -9,7 +9,6 @@ from dash import Input, Output, State, ALL, ctx, no_update, html
 import dash_bootstrap_components as dbc
 
 from skilltree.ui.kit import Tooltip
-from skilltree.store.graph.manager import GraphManager
 from skilltree.features.review.layout import build_calibration_dismissed_view
 from skilltree.ui import tokens
 from skilltree.domain.models import STATUS_DONE
@@ -23,9 +22,6 @@ from skilltree.features.review.layout import (
 )
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.features.review.values import calibration_modal_text, calibration_prepop, calibration_review_queue
-
-
-_manager = GraphManager()
 
 
 # Sentinel string for missing comparisons in the History table.
@@ -368,8 +364,8 @@ def _filter_history_nodes(nodes, search, ctx_filter, subctx_filter):
     return nodes
 
 
-def register_review_hub_callbacks(app, services=None):
-    _manager = services.graph if services is not None else globals()['_manager']
+def register_review_hub_callbacks(app, services):
+    _manager = services.graph
     # --- Toggle the hub modal from the toolbar's clock-history icon ---
     # The button used to launch the focused-review queue directly; that
     # behavior now lives behind the hub's "Start review" button. Clicking the
