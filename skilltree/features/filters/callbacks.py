@@ -1,6 +1,6 @@
 """The Filters sidebar's callbacks: Clear filters, the search field, and the
 chips and funnel that say a view is filtered."""
-from dash import Input, Output, State, no_update
+from dash import ClientsideFunction, Input, Output, State, no_update
 
 from skilltree.ui.filters import (
     filter_chip_state,
@@ -260,25 +260,7 @@ def register_filters_callbacks(app, services):
     # `value=` for any prop that has a server-side callback Output, which
     # would nuke the memory-restored picks.
     app.clientside_callback(
-        """
-        function(ctx, current_subs) {
-            if (!current_subs || current_subs.length === 0) {
-                return window.dash_clientside.no_update;
-            }
-            const contexts = Array.isArray(ctx) ? ctx : (ctx ? [ctx] : []);
-            const ctxSet = new Set(contexts);
-            const SEP = '\\u001f';
-            const kept = current_subs.filter(v => {
-                const sep = v.indexOf(SEP);
-                if (sep < 0) return false;
-                return ctxSet.has(v.slice(0, sep));
-            });
-            if (kept.length === current_subs.length) {
-                return window.dash_clientside.no_update;
-            }
-            return kept;
-        }
-        """,
+        ClientsideFunction(namespace='filters', function_name='prune_subcontexts'),
         Output('filter-subcontext', 'value'),
         Input('filter-context', 'value'),
         State('filter-subcontext', 'value'),

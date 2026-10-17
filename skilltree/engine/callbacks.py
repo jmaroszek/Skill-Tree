@@ -20,7 +20,7 @@ from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, CANVAS_DE
 
 
 import dash
-from dash import html, Input, Output, State, no_update
+from dash import ClientsideFunction, html, Input, Output, State, no_update
 
 from skilltree.store import settings
 from skilltree.domain.models import STATUS_DONE
@@ -636,33 +636,13 @@ def register_engine_callbacks(app, services):
     # the first render of any kind: it arrives with the core engine's first
     # response, which also fills the editor's search and the other dropdowns.
     app.clientside_callback(
-        """
-        function(pending, previous) {
-            if (window.SkillTree && window.SkillTree.notifyCanvasElements) {
-                window.SkillTree.notifyCanvasElements(pending);
-            }
-            if (window.SkillTree && window.SkillTree.notifyStartupPayload) {
-                window.SkillTree.notifyStartupPayload(pending);
-            }
-            var loaded = Boolean(previous && previous.loaded);
-            var nodes = previous ? previous.nodes : null;
-            if (Array.isArray(pending)) {
-                loaded = true;
-                nodes = pending.filter(function (element) {
-                    return element && element.data && element.data.source == null;
-                }).length;
-            }
-            return {loaded: loaded, nodes: nodes, at: Date.now()};
-        }
-        """,
+        ClientsideFunction(namespace='canvas_payload', function_name='stamp'),
         Output('canvas-payload-stamp', 'data'),
         Input('elements-pending-store', 'data'),
         State('canvas-payload-stamp', 'data'),
         prevent_initial_call=True,
     )
 
-    # The features split out of this function. create_app will register each
-    # feature itself; until then the engine registers them here.
 
 
 def resolve_active_node_id(graph, all_triggered_ids, trigger_id, edit_trigger_data,

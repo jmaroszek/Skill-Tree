@@ -20,6 +20,7 @@ import pytest
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.shell import build_index_string
 from support.paths import asset_file
+from support.clientside import clientside_source
 
 
 DASH_PLACEHOLDERS = ("{%metas%}", "{%title%}", "{%favicon%}", "{%css%}",
@@ -67,10 +68,7 @@ def test_the_canvas_bridge_reports_the_first_payload_to_the_cover(services):
     app.config.suppress_callback_exceptions = True
     register_engine_callbacks(app, services)
 
-    bridge = next(c for c in app._callback_list
-                  if c["output"] == "canvas-payload-stamp.data")
-    name = bridge["clientside_function"]["function_name"]
-    source = next(s for s in app._inline_scripts if name in s)
+    source, _, _ = clientside_source(app, "canvas-payload-stamp.data")
 
     assert "notifyStartupPayload" in source
 

@@ -81,3 +81,23 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
         if (settle) settle.click();
     });
 })();
+
+// Drop subcontext picks whose context is no longer selected. Clientside:
+// Dash strips a server Output's layout value, which held the restored picks.
+window.dash_clientside.filters.prune_subcontexts = function (ctx, current_subs) {
+    if (!current_subs || current_subs.length === 0) {
+        return window.dash_clientside.no_update;
+    }
+    const contexts = Array.isArray(ctx) ? ctx : (ctx ? [ctx] : []);
+    const ctxSet = new Set(contexts);
+    const SEP = '\u001f';
+    const kept = current_subs.filter(v => {
+        const sep = v.indexOf(SEP);
+        if (sep < 0) return false;
+        return ctxSet.has(v.slice(0, sep));
+    });
+    if (kept.length === current_subs.length) {
+        return window.dash_clientside.no_update;
+    }
+    return kept;
+};

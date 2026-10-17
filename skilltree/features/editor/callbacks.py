@@ -195,32 +195,7 @@ def register_editor_callbacks(app, services):
     # lands: if another node has loaded, or the user has changed a picker
     # since, the answer is stale and is dropped rather than written into it.
     app.clientside_callback(
-        """
-        function(follow, name, snapshot, needsHard, needsSoft, suppHard, suppSoft, helps) {
-            var NO = window.dash_clientside.no_update;
-            var keys = ['e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps'];
-            var form = {e_needs_h: needsHard, e_needs_s: needsSoft, e_supp_h: suppHard,
-                        e_supp_s: suppSoft, e_helps: helps};
-            var unchanged = [NO, NO, NO, NO, NO, NO];
-            if (!follow || !snapshot || follow.name !== name || snapshot.name !== name) {
-                return unchanged;
-            }
-            var same = function (a, b) {
-                return JSON.stringify(a || []) === JSON.stringify(b || []);
-            };
-            for (var key in follow.seen) {
-                if (!same(follow.seen[key].snapshot, snapshot[key])
-                        || !same(follow.seen[key].form, form[key])) {
-                    return unchanged;
-                }
-            }
-            var out = keys.map(function (key) {
-                return key in follow.values ? follow.values[key] : NO;
-            });
-            out.push(Object.assign({}, snapshot, follow.snapshot));
-            return out;
-        }
-        """,
+        ClientsideFunction(namespace='editor_form', function_name='follow_relationships'),
         Output('edge-needs-hard', 'value', allow_duplicate=True),
         Output('edge-needs-soft', 'value', allow_duplicate=True),
         Output('edge-supports-hard', 'value', allow_duplicate=True),
@@ -610,43 +585,7 @@ def register_editor_callbacks(app, services):
     # at no cost. They get their own estimate back. A Learn may be a header
     # over its children, so it keeps Inherit, with a note saying so.
     app.clientside_callback(
-        """
-        function(time_mode_val, node_type) {
-            var no_update = window.dash_clientside.no_update;
-            var hidden = {display: "none"};
-            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
-            var note = {display: "block", color: "var(--st-text-dim)", fontSize: "var(--st-fs-base)"};
-            var ctx = window.dash_clientside.callback_context;
-            var triggered = (ctx && ctx.triggered) || [];
-            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
-            var only_time_mode = ids.length === 1 && ids[0] === 'node-time-mode';
-            var only_type = ids.length === 1 && ids[0] === 'node-type';
-            var store = window.SkillTree = window.SkillTree || {};
-            var prev = store.editorTypeForTime;
-            store.editorTypeForTime = node_type;
-            var inherited_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
-
-            if (node_type !== 'Goal' && node_type !== 'Milestone') {
-                if (only_type && inherited_on && (prev === 'Goal' || prev === 'Milestone')) {
-                    if (node_type === 'Learn') {
-                        return [no_update, note, "Inherit came with the " + prev +
-                                ". Keep it if this Learn is a header over its children; " +
-                                "turn it off to give it its own estimate."];
-                    }
-                    return [[], hidden, ""];
-                }
-                return [time_mode_val, hidden, ""];
-            }
-            if (inherited_on) {
-                if (only_time_mode) return [no_update, no_update, no_update];
-                return [no_update, hidden, ""];
-            }
-            var msg = "Inherit mode is required for " + node_type + " nodes — " +
-                      "their time is the sum of their children's.";
-            if (only_time_mode) return [['inherited'], visible, msg];
-            return [['inherited'], hidden, ""];
-        }
-        """,
+        ClientsideFunction(namespace='editor_form', function_name='lock_time_mode'),
         Output('node-time-mode', 'value', allow_duplicate=True),
         Output('time-mode-warning', 'style'),
         Output('time-mode-warning', 'children'),
@@ -724,46 +663,7 @@ def register_editor_callbacks(app, services):
     # click. The triggered-IDs check distinguishes user toggles from form-
     # populate cycles (where node-type also fires).
     app.clientside_callback(
-        """
-        function(value_mode_val, node_type) {
-            var no_update = window.dash_clientside.no_update;
-            var hidden = {display: "none"};
-            var visible = {display: "block", color: "var(--st-danger-text)", fontSize: "var(--st-fs-base)"};
-            var note = {display: "block", color: "var(--st-text-dim)", fontSize: "var(--st-fs-base)"};
-            var ctx = window.dash_clientside.callback_context;
-            var triggered = (ctx && ctx.triggered) || [];
-            var ids = triggered.map(function(t) { return t.prop_id.split('.')[0]; });
-            var only_value_mode = ids.length === 1 && ids[0] === 'node-value-mode';
-            var only_type = ids.length === 1 && ids[0] === 'node-type';
-            var store = window.SkillTree = window.SkillTree || {};
-            var prev = store.editorTypeForValue;
-            store.editorTypeForValue = node_type;
-            var inherited_on = !!(value_mode_val && value_mode_val.indexOf('inherited') >= 0);
-
-            if (node_type !== 'Milestone') {
-                // A former Milestone gets its own ratings back, as the time
-                // lock above gives back an estimate. A Learn may stay a
-                // header that passes value through.
-                if (only_type && inherited_on && prev === 'Milestone') {
-                    if (node_type === 'Learn') {
-                        return [no_update, note, "Inherit came with the Milestone. " +
-                                "Keep it if this Learn only passes value through; " +
-                                "turn it off to rate it."];
-                    }
-                    return [[], hidden, ""];
-                }
-                return [no_update, hidden, ""];
-            }
-            if (inherited_on) {
-                if (only_value_mode) return [no_update, no_update, no_update];
-                return [no_update, hidden, ""];
-            }
-            var msg = "Inherit is required for Milestone nodes — they are " +
-                      "checkpoints, so their own ratings don't affect scoring.";
-            if (only_value_mode) return [['inherited'], visible, msg];
-            return [['inherited'], hidden, ""];
-        }
-        """,
+        ClientsideFunction(namespace='editor_form', function_name='lock_value_mode'),
         Output('node-value-mode', 'value', allow_duplicate=True),
         Output('value-mode-warning', 'style'),
         Output('value-mode-warning', 'children'),

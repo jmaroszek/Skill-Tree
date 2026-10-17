@@ -15,6 +15,7 @@ import pytest
 from skilltree.engine import callbacks
 from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.clientside import clientside_source
 
 
 def _lock(output):
@@ -23,11 +24,7 @@ def _lock(output):
     services = AppServices()
     callbacks.register_engine_callbacks(app, services)
     register_editor_callbacks(app, services)
-    spec = next(c for c in app._callback_list
-                if c.get("clientside_function") and output in c["output"])
-    function = spec["clientside_function"]
-    source = next(s for s in app._inline_scripts if function["function_name"] in s)
-    return source, function["namespace"], function["function_name"]
+    return clientside_source(app, output)
 
 
 def _run(output, calls):

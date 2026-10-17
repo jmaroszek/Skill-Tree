@@ -7,7 +7,7 @@ node-dormancy-form for Save and the unsaved-changes check.
 """
 import time
 
-from dash import Input, Output, State, ctx, no_update
+from dash import ClientsideFunction, Input, Output, State, ctx, no_update
 
 from skilltree.features.editor.form import (
     NEW_EVENT_OPTION, build_dormancy_snapshot, norm_dormancy,
@@ -130,29 +130,7 @@ def register_dormancy_callbacks(app, services):
     # there instead. The saved section in the pristine snapshot says which
     # event that is.
     app.clientside_callback(
-        """
-        function(dormant, event, eventName, delayOn, delayValue, delayUnit,
-                 wakeDate, now, snapshot) {
-            function on(v) { return !!(v && v.indexOf('on') >= 0); }
-            var saved = (snapshot && snapshot.dormancy) || {};
-            var scheduled = saved.wake_date != null && !!event && event === saved.event;
-            var delay = 0;
-            if (!scheduled && on(delayOn)) {
-                delay = (delayValue === undefined || delayValue === '') ? null : delayValue;
-            }
-            return {
-                dormant: !!(dormant && dormant.indexOf('dormant') >= 0),
-                event: event || null,
-                event_name: eventName || '',
-                delay_value: delay,
-                delay_unit: delayUnit || 'days',
-                // A cleared date stays '' rather than null, so Save can tell
-                // a wake date that was emptied from no wake date at all.
-                wake_date: scheduled ? (wakeDate || '') : null,
-                now: on(now)
-            };
-        }
-        """,
+        ClientsideFunction(namespace='editor_dormancy', function_name='collect_form'),
         Output("node-dormancy-form", "data"),
         Input("node-dormant", "value"),
         Input("node-dormant-event", "value"),
@@ -170,35 +148,7 @@ def register_dormancy_callbacks(app, services):
     # Unchecking Dormant on a sleeping node says what Save will do, which is
     # what the old wake-confirm modal used to ask.
     app.clientside_callback(
-        """
-        function(dormant, now, done, event, delayOn, snapshot) {
-            var hide = {display: 'none'}, show = {};
-            var isDormant = !!(dormant && dormant.indexOf('dormant') >= 0);
-            var isBusy = !!(now && now.length) || !!(done && done.length);
-            var saved = (snapshot && snapshot.dormancy) || {};
-            var scheduled = saved.wake_date != null && !!event && event === saved.event;
-            var waking = !!saved.dormant && !isDormant;
-            var warning = '';
-            if (waking) {
-                warning = saved.event
-                    ? 'Saving wakes this node and removes it from ' + saved.event + '.'
-                    : 'Saving wakes this node.';
-            }
-            return [
-                isDormant ? hide : show,
-                isDormant ? hide : show,
-                (isBusy && !isDormant) ? hide : show,
-                isDormant ? show : hide,
-                event === '__new__' ? show : hide,
-                event ? show : hide,
-                scheduled ? show : hide,
-                scheduled ? hide : show,
-                (!scheduled && delayOn && delayOn.length) ? show : hide,
-                waking ? show : hide,
-                warning
-            ];
-        }
-        """,
+        ClientsideFunction(namespace='editor_dormancy', function_name='show_fields'),
         Output("node-now-wrapper", "style"),
         Output("node-status-done-wrapper", "style"),
         Output("node-dormant-wrapper", "style"),
