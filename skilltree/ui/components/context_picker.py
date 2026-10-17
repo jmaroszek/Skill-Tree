@@ -1,6 +1,6 @@
 """Shared context/subcontext picker shells and Dash value bridges.
 
-The visible menus are rendered by ``assets/context_picker.js``.  The existing
+The visible menus are rendered by ``assets/components/context_picker.js``.  The existing
 Dash controls stay mounted but hidden, preserving every callback's established
 ``value`` and ``options`` contract while the custom picker supplies the
 combined interaction.

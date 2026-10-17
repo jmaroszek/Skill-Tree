@@ -273,7 +273,7 @@ def register_canvas_callbacks(app, services):
         js_canvas = repr(canvas_id)  # JS-safe quoted string literal
 
         # Bypass: pending-store -> cytoscape.elements. A hidden canvas's
-        # payload waits for its tab (assets/hidden_canvas_payloads.js).
+        # payload waits for its tab (assets/canvas/hidden_canvas_payloads.js).
         app.clientside_callback(
             """
             function(pending, activeTab) {
@@ -368,7 +368,7 @@ def register_canvas_callbacks(app, services):
         )
 
     # --- Graph Layout: one layout request per canvas ---
-    # assets/layout_requests.js builds each canvas's layout prop. It stays
+    # assets/canvas/layout_requests.js builds each canvas's layout prop. It stays
     # clientside so allowOneLayout() is set in the same synchronous function
     # that returns the new layout dict. A previous server-side implementation
     # paired with a separate clientside allowOneLayout callback was racy: Dash

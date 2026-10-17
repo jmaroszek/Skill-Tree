@@ -15,3 +15,10 @@ def asset_file(name):
     found = sorted(ASSETS.rglob(name))
     assert len(found) == 1, f"expected one asset called {name}, found {found}"
     return found[0]
+
+
+def app_asset_files(suffix):
+    """The app's own files under assets/ that end in ``suffix``: every folder
+    but vendor/, which Dash leaves out too."""
+    return sorted(path for path in ASSETS.rglob(f"*{suffix}")
+                  if "vendor" not in path.relative_to(ASSETS).parts)

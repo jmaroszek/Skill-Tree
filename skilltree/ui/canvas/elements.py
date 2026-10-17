@@ -56,7 +56,7 @@ def node_fill_color(node, colors):
 # description, was about a seventh of the Nodes payload.
 #   - The hover tooltip (callbacks.display_hover_data): type, context,
 #     subcontext, value, interest, difficulty, time, time_mode, value_mode.
-#   - The node context menu (assets/context_menu.js): type, status, now,
+#   - The node context menu (assets/menus/context_menu.js): type, status, now,
 #     dormant, resource_links.
 #   - Tap handlers read only the id; the editor re-reads the node itself.
 # The stylesheet reads id, label, color, shape and now_color, which are set

@@ -1,6 +1,6 @@
 /* Combined Context / Subcontext pickers.
    The closed control intentionally matches Bootstrap's form-select. The open
-   panel is the app's reference menu look — assets/dropdowns.css applies these
+   panel is the app's reference menu look — assets/css/dropdowns.css applies these
    same tokens to the native <select> picker and the Radix dcc.Dropdown menu,
    so all three dropdown implementations open the same panel. */
 

@@ -13,9 +13,10 @@ import re
 
 import pytest
 from support.paths import ROOT
+from support.paths import app_asset_files, asset_file
 
 ASSETS = ROOT / "assets"
-TOKENS_CSS = ASSETS / "tokens.css"
+TOKENS_CSS = asset_file("tokens.css")
 
 # Modules that legitimately hold real values rather than references:
 #   store/settings.py  - the canvas colours Settings edits
@@ -75,14 +76,14 @@ def test_ui_modules_do_not_hardcode_colours(module):
         for _ in HEX.finditer(line):
             offenders.append(f"{module}:{i}  {stripped[:88]}")
     assert not offenders, (
-        "Hardcoded colour(s) found. Add the value to assets/tokens.css and "
+        "Hardcoded colour(s) found. Add the value to assets/css/tokens.css and "
         "reference it through style_tokens, or use styles.badge_style() for a "
         "badge:\n  " + "\n  ".join(offenders))
 
 
 @pytest.mark.parametrize("module", UI_MODULES)
 def test_ui_modules_do_not_hardcode_font_sizes(module):
-    """Font sizes come from the eight-step scale in assets/tokens.css.
+    """Font sizes come from the eight-step scale in assets/css/tokens.css.
 
     There were 28 distinct literals before, including a 0.72/0.78/0.82/0.88rem
     cluster whose members differed by less than a pixel, and three data tables
@@ -100,7 +101,7 @@ def test_ui_modules_do_not_hardcode_font_sizes(module):
 
 
 def test_every_python_token_resolves_to_a_real_css_variable():
-    """style_tokens exports references; assets/tokens.css defines them.
+    """style_tokens exports references; assets/css/tokens.css defines them.
 
     A typo in either direction yields `var(--st-typo)`, which silently computes
     to nothing rather than raising.
@@ -120,7 +121,7 @@ def test_every_css_variable_used_in_a_stylesheet_is_defined():
     css = TOKENS_CSS.read_text(encoding="utf-8")
     defined = set(re.findall(r"(--st-[a-z0-9-]+)\s*:", css))
     missing = {}
-    for sheet in sorted(ASSETS.glob("*.css")):
+    for sheet in app_asset_files(".css"):
         if sheet.name == "tokens.css":
             continue
         used = set(re.findall(r"var\((--st-[a-z0-9-]+)", sheet.read_text(encoding="utf-8")))

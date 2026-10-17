@@ -230,7 +230,7 @@ def test_the_real_app_is_guarded_before_dash_does_any_work(monkeypatch):
     for path in ("/_dash-layout", "/_dash-dependencies"):
         assert _get(client, path).status_code == 403, path
     assert "startup-cover" not in _get(client).get_data(as_text=True)
-    assert _get(client, "/assets/theme.css").status_code == 200
+    assert _get(client, "/assets/css/theme.css").status_code == 200
     assert client.post("/open-resource", json={}, headers={"Host": f"127.0.0.1:{PORT}"}
                        ).status_code == 403
     page = _get(client, "/?token=t0ken")

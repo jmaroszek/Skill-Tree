@@ -91,7 +91,7 @@ def build_app_error_modal():
 # --- Floating menus ---
 # Every right-click menu and popover is built from these, so a row, divider
 # or destructive item can't look different from one menu to the next.
-# assets/menus.js gives them the same behavior.
+# assets/menus/menus.js gives them the same behavior.
 
 
 # --- Page template: the startup cover ---
@@ -308,7 +308,7 @@ def build_app_layout(graph, env="production"):
                 dbc.Tab(label="Nodes", tab_id="tab-canvas"),
                 dbc.Tab(label="Details", tab_id="tab-details"),
                 dbc.Tab(label="Events", tab_id="tab-events"),
-                # The class lets assets/analyze_prewarm.js find the tab.
+                # The class lets assets/analyze/analyze_prewarm.js find the tab.
                 dbc.Tab(label="Analyze", tab_id="tab-analyze",
                         label_class_name="analyze-tab-link"),
             ],
@@ -545,7 +545,7 @@ def build_app_layout(graph, env="production"):
         # Intermediate hop for cytoscape elements — core_engine writes here,
         # a clientside callback either applies the delta directly to the cy
         # instance (during freeze) or forwards it to cytoscape-graph.elements
-        # (normal operation). See assets/freeze_positions.js. Details and
+        # (normal operation). See assets/canvas/freeze_positions.js. Details and
         # Events tabs each have their own pending store + freeze store.
         dcc.Store(id='elements-pending-store', data=None),
         dcc.Store(id='details-elements-pending-store', data=None),
@@ -584,7 +584,7 @@ def build_app_layout(graph, env="production"):
         # directly, so switching to any other tab makes no request at all.
         dcc.Store(id='analyze-active-store', data=None),
         # Bumped when the pointer or focus reaches the Analyze tab, so its
-        # first render starts before the click. See assets/analyze_prewarm.js.
+        # first render starts before the click. See assets/analyze/analyze_prewarm.js.
         dcc.Store(id='analyze-prewarm-store', data=None),
         # What the rendered Analyze charts were computed from. An arrival that
         # finds it current skips the recompute. See _analyze_signature.

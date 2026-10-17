@@ -44,7 +44,7 @@ def create_graph_view():
                 # callback only rewrites this prop once a control is touched,
                 # so until then Animate read on but ran off. The cold start
                 # from nodes stacked at the origin is the exception, adjusted
-                # by assets/canvas_first_paint.js.
+                # by assets/canvas/canvas_first_paint.js.
                 layout={
                     'name': 'fcose', 'quality': 'proof',
                     'fit': True, 'animate': True, 'animationDuration': 1000,
@@ -99,7 +99,7 @@ def create_graph_view():
             # layout runs and `fit` is a no-op at 0x0 — so opening the tab
             # early used to show the graph piled into the top-left corner and
             # then jump. It starts opaque and is lifted by
-            # assets/canvas_first_paint.js once the graph is laid out and
+            # assets/canvas/canvas_first_paint.js once the graph is laid out and
             # framed. Last child so it covers the overlays above it too.
             html.Div(
                 html.Div([

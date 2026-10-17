@@ -273,7 +273,7 @@ def _build_contexts_tab():
             ], className="ctx-editor-box"),
             html.Div(id="ctx-editor-summary"),
 
-            # Hidden input: assets/context_editor_sortable.js writes the DOM
+            # Hidden input: assets/settings/context_editor_sortable.js writes the DOM
             # order here after a drag so Dash can fold it into the store.
             dcc.Input(id="ctx-editor-drag-input", type="text", value="",
                       style={"display": "none"}),

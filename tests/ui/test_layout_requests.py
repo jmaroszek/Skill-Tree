@@ -1,4 +1,4 @@
-"""Browser contract for assets/layout_requests.js.
+"""Browser contract for assets/canvas/layout_requests.js.
 
 Every canvas's Graph Layout callback returns the layout prop this module
 builds. These tests run it under Node against the canvas registry the page
@@ -56,7 +56,7 @@ function ringElements(count, prefix = 'r') {
     const ids = Array.from({length: count}, (_, i) => prefix + i);
     return [...nodesOf(ids), ...edgesOf(ids.map((id, i) => [id, ids[(i + 1) % count]]), prefix + '-e')];
 }
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 const api = window.dash_clientside.skillTreeLayout;
 const canvas = key => window.SkillTree.canvases.find(c => c.key === key);
@@ -72,7 +72,7 @@ def _run(body):
         pytest.skip('Node.js is required for the layout request contract')
     script = HARNESS.replace('__CANVASES__', json.dumps(client_registry())) + body
     result = subprocess.run(
-        [node_binary, '-e', script, str(ASSET)],
+        [node_binary, '-e', script, str(ASSET), str(asset_file("00_browser_bridge.js"))],
         capture_output=True, text=True, timeout=10,
     )
     assert result.returncode == 0, result.stderr

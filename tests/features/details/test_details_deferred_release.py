@@ -63,7 +63,7 @@ Object.defineProperty(window.HTMLInputElement.prototype, 'value', {
     set(v) { this._value = v; written[this.id] = v; }
 });
 
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 const fire = (name, layout) => handlers[name].forEach(fn => fn({layout}));
 const rootOf = key => written[key] ? JSON.parse(written[key]).root : null;
@@ -77,7 +77,7 @@ def _run(body):
         pytest.skip("Node.js is required for the deferred-release contract")
     asset = (asset_file("details_deferred_subtasks.js"))
     result = subprocess.run(
-        [node_binary, "-e", HARNESS + body, str(asset)],
+        [node_binary, "-e", HARNESS + body, str(asset), str(asset_file("00_browser_bridge.js"))],
         capture_output=True, text=True, timeout=10,
     )
     assert result.returncode == 0, result.stderr

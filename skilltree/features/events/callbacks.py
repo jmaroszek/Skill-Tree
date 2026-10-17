@@ -751,12 +751,12 @@ def register_events_callbacks(app, services):
 
     # --- Events Graph Layout: layout requests ---
     # Registered with every canvas's in callbacks.py; built by
-    # assets/layout_requests.js.
+    # assets/canvas/layout_requests.js.
 
     # --- Events Sidebar Toggle + Tab-Arrival Default + Tab-Inner Shift (CLIENTSIDE) ---
     # Prior server-side implementations of this toggle exhibited a persistent
     # "sidebar won't reopen after close" bug that resisted multiple fixes. Moving
-    # the logic to clientside JS in assets/events_sidebar.js eliminates server-
+    # the logic to clientside JS in assets/sidebars/events_sidebar.js eliminates server-
     # state sync as a failure mode. The handlers also BASE-merge the style dict
     # so a corrupted/partial state can't strand the sidebar off-screen.
     app.clientside_callback(

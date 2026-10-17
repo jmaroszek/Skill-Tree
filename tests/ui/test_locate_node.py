@@ -135,7 +135,7 @@ def test_view_details_reroots_details_and_retries_pulse(locate_node):
 
 
 def test_pulse_survives_a_forced_stop_and_runs_concurrently():
-    """Browser contract for assets/locate_node.js.
+    """Browser contract for assets/canvas/locate_node.js.
 
     Drives a fake Cytoscape node that behaves like the real one on the two
     points that broke: animate() honours `queue`, and stop(clearQueue) drops
@@ -209,7 +209,7 @@ global.window = {SkillTree: {}};
 global.document = {getElementById: () => ({_cyreg: {cy: {
     getElementById: id => id === 'Target' ? node : {length: 0}
 }}})};
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 
 window.SkillTree.canvases = [
@@ -265,7 +265,7 @@ assert.equal(route.status, 'missing');
 assert.equal(route.view, 'events');
 '''
     result = subprocess.run(
-        [node_binary, "-e", script, str(asset)],
+        [node_binary, "-e", script, str(asset), str(asset_file("00_browser_bridge.js"))],
         capture_output=True,
         text=True,
         timeout=10,

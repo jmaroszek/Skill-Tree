@@ -46,7 +46,7 @@ def test_filters_keep_general_order_and_have_no_canvas_view():
     assert "filter-max-depth" not in ids
     assert "filter-cross-links" not in ids
     assert "Canvas View" not in _text(content)
-    # A shortcut to the on-screen canvas's Settle (assets/filters_sidebar.js).
+    # A shortcut to the on-screen canvas's Settle (assets/sidebars/filters_sidebar.js).
     assert "btn-sidebar-relayout" in ids
 
 

@@ -26,7 +26,7 @@ def _trunc(name, max_len=25):
 
 # Plotly reads computed values, not CSS variables, so these chart-only
 # constants stay literal. Keep them equal to the matching tokens in
-# assets/tokens.css (--st-bg-canvas, --st-bg-raised).
+# assets/css/tokens.css (--st-bg-canvas, --st-bg-raised).
 _BG = '#1a1d21'
 
 
@@ -51,7 +51,7 @@ _CHART_CFG = {"displayModeBar": False}
 
 def _graph(fig, zoom=False):
     """A Graph that re-measures its width when the Analyze tab opens. Its
-    hover text is shown by assets/rating_dist.js in the Plan charts' tooltip:
+    hover text is shown by assets/analyze/rating_dist.js in the Plan charts' tooltip:
     each mark's ``customdata`` is the text, first line in bold.
 
     The tab usually renders while hidden, where Plotly falls back to a 700 px
@@ -76,7 +76,7 @@ def _base_layout(**overrides):
     """Return a Plotly layout dict that sits beside the HTML charts: the
     app's font, soft tick labels and no axis lines. The legend is HTML, and
     hover boxes are off (``hoverinfo='none'`` on each trace, which still fires
-    the events assets/rating_dist.js shows the shared tooltip on)."""
+    the events assets/analyze/rating_dist.js shows the shared tooltip on)."""
     layout = dict(
         template="plotly_dark",
         paper_bgcolor=_BG,
@@ -765,7 +765,7 @@ def _rating_dist_row(row, label, kind, defs, chevron=False, element=html.Div,
     a context with nothing to open keeps the chevron's space, hidden.
 
     Each cell carries its tooltip in ``data-tip``, which
-    assets/rating_dist.js shows on hover: the area, then a sentence
+    assets/analyze/rating_dist.js shows on hover: the area, then a sentence
     with the count, then the rating's definition. The sentence keeps the
     count and the rating apart with words; "Interest 8: 8 of 32" ran two
     unrelated numbers together. The row total is in both places on purpose.
@@ -872,7 +872,7 @@ def render_rating_distribution(dist):
                 ctx_row, ctx_row['context'], "rd-ctx rd-leaf", defs,
                 chevron=True, guide=dist['all'], work_scale=scale),
                 className="rd-group"))
-    # assets/rating_dist.js handles all three buttons in the browser; the
+    # assets/analyze/rating_dist.js handles all three buttons in the browser; the
     # guide toggle remembers its state per viewer. No callbacks. The toggle
     # goes last: it is used less than the pair that folds the rows.
     head = html.Div([

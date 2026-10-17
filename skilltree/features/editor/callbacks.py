@@ -825,7 +825,7 @@ def register_editor_callbacks(app, services):
 
     # --- Time Estimate Validation ---
     # A newly loaded/reverted form starts quiet. Leaving the section reveals
-    # the latest validation result (assets/time_validation.js); validity and
+    # the latest validation result (assets/editor/time_validation.js); validity and
     # the save guards below remain independent of the warning's visibility.
     app.clientside_callback(
         "function(_snapshot) { return 'false'; }",

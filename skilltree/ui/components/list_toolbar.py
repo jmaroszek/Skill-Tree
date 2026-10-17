@@ -5,7 +5,7 @@ a floating menu. The chosen sort lives in a local-storage ``dcc.Store`` so it
 survives a reload. The button's tooltip names the current sort, and the menu
 marks it with a check.
 
-``assets/sort_menu.js`` opens the menu under the button and writes the chosen
+``assets/menus/sort_menu.js`` opens the menu under the button and writes the chosen
 value to a hidden input. The clientside callbacks here copy that value into the
 store and keep the tooltip and check marks in step with it. The menus
 themselves are built in ``layout.py`` with the shared floating-menu helpers.

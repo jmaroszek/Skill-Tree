@@ -61,7 +61,7 @@ function titleBarOverlay(level) {
 // The title bar. On Windows and macOS the app's toolbar is the title bar, with
 // the OS's own window buttons drawn over it: on the right on Windows, as
 // traffic lights on the left on macOS. titleBarOverlay exposes their area to
-// CSS (env(titlebar-area-*)), which assets/theme.css pads around. Linux
+// CSS (env(titlebar-area-*)), which assets/css/theme.css pads around. Linux
 // desktops draw their buttons too differently to overlay, so it keeps the
 // native frame.
 function windowChrome(platform) {

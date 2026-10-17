@@ -103,7 +103,7 @@ def test_browser_state_contract_preserves_order_and_summary_format():
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {};
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 const picker = window.SkillTreeContextPicker;
 const taxonomy = [
@@ -144,7 +144,7 @@ assert.deepEqual(
 );
 '''
     result = subprocess.run(
-        [node_binary, "-e", script, str(asset)],
+        [node_binary, "-e", script, str(asset), str(asset_file("00_browser_bridge.js"))],
         capture_output=True,
         text=True,
         timeout=10,

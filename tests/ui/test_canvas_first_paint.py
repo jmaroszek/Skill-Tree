@@ -6,7 +6,7 @@ because the layout call waits behind React's ingest of the element payload —
 and `fit` does nothing while the container is 0x0. Opening the tab inside that
 window drew the whole graph in the top-left corner and then jumped.
 
-`assets/canvas_first_paint.js` holds the canvas behind an opaque cover until
+`assets/canvas/canvas_first_paint.js` holds the canvas behind an opaque cover until
 the graph is both laid out and framed. Its caption goes up in the same task
 that reveals the tab. An earlier 400 ms timer was starved by the very
 main-thread work it was meant to explain, so arriving early showed a blank
@@ -97,12 +97,12 @@ def test_the_nodes_layout_prop_agrees_with_the_smooth_switch():
     assert smooth.value is True
     assert graph.layout["animate"] is smooth.value
     # Transitions keep the current shape. The cold start from a pile at the
-    # origin is randomized by assets/canvas_first_paint.js instead.
+    # origin is randomized by assets/canvas/canvas_first_paint.js instead.
     assert graph.layout["randomize"] is False
 
 
 def _run_contract(script, observers=True, mounted=True):
-    """Run a browser contract for assets/canvas_first_paint.js under Node.
+    """Run a browser contract for assets/canvas/canvas_first_paint.js under Node.
 
     With `observers`, a MutationObserver stand-in delivers the pane's style
     change synchronously, the way the real one runs in the task that reveals the
@@ -214,7 +214,7 @@ global.mountCanvas = () => {
     notify(document.documentElement);
 };
 
-// Stands in for assets/cyto_lifecycle.js: hand every handler the instance as
+// Stands in for assets/canvas/cyto_lifecycle.js: hand every handler the instance as
 // soon as one exists, and again whenever dash-cytoscape swaps it.
 const cytoHandlers = [];
 global.window = {
@@ -248,11 +248,11 @@ global.canvas = canvas;
 global.cover = cover;
 global.pane = pane;
 
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 '''.replace("__USE_OBSERVERS__", "true" if observers else "false").replace("__MOUNTED__", "true" if mounted else "false")
     result = subprocess.run(
-        [node_binary, "-e", harness + script, str(asset)],
+        [node_binary, "-e", harness + script, str(asset), str(asset_file("00_browser_bridge.js"))],
         capture_output=True,
         text=True,
         timeout=15,

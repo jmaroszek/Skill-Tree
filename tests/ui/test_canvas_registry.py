@@ -21,6 +21,7 @@ from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 from support.paths import ROOT
+from support.paths import asset_file
 
 ASSETS = ROOT / 'assets'
 
@@ -136,7 +137,7 @@ def test_settle_lays_out_without_a_server_round_trip(services):
 
 def test_shared_canvas_assets_name_no_canvas_of_their_own():
     for name in SHARED_CANVAS_ASSETS:
-        source = (ASSETS / name).read_text(encoding='utf-8')
+        source = asset_file(name).read_text(encoding='utf-8')
         assert 'window.SkillTree.canvases' in source, name
         for canvas in CANVASES:
             assert canvas.cytoscape_id not in source, (name, canvas.cytoscape_id)

@@ -99,7 +99,7 @@ def _analyze_sections():
 
 
 def _pane(pane_id, sections, shown=False):
-    # The class is how assets/analyze_first_paint.js recognises a pane
+    # The class is how assets/analyze/analyze_first_paint.js recognises a pane
     # being revealed.
     return html.Div(sections, id=pane_id, className="analyze-subpane",
                     style={"display": "block" if shown else "none"})

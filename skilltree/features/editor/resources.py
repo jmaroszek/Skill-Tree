@@ -146,7 +146,7 @@ def register_resource_link_callbacks(app, services):
         logger.warning("Opening a %s link failed: %s", section['name'], exc)
         return f"Error opening {section['name']}: {exc}"
 
-    # The desktop window's native picker (assets/resource_picker.js) reports
+    # The desktop window's native picker (assets/editor/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.
     @app.callback(
         Output('resource-links-store', 'data', allow_duplicate=True),

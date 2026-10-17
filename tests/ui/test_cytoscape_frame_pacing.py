@@ -1,4 +1,4 @@
-"""Browser contract for assets/cytoscape_frame_pacing.js.
+"""Browser contract for assets/canvas/cytoscape_frame_pacing.js.
 
 The tests run the module under Node against a stand-in for Cytoscape's render
 loop. The stand-in keeps the loop's order: a tick draws only if a redraw was

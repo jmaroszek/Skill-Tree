@@ -18,7 +18,7 @@ def spawn_local_file_picker(initial_dir, title, filetypes_list, directory=False)
     if getattr(sys, "frozen", False):
         # sys.executable is the Skill Tree server itself here: "-c <script>"
         # would start another server. The desktop shell's native picker
-        # (assets/resource_picker.js) serves the frozen build.
+        # (assets/editor/resource_picker.js) serves the frozen build.
         _logger.warning("No file picker in this build; paste the path instead.")
         return ""
     # Import clears device-local roots. For older data, never pass a UNC or

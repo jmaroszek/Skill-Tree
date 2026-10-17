@@ -380,7 +380,7 @@ def build_calibration_review_toast():
 # Retrospective sibling of `ratings_popup`, opened only from the Reflection
 # modal's info icon. It reads its own REFLECTION_RATINGS_DEFINITIONS so the
 # wording can stay decoupled from the estimation rubric. The JS in
-# assets/ratings_popup.js wires btn-reflection-ratings-info to this popup.
+# assets/editor/ratings_popup.js wires btn-reflection-ratings-info to this popup.
 def build_reflection_ratings_popup():
     return html.Div([
         html.Div([

@@ -101,7 +101,7 @@ input[type=number] {
     color: var(--st-danger-text) !important;
 }
 
-/* Dropdown styling lives in assets/dropdowns.css — all three
+/* Dropdown styling lives in assets/css/dropdowns.css — all three
    implementations (native select, Radix dcc.Dropdown, context picker)
    share one menu language there. The id-scoped patches that used to sit
    here (#sim-node-select, #goal-add-existing-dropdown, and the
@@ -160,7 +160,7 @@ input[type=number] {
 /* Settings modal: width (between Bootstrap's lg 800px and xl 1140px) is set
    via the Modal's dialog_style prop in settings_layout.py. Number-input
    widths are set per-section in the layout, not capped globally. */
-/* The two narrower selects are sized in assets/dropdowns.css with the rest of
+/* The two narrower selects are sized in assets/css/dropdowns.css with the rest of
    the dropdown rules. */
 
 /* Settings > Data: the export and import graph buttons stack, so one width

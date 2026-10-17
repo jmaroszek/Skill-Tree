@@ -1,6 +1,6 @@
 """Values the browser writes into hidden Dash inputs, and how to read them.
 
-The JS bridges (assets/menus.js, context_menu.js and the rest) write a value
+The JS bridges (assets/menus/menus.js, context_menu.js and the rest) write a value
 into a hidden input and append ``'|' + Date.now()``, so that sending the same
 value twice still changes the input and fires its callback. Some senders put
 a field before the stamp (``name|rank|<ms>``), and a JSON list of names can

@@ -99,7 +99,7 @@ def register_analyze_callbacks(app, services):
 
     # Subtabs show and hide their panes in the browser. Every pane renders
     # together, so a switch needs no server round-trip;
-    # assets/analyze_first_paint.js sizes a pane's charts as it appears.
+    # assets/analyze/analyze_first_paint.js sizes a pane's charts as it appears.
     # An unknown tab, such as the Structure tab a browser may still remember,
     # shows Plan.
     app.clientside_callback(
@@ -119,7 +119,7 @@ def register_analyze_callbacks(app, services):
 
     # Analyze renders on its first visit, not at startup. Its charts cost the
     # browser about 0.6 s of main-thread work, and the startup cover waited
-    # for them. assets/analyze_prewarm.js writes analyze-prewarm-store when
+    # for them. assets/analyze/analyze_prewarm.js writes analyze-prewarm-store when
     # the pointer or focus reaches the Analyze tab, so the render starts a
     # moment before the click.
     @app.callback(

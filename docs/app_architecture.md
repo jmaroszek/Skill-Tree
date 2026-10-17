@@ -198,7 +198,7 @@ A failed nested operation marks the entire save for rollback, including when a
 callback catches the error to display it. Cache-version changes and completion
 notifications are deferred until commit; rejected saves publish neither.
 
-Settings also commits one complete draft in a transaction. `assets/settings_close.js`
+Settings also commits one complete draft in a transaction. `assets/settings/settings_close.js`
 routes X, Escape and backdrop dismissal through `settings-close-request`, waits
 for pending form callbacks, and prevents repeated requests while saving.
 `save_settings` validates before writing and closes only after commit; errors
@@ -232,7 +232,7 @@ All three canvases build their elements with `build_node_element` and `build_edg
 
 The browser owns the selection. Cytoscape selects on a click and adds or removes a node on a click with Ctrl, Cmd or Shift held; `context_menu.js` only records the order. dash-cytoscape changes a node's selection when its `selected` differs from the previous render's, so a render that sets it overrides the user's picks. The Nodes canvas sets it only when asked to show one node (a search, a save, entering focus). Every other render passes `KEEP_SELECTION`, which leaves `selected` out. Details marks its view root, and a held click there leaves the view where it is (`SkillTree.additiveTap`). The data fields are the list `CANVAS_NODE_FIELDS`, which names each field's reader. Elements used to carry every `Node` field so that no canvas could miss one, but nothing read most of them, and a test now checks the list covers the tooltip and the context menu. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
 
-`assets/now_pulse.js` draws the ambient Now outline in an SVG beneath each
+`assets/canvas/now_pulse.js` draws the ambient Now outline in an SVG beneath each
 canvas's drawing layers. Its CSS opacity cycle leaves Cytoscape's drawing
 cached. Render events update the outline positions and viewport transform;
 a 250 ms scan reconciles classes, styles, visibility and replaced instances.
@@ -293,8 +293,8 @@ Dormant is a form field of the one node editor, saved with Save.
 - `refresh_events_after_save` bumps `events-refresh-trigger` once the save message appears, which is after the commit. That redraws the Events tab table and refills the section from the database.
 - `sync_original_name_after_save` rewrites `node-original-name` only on a rename or a new node. A rewrite on every save would refill the section from the database, and after a refused save that would throw away the user's Dormant switch.
 - Follow-ups to a save act on `editor-save-result-store`, which `core_engine` writes only once a save has committed (`{name, via, ts}`), never on the Save click. `sync_original_name_after_save` adopts the saved name after Save. `populate_editor` moves the unsaved-changes dialog on to its pending node only after that dialog's own save. Both used to fire on the click, so a refused save still lost its form, and a refused duplicate name made the editor adopt the existing node.
-- The Events tab's **+** opens a floating menu (`assets/dormant_add_menu.js`) that writes `new|<ms>` or `existing|<ms>` to `dormant-add-choice-input`. **New node** writes `editor-dormant-preset` and clicks `btn-editor-new`; the populator applies the preset to the next blank form. **Existing nodes…** opens the **Add to Event** modal (`build_add_to_event_modal`), which puts nodes with no event to sleep in bulk. The context menu's "Add to Event…" opens the same modal through `dormant-existing-trigger-input`.
-- The Details Subtasks **+** uses the same menu pattern (`assets/details_add_menu.js`). **New node** opens the shared editor with the selected node in Supports > Hard and includes that relationship in the pristine snapshot. **Existing node…** opens a focused Hard/Soft linking modal. Both paths refresh Details after saving through the normal graph version or Details refresh signals.
+- The Events tab's **+** opens a floating menu (`assets/menus/dormant_add_menu.js`) that writes `new|<ms>` or `existing|<ms>` to `dormant-add-choice-input`. **New node** writes `editor-dormant-preset` and clicks `btn-editor-new`; the populator applies the preset to the next blank form. **Existing nodes…** opens the **Add to Event** modal (`build_add_to_event_modal`), which puts nodes with no event to sleep in bulk. The context menu's "Add to Event…" opens the same modal through `dormant-existing-trigger-input`.
+- The Details Subtasks **+** uses the same menu pattern (`assets/menus/details_add_menu.js`). **New node** opens the shared editor with the selected node in Supports > Hard and includes that relationship in the pristine snapshot. **Existing node…** opens a focused Hard/Soft linking modal. Both paths refresh Details after saving through the normal graph version or Details refresh signals.
 
 ### 4. Status cascade
 
@@ -492,7 +492,7 @@ rebuild was its first update.
 `skilltree/features/home/callbacks.py` owns recommendation refreshes for graph versions, filters,
 row count and settings. The core callback's legacy table output returns
 `no_update`; it no longer scores and renders Next during unrelated graph work.
-Descriptions travel with visible rows as text. `assets/next_selection.js` handles
+Descriptions travel with visible rows as text. `assets/home/next_selection.js` handles
 row/Now-card selection, highlights and description changes clientside. Selection
 is State, not Input, for server callbacks. Refreshes retain a still-visible
 selection, update its description, and clear it when the row disappears.
@@ -519,7 +519,7 @@ otherwise. After that first load, a render while the tab is hidden is held in
 the browser and laid out when the tab opens (see Hidden canvases). A first visit
 takes about 1.4 s on the sandbox, behind the cover's caption. Locate from
 another tab navigates to an unloaded canvas and waits for its first paint
-before pulsing the node. `assets/canvas_first_paint.js` lifts it once the graph is both
+before pulsing the node. `assets/canvas/canvas_first_paint.js` lifts it once the graph is both
 laid out (`layoutstop` on a graph with nodes, positions away from the origin, or
 an element payload with no nodes to lay out) and framed (the canvas has a real
 size, so the fit can land). That fit used to live in `fullscreen.js`, which
@@ -566,7 +566,7 @@ filter to Health (67 nodes) and back to All (568) started fCoSE with
 
 A Settle writes `randomize: true` into that same prop. Every later add or
 remove re-ran it as is, so each filter change after a Settle reshuffled the
-whole graph. `assets/layout_requests.js` now randomizes a request only on its
+whole graph. `assets/canvas/layout_requests.js` now randomizes a request only on its
 first run. The re-runs are transitions.
 
 The one run that can't be a transition is the cold start, from most nodes
@@ -611,7 +611,7 @@ directly to every `main-tabs.active_tab` change: Analyze and Events use small
 clientside arrival stores that only notify their server callbacks when their
 own tab opens. Analyze renders on its first visit, not at startup. Its charts
 cost the browser about 0.6 s of main-thread work, and the startup cover waited
-for them. `assets/analyze_prewarm.js` writes `analyze-prewarm-store` when the
+for them. `assets/analyze/analyze_prewarm.js` writes `analyze-prewarm-store` when the
 pointer or keyboard focus reaches the Analyze tab, so the render starts before
 the click. Dash drops the earlier request's response when the click
 re-requests, so the server shares one render between the two. A click that
@@ -621,13 +621,13 @@ the date. An arrival that finds the signature current makes no recompute. Until
 the first render, the sections sit hidden behind a spinner. Its charts are
 responsive graphs with pinned heights, so charts drawn while hidden re-measure
 their width when the tab opens. The two Analyze subtabs render together, and a
-switch only shows and hides their panes. `assets/analyze_first_paint.js` treats
+switch only shows and hides their panes. `assets/analyze/analyze_first_paint.js` treats
 a pane being shown like the tab opening, and sizes its charts before they paint. Details dropdown options are hydrated initially and refreshed
 from graph/version stores, so opening Details does not resend an unchanged
 node list. Empty-state suggestions likewise ignore node selection once hidden.
 
 The Details selection callback returns the summary and selected-node store but
-not the large subtasks table. `assets/details_deferred_subtasks.js` observes the
+not the large subtasks table. `assets/details/details_deferred_subtasks.js` observes the
 Cytoscape layout lifecycle, ignores superseded layout generations, and writes
 the settled root to `details-layout-settled-trigger-input` after a short quiet
 window. Only then does the table callback render its rows; a stale root is
@@ -705,7 +705,7 @@ A filter change starts the Nodes layout, and the same rules apply there.
   when the query changes, and writes `None` when there is no text. Flipping the
   switch with nothing to search therefore wakes nothing. The field itself
   applies on Enter or blur, so a graph is not laid out again for each letter.
-  The suggestions under it are drawn by `assets/filter_suggest.js` from the
+  The suggestions under it are drawn by `assets/sidebars/filter_suggest.js` from the
   node editor Search list's options, with no round trip.
 
 ### Hidden canvases
@@ -717,7 +717,7 @@ filter change on Details laid out all of Nodes first. That was about 0.8 s of
 blocked page before the Details graph could start moving.
 
 Now the pending-store bridge hands a hidden canvas's payload to
-`assets/hidden_canvas_payloads.js`. It keeps only the newest one. A payload
+`assets/canvas/hidden_canvas_payloads.js`. It keeps only the newest one. A payload
 that arrives while the canvas is shown drops it. When the tab opens, the held
 payload lands once the canvas has a size and a frame has painted it. Applied
 with the tab switch, a large layout ran before the browser drew the new tab,
@@ -740,7 +740,7 @@ steps the running animations, and each step requests the next redraw. On a
 tick that draws, the loop clears that request after drawing. So the next tick
 only steps, and a moving graph was drawn on every other tick.
 
-`assets/cytoscape_frame_pacing.js` keeps that request on every canvas. A
+`assets/canvas/cytoscape_frame_pacing.js` keeps that request on every canvas. A
 redraw requested while a tick prepares its draw is renewed after the draw. A
 graph that stops moving stops asking, so a still canvas draws once per change
 as before.
@@ -755,7 +755,7 @@ it draws every tick. A Settle of the 567-node sandbox graph draws in about
 
 ## Layout requests
 
-Every canvas's `layout` prop comes from `assets/layout_requests.js`.
+Every canvas's `layout` prop comes from `assets/canvas/layout_requests.js`.
 `skilltree/engine/callbacks.py` registers one clientside callback per canvas in `CANVASES`, and
 the module builds the prop each one returns. The canvases share its rules and
 differ only in a small policy table.
@@ -780,7 +780,7 @@ canvas size it has cached. That cache lags a revealed tab by 100 ms, and at 0x0
 the fit does nothing. So a context menu's View Details, which opens the Details
 tab and selects the node in one step, could draw the graph in the canvas's
 top-left corner. A payload held for a hidden canvas waits for a size, but
-other layout requests can still reach one. `assets/canvas_fit.js` refreshes the cached
+other layout requests can still reach one. `assets/canvas/canvas_fit.js` refreshes the cached
 size before every layout. A layout that still finds no size owes its fit, and
 pays it when the canvas gets a size and the layout has stopped. Nothing else
 moves the viewport, so returning to a tab keeps its pan and zoom.
@@ -849,7 +849,7 @@ relayout there, with one hard-coded set of physics for every canvas.
 
 ## Simulation requests
 
-`assets/simulation_requests.js` assigns a browser-session ID and increasing
+`assets/details/simulation_requests.js` assigns a browser-session ID and increasing
 sequence to each Details simulation request. The server reads a detached graph
 and settings snapshot, releases database coordination, then calls
 `skilltree/features/details/simulation_service.py`. At most two calculations sample concurrently; newer
@@ -857,7 +857,7 @@ requests cancel older work between chunks. The client only displays a response
 matching its current request, including when server responses arrive out of order.
 
 Inputs that also change the Details graph first issue a node-less cancellation
-request. `assets/details_deferred_subtasks.js` releases the real simulation
+request. `assets/details/details_deferred_subtasks.js` releases the real simulation
 request only after the newest layout generation has stopped and stayed quiet,
 keeping sampling and chart serialization out of the animation-critical window.
 The status remains `Calculating…` and stale results stay hidden while waiting.
@@ -867,7 +867,7 @@ events; simulation-only inputs such as time units and settings remain immediate.
 A payload that starts no layout would leave that wait open for good. A filter
 change can send back the selected subtree's nodes and edges unchanged, such as
 a context with no nodes in it, and the layout request skips that payload like
-the echo. So `settleUnchanged()` in `assets/layout_requests.js` runs on the
+the echo. So `settleUnchanged()` in `assets/canvas/layout_requests.js` runs on the
 same payload, before the request records it, and applies the same signature
 check. When no layout will run, `releaseUnchanged()` sends the settled token
 itself, through `set_props`. It does nothing on a frozen

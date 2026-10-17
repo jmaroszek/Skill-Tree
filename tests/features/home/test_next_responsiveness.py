@@ -1,6 +1,5 @@
 """Next selection stays local; initial content honors the visible filter state."""
 import json
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -10,6 +9,7 @@ import pytest
 from skilltree.features.home.callbacks import register_home_callbacks
 from skilltree.features.home.view import initial_next_view, _components_by_id
 from support.graphs import graph
+from support.paths import asset_file
 
 
 def test_selection_has_no_server_subscribers(services):
@@ -56,7 +56,7 @@ def test_browser_selection_refresh_and_removal():
     node = shutil.which('node')
     if not node:
         pytest.skip('Node.js unavailable')
-    source = Path('assets/next_selection.js').read_text(encoding='utf-8')
+    source = asset_file('next_selection.js').read_text(encoding='utf-8')
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {dash_clientside: {callback_context: {triggered: []}}};

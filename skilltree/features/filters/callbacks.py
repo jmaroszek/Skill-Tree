@@ -74,7 +74,7 @@ def register_filters_callbacks(app, services):
 
     # The suggestions under the Search field come from the node editor's own
     # Search list, which holds every node's name and alias. The script keeps
-    # the names and draws the panel (assets/filter_suggest.js).
+    # the names and draws the panel (assets/sidebars/filter_suggest.js).
     app.clientside_callback(
         """
         function(options) {

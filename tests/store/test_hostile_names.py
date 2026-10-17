@@ -21,7 +21,7 @@ from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.store import schema
-from support.paths import ROOT
+from support.paths import app_asset_files
 
 
 HOSTILE = [
@@ -113,7 +113,7 @@ def test_no_page_script_writes_raw_html():
     """Names reach the page as text (Dash escapes, scripts use textContent).
     innerHTML would let a name like <img onerror=...> run as markup."""
     offenders = []
-    for path in sorted((ROOT / "assets").glob("*.js")):
+    for path in app_asset_files(".js"):
         if re.search(r"\.(inner|outer)HTML\s*=|insertAdjacentHTML|document\.write\(",
                      path.read_text(encoding="utf-8")):
             offenders.append(path.name)

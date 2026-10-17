@@ -2,7 +2,7 @@
 
 A dcc.Dropdown draws a white field, and DARKLY's body text is white, so a
 chosen value vanished unless something darkened it. The app's one idiom for
-that is a `.text-dark` wrapper (assets/dropdowns.css). The Data tab's restore
+that is a `.text-dark` wrapper (assets/css/dropdowns.css). The Data tab's restore
 dropdown shipped without one: picking a backup left the field looking empty.
 """
 from dash import dcc

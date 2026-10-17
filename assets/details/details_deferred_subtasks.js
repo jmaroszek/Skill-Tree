@@ -20,7 +20,9 @@
  * an earlier layout that is still running.
  */
 (function () {
-    if (!window.SkillTree || !window.SkillTree.onCytoReady) return;
+    // onCytoReady comes from canvas/cyto_lifecycle.js, which Dash loads first:
+    // it loads the folders in name order. Were it missing, this would throw
+    // rather than leave the Details panels waiting on a signal never wired.
 
     function setNativeValue(input, value) {
         window.SkillTree.setInputValue(input, value);

@@ -19,6 +19,7 @@ from skilltree.features.goals.callbacks import register_goals_callbacks
 from skilltree.features.editor.layout import build_node_editor_content
 from skilltree.ui.kit import Tooltip, add_button, edit_button, info_button
 from support.paths import ROOT
+from support.paths import asset_file
 
 
 
@@ -99,7 +100,7 @@ def test_editor_action_tooltips_dismiss_when_sidebar_closes(services):
     node = shutil.which('node')
     if node is None:
         pytest.skip('Node.js is required for the editor tooltip browser contract')
-    asset = ROOT / 'assets' / 'editor_sidebar.js'
+    asset = asset_file('editor_sidebar.js')
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {dash_clientside: {no_update: 'NO'}};

@@ -10,12 +10,12 @@ Status columns beside it. The names are real now:
 
 | Layer | Where | What it holds |
 |-------|-------|---------------|
-| CSS | [`assets/tokens.css`](assets/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
+| CSS | [`assets/css/tokens.css`](assets/css/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
 | Python | [`skilltree/ui/tokens.py`](skilltree/ui/tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
 | Badges | [`skilltree/ui/styles.py`](skilltree/ui/styles.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
 | Components | [`skilltree/ui/kit.py`](skilltree/ui/kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
 
-Read `assets/tokens.css` for the values. It is commented, and it is the only
+Read `assets/css/tokens.css` for the values. It is commented, and it is the only
 place any of them appear.
 
 **Two rules that keep it working:**
@@ -225,7 +225,7 @@ Every action must be reachable through Tab and group arrow navigation, and
 activate with Enter or Space. Tabs and card lists use one Tab stop per group;
 arrows and Home/End move focus within the group. Tabs activate on Enter/Space.
 Use native buttons where possible; custom clickable rows expose `role="button"`
-and `tabIndex=0`, with activation in `assets/keyboard_navigation.js`. Keep a
+and `tabIndex=0`, with activation in `assets/components/keyboard_navigation.js`. Keep a
 visible `:focus-visible` ring, including on ghost icons. Sliding sidebars are
 inert while closed and return keyboard focus to their opener when dismissed.
 Keyboard-opened sidebars start at search or the last field used. After a mouse
@@ -281,7 +281,7 @@ heading set to 600 looks like a different font beside the app's others.
 
 ### The type scale
 
-Eight steps in `assets/tokens.css`, from `--st-fs-xs` to `--st-fs-2xl`, plus
+Eight steps in `assets/css/tokens.css`, from `--st-fs-xs` to `--st-fs-2xl`, plus
 `--st-fs-heading` and `--st-fs-display` for the two one-off display sizes.
 Python reaches them as `tokens.FS_XS` … `tokens.FS_DISPLAY`.
 
@@ -572,20 +572,20 @@ Content that draws into a fixed-size surface does not follow a glide on its own.
 
 A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
 
-Analyze renders on its first visit, starting while its tab is still hidden when the pointer or focus reaches it. On every reveal, `assets/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width. The Analyze subtabs follow the same rule: their panes carry the `analyze-subpane` class, and showing one runs the sizing gate again.
+Analyze renders on its first visit, starting while its tab is still hidden when the pointer or focus reaches it. On every reveal, `assets/analyze/analyze_first_paint.js` hides only the `.dash-graph` drawings. It resizes their Plotly roots against the visible columns, then reveals them on the next frame. Keep Analyze graphs responsive, and give their wrappers an explicit figure height. That lets the sizing gate hold the finished page layout without exposing Plotly's hidden-tab fallback width. The Analyze subtabs follow the same rule: their panes carry the `analyze-subpane` class, and showing one runs the sizing gate again.
 
 An Analyze chart takes half the width (`dbc.Col(width=6)`) unless it has a real reason to be wider. Bars stretched across a full-width page are hard to compare. A chart alone in its row leaves the right half empty rather than stretching to fill it.
 
-Plotly charts on Analyze show no hover box of their own. Their traces use `hoverinfo='none'`, which still fires the events, and put each point's text in `customdata`. `assets/rating_dist.js` shows that text in the `.rd-tip` box on `plotly_hover`, so every Analyze chart has one tooltip. The shared layout helper, `_base_layout`, gives them the app's Lato font, soft tick labels, no axis lines and the card's gridline colour. Their legends are HTML (`gp-legend`), like the Plan charts'.
+Plotly charts on Analyze show no hover box of their own. Their traces use `hoverinfo='none'`, which still fires the events, and put each point's text in `customdata`. `assets/analyze/rating_dist.js` shows that text in the `.rd-tip` box on `plotly_hover`, so every Analyze chart has one tooltip. The shared layout helper, `_base_layout`, gives them the app's Lato font, soft tick labels, no axis lines and the card's gridline colour. Their legends are HTML (`gp-legend`), like the Plan charts'.
 
-A chart whose rows need to line up with HTML labels, such as the Contexts table, the Goals rows, Rating Drift and Throughput, is built in HTML rather than Plotly. Its tooltip is the floating `.rd-tip` box moved by `assets/rating_dist.js`, with the text in a `data-tip` attribute: the area in bold on the first line, then data. Only a rating cell's or mean tick's third line, a definition or comparison, is set soft. A History chart's marks sit inside a `hist-chart` wrapper, which is how the script finds them. The two true scatter charts stay Plotly, since a log-log scatter and a jittered box plot are not worth hand-building.
+A chart whose rows need to line up with HTML labels, such as the Contexts table, the Goals rows, Rating Drift and Throughput, is built in HTML rather than Plotly. Its tooltip is the floating `.rd-tip` box moved by `assets/analyze/rating_dist.js`, with the text in a `data-tip` attribute: the area in bold on the first line, then data. Only a rating cell's or mean tick's third line, a definition or comparison, is set soft. A History chart's marks sit inside a `hist-chart` wrapper, which is how the script finds them. The two true scatter charts stay Plotly, since a log-log scatter and a jittered box plot are not worth hand-building.
 
 When a bar is split by node type, the segments take the type's `BADGE_PALETTE` colour and stack in one order: Learn, Resource, Action. The Contexts table's Work left bar and Throughput coloured by node type both follow it, so the same colour means the same type on every Analyze chart.
 
 ## Borders & Dividers
 
 - Panel dividers: `1px solid var(--st-border-panel)` (`tokens.BORDER_PANEL`)
-- **Resizable dividers**: `split_handle()` in `skilltree/ui/kit.py`, placed between the two panels it resizes. `assets/split_handles.js` drags every handle, and the `.split-handle` rules in `theme.css` draw it, hover included. Don't wire a drag or a hover color per handle.
+- **Resizable dividers**: `split_handle()` in `skilltree/ui/kit.py`, placed between the two panels it resizes. `assets/components/split_handles.js` drags every handle, and the `.split-handle` rules in `theme.css` draw it, hover included. Don't wire a drag or a hover color per handle.
 - Selected card: `2px solid var(--st-accent)` (`tokens.ACCENT`)
 - Unselected card: `1px solid var(--st-border-panel)`
 - **Form/sidebar dividers**: `html.Hr(className="my-2")` — tight spacing for sidebars and modals
@@ -599,7 +599,7 @@ When a bar is split by node type, the segments take the type's `BADGE_PALETTE` c
 
 Build every right-click menu and popover from `_floating_menu`, `_menu_item`,
 `_menu_divider` and `_menu_heading` in `skilltree/shell.py`, and open it through
-`assets/menus.js`, which positions, dismisses and runs submenus for all of them.
+`assets/menus/menus.js`, which positions, dismisses and runs submenus for all of them.
 Don't hand-build a menu or give one its own inline panel style.
 
 A menu opened from something that doesn't say what it does, like an icon
@@ -692,7 +692,7 @@ letter is the jank to avoid on a large graph.
 - The placeholder says what is searched: names and aliases, plus descriptions
   while the switch is on.
 - Matching node names open in a panel under the field as you type
-  (`assets/filter_suggest.js`, the same panel and rows as every dropdown). Unlike
+  (`assets/sidebars/filter_suggest.js`, the same panel and rows as every dropdown). Unlike
   the node editor's Search, the field keeps free text: Enter filters by what you
   typed, and the arrow keys plus Enter pick a suggestion, which fills the field
   and applies it.
@@ -716,7 +716,7 @@ The app has three dropdown implementations and cannot reasonably have fewer:
 | `dcc.Dropdown` — Dash 4's Radix popover | long or searchable lists, multi-select |
 | [`skilltree/ui/components/context_picker.py`](skilltree/ui/components/context_picker.py) | context / subcontext, which cascade |
 
-**They all open the same panel.** [`assets/dropdowns.css`](assets/dropdowns.css)
+**They all open the same panel.** [`assets/css/dropdowns.css`](assets/css/dropdowns.css)
 owns every rule for all three, built from the tokens. The reference look is the
 context picker's panel — it was the one that already looked right.
 
@@ -870,7 +870,7 @@ habit-mode weekday picker), use a `dbc.Checklist` styled with Bootstrap's
 `btn-check` pattern. Do **not** set `inline=True` — it double-wraps the items.
 Avoid Bootstrap's `btn-group` here: its flex rules collapse the pills to text
 width. Instead size them with the `.habit-days-picker` flex rule in
-`assets/custom.css` (`display:flex; gap; .btn { flex:1 1 0 }`), which spreads
+`assets/css/custom.css` (`display:flex; gap; .btn { flex:1 1 0 }`), which spreads
 N equal-width pills across the row so none overflow the 350px sidebar.
 
 ```python
@@ -1081,7 +1081,7 @@ Its P lines are all dashed. P10 and P90 are the two ends of one range, so they
 share a muted gray. P50 is the headline, so it is near-white. Don't use
 status green, yellow or red for them. They read as good and bad, and Details
 uses the same colours for Done and Blocked. The labels sit in one row above
-the plot. `assets/sim_label_rows.js` lifts a label a row only when it would
+the plot. `assets/details/sim_label_rows.js` lifts a label a row only when it would
 overlap one already placed, measured after every draw. That way the rows
 follow the panel's real width.
 
@@ -1094,7 +1094,7 @@ Time Estimation Accuracy charts.
 
 **Preference: no visible scrollbars anywhere in the app.** Elements may still scroll — the scrollbar chrome should just be invisible.
 
-This is enforced globally in `assets/custom.css` via a `*` selector:
+This is enforced globally in `assets/css/custom.css` via a `*` selector:
 ```css
 * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { display: none; }
@@ -1102,7 +1102,7 @@ This is enforced globally in `assets/custom.css` via a `*` selector:
 
 Do **not** add per-element scrollbar-hiding rules — the global rule covers everything. If a new scrollable container appears with a visible scrollbar, check that the global rule hasn't been overridden locally.
 
-**Scroll fade.** With no scrollbar, a panel whose content often overflows needs another cue that more sits below. Add `scroll-fade-bottom` (in `assets/theme.css`) to the scroller itself. Its lower 24px fades while there is more to scroll to, and the fade is gone once the end is in view. A panel that fits shows no fade. It is driven by the element's own scroll position in CSS, so it needs no script. Today the Details Subtasks table and the Details suggestions list use it. Put it on a panel that scrolls often, not on every `overflow: auto` box.
+**Scroll fade.** With no scrollbar, a panel whose content often overflows needs another cue that more sits below. Add `scroll-fade-bottom` (in `assets/css/theme.css`) to the scroller itself. Its lower 24px fades while there is more to scroll to, and the fade is gone once the end is in view. A panel that fits shows no fade. It is driven by the element's own scroll position in CSS, so it needs no script. Today the Details Subtasks table and the Details suggestions list use it. Put it on a panel that scrolls often, not on every `overflow: auto` box.
 
 ## Z-Index Scale
 

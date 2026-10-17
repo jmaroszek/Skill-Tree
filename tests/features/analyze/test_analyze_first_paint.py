@@ -3,7 +3,7 @@
 Analyze prewarms while its tab is ``display:none``. Plotly gives each hidden
 graph a 700 px fallback SVG, then ``responsive=True`` corrects it after the
 tab opens. Without a reveal gate, that fallback gets one visible frame and the
-top-left chart visibly jumps. ``assets/analyze_first_paint.js`` hides only the
+top-left chart visibly jumps. ``assets/analyze/analyze_first_paint.js`` hides only the
 graph drawings, resizes them against the visible columns, and then reveals
 them.
 """

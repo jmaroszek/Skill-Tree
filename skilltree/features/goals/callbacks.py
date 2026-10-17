@@ -148,7 +148,7 @@ def register_goals_callbacks(app, services):
     graph_manager = services.graph
 
     # --- Goal Sidebar Toggle (CLIENTSIDE) ---
-    # Handled in the browser via assets/goals_sidebar.js to eliminate the
+    # Handled in the browser via assets/sidebars/goals_sidebar.js to eliminate the
     # server round-trip on open/close. Once the open slide finishes it bumps
     # goals-ui-refresh-trigger (NOT details-refresh-trigger) so only
     # render_goal_list re-runs — core_engine stays idle, and the rebuilt list
@@ -199,7 +199,7 @@ def register_goals_callbacks(app, services):
     # The cards exist only while the sidebar is open. The result is ~130 KB of
     # component JSON, and Dash re-checks every mounted component on each store
     # update, so a hidden list slowed every interaction elsewhere: the Details
-    # graph's opening animation stuttered behind it. assets/goals_sidebar.js
+    # graph's opening animation stuttered behind it. assets/sidebars/goals_sidebar.js
     # bumps goals-ui-refresh-trigger when a slide finishes. After an open
     # that builds the list; after a close it swaps the list for the cover.
     # The next open slides in over the remembered list if nothing it was
@@ -309,7 +309,7 @@ def register_goals_callbacks(app, services):
     )
 
     # --- Filters Sidebar Toggle (CLIENTSIDE) ---
-    # Handled entirely in the browser via assets/filters_sidebar.js. Previously
+    # Handled entirely in the browser via assets/sidebars/filters_sidebar.js. Previously
     # this toggle went through core_engine, whose expensive graph-regen branch
     # delayed the CSS transition by 500ms-2s on each click.
     app.clientside_callback(

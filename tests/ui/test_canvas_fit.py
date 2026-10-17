@@ -1,4 +1,4 @@
-"""Contract for assets/canvas_fit.js: a layout's fit lands even on a hidden tab.
+"""Contract for assets/canvas/canvas_fit.js: a layout's fit lands even on a hidden tab.
 
 Cytoscape fits against the canvas size it has cached, and at 0x0 the fit does
 nothing. View Details from a context menu opens the Details tab and selects the
@@ -99,11 +99,11 @@ global.window = {
 };
 global.attachCy = cy => { cytoHandlers.forEach(fn => fn(cy)); return cy; };
 
-require(require('node:path').join(require('node:path').dirname(process.argv[1]), '00_browser_bridge.js'));
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
 require(process.argv[1]);
 '''
     result = subprocess.run(
-        [node_binary, "-e", harness + script, str(asset)],
+        [node_binary, "-e", harness + script, str(asset), str(asset_file("00_browser_bridge.js"))],
         capture_output=True,
         text=True,
         timeout=15,

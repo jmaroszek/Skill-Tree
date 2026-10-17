@@ -754,7 +754,7 @@ def register_details_callbacks(app, services):
 
     # --- Details Graph Layout: layout requests ---
     # Registered with every canvas's in callbacks.py; built by
-    # assets/layout_requests.js.
+    # assets/canvas/layout_requests.js.
 
     # Time Simulation waits for the layout a filter change causes. A change
     # that leaves this subtree's nodes and edges as they were (a context with

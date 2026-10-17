@@ -2,7 +2,7 @@
    One row per context, replacing the free-text Definitions field. The row is
    the unit of identity: it carries the name the context was loaded under, so
    an edit reads as a rename instead of a delete plus an add. See
-   context_rules.py for the model and assets/context_editor_sortable.js for
+   context_rules.py for the model and assets/settings/context_editor_sortable.js for
    the drag wiring.
 
    The rows sit straight on the page, unboxed, divided by hairlines like the

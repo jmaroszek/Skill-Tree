@@ -37,7 +37,7 @@ stylesheet = [
         # border replaces the gap while the ring stays. The color is sourced
         # per-element via data(now_color) so the settings-modal color picker
         # can change it without restyling the canvas. The pulse animation is
-        # driven separately by assets/now_pulse.js.
+        # driven separately by assets/canvas/now_pulse.js.
         'selector': '.now',
         'style': {
             'border-width': 3,
@@ -284,7 +284,7 @@ CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
 # Shared width for the editor (left), goals (left), events (left), and
 # filters (right) sidebars. Keep them visually consistent with one knob.
 # Anything in JS that opens or closes a sidebar must keep its magic number in
-# sync (see assets/editor_sidebar.js, goals_sidebar.js, events_sidebar.js,
+# sync (see assets/sidebars/editor_sidebar.js, goals_sidebar.js, events_sidebar.js,
 # filters_sidebar.js).
 SIDEBAR_WIDTH = 350
 SIDEBAR_WIDTH_PX = f"{SIDEBAR_WIDTH}px"

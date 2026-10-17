@@ -46,7 +46,7 @@ def build_filters_content():
         # keystroke: each change to a filter lays the canvas out again, and on
         # a large graph a layout per letter is the sluggishness to avoid. The
         # suggestions that open as you type are drawn by
-        # assets/filter_suggest.js; the glyphs inside the field by CSS.
+        # assets/sidebars/filter_suggest.js; the glyphs inside the field by CSS.
         html.Div([
             dbc.Input(id="filter-text", type="text", value="", debounce=True,
                       placeholder="Filter by names and aliases...", autoComplete="off",
@@ -162,7 +162,7 @@ def build_filters_content():
 
         html.Hr(className="my-3"),
         # A filter change often leaves a layout worth re-running. This Settle
-        # carries no layout of its own: assets/filters_sidebar.js clicks the
+        # carries no layout of its own: assets/sidebars/filters_sidebar.js clicks the
         # Settle in the graph-settings panel of the canvas on screen, so it
         # behaves exactly like that one, Freeze included.
         html.Div([

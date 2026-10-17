@@ -88,7 +88,7 @@ def register_resource_settings_callbacks(app, services):
     def toggle_resource_root_options(values):
         return ['enabled' in (value or []) for value in values]
 
-    # Browser fallback. In the desktop window assets/resource_picker.js
+    # Browser fallback. In the desktop window assets/editor/resource_picker.js
     # answers the click with the native folder dialog, and Dash never sees it.
     @app.callback(
         Output({'type': 'resource-section-root', 'index': MATCH}, 'value'),

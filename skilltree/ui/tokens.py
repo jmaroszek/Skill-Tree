@@ -1,13 +1,13 @@
 """Design tokens for Python-built components.
 
 Every name here is a CSS ``var(--st-*)`` *reference*, not a copy of a value.
-The values live in ``assets/tokens.css``, which is the single source of truth;
+The values live in ``assets/css/tokens.css``, which is the single source of truth;
 Dash passes ``var(...)`` strings through to the DOM unchanged, so an inline
 style dict referencing one of these resolves to exactly what the stylesheets
 use. That is the whole point: a color can no longer be "almost" right.
 
 Do not add literal hex or rem values to this module. If a new value is needed,
-declare it in ``assets/tokens.css`` and export the reference here.
+declare it in ``assets/css/tokens.css`` and export the reference here.
 
 Badge and tile colors are deliberately NOT here — they live in
 ``styles.BADGE_PALETTE`` and are reached through ``styles.badge_style()``.
@@ -69,7 +69,7 @@ FONT_MONO = "var(--st-font-mono)"
 
 # --- Spacing ----------------------------------------------------------------
 # Bootstrap utility classes carry almost all spacing. These two name the
-# deliberate off-grid gaps in the Details header; see assets/tokens.css.
+# deliberate off-grid gaps in the Details header; see assets/css/tokens.css.
 SPACE_BLOCK = "var(--st-space-block)"
 SPACE_SECTION = "var(--st-space-section)"
 

@@ -68,7 +68,7 @@
     user-select: none;
     opacity: 0.9;
 }
-/* assets/next_perf_overlay.js sets this when the caption would cover content. */
+/* assets/home/next_perf_overlay.js sets this when the caption would cover content. */
 .next-perf-overlay[data-crowded] { visibility: hidden; }
 
 .canvas-stats-overlay {
@@ -172,7 +172,7 @@
    The canvas mounts hidden, so its nodes are stacked at the origin until the
    layout runs and nothing can frame them while the container is 0x0. This
    holds that state back until the graph is laid out and fitted; see
-   assets/canvas_first_paint.js, which owns the classes below. Opaque in the
+   assets/canvas/canvas_first_paint.js, which owns the classes below. Opaque in the
    canvas color, so the reveal reads as an empty canvas rather than a panel. */
 .canvas-cover {
     position: absolute;
@@ -399,7 +399,7 @@
 /* The .dark-dropdown block that used to live here was dead: the class was
    never assigned by any Python or JS file, and its [class$="-control"]
    selectors targeted react-select, which Dash 4 no longer uses. Dropdown
-   styling is now in assets/dropdowns.css. */
+   styling is now in assets/css/dropdowns.css. */
 
 /* --- Analyze subtabs: a divider under the bar, like the modal tabs --- */
 
@@ -611,14 +611,14 @@
 .gp-legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .gp-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 2px; }
 .gp-swatch.dot { width: 10px; border-radius: 50%; }
-/* A legend entry that shows or hides its trace (assets/rating_dist.js). */
+/* A legend entry that shows or hides its trace (assets/analyze/rating_dist.js). */
 .gp-legend-item { cursor: pointer; user-select: none; }
 .gp-legend-item:hover { color: var(--st-text-primary); }
 .gp-legend-item[aria-pressed="false"] { opacity: 0.45; }
 
 /* --- Analyze: History -------------------------------------------------------
    Rating Drift and Throughput are HTML like the Plan charts: the same type,
-   tracks, row hover and tooltip (assets/rating_dist.js). The scatter and box
+   tracks, row hover and tooltip (assets/analyze/rating_dist.js). The scatter and box
    plot stay Plotly, which hovers through that tooltip too. */
 .drift-chart, .throughput-chart {
     font-size: var(--st-fs-cap);
@@ -1071,7 +1071,7 @@
 
 /* --- Split handles --- */
 /* The bar between two panels that you drag to resize them (ui_kit.split_handle,
-   assets/split_handles.js). At rest it is a panel divider. On hover it fills
+   assets/components/split_handles.js). At rest it is a panel divider. On hover it fills
    with the divider's gray to show it can be grabbed. */
 
 .split-handle {
@@ -2089,7 +2089,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     box-shadow: 0 0 0 2px var(--st-accent-ring);
 }
 
-/* The suggestions under the field (assets/filter_suggest.js). The look of the
+/* The suggestions under the field (assets/sidebars/filter_suggest.js). The look of the
    context picker's panel, from the same tokens. */
 .filter-suggest {
     position: fixed;

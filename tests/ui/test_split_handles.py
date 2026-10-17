@@ -2,7 +2,7 @@
 
 A handle resizes the panels on either side of it, so the layout tests check
 that every handle has the right panel on each side. The Node tests drive
-assets/split_handles.js with stand-in elements.
+assets/components/split_handles.js with stand-in elements.
 """
 
 import json

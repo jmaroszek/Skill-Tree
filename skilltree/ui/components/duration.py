@@ -254,7 +254,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         customdata=hover,
         hovertemplate="%{customdata}<extra></extra>",
     ))
-    # One row of labels. assets/sim_label_rows.js lifts any that would overlap
+    # One row of labels. assets/details/sim_label_rows.js lifts any that would overlap
     # once it can measure them.
     for label, key, color in _PERCENTILE_LINES:
         fig.add_vline(
