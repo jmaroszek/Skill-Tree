@@ -1,6 +1,5 @@
 """Regression coverage for Details local-view controls and layout-only gears."""
 
-from pathlib import Path
 
 from skilltree.store import settings
 from skilltree.features.details.layout import build_details_tab_content
@@ -8,6 +7,7 @@ from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.shell import build_app_layout
 from skilltree.features.filters.layout import build_filters_content
 from skilltree.store.graph.manager import GraphManager
+from support.paths import asset_file
 
 
 def _walk(component):
@@ -125,7 +125,7 @@ def test_the_nodes_canvas_has_an_empty_state_with_its_three_ways_out():
 
 def test_field_focus_rings_are_for_the_keyboard_only():
     """A click draws nothing; Tab draws the ring (html.keyboard-mode)."""
-    css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
+    css = (asset_file("theme.css")).read_text()
     quiet = css[css.index(".form-control:focus,"):]
     quiet = quiet[:quiet.index("}")]
     ring = css[css.index("html.keyboard-mode .form-control:focus,"):]
@@ -224,7 +224,7 @@ def test_graph_layout_panel_contains_only_layout_controls():
 
 def test_graph_layout_panel_scrolls_within_a_short_canvas():
     """A shared panel must not lose controls when its canvas is short."""
-    css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
+    css = (asset_file("theme.css")).read_text()
     rule_start = css.index(".graph-settings-panel {")
     rule = css[rule_start:css.index("}\n", rule_start) + 1]
 
@@ -234,7 +234,7 @@ def test_graph_layout_panel_scrolls_within_a_short_canvas():
 
 
 def test_native_picker_tries_below_before_using_overflow_fallbacks():
-    css = (Path(__file__).resolve().parents[1] / "assets" / "dropdowns.css").read_text()
+    css = (asset_file("dropdowns.css")).read_text()
     supports = css[css.index("@supports (appearance: base-select)") :]
     picker_start = supports.index("select::picker(select) {")
     picker = supports[picker_start:supports.index("}", picker_start)]
@@ -246,7 +246,7 @@ def test_native_picker_tries_below_before_using_overflow_fallbacks():
 
 
 def test_multi_selects_have_no_select_all():
-    css = (Path(__file__).resolve().parents[1] / "assets" / "dropdowns.css").read_text()
+    css = (asset_file("dropdowns.css")).read_text()
     rule = css[css.index(".dash-dropdown-actions {"):]
 
     assert "display: none !important;" in rule[:rule.index("}")]

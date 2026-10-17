@@ -15,13 +15,12 @@ handing a link to another program:
 """
 import os
 
-import dash
 import pytest
 
 from skilltree.runtime import opener
 from skilltree.runtime.opener import NeedsConfirmation
 from skilltree.store import resources as stored_resources
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -204,17 +203,7 @@ def test_the_context_menu_route_relays_the_question(monkeypatch, opened):
 
 def _callbacks():
     from skilltree.features.editor.resources import register_resource_link_callbacks
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register_resource_link_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
+    return registered(register_resource_link_callbacks)
 
 
 def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):

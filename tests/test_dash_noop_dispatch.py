@@ -1,12 +1,12 @@
 """The browser drops only Dash's empty callback-bookkeeping dispatches."""
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
-ASSET = Path(__file__).resolve().parents[1] / 'assets' / '00_dash_noop_dispatch.js'
+ASSET = asset_file("00_dash_noop_dispatch.js")
 
 
 def test_only_all_null_aggregates_are_dropped_from_the_store_dash_assigns_later():

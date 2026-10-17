@@ -1,16 +1,16 @@
 """Shared browser boundary preserves dispatch, hook order, and instance isolation."""
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
 def test_native_input_and_layout_composition():
     node = shutil.which('node')
     if node is None:
         pytest.skip('Node.js is required for the browser bridge contract')
-    asset = Path(__file__).resolve().parents[1] / 'assets' / '00_browser_bridge.js'
+    asset = asset_file("00_browser_bridge.js")
     script = r'''
 const assert = require('node:assert/strict');
 function Input() { this.events = []; }

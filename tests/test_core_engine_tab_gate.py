@@ -17,20 +17,16 @@ from skilltree.engine import sidebars
 from skilltree.services import AppServices
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from support.triggers import fire
+from support.callbacks import app_with, unwrapped
 
 SIDEBAR_FIELDS = ("editor_style", "goal_style", "events_style")
 
 
 def _core_engine_fn():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    callbacks.register_engine_callbacks(app, AppServices())
-    target = [k for k in app.callback_map if k.startswith("..elements-pending-store.data")][0]
-    cb = app.callback_map[target]["callback"]
-    spec = app.callback_map[target]
-    while hasattr(cb, "__wrapped__"):
-        cb = cb.__wrapped__
-    return cb, spec
+    app = app_with(callbacks.register_engine_callbacks)
+    spec = next(spec for key, spec in app.callback_map.items()
+                if key.startswith("..elements-pending-store.data"))
+    return unwrapped(spec["callback"]), spec
 
 
 def _call(cb, **values):

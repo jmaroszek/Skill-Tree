@@ -18,7 +18,6 @@ run starting from nodes stacked at the origin has no shape to keep, so it is
 randomized, and it skips the animation while the cover is up.
 """
 
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -28,6 +27,7 @@ from skilltree.engine.callbacks import register_engine_callbacks
 from skilltree.shell import build_app_layout
 from skilltree.features.nodes.layout import create_graph_view
 from skilltree.store.graph.manager import GraphManager
+from support.paths import asset_file
 
 
 def _walk(component):
@@ -113,7 +113,7 @@ def _run_contract(script, observers=True, mounted=True):
     if node_binary is None:
         pytest.skip("Node.js is required for the first-paint contract")
 
-    asset = Path(__file__).resolve().parents[1] / "assets" / "canvas_first_paint.js"
+    asset = asset_file("canvas_first_paint.js")
     harness = r'''
 const assert = require('node:assert/strict');
 const USE_OBSERVERS = __USE_OBSERVERS__;

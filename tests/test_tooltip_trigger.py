@@ -7,7 +7,6 @@ Everything goes through ``ui_kit.Tooltip``, which fixes the trigger in one place
 """
 
 import dash_bootstrap_components as dbc
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -19,8 +18,8 @@ from skilltree.domain.models import Node
 from skilltree.features.goals.callbacks import register_goals_callbacks
 from skilltree.features.editor.layout import build_node_editor_content
 from skilltree.ui.kit import Tooltip, add_button, edit_button, info_button
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def _tooltips(component):

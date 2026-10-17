@@ -1,16 +1,16 @@
 """The suggestions under the filters sidebar's Search field."""
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
 def test_suggestions_hold_every_typed_word_and_lead_with_the_prefix():
     node_binary = shutil.which('node')
     if node_binary is None:
         pytest.skip('Node.js is required for the suggestion contract')
-    asset = Path(__file__).resolve().parents[1] / 'assets' / 'filter_suggest.js'
+    asset = asset_file("filter_suggest.js")
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {addEventListener() {}};
@@ -56,7 +56,7 @@ assert.deepEqual(suggest.matches('path'), []);
 
 def test_choosing_a_suggestion_commits_the_field_on_enter_keyup():
     """dbc.Input(debounce=True) listens for Enter on keyup, so a keydown applies nothing."""
-    source = (Path(__file__).resolve().parents[1] / 'assets' / 'filter_suggest.js').read_text()
+    source = (asset_file("filter_suggest.js")).read_text()
     choose = source[source.index('function choose('):]
     choose = choose[:choose.index('\n    }\n')]
 

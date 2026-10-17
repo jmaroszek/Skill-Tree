@@ -4,12 +4,11 @@ The event's own nodes are the list the user loaded, and are dormant, so
 filtering them would hide the very nodes the canvas exists to check.
 """
 
-import dash
 import pytest
 
 from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 def _node(name, **overrides):
@@ -21,16 +20,7 @@ def _node(name, **overrides):
 
 
 def _callback(name):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register_events_callbacks(app, AppServices())
-    for spec in app.callback_map.values():
-        callback = spec.get('callback')
-        while callback is not None and hasattr(callback, '__wrapped__'):
-            callback = callback.__wrapped__
-        if callback is not None and callback.__name__ == name:
-            return callback
-    raise LookupError(name)
+    return registered(register_events_callbacks)[name]
 
 
 @pytest.fixture

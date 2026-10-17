@@ -14,6 +14,7 @@ from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_TIME_SETTINGS
 from skilltree.features.settings import layout as settings_layout
 from skilltree.services import AppServices
+from support.layout import find
 
 STORED = {'hours_per_week': 20, 'hours_per_month': 80}
 
@@ -87,22 +88,10 @@ def test_a_stored_value_missing_a_key_reads_the_default():
                               DEFAULT_TIME_SETTINGS['hours_per_month'])
 
 
-def _find(component, component_id):
-    if getattr(component, "id", None) == component_id:
-        return component
-    children = getattr(component, "children", None)
-    for child in children if isinstance(children, (list, tuple)) else [children]:
-        if child is not None and not isinstance(child, (str, int, float)):
-            found = _find(child, component_id)
-            if found is not None:
-                return found
-    return None
-
-
 def test_the_fields_take_fractions():
     tab = settings_layout._build_editing_tab()
     for field in ("setting-hpd", "setting-hpw", "setting-hpm", "setting-hpy"):
-        assert _find(tab, field).step == "any"
+        assert find(tab, field).step == "any"
 
 
 def test_a_contexts_error_keeps_the_complete_draft_unsaved():

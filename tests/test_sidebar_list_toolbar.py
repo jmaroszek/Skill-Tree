@@ -11,6 +11,7 @@ from skilltree.domain.models import Event
 from skilltree.store import schema
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
+from support.layout import find, walk
 
 
 @pytest.fixture(autouse=True)
@@ -19,28 +20,6 @@ def temp_database(monkeypatch, tmp_path):
     monkeypatch.setattr(database, "get_db_path", lambda: tmp_db_path)
     schema.init_db(recheck=True)
     yield tmp_db_path
-
-
-def _walk(component):
-    stack = [component]
-    while stack:
-        node = stack.pop()
-        if isinstance(node, (list, tuple)):
-            stack.extend(reversed(node))
-            continue
-        if not isinstance(node, Component):
-            continue
-        yield node
-        children = getattr(node, "children", None)
-        if children is not None:
-            stack.append(children)
-
-
-def _find(component, component_id):
-    for node in _walk(component):
-        if getattr(node, "id", None) == component_id:
-            return node
-    raise AssertionError(f"Missing component {component_id}")
 
 
 def _text(component):
@@ -61,7 +40,7 @@ def _text(component):
 
 def _has_class(component, class_name):
     return any(class_name in (getattr(node, "className", None) or "").split()
-               for node in _walk(component))
+               for node in walk(component))
 
 
 @pytest.fixture
@@ -72,12 +51,12 @@ def layout():
 
 @pytest.mark.parametrize("sort", SORT_MENUS, ids=lambda s: s.prefix)
 def test_each_sidebar_has_a_sort_button_menu_and_store(layout, sort):
-    button = _find(layout, sort.button_id)
+    button = find(layout, sort.button_id)
     assert "sort-menu-button" in button.className
     assert getattr(button, "data-sort-menu") == sort.menu_id
     assert getattr(button, "data-sort-input") == sort.input_id
 
-    menu = _find(layout, sort.menu_id)
+    menu = find(layout, sort.menu_id)
     assert "ctx-menu" in menu.className
     heading = menu.children[0]
     assert heading.className == "ctx-menu-heading"
@@ -86,13 +65,13 @@ def test_each_sidebar_has_a_sort_button_menu_and_store(layout, sort):
     assert [item.id for item in items] == [sort.item_id(v) for v, _ in sort.options]
     assert [_text(item) for item in items] == [label for _, label in sort.options]
 
-    _find(layout, sort.input_id)
-    store = _find(layout, sort.store_id)
+    find(layout, sort.input_id)
+    store = find(layout, sort.store_id)
     # The choice lives in Settings, not browser storage, which a new port or a
     # cleared profile would lose.
     assert getattr(store, "storage_type", "memory") == "memory"
     assert store.data == sort.default
-    assert _find(layout, sort.tooltip_id).children == f"Sort: {sort.label(sort.default)}"
+    assert find(layout, sort.tooltip_id).children == f"Sort: {sort.label(sort.default)}"
 
 
 def test_sort_options_match_the_list_callbacks():
@@ -102,8 +81,8 @@ def test_sort_options_match_the_list_callbacks():
 
 def test_hide_triggered_switch_is_gone(layout):
     with pytest.raises(AssertionError):
-        _find(layout, "events-hide-triggered-toggle")
-    assert _find(layout, "events-show-triggered-store").data is False
+        find(layout, "events-hide-triggered-toggle")
+    assert find(layout, "events-show-triggered-store").data is False
 
 
 def _render_events_list():
@@ -134,7 +113,7 @@ def render():
 
 
 def _card_names(children):
-    return [node.id["index"] for node in _walk(children)
+    return [node.id["index"] for node in walk(children)
             if isinstance(getattr(node, "id", None), dict)
             and node.id.get("type") == "event-card"]
 

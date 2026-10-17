@@ -8,8 +8,8 @@ import pytest
 from skilltree.runtime import paths as app_paths
 from skilltree.runtime import file_picker
 from skilltree.runtime import opener
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 unused = runpy.run_path(str(ROOT / "packaging" / "unused_files.py"))["unused"]
 
 

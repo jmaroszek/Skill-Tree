@@ -9,7 +9,6 @@ be kept first.
 import math
 import shutil
 import sqlite3
-from pathlib import Path
 
 import pytest
 
@@ -17,8 +16,9 @@ from skilltree.store import backup
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store import schema
+from support.paths import FIXTURES
 
-FIXTURES = sorted(Path(__file__).parent.glob("fixtures/schema_v*.db"),
+FIXTURES = sorted(FIXTURES.glob("schema_v*.db"),
                   key=lambda p: int(p.stem.split("_v")[1]))
 
 

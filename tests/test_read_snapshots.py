@@ -8,7 +8,7 @@ from skilltree.features.home.table import format_suggestions_table
 from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD as HARD
-from test_atomic_saves import graph, node
+from support.graphs import graph, node
 from support.triggers import fire
 
 

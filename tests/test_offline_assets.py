@@ -6,13 +6,12 @@ unstyled, its icon-only toolbar blank and drag-to-reorder dead. They now live
 in assets/vendor.
 """
 import re
-from pathlib import Path
 
 import pytest
 
 from skilltree import app as app_module
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 VENDOR = ASSETS / "vendor"
 REMOTE = re.compile(r"""(?:src|href)\s*=\s*["']?(https?:)?//""", re.I)

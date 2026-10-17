@@ -1,7 +1,7 @@
 """The node editor's Save, called directly: no Dash and no callback."""
 import pytest
 
-from editor_forms import editor_form
+from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.features.editor.form import EDITOR_FORM, build_editor_snapshot
 from skilltree.features.editor.save import save_editor_form

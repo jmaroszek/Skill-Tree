@@ -13,8 +13,9 @@ from skilltree.store.settings import DEFAULT_CONTEXTS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
-from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.callbacks import registered
+from support.layout import find
 
 
 def _node(name, node_type="Learn", **overrides):
@@ -26,29 +27,7 @@ def _node(name, node_type="Learn", **overrides):
 
 
 def _callbacks(register):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
-
-
-def _find(component, component_id):
-    if getattr(component, "id", None) == component_id:
-        return component
-    children = getattr(component, "children", None)
-    for child in children if isinstance(children, (list, tuple)) else [children]:
-        if hasattr(child, "children") or hasattr(child, "id"):
-            found = _find(child, component_id)
-            if found is not None:
-                return found
-    return None
+    return registered(register)
 
 
 def _clicked(fn, button, *args):
@@ -64,7 +43,7 @@ def _clicked(fn, button, *args):
 
 def test_a_new_user_is_welcomed():
     assert onboarding.should_welcome() is True
-    modal = _find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal")
+    modal = find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal")
     assert modal is not None and modal.is_open is True
 
 
@@ -77,7 +56,7 @@ def test_someone_with_a_graph_is_not_welcomed_even_the_first_time():
 def test_the_welcome_shows_once():
     settings.WELCOME_DONE.set(True)
     assert onboarding.should_welcome() is False
-    assert _find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal").is_open is False
+    assert find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal").is_open is False
 
 
 @pytest.fixture

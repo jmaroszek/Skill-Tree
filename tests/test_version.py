@@ -1,11 +1,10 @@
 """The Python app and the Electron shell ship one version."""
 import json
 import re
-from pathlib import Path
 
 from skilltree.runtime.version import __version__
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_version_is_plain_semver():

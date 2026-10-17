@@ -5,30 +5,22 @@ a maximum of 10 weeks read as 10 hours on the Details graph, its subtasks and
 its milestones, while the Nodes canvas and Details' own simulation used weeks.
 They now take the controls as one group (ui/filters.SIDEBAR_FILTERS).
 """
-import dash
 import pytest
 
 from skilltree.features.details import callbacks as details_callbacks
 from skilltree.ui.filters import SIDEBAR_FILTERS, build_filters, filters_from
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node
-from skilltree.services import AppServices
+from support.callbacks import app_with, unwrapped
 
 APPLIES_THE_FILTERS = ("select_detail_node", "render_details_subtasks",
                        "toggle_details_subtask_filters", "update_details_graph")
 
 
 def _registered():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    details_callbacks.register_details_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found[getattr(fn, "__name__", None)] = (fn, spec)
-    return found
+    app = app_with(details_callbacks.register_details_callbacks)
+    return {unwrapped(spec["callback"]).__name__: (unwrapped(spec["callback"]), spec)
+            for spec in app.callback_map.values() if "callback" in spec}
 
 
 @pytest.mark.parametrize("name", APPLIES_THE_FILTERS)

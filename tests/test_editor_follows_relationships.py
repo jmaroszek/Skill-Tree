@@ -15,12 +15,13 @@ from skilltree.features.editor.form import (
     NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS, build_editor_snapshot,
     follow_relationships, merge_relationships, resolve_relationship_intent,
 )
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node, STATUS_BLOCKED, STATUS_OPEN
 from skilltree.store.commands import change_link
 from skilltree.store.events import EventManager
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.triggers import fire
 
 
 def _node(name):
@@ -65,8 +66,7 @@ def _loaded(manager, name):
 
 
 def _save(handlers, monkeypatch, **state):
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-save")
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {"btn-save"})
+    fire("btn-save")
     values = dict(n_type="Learn", desc="edited", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],

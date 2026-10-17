@@ -2,11 +2,10 @@
 import importlib.util
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 needs_playwright = pytest.mark.skipif(
     importlib.util.find_spec('playwright') is None,

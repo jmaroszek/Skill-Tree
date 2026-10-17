@@ -10,11 +10,10 @@ import json
 import re
 import shutil
 import subprocess
-from pathlib import Path
 
 import pytest
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "website" / "index.html"
 
 

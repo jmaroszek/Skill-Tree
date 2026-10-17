@@ -1,7 +1,6 @@
 """Structure contracts for the Events-tab layout."""
 
 from datetime import date
-from pathlib import Path
 
 from skilltree.features.events.layout import (
     build_events_tab_content,
@@ -13,9 +12,10 @@ from skilltree.features.events.layout import (
 from skilltree.domain.models import Node
 from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.domain.models import STATUS_DONE
+from support.paths import asset_file
 
 
-THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
+THEME_CSS = asset_file("theme.css")
 
 
 def _node(name="Audio Engineering", dormant=1):

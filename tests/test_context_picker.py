@@ -1,6 +1,5 @@
 """Contracts for the shared Context / Subcontext picker layer."""
 
-from pathlib import Path
 import json
 import shutil
 import subprocess
@@ -15,6 +14,7 @@ from skilltree.ui.components.context_picker import (
 from skilltree.shell import build_app_layout
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store import settings
+from support.paths import asset_file
 
 
 def _walk(component):
@@ -99,7 +99,7 @@ def test_browser_state_contract_preserves_order_and_summary_format():
     if node_binary is None:
         pytest.skip("Node.js is required for the picker state contract")
 
-    asset = Path(__file__).resolve().parents[1] / "assets" / "context_picker.js"
+    asset = asset_file("context_picker.js")
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {};

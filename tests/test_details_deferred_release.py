@@ -8,11 +8,11 @@ was one such path — and the panels then wait on a signal that can never
 arrive. The deadline below is what keeps that from being permanent.
 """
 
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
 HARNESS = r'''
@@ -75,8 +75,7 @@ def _run(body):
     node_binary = shutil.which("node")
     if node_binary is None:
         pytest.skip("Node.js is required for the deferred-release contract")
-    asset = (Path(__file__).resolve().parents[1]
-             / "assets" / "details_deferred_subtasks.js")
+    asset = (asset_file("details_deferred_subtasks.js"))
     result = subprocess.run(
         [node_binary, "-e", HARNESS + body, str(asset)],
         capture_output=True, text=True, timeout=10,

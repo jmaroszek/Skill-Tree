@@ -10,11 +10,12 @@ import pytest
 
 from skilltree.engine import callbacks
 from skilltree.features.editor.form import NEW_EVENT_OPTION
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
-from skilltree.services import AppServices
+from support.callbacks import registered
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -26,22 +27,12 @@ def _node(name, **overrides):
 
 
 def _registered():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    callbacks.register_engine_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found.setdefault(getattr(fn, "__name__", None), fn)
-    return found
+    return registered(callbacks.register_engine_callbacks)
 
 
 def _run(monkeypatch, trigger, **state):
     core_engine = _registered()["core_engine"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],
@@ -150,7 +141,7 @@ def test_putting_it_to_sleep_asks_too(monkeypatch, manager):
 
 def test_cancel_puts_the_editor_switch_back(monkeypatch):
     close = _registered()["close_undo_done_modal"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: "btn-undo-done-cancel")
+    fire("btn-undo-done-cancel")
     snapshot = {"name": "Basics", "status_done": [], "desc": "new notes"}
 
     is_open, pending, switch, kept = close(1, None, ["Basics"], "Basics", snapshot)
@@ -166,7 +157,7 @@ def test_cancel_puts_the_editor_switch_back(monkeypatch):
 ])
 def test_the_switch_is_left_alone_otherwise(monkeypatch, trigger, editing):
     close = _registered()["close_undo_done_modal"]
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
+    fire(trigger)
 
     result = close(1, 1, ["Basics"], editing, {"status_done": []})
 

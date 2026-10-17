@@ -8,7 +8,6 @@ must never be read as markup.
 """
 import json
 import re
-from pathlib import Path
 
 import pytest
 
@@ -22,8 +21,8 @@ from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.store import schema
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 HOSTILE = [
     "A|B|C", "ends with a pipe|", "|starts with a pipe",

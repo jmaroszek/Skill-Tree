@@ -1,6 +1,5 @@
 """Browser contract for the Events sidebar's contextual default behavior."""
 
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -8,9 +7,10 @@ import dash
 import pytest
 
 from skilltree.features.events.callbacks import register_events_callbacks
+from support.paths import asset_file
 
 
-ASSET = Path(__file__).resolve().parents[1] / "assets" / "events_sidebar.js"
+ASSET = asset_file("events_sidebar.js")
 
 
 def test_events_canvas_settles_after_the_glide_rather_than_during_it():

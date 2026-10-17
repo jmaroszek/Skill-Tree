@@ -13,7 +13,6 @@
 import datetime as real_datetime
 import json
 
-import dash
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
@@ -24,7 +23,7 @@ from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node, STATUS_DONE
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 def _node(name, **overrides):
@@ -36,17 +35,7 @@ def _node(name, **overrides):
 
 
 def _callbacks():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    event_callbacks.register_events_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
+    return registered(event_callbacks.register_events_callbacks)
 
 
 def _with_trigger(fn, prop_id, *args):

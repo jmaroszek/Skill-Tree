@@ -12,19 +12,14 @@ from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
-from skilltree.services import AppServices
+from support.callbacks import app_with, unwrapped
 
 
 def _callbacks(register):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register(app, AppServices())
     found = {}
-    for key, spec in app.callback_map.items():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
+    for key, spec in app_with(register).callback_map.items():
+        if "callback" in spec:
+            fn = unwrapped(spec["callback"])
             outputs = len(key.strip(".").split("...")) if key.startswith("..") else 1
             found[fn.__name__] = (fn, outputs)
     return found

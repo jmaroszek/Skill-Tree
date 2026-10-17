@@ -13,8 +13,8 @@ from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
 from skilltree.runtime.version import __version__
 from skilltree.store import schema
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def _ids(component, found=None):
@@ -107,13 +107,13 @@ def test_the_notices_cover_every_runtime_package_and_vendored_asset():
     pytest.importorskip("packaging")
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "third_party_notices", Path(__file__).parents[1] / "packaging" / "third_party_notices.py")
+        "third_party_notices", ROOT / "packaging" / "third_party_notices.py")
     notices = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(notices)
 
     text = notices.notices()
 
-    for line in (Path(__file__).parents[1] / "requirements.txt").read_text().splitlines():
+    for line in (ROOT / "requirements.txt").read_text().splitlines():
         name = line.split("#")[0].split("==")[0].strip()
         if name and not name.startswith("-"):
             pattern = "[-_]".join(map(re.escape, re.split(r"[-_]", name)))

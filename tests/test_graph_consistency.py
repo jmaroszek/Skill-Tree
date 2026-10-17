@@ -9,7 +9,7 @@ from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, EDGE_NEEDS_HARD as HARD, EDGE_NEEDS_SOFT as SOFT
-from test_atomic_saves import graph, save
+from support.graphs import graph, save
 from skilltree.store.graph.state import revisions
 
 

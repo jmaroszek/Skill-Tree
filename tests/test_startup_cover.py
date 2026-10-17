@@ -10,7 +10,6 @@ because its options arrive with the core engine's first payload.
 `assets/startup_cover.js` lifts it once that payload has landed and Dash has
 then had nothing pending for a quiet window, confirmed at idle.
 """
-from pathlib import Path
 import re
 import shutil
 import subprocess
@@ -20,12 +19,13 @@ import pytest
 
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.shell import build_index_string
+from support.paths import asset_file
 
 
 DASH_PLACEHOLDERS = ("{%metas%}", "{%title%}", "{%favicon%}", "{%css%}",
                      "{%app_entry%}", "{%config%}", "{%scripts%}", "{%renderer%}")
 
-ASSET = Path(__file__).resolve().parents[1] / "assets" / "startup_cover.js"
+ASSET = asset_file("startup_cover.js")
 
 
 def _constant(name):

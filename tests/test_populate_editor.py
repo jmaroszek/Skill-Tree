@@ -10,26 +10,16 @@ import dash
 from skilltree.domain.models import STATUS_OPEN, Node
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS
 from skilltree.engine.callbacks import register_engine_callbacks
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from support.triggers import fire
-from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import EDITOR_FILL, register_editor_callbacks
 from skilltree.features.nodes.callbacks import register_nodes_callbacks
+from support.callbacks import registered
 
 
 def _populate_editor_fn():
-    """Register callbacks on a fresh Dash app and return the raw populate_editor function."""
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register_editor_callbacks(app, AppServices())
-    # populate_editor's outputs include node-name.value, node-type.value and node-desc.value
-    target = [k for k in app.callback_map
-              if "node-name.value" in k and "node-type.value" in k and "node-desc.value" in k][0]
-    cb = app.callback_map[target]["callback"]
-    while hasattr(cb, "__wrapped__"):
-        cb = cb.__wrapped__
-    return cb
+    return registered(register_editor_callbacks)["populate_editor"]
 
 
 def _call_with_trigger(monkeypatch, trigger_id, **values):

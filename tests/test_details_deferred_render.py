@@ -1,7 +1,6 @@
 """Regression tests for the Details interaction critical path."""
 
 import inspect
-from pathlib import Path
 from types import SimpleNamespace
 
 import dash
@@ -18,9 +17,10 @@ from skilltree.ui import tokens
 from support.triggers import fire
 from skilltree.store.events import EventManager
 from skilltree.services import AppServices
+from support.paths import asset_file
 
 
-THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
+THEME_CSS = asset_file("theme.css")
 
 
 def _app_with(*registrars):
@@ -482,8 +482,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     assert callback(*args) is dash.no_update
 
     # A deleted node's late refresh doesn't claim it has no subtasks.
-    monkeypatch.setattr(details_callbacks, "get_trigger_id",
-                        lambda: "graph-version-store")
+    fire("graph-version-store")
     args[-1] = "Deleted"
     assert callback(*args).children == "Select a node to see subtasks."
 

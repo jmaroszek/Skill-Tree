@@ -1,5 +1,4 @@
 """Simulation budget, cancellation, deterministic reuse, and UI response order."""
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -10,7 +9,8 @@ from skilltree.features.details import simulation_service as service_module
 from skilltree.domain.simulation import simulate_task_chain, SimulationCancelled, _sample_node
 from skilltree.features.details.simulation_service import SimulationService, effective_trials, MAX_SAMPLE_WORK
 from skilltree.ui.components.duration import simulation_figure
-from test_atomic_saves import node
+from support.graphs import node
+from support.paths import asset_file
 
 
 def data(count=3):
@@ -114,7 +114,7 @@ def test_browser_ignores_old_results_after_and_before_current_result():
     node_binary = shutil.which('node')
     if node_binary is None:
         pytest.skip('Node.js is required for the browser response-order contract')
-    asset = Path(__file__).resolve().parents[1] / 'assets' / 'simulation_requests.js'
+    asset = asset_file("simulation_requests.js")
     script = r'''
 const assert = require('node:assert/strict');
 global.window = {

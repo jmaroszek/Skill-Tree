@@ -14,6 +14,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_OPEN
 from skilltree.store.commands import handle_group_delete
 from skilltree.services import AppServices
+from support.triggers import fire
 
 
 def _node(name):
@@ -56,8 +57,7 @@ def _core_engine():
 def test_multi_node_done_toggle_rolls_back_as_one(monkeypatch, manager):
     core_engine = _core_engine()
     trigger = "toggle-done-trigger-input"
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     _fail_on(monkeypatch, "update_node", "C")
     kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
     kwargs["toggle_done_trigger_data"] = '["A", "B", "C"]|1|1'
@@ -86,8 +86,7 @@ def test_a_sleeping_node_sits_out_of_a_bulk_done(monkeypatch, manager):
     events.add_node_to_event("Later", "C")
     core_engine = _core_engine()
     trigger = "toggle-done-trigger-input"
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
     kwargs["toggle_done_trigger_data"] = '["A", "B", "C"]|1|1'
 

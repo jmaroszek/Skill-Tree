@@ -8,11 +8,11 @@ graph drawings, resizes them against the visible columns, and then reveals
 them.
 """
 
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
 def _run_contract(script):
@@ -20,7 +20,7 @@ def _run_contract(script):
     if node_binary is None:
         pytest.skip("Node.js is required for the Analyze first-paint contract")
 
-    asset = Path(__file__).resolve().parents[1] / "assets" / "analyze_first_paint.js"
+    asset = asset_file("analyze_first_paint.js")
     harness = r'''
 const assert = require('node:assert/strict');
 
@@ -220,7 +220,7 @@ assert.equal(pane.classList.contains('analyze-is-sizing'), false,
 
 
 def test_css_hides_only_graph_drawings_while_they_are_sized():
-    css = (Path(__file__).resolve().parents[1] / "assets" / "theme.css").read_text()
+    css = (asset_file("theme.css")).read_text()
     rule = "#analyze-tab-content.analyze-is-sizing .dash-graph"
     assert rule in css
     assert "visibility: hidden" in css[css.index(rule):css.index(rule) + 160]

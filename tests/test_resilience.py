@@ -15,8 +15,8 @@ from pathlib import Path
 from skilltree.store import database
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store import schema
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 # Runs in a child process: commit one node, then die partway through a
 # multi-step save, the way a crash, a power cut or a kill -9 would.

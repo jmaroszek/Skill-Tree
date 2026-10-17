@@ -9,32 +9,22 @@ by field.
 """
 import inspect
 
-import dash
 
 from skilltree.engine import callbacks
 from skilltree.features.editor.form import (
     EDITOR_FORM, editor_form_values, editor_form_values_from,
 )
-from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.callbacks import app_with, unwrapped
 
 READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
            "sync_original_name_after_save")
 
 
 def _registered_specs():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    services = AppServices()
-    callbacks.register_engine_callbacks(app, services)
-    register_editor_callbacks(app, services)
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found[getattr(fn, "__name__", None)] = (spec, fn)
-    return found
+    app = app_with(callbacks.register_engine_callbacks, register_editor_callbacks)
+    return {unwrapped(spec["callback"]).__name__: (spec, unwrapped(spec["callback"]))
+            for spec in app.callback_map.values() if "callback" in spec}
 
 
 def test_each_reader_takes_the_whole_form_as_one_group():

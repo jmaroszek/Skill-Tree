@@ -10,36 +10,13 @@ from skilltree.store import database
 from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
-from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD as HARD
-from skilltree.store.commands import handle_save
+from skilltree.domain.models import Event, EDGE_NEEDS_HARD as HARD
 from skilltree.store.graph.state import revisions
-
-
-def node(name, **kwargs):
-    return Node(**dict(dict(name=name, type="Learn", description="original",
-                           value=5, interest=5, difficulty=5, time_o=1,
-                           time_m=2, time_p=4, context="Mind", status="Open"), **kwargs))
-
-
-def graph(*names):
-    manager = GraphManager()
-    for name in names:
-        manager.add_node(node(name))
-    return manager
+from support.graphs import graph, node, save
 
 
 def sync(manager, name, needs=(), supports=()):
     manager.sync_edges(name, list(needs), [], list(supports), [], [])
-
-
-def save(manager, name, **kwargs):
-    args = dict(name=name, n_type="Learn", desc="edited", val=5, time_o=1,
-                time_m=2, time_p=4, interest=5, diff=5, status_done=[],
-                context="Mind", subctx=None, resource_links=None,
-                e_needs_h=[], e_needs_s=[], e_supp_h=[],
-                e_supp_s=[], e_helps=[])
-    args.update(kwargs)
-    return handle_save(manager, **args)
 
 
 def test_valid_edge_reversal_uses_proposed_graph():

@@ -10,10 +10,11 @@ import pytest
 
 from skilltree.engine import callbacks
 from skilltree.features.editor.form import follow_done_status
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.services import AppServices
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -38,8 +39,7 @@ def _core_engine():
 
 def _run(monkeypatch, trigger, **state):
     core_engine = _core_engine()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],

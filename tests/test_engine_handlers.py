@@ -1,7 +1,7 @@
 """The core engine's handlers, called directly with a Request."""
 import dash
 
-from editor_forms import editor_form
+from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN, Node
 from skilltree.engine.handlers import Outcome, Request, handle
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED

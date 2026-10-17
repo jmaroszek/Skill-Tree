@@ -13,12 +13,12 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from support.triggers import fire
-from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.callbacks import registered
 
 
 def _node(name, **overrides):
@@ -30,18 +30,7 @@ def _node(name, **overrides):
 
 
 def _registered():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    services = AppServices()
-    callbacks.register_engine_callbacks(app, services)
-    register_editor_callbacks(app, services)
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found.setdefault(getattr(fn, "__name__", None), fn)
-    return found
+    return registered(callbacks.register_engine_callbacks, register_editor_callbacks)
 
 
 def _save(monkeypatch, trigger, **form):
@@ -114,7 +103,7 @@ def test_the_new_baseline_is_the_form_that_was_saved(manager):
     """The sync runs after the save's whole response. Something typed in the
     meantime must still count as unsaved, so the baseline is the saved form,
     not the form as it is when the sync runs."""
-    from editor_forms import editor_form
+    from support.editor_forms import editor_form
     sync = _registered()["sync_original_name_after_save"]
     saved = editor_form(name="Sleep", desc="as saved")
     result = {"name": "Sleep", "via": "btn-save", "form": saved, "ts": 3}

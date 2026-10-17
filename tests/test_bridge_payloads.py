@@ -7,7 +7,6 @@ action then landed on a different node.
 import inspect
 from contextvars import copy_context
 
-import dash
 import pytest
 
 from skilltree.ui import payloads as bridge
@@ -19,7 +18,8 @@ from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN
 from skilltree.store.commands import handle_group_delete
-from skilltree.services import AppServices
+from support.callbacks import registered
+from support.triggers import fire
 
 STAMP = "1700000000000"
 
@@ -71,16 +71,7 @@ def manager():
 
 
 def _callback(register, name):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register(app, AppServices())
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if getattr(fn, "__name__", None) == name:
-            return fn
-    raise LookupError(name)
+    return registered(register)[name]
 
 
 def test_set_priority_on_a_goal_whose_name_has_a_pipe(manager):
@@ -115,8 +106,7 @@ def test_details_navigation_selects_the_named_node():
 def test_context_menu_done_toggles_only_the_named_node(monkeypatch, manager):
     core_engine = _callback(callbacks.register_engine_callbacks, "core_engine")
     trigger = "toggle-done-trigger-input"
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     kwargs = dict.fromkeys(inspect.signature(core_engine).parameters)
     kwargs["toggle_done_trigger_data"] = f'["A|B"]|{STAMP}|{STAMP}'
 

@@ -9,6 +9,8 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
 from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.services import AppServices
+from support.callbacks import registered
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -120,16 +122,7 @@ def test_a_link_that_is_gone_or_an_unknown_action_is_refused(manager):
 # --- The callback -----------------------------------------------------------
 
 def _callbacks():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    link_menu_callbacks.register_link_menu_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found[getattr(fn, "__name__", None)] = fn
-    return found
+    return registered(link_menu_callbacks.register_link_menu_callbacks)
 
 
 def _apply_link_action():
@@ -214,8 +207,7 @@ def test_a_change_that_reopens_done_nodes_waits_for_confirmation(done_chain, mon
     assert "reopens 2 Done nodes" in str(body)
     assert ("P", "A", EDGE_NEEDS_SOFT) in _edges(done_chain)
 
-    monkeypatch.setattr(link_menu_callbacks, "get_trigger_id",
-                        lambda: "btn-link-reopen-confirm")
+    fire("btn-link-reopen-confirm")
     answer = _callbacks()["answer_link_reopen"]
     refresh, message, is_open, cleared = answer(1, None, pending)
     assert refresh.startswith("link-") and is_open is False and cleared is None
@@ -261,8 +253,7 @@ def test_linking_an_open_node_to_a_done_one_asks_first(done_chain, monkeypatch):
     assert ("P", "B", EDGE_NEEDS_HARD) not in _edges(done_chain)
     assert _status(done_chain, "B") == "Done"
 
-    monkeypatch.setattr(link_menu_callbacks, "get_trigger_id",
-                        lambda: "btn-link-reopen-confirm")
+    fire("btn-link-reopen-confirm")
     refresh, _message, is_open, cleared = _callbacks()["answer_link_reopen"](1, None, pending)
     assert refresh.startswith("link-") and is_open is False and cleared is None
     assert ("P", "B", EDGE_NEEDS_HARD) in _edges(done_chain)
@@ -288,8 +279,7 @@ def test_a_refused_link_says_why_and_asks_nothing(done_chain):
 
 
 def test_cancelling_the_confirmation_leaves_the_link(done_chain, monkeypatch):
-    monkeypatch.setattr(link_menu_callbacks, "get_trigger_id",
-                        lambda: "btn-link-reopen-cancel")
+    fire("btn-link-reopen-cancel")
 
     answer = _callbacks()["answer_link_reopen"]
     result = answer(None, 1, ["hard", "P", "A", EDGE_NEEDS_SOFT])

@@ -9,15 +9,15 @@ A tick after a long task runs well after its stamp.
 """
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
 
 from skilltree.ui.canvas.registry import client_registry
+from support.paths import asset_file
 
-ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'cytoscape_frame_pacing.js'
+ASSET = asset_file("cytoscape_frame_pacing.js")
 
 HARNESS = r'''
 const assert = require('node:assert/strict');

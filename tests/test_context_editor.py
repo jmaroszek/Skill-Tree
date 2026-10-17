@@ -22,7 +22,7 @@ from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.settings import draft as settings_draft
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 CONTEXTS = ["Health", "People", "Wisdom"]
@@ -362,17 +362,7 @@ class TestApplyTaxonomyMigration:
 # --- The callbacks -------------------------------------------------------------------
 
 def _callbacks():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    settings_callbacks.register_settings_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
+    return registered(settings_callbacks.register_settings_callbacks)
 
 
 def _with_trigger(fn, prop_id, value, *args):

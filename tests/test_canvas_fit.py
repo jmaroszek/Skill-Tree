@@ -8,11 +8,11 @@ Priority lays Details out while its tab is still hidden, with the same result
 once the tab opens.
 """
 
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
+from support.paths import asset_file
 
 
 def _run_contract(script):
@@ -20,7 +20,7 @@ def _run_contract(script):
     if node_binary is None:
         pytest.skip("Node.js is required for the canvas fit contract")
 
-    asset = Path(__file__).resolve().parents[1] / "assets" / "canvas_fit.js"
+    asset = asset_file("canvas_fit.js")
     harness = r'''
 const assert = require('node:assert/strict');
 

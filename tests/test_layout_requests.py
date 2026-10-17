@@ -6,15 +6,15 @@ receives.
 """
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 
 import pytest
 
 from skilltree.ui.canvas.registry import client_registry
+from support.paths import asset_file
 
-ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'layout_requests.js'
+ASSET = asset_file("layout_requests.js")
 
 HARNESS = r'''
 const assert = require('node:assert/strict');

@@ -13,7 +13,7 @@ from skilltree.features.goals import callbacks as sidebars_callbacks
 from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
-from test_atomic_saves import node
+from support.graphs import node
 from skilltree.services import AppServices
 
 

@@ -2,7 +2,6 @@
 and how its list is built."""
 
 from contextvars import copy_context
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -20,9 +19,11 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.goals.layout import build_goals_sidebar
 from skilltree.services import AppServices
+from support.paths import asset_file
+from support.layout import find
 
 
-ASSET = Path(__file__).resolve().parents[1] / "assets" / "goals_sidebar.js"
+ASSET = asset_file("goals_sidebar.js")
 
 
 def test_goals_sidebar_browser_contract():
@@ -161,22 +162,8 @@ def test_opening_the_editor_slides_goals_and_events_shut():
     assert goal_style["left"] == "0"
 
 
-def _find(component, component_id):
-    if getattr(component, "id", None) == component_id:
-        return component
-    children = getattr(component, "children", None)
-    if not isinstance(children, (list, tuple)):
-        children = [children]
-    for child in children:
-        if hasattr(child, "children") or hasattr(child, "id"):
-            found = _find(child, component_id)
-            if found is not None:
-                return found
-    return None
-
-
 def test_goal_list_shows_a_spinner_until_its_first_render():
-    container = _find(build_goals_sidebar(), "details-goal-list-container")
+    container = find(build_goals_sidebar(), "details-goal-list-container")
     cover = container.children
     assert cover.className == "loading-cover"
     assert isinstance(cover.children[0], dbc.Spinner)

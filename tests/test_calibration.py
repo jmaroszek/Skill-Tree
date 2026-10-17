@@ -21,6 +21,7 @@ from skilltree.features.review.values import (
     calibration_modal_text as calibration_modal_text,
 )
 from skilltree.domain.time import HOURS_PER_YEAR_MULT
+from support.triggers import fire
 
 
 @pytest.fixture
@@ -465,10 +466,8 @@ class TestMilestoneReflection:
         assert "project" in placeholder
 
     def test_submit_saves_only_the_notes(self, mgr, calibration_handlers, monkeypatch):
-        from skilltree.features.review import calibration as calibration_callbacks
         mgr.add_node(_make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
-        monkeypatch.setattr(calibration_callbacks, 'get_trigger_id',
-                            lambda: 'btn-time-calibration-submit')
+        fire('btn-time-calibration-submit')
         result = calibration_handlers['handle_time_calibration'](
             1, 0, 0, 3, 4, 5, 'hours', 5, 5, 5, "  Hit it in week 4.  ",
             {'mode': 'single', 'node': 'M'})

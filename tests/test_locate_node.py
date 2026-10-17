@@ -1,6 +1,5 @@
 """Regression tests for the view-aware "Locate on graph" flow."""
 
-from pathlib import Path
 import inspect
 import shutil
 import subprocess
@@ -13,6 +12,7 @@ from dash._utils import AttributeDict
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
+from support.paths import asset_file
 
 
 def _locate_callback():
@@ -145,7 +145,7 @@ def test_pulse_survives_a_forced_stop_and_runs_concurrently():
     if node_binary is None:
         pytest.skip("Node.js is required for the locate pulse contract")
 
-    asset = Path(__file__).resolve().parents[1] / "assets" / "locate_node.js"
+    asset = asset_file("locate_node.js")
     script = r'''
 const assert = require('node:assert/strict');
 

@@ -452,7 +452,7 @@ def test_scoring_caches_are_scoped_to_database_identity(monkeypatch, tmp_path, t
     from contextlib import closing
     from skilltree.store import database
     from skilltree.store.graph.manager import GraphManager
-    from test_atomic_saves import graph
+    from support.graphs import graph
 
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', 'Needs_Soft')

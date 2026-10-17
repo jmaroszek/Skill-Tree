@@ -14,6 +14,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Event, Node
 from skilltree.services import AppServices
+from support.layout import find
 
 
 def _clock():
@@ -29,20 +30,8 @@ def _clock():
     raise LookupError("run_event_clock")
 
 
-def _find(component, component_id):
-    if getattr(component, "id", None) == component_id:
-        return component
-    children = getattr(component, "children", None)
-    for child in children if isinstance(children, (list, tuple)) else [children]:
-        if hasattr(child, "children") or hasattr(child, "id"):
-            found = _find(child, component_id)
-            if found is not None:
-                return found
-    return None
-
-
 def test_the_layout_runs_the_clock():
-    clock = _find(build_app_layout(GraphManager(), env="sandbox"), "event-clock")
+    clock = find(build_app_layout(GraphManager(), env="sandbox"), "event-clock")
     assert clock is not None and not getattr(clock, "disabled", False)
 
 

@@ -9,7 +9,6 @@ kept their own list.
 import json
 import re
 from dataclasses import fields
-from pathlib import Path
 
 import dash
 
@@ -21,8 +20,9 @@ from skilltree.shell import build_app_layout
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
+from support.paths import ROOT
 
-ASSETS = Path(__file__).resolve().parents[1] / 'assets'
+ASSETS = ROOT / 'assets'
 
 # The assets that act on every canvas. They take the canvases from the page.
 SHARED_CANVAS_ASSETS = ('canvas_fit.js', 'context_menu.js', 'freeze_positions.js',

@@ -1,6 +1,5 @@
 """Structure contracts for the Reflection review-history table."""
 
-from pathlib import Path
 
 from skilltree.domain.models import Node
 from skilltree.features.review.callbacks import (
@@ -13,9 +12,10 @@ from skilltree.features.review.callbacks import (
 )
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.review.layout import build_calibration_dismissed_view
+from support.paths import asset_file
 
 
-THEME_CSS = Path(__file__).resolve().parents[1] / "assets" / "theme.css"
+THEME_CSS = asset_file("theme.css")
 
 
 def _reviewed_node(name="Reflected node"):

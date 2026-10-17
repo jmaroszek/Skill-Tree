@@ -11,11 +11,11 @@ from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store import events as event_manager
 from skilltree.store import settings
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event
-from test_atomic_saves import graph, node, save
+from support.graphs import graph, node, save
 from support.triggers import fire
 from skilltree.store import schema
 from skilltree.features.editor.callbacks import register_editor_callbacks

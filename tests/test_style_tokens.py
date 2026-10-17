@@ -10,11 +10,10 @@ Each test says what drifted last time, so a failure explains itself.
 """
 import ast
 import re
-from pathlib import Path
 
 import pytest
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 ASSETS = ROOT / "assets"
 TOKENS_CSS = ASSETS / "tokens.css"
 

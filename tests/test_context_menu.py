@@ -15,6 +15,8 @@ from skilltree.ui import tokens
 import pytest
 from skilltree.services import AppServices
 from skilltree.features.home.now import register_now_callbacks
+from support.callbacks import callbacks_of
+from support.layout import find
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -39,23 +41,6 @@ def _node(name, **overrides):
     return Node(**fields)
 
 
-def _find(component, component_id):
-    stack = [component]
-    while stack:
-        node = stack.pop()
-        if isinstance(node, (list, tuple)):
-            stack.extend(node)
-            continue
-        if not isinstance(node, Component):
-            continue
-        if getattr(node, "id", None) == component_id:
-            return node
-        children = getattr(node, "children", None)
-        if children is not None:
-            stack.append(children)
-    raise AssertionError(f"Missing component {component_id}")
-
-
 def _app():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
@@ -66,13 +51,7 @@ def _app():
 
 
 def _callback(app, name):
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None and fn.__name__ == name:
-            return fn
-    raise LookupError(name)
+    return callbacks_of(app)[name]
 
 
 def _layout():
@@ -111,7 +90,7 @@ def _labels(component):
 
 
 def test_shared_menu_groups_actions_by_intent():
-    menu = _find(_layout(), "node-context-menu")
+    menu = find(_layout(), "node-context-menu")
     assert _child_ids(menu) == [
         "ctx-menu-edit",
         "ctx-menu-details",
@@ -131,33 +110,33 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-resource-4",
         "ctx-menu-delete",
     ]
-    assert _labels(_find(menu, "ctx-menu-details")) == ["View Details"]
-    assert _labels(_find(menu, "ctx-menu-explain")) == ["Explain Priority"]
-    assert _labels(_find(menu, "ctx-menu-delete")) == ["Delete…"]
-    assert "bi-file-text" in _find(menu, "ctx-menu-details").children[0].className
-    assert "bi-calendar-event" in _find(menu, "ctx-menu-add-to-event").children[0].className
-    assert "bi-trash3" in _find(menu, "ctx-menu-delete").children[0].className
-    assert "ctx-menu-item-danger" in _find(menu, "ctx-menu-delete").className
+    assert _labels(find(menu, "ctx-menu-details")) == ["View Details"]
+    assert _labels(find(menu, "ctx-menu-explain")) == ["Explain Priority"]
+    assert _labels(find(menu, "ctx-menu-delete")) == ["Delete…"]
+    assert "bi-file-text" in find(menu, "ctx-menu-details").children[0].className
+    assert "bi-calendar-event" in find(menu, "ctx-menu-add-to-event").children[0].className
+    assert "bi-trash3" in find(menu, "ctx-menu-delete").children[0].className
+    assert "ctx-menu-item-danger" in find(menu, "ctx-menu-delete").className
 
 
 def test_goals_get_set_priority_in_the_shared_menu():
     """The Goals sidebar used to keep its own menu, which fell behind the
     shared one. Its one extra command now lives in the shared menu."""
-    menu = _find(_layout(), "node-context-menu")
-    priority = _find(menu, "ctx-menu-priority")
+    menu = find(_layout(), "node-context-menu")
+    priority = find(menu, "ctx-menu-priority")
     assert "ctx-menu-submenu-parent" in priority.className
     for item_id, label in (("ctx-menu-priority-1", "Priority 1"),
                            ("ctx-menu-priority-2", "Priority 2"),
                            ("ctx-menu-priority-3", "Priority 3"),
                            ("ctx-menu-priority-clear", "Clear Priority")):
-        assert _labels(_find(priority, item_id)) == [label]
+        assert _labels(find(priority, item_id)) == [label]
 
 
 def test_no_separate_goal_menu_remains():
     layout = _layout()
     for gone in ("goal-context-menu", "goal-details-trigger-input"):
         try:
-            _find(layout, gone)
+            find(layout, gone)
         except AssertionError:
             continue
         raise AssertionError(f"{gone} is still in the layout")
@@ -165,14 +144,14 @@ def test_no_separate_goal_menu_remains():
 
 def test_rank_popover_offers_the_same_priority_commands():
     layout = _layout()
-    popover = _find(layout, "goal-rank-popover")
-    submenu = _find(_find(layout, "node-context-menu"), "ctx-menu-priority")
+    popover = find(layout, "goal-rank-popover")
+    submenu = find(find(layout, "node-context-menu"), "ctx-menu-priority")
     assert _labels(popover) == ["Priority 1", "Priority 2", "Priority 3", "Clear Priority"]
     assert _labels(submenu)[1:] == _labels(popover)
 
 
 def test_event_menu_follows_the_shared_conventions():
-    menu = _find(_layout(), "event-context-menu")
+    menu = find(_layout(), "event-context-menu")
     assert _child_ids(menu) == [
         "event-ctx-edit",
         "event-ctx-trigger-divider",
@@ -180,13 +159,13 @@ def test_event_menu_follows_the_shared_conventions():
         "event-ctx-delete",
     ]
     assert _labels(menu) == ["Edit", "Trigger Now…", "Delete…"]
-    assert "ctx-menu-item-danger" in _find(menu, "event-ctx-delete").className
+    assert "ctx-menu-item-danger" in find(menu, "event-ctx-delete").className
 
 
 def test_every_floating_menu_shares_one_panel_class():
     layout = _layout()
     for menu_id in ("node-context-menu", "event-context-menu", "goal-rank-popover"):
-        assert _find(layout, menu_id).className == "ctx-menu"
+        assert find(layout, menu_id).className == "ctx-menu"
 
 
 def test_event_cards_say_whether_they_can_still_trigger():
@@ -203,7 +182,7 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
     suggestion = _node("Suggestion", resource_links=links)
     manager.add_node(suggestion)
 
-    suggestion_row = _find(
+    suggestion_row = find(
         format_suggestions_table([suggestion], manager)[0],
         {"type": "suggestion-row", "index": "Suggestion"},
     )
@@ -216,7 +195,7 @@ def test_next_rows_carry_context_menu_state_and_all_link_types():
     suggestion.now = 1
     manager.update_node(suggestion)
     now_section = format_now_nodes_section([suggestion], manager)
-    now_row = _find(
+    now_row = find(
         now_section,
         {"type": "now-row", "index": "Suggestion"},
     )
@@ -232,7 +211,7 @@ def test_now_card_context_uses_readable_body_size():
     manager.add_node(node)
 
     now_section = format_now_nodes_section([node], manager)
-    now_row = _find(now_section, {"type": "now-row", "index": "Suggestion"})
+    now_row = find(now_section, {"type": "now-row", "index": "Suggestion"})
     _accent, card_body = now_row.children
     _top_row, context_line = card_body.children
 
@@ -255,7 +234,7 @@ def test_goal_cards_open_the_shared_node_menu(services):
 
     cards = render("tab-next", None, None, None, None, "manual", None, None,
                    {"transform": "translateX(0px)"})
-    card = _find(cards, {"type": "goal-card", "index": "Fitness"})
+    card = find(cards, {"type": "goal-card", "index": "Fitness"})
     assert getattr(card, "data-node-menu") == "Fitness"
     assert getattr(card, "data-type") == "Goal"
     assert json.loads(getattr(card, "data-resource-links")) == {
@@ -294,7 +273,7 @@ def test_bulk_now_action_sets_mixed_selection_then_clears_all():
 
 
 def test_link_menu_offers_insert_change_and_remove():
-    menu = _find(_layout(), "edge-context-menu")
+    menu = find(_layout(), "edge-context-menu")
     assert _child_ids(menu) == [
         "ctx-menu-edge-bridge",
         "ctx-menu-edge-change-divider",
@@ -302,5 +281,5 @@ def test_link_menu_offers_insert_change_and_remove():
         "ctx-menu-edge-reverse",
         "ctx-menu-edge-remove",
     ]
-    assert "bi-share" in _find(menu, "ctx-menu-edge-bridge").children[0].className
-    assert "ctx-menu-item-danger" in _find(menu, "ctx-menu-edge-remove").className
+    assert "bi-share" in find(menu, "ctx-menu-edge-bridge").children[0].className
+    assert "ctx-menu-item-danger" in find(menu, "ctx-menu-edge-remove").className

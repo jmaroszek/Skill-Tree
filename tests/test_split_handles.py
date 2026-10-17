@@ -6,7 +6,6 @@ assets/split_handles.js with stand-in elements.
 """
 
 import json
-from pathlib import Path
 import shutil
 import subprocess
 
@@ -16,8 +15,9 @@ from skilltree.ui.canvas.registry import client_registry
 from skilltree.features.details.layout import build_details_tab_content
 from skilltree.features.events.layout import build_events_tab_content
 from skilltree.ui.kit import split_handle
+from support.paths import asset_file
 
-ASSET = Path(__file__).resolve().parents[1] / 'assets' / 'split_handles.js'
+ASSET = asset_file("split_handles.js")
 
 
 def _children(component):

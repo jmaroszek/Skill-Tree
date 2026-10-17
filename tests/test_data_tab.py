@@ -17,7 +17,7 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
 from skilltree.store import schema
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 def _node(name):
@@ -27,17 +27,7 @@ def _node(name):
 
 
 def _callbacks(register):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
+    return registered(register)
 
 
 @pytest.fixture

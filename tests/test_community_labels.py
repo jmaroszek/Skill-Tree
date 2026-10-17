@@ -208,7 +208,7 @@ class TestCanvasOptions:
 
     @staticmethod
     def _graph():
-        from test_atomic_saves import graph
+        from support.graphs import graph
         manager = graph('Hub', 'A', 'B', 'Loner')
         manager.add_edge('A', 'Hub', 'Needs_Hard')
         manager.add_edge('B', 'Hub', 'Needs_Hard')
@@ -241,7 +241,7 @@ class TestCanvasOptions:
         assert view.community_options[1] == {"label": "Loner (1 node)", "value": "Loner"}
 
     def test_orphans_all_includes_orphans_past_the_cap(self, temp_database):
-        from test_atomic_saves import graph
+        from support.graphs import graph
         names = [f"Orphan {i:02}" for i in range(MAX_LISTED + 5)]
         view = self._view(graph(*names), 'All', method="orphans")
         assert len(view.community_options) == MAX_LISTED + 1
@@ -251,7 +251,7 @@ class TestCanvasOptions:
     def _two_goals():
         """Goals K (fed by C and D) and G (fed by A and B), joined by a Soft
         link from A to K. One cluster, labelled after both Goals."""
-        from test_atomic_saves import graph, node
+        from support.graphs import graph, node
         manager = graph('A', 'B', 'C', 'D')
         manager.add_node(node('G', type='Goal', time_mode='inherited'))
         manager.add_node(node('K', type='Goal', time_mode='inherited'))

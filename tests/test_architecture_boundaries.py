@@ -22,11 +22,10 @@ Three more rules hold everywhere:
 - __init__.py files stay empty, so importing a package runs nothing.
 """
 import ast
-from pathlib import Path
 import subprocess
 import sys
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / 'skilltree'
 
 COMPOSITION = {'skilltree', 'skilltree.app', 'skilltree.services', 'skilltree.shell'}

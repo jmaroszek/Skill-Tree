@@ -20,7 +20,7 @@ from skilltree.features.editor.form import (
 )
 from skilltree.domain.models import Event, Node
 from skilltree.store.commands import apply_dormancy, handle_save
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 @pytest.fixture
@@ -299,17 +299,8 @@ def test_an_unset_store_matches_a_live_node():
 # --- The Events tab's "+" menu and the Add to Event modal --------------------
 
 def _callback(name):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    event_callbacks.register_events_callbacks(app, AppServices())
-    dormancy.register_dormancy_callbacks(app, AppServices())
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None and fn.__name__ == name:
-            return fn
-    raise KeyError(name)
+    return registered(event_callbacks.register_events_callbacks,
+                      dormancy.register_dormancy_callbacks)[name]
 
 
 def _with_trigger(fn, prop_id, *args):

@@ -9,7 +9,7 @@ import pytest
 
 from skilltree.features.home.callbacks import register_home_callbacks
 from skilltree.features.home.view import initial_next_view, _components_by_id
-from test_atomic_saves import graph
+from support.graphs import graph
 
 
 def test_selection_has_no_server_subscribers(services):

@@ -16,20 +16,16 @@ from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
 from skilltree.domain.models import Event
-from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
+from support.callbacks import app_with, unwrapped
 
 
 def _callbacks(register):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register(app, AppServices())
+    """{name: [function, ...]}: two lists share callback names."""
     found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
+    for spec in app_with(register).callback_map.values():
+        if "callback" in spec:
+            fn = unwrapped(spec["callback"])
             found.setdefault(fn.__name__, []).append(fn)
     return found
 
@@ -124,7 +120,7 @@ def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
 
 def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
     from skilltree.features.goals import callbacks as sidebars_callbacks
-    from test_atomic_saves import graph, node
+    from support.graphs import graph, node
 
     manager = graph()
     saved = ["Video", "Training", "Values", "Writing", "Stress", "Running"]

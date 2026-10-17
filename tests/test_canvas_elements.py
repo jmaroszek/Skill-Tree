@@ -28,6 +28,8 @@ from support.triggers import fire
 from skilltree.store.graph.state import revisions
 from skilltree.services import AppServices
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
+from support.paths import asset_file
+from support.callbacks import callbacks_of
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -52,13 +54,7 @@ def _app(*registrars):
 
 
 def _callback(app, name):
-    for spec in app.callback_map.values():
-        callback = spec.get('callback')
-        while callback is not None and hasattr(callback, '__wrapped__'):
-            callback = callback.__wrapped__
-        if callback is not None and callback.__name__ == name:
-            return callback
-    raise LookupError(name)
+    return callbacks_of(app)[name]
 
 
 def _nodes(elements):
@@ -202,7 +198,6 @@ def test_elements_carry_every_field_their_readers_use():
     either of them starts reading has to join CANVAS_NODE_FIELDS."""
     import inspect
     import re
-    from pathlib import Path
     from skilltree.ui.canvas.elements import CANVAS_NODE_FIELDS
 
     carried = set(CANVAS_NODE_FIELDS) | {'id', 'label', 'color', 'shape'}
@@ -213,7 +208,7 @@ def test_elements_carry_every_field_their_readers_use():
     read = set(re.findall(r"data\.get\('([a-z_]+)'", tooltip))
     assert read and read <= carried, read - carried
 
-    menu = (Path(__file__).resolve().parents[1] / 'assets' / 'context_menu.js'
+    menu = (asset_file("context_menu.js")
             ).read_text(encoding='utf-8')
     read = set(re.findall(r"\b(?:nodeData|_currentNodeData|node)\.([a-z_]+)\b", menu))
     read -= {'id', 'push', 'data'}  # node.data() is Cytoscape's accessor
@@ -237,7 +232,7 @@ def test_every_laid_out_canvas_redraws_when_the_graph_changes():
 def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     from skilltree.ui.canvas.view import build_canvas_view
     from skilltree.ui.canvas.elements import generate_elements
-    from test_atomic_saves import graph
+    from support.graphs import graph
     manager = graph('A', 'B')
     manager.add_edge('A', 'B', 'Needs_Hard')
     version = revisions.graph

@@ -9,11 +9,12 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 from skilltree.store.commands import conflicting_node_name
 from skilltree.services import AppServices
+from support.triggers import fire
 
 
 def _node(name, **overrides):
@@ -82,8 +83,7 @@ def _core_engine():
 
 def _save(monkeypatch, trigger, **form):
     fn = _core_engine()
-    monkeypatch.setattr(callbacks, "get_trigger_id", lambda: trigger)
-    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda: {trigger})
+    fire(trigger)
     values = dict(n_type="Learn", desc="replacement", context="Mind",
                   status_done=[], val=5, interest=5, diff=5,
                   time_o=1, time_m=2, time_p=4, time_unit="hours",

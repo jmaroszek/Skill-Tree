@@ -11,13 +11,14 @@ from skilltree.features.links import bridge as bridge_callbacks
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.engine import callbacks
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS
-from editor_forms import call
+from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
 from skilltree.store.commands import bridge_form, finish_bridge, plan_bridge
 from support.triggers import fire
 from skilltree.services import AppServices
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from support.callbacks import registered
 
 
 def _node(name, **overrides):
@@ -211,18 +212,7 @@ def test_no_pending_bridge_changes_nothing(manager):
 
 
 def _registered():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    services = AppServices()
-    callbacks.register_engine_callbacks(app, services)
-    register_editor_callbacks(app, services)
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        found.setdefault(getattr(fn, "__name__", None), fn)
-    return found
+    return registered(callbacks.register_engine_callbacks, register_editor_callbacks)
 
 
 def _save(monkeypatch, bridge_pending, original_name=None, **form):

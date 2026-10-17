@@ -7,15 +7,14 @@ import subprocess
 import sys
 import textwrap
 import time
-from pathlib import Path
 
 import pytest
 from flask import Flask
 
 from skilltree.runtime import server as server_runtime
 from skilltree.runtime.server import AccessGuard, InstanceLock, LaunchOptions, parse_args
+from support.paths import ROOT
 
-ROOT = Path(__file__).resolve().parents[1]
 
 
 # --- Arguments -------------------------------------------------------------

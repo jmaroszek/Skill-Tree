@@ -15,21 +15,11 @@ from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
-from skilltree.services import AppServices
+from support.callbacks import registered
 
 
 def _callbacks():
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    event_callbacks.register_events_callbacks(app, AppServices())
-    found = {}
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None:
-            found[fn.__name__] = fn
-    return found
+    return registered(event_callbacks.register_events_callbacks)
 
 
 def _with_trigger(fn, prop_id, value, *args):

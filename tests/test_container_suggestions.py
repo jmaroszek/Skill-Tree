@@ -15,6 +15,7 @@ from skilltree.features.details.explore import select_explore_goals
 from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
+from support.callbacks import callbacks_of
 
 
 def _node(name: str, **overrides: Any) -> Node:
@@ -160,13 +161,7 @@ def _component_ids_and_badges(component):
 
 
 def _callback(app, name):
-    for spec in app.callback_map.values():
-        fn = spec.get("callback")
-        while fn is not None and hasattr(fn, "__wrapped__"):
-            fn = fn.__wrapped__
-        if fn is not None and fn.__name__ == name:
-            return fn
-    raise LookupError(name)
+    return callbacks_of(app)[name]
 
 
 def test_sidebar_and_details_show_the_same_number_whatever_is_hidden(services):
