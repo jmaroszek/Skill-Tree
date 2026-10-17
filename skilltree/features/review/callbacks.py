@@ -10,6 +10,9 @@ import dash_bootstrap_components as dbc
 
 from skilltree.ui.kit import Tooltip
 from skilltree.features.review.layout import build_calibration_dismissed_view
+from skilltree.features.review.layout import build_pending_preview
+from skilltree.features.review.layout import excluded_summary
+from skilltree.features.review.layout import pending_label
 from skilltree.ui import tokens
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.review.layout import (
@@ -389,20 +392,23 @@ def register_review_callbacks(app, services):
     # what "Start review" would actually iterate through.
     @app.callback(
         Output('hub-pending-count', 'children'),
+        Output('hub-pending-label', 'children'),
+        Output('hub-pending-list', 'children'),
         Output('hub-pending-summary', 'style'),
         Output('hub-pending-empty', 'style'),
-        Output('btn-hub-pending-launch', 'style'),
         Input('modal-review-hub', 'is_open'),
         Input('hub-excluded-list', 'children'),
         prevent_initial_call=True,
     )
     def refresh_pending_count(is_open, _excluded_list):
         if not is_open:
-            return (no_update,) * 4
-        count = len(calibration_review_queue(_manager))
+            return (no_update,) * 5
+        queue = [_manager.get_node(name) for name in calibration_review_queue(_manager)]
+        count = len(queue)
         shown = {"display": "block"}
         hidden = {"display": "none"}
-        return str(count), (shown if count else hidden), (hidden if count else shown), (shown if count else hidden)
+        return (str(count), pending_label(count), build_pending_preview(queue),
+                (shown if count else hidden), (hidden if count else shown))
 
     # --- Excluded tab: load, reveal more, and restore in one callback ---
     @app.callback(
@@ -411,6 +417,8 @@ def register_review_callbacks(app, services):
         Output('hub-excluded-pager', 'style'),
         Output('hub-excluded-more-wrap', 'style'),
         Output('hub-excluded-visible-count', 'data'),
+        Output('hub-excluded-summary', 'children'),
+        Output('hub-excluded-section', 'style'),
         Input('modal-review-hub', 'is_open'),
         Input('hub-excluded-show-more', 'n_clicks'),
         Input({'type': 'calibration-restore', 'index': ALL}, 'n_clicks'),
@@ -420,20 +428,39 @@ def register_review_callbacks(app, services):
     def populate_excluded_list(is_open, _more_clicks, restore_clicks,
                                visible_count):
         if not is_open:
-            return (no_update,) * 5
+            return (no_update,) * 7
         trigger = ctx.triggered_id
         if isinstance(trigger, dict) and any(restore_clicks or []):
             node = _manager.get_node(trigger['index'])
             if node and node.calibration_dismissed:
                 node.calibration_dismissed = 0
                 _manager.update_node(node)
-        dismissed = sorted(n.name for n in _manager.get_all_nodes(include_dormant=True)
-                           if n.calibration_dismissed)
+        dismissed = sorted((n for n in _manager.get_all_nodes(include_dormant=True)
+                            if n.calibration_dismissed), key=lambda n: n.name)
         total = len(dismissed)
         limit = _visible_excluded_count(trigger, visible_count, total)
         view, _ = build_calibration_dismissed_view(dismissed, limit=limit)
         status, pager_style, more_style = _pager(limit, total, 'nodes')
-        return view, status, pager_style, more_style, limit
+        section_style = {"display": "block" if total else "none"}
+        return (view, status, pager_style, more_style, limit,
+                excluded_summary(total), section_style)
+
+    # --- Excluded: one divider line that shows or hides the list ---
+    # Collapsed again each time the modal opens, so the queue leads.
+    app.clientside_callback(
+        """function(_clicks, isOpen, style) {
+            var opening = window.dash_clientside.callback_context.triggered_id === 'modal-review-hub';
+            var show = !opening && (style || {}).display === 'none';
+            return [{display: show ? 'block' : 'none'}, show ? 'hide' : 'show', String(show)];
+        }""",
+        Output('hub-excluded-body', 'style'),
+        Output('hub-excluded-toggle', 'children'),
+        Output('hub-excluded-toggle', 'aria-expanded'),
+        Input('hub-excluded-toggle', 'n_clicks'),
+        Input('modal-review-hub', 'is_open'),
+        State('hub-excluded-body', 'style'),
+        prevent_initial_call=True,
+    )
 
     # --- History tab: sortable, progressively revealed results ---
     # The dropdown, the direction button and the column headers all write the

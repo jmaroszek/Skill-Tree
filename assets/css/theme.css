@@ -1069,6 +1069,125 @@
     padding: 1rem 1rem 0;
 }
 
+/* --- Reflection modal: the Reflect tab --- */
+/* The queue card leads; Excluded is one divider line at the bottom of the
+   frame, so the space between them reads as room rather than as an
+   unfinished page. Opened, the list grows upward from there, and the pane
+   scrolls once it outgrows the frame. */
+.review-hub-body > .tab-content > .tab-pane.active:has(.reflect-pane) {
+    display: flex;
+    flex-direction: column;
+}
+.review-hub-body > .tab-content > .tab-pane.active > div:has(> .reflect-pane) {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+}
+.reflect-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 auto;
+    gap: var(--st-space-section);
+    padding: 1.25rem;
+}
+.reflect-queue-card {
+    background: var(--st-bg-raised);
+    border: 1px solid var(--st-border-panel);
+    border-radius: var(--st-radius);
+    padding: 1.25rem 1.5rem;
+}
+.reflect-queue-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+.reflect-queue-count {
+    font-size: var(--st-fs-display);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--st-text-strong);
+    font-variant-numeric: tabular-nums;
+}
+.reflect-queue-label {
+    margin-top: 0.35rem;
+    color: var(--st-text-secondary);
+}
+/* Captions sit a step below body text, so headings and numbers lead. */
+.reflect-caption {
+    font-size: var(--st-fs-cap);
+    color: var(--st-text-soft);
+}
+.reflect-queue-empty {
+    text-align: center;
+    padding: 2rem 1.5rem;
+}
+.reflect-empty-icon {
+    display: block;
+    font-size: var(--st-fs-heading);
+    color: var(--bs-success);
+    margin-bottom: 0.5rem;
+}
+.reflect-empty-title {
+    font-size: var(--st-fs-row-title);
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.reflect-node-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.reflect-queue-card .reflect-node-list:not(:empty) {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--st-border-subtle);
+}
+.reflect-node-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-height: 30px;
+    font-size: var(--st-fs-base);
+}
+.reflect-node-more {
+    padding-left: calc(8px + 0.6rem);
+    color: var(--st-text-dim);
+}
+.reflect-type-dot {
+    flex: 0 0 auto;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.reflect-excluded {
+    margin-top: auto;
+}
+/* The divider is the section's last line while collapsed. */
+.reflect-excluded > .events-triggered-divider {
+    margin: 0;
+}
+#hub-excluded-body {
+    padding-top: 0.75rem;
+}
+/* A quiet text action: the word says what it does, which a lone arrow did not. */
+.reflect-restore-btn {
+    margin-left: auto;
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border: 0;
+    border-radius: var(--st-radius-sm);
+    background: transparent;
+    font-size: var(--st-fs-cap);
+    color: var(--st-text-dim);
+}
+.reflect-restore-btn:hover,
+.reflect-restore-btn:focus-visible {
+    color: var(--st-text-primary);
+    background: var(--st-ghost-hover-dark);
+}
+
 /* --- Split handles --- */
 /* The bar between two panels that you drag to resize them (ui_kit.split_handle,
    assets/components/split_handles.js). At rest it is a panel divider. On hover it fills
@@ -1374,7 +1493,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 
 /* The rule after the active events: "2 triggered events hidden · Show".
-   The Reflection modal's "Showing 20 of 73 · show 20 more" pagers share it. */
+   The Reflection modal's "Showing 20 of 73 · show more" pagers share it. */
 .events-triggered-divider {
     display: flex;
     align-items: center;

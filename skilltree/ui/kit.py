@@ -348,6 +348,12 @@ def done_color():
         STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
 
 
+def node_type_color(node_type):
+    """The user's canvas colour for a node type, for a dot beside its name."""
+    return settings.NODE_COLORS.get().get(
+        node_type, DEFAULT_NODE_COLORS.get(node_type, "#6c757d"))  # literal: unknown type
+
+
 def progress_bar_color(pct):
     """Fill for a completion bar: the Done green at 100%, the accent below.
 

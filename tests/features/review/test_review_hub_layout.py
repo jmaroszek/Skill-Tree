@@ -1,7 +1,15 @@
 """Structure contracts for the Reflection review-history table."""
 
+import json
+import shutil
+import subprocess
+from types import SimpleNamespace
+
+import dash
+import pytest
 
 from skilltree.domain.models import Node
+from skilltree.features.review.callbacks import register_review_callbacks
 from skilltree.features.review.callbacks import (
     _build_history_table,
     _rating_change_magnitude,
@@ -12,6 +20,11 @@ from skilltree.features.review.callbacks import (
 )
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.review.layout import build_calibration_dismissed_view
+from skilltree.features.review.layout import build_pending_preview
+from skilltree.features.review.layout import excluded_summary
+from skilltree.features.review.layout import pending_label
+from support.clientside import clientside_source
+from support.graphs import make_node
 from support.paths import asset_file
 
 
@@ -62,12 +75,15 @@ def test_review_history_edit_actions_reveal_on_row_intent_and_touch():
     assert "@media (hover: none), (pointer: coarse)" in css
 
 
+def _reflect_sections(modal):
+    pending = modal.children[1].children.children[0]
+    return pending.children[0].children
+
+
 def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     modal = build_review_hub_modal()
-    pending = modal.children[1].children.children[0]
-    section = pending.children[0].children
-    description = section[1]
-    empty = section[3]
+    queue, empty, excluded = _reflect_sections(modal)
+    head, description, preview = queue.children
 
     assert modal.dialog_class_name == "review-hub-dialog"
     assert modal.children[1].class_name == "review-hub-body"
@@ -75,15 +91,75 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     assert ".review-hub-dialog {\n    max-width: 980px;" in css
     assert ".review-hub-dialog .modal-content {\n    height:" in css
     assert description.children == "Walk through completed nodes that haven't been reflected on yet."
-    assert empty.children[0].className == "bi bi-check-circle text-success me-2"
-    assert empty.children[1] == "All caught up"
+    assert empty.children[0].className == "bi bi-check-circle reflect-empty-icon"
+    assert empty.children[1].children == "All caught up"
     # The History list fades while more rows sit below; its pager is outside it.
     assert ".scroll-fade-bottom,\n.review-history-scroll {" in css
     tabs = modal.children[1].children.children
     assert [tab.label for tab in tabs] == ["Reflect", "History"]
-    # The queue and the excluded list share the first tab, under headings.
-    assert [item.children for item in section if item.__class__.__name__ == "H5"] == [
-        "Queue", "Excluded"]
+    # The queue is a card led by its count, with the launch button beside it,
+    # so hiding the card hides the button too.
+    assert queue.id == "hub-pending-summary"
+    assert queue.className == "reflect-queue-card"
+    count_block, launch = head.children
+    assert count_block.children[0].id == "hub-pending-count"
+    assert launch.id == "btn-hub-pending-launch"
+    assert preview.id == "hub-pending-list"
+    # Excluded is one divider line at the bottom of the frame, its list folded
+    # away, so the queue leads however long the list grows.
+    assert excluded.className == "reflect-excluded"
+    assert ".reflect-excluded {\n    margin-top: auto;" in css
+    divider, body = excluded.children
+    assert divider.className == "events-triggered-divider"
+    summary, _dot, toggle = divider.children[1].children
+    assert summary.id == "hub-excluded-summary"
+    assert toggle.id == "hub-excluded-toggle"
+    assert toggle.className == "events-triggered-toggle"
+    assert body.id == "hub-excluded-body"
+    assert body.style == {"display": "none"}
+    assert excluded_summary(1) == "1 excluded node"
+    assert excluded_summary(50) == "50 excluded nodes"
+
+
+def test_excluded_toggle_opens_on_click_and_folds_when_the_modal_opens():
+    node_binary = shutil.which("node")
+    if node_binary is None:
+        pytest.skip("Node.js is required to run the clientside callback")
+    app = dash.Dash(__name__)
+    register_review_callbacks(app, SimpleNamespace(graph=None, events=None))
+    source, namespace, name = clientside_source(app, "hub-excluded-body.style")
+
+    def run(trigger, display):
+        script = (
+            "global.window = {dash_clientside: {}};\n" + source + "\n"
+            f"window.dash_clientside.callback_context = {{triggered_id: {json.dumps(trigger)}}};\n"
+            f"const fn = window.dash_clientside[{json.dumps(namespace)}][{json.dumps(name)}];\n"
+            f"console.log(JSON.stringify(fn(1, true, {{display: {json.dumps(display)}}})));"
+        )
+        result = subprocess.run([node_binary, "-e", script], capture_output=True,
+                                text=True, timeout=15)
+        assert result.returncode == 0, result.stderr
+        return json.loads(result.stdout)
+
+    assert run("hub-excluded-toggle", "none") == [{"display": "block"}, "hide", "true"]
+    assert run("hub-excluded-toggle", "block") == [{"display": "none"}, "show", "false"]
+    assert run("modal-review-hub", "block") == [{"display": "none"}, "show", "false"]
+
+
+def test_queue_preview_names_the_first_few_with_their_type():
+    nodes = [make_node(f"Node {index}", type="Action") for index in range(10)]
+    rows = build_pending_preview(nodes, limit=8)
+
+    assert len(rows) == 9
+    dot, name = rows[0].children
+    assert dot.className == "reflect-type-dot"
+    assert dot.title == "Action"
+    assert dot.style["backgroundColor"].startswith("#")
+    assert name.children == "Node 0"
+    assert rows[-1].children == "+2 more"
+    assert len(build_pending_preview(nodes[:3], limit=8)) == 3
+    assert pending_label(1) == "completed node waiting"
+    assert pending_label(3) == "completed nodes waiting"
 
 
 def test_review_history_summary_keeps_full_names_and_rating_comparison_accessible():
@@ -182,11 +258,14 @@ def test_history_show_more_batches_and_filter_resets():
 
 
 def test_excluded_rows_reveal_twenty_at_a_time_and_clamp_after_restore():
-    names = [f'Node {index:02d}' for index in range(47)]
-    first, total = build_calibration_dismissed_view(names, limit=20)
+    nodes = [make_node(f'Node {index:02d}') for index in range(47)]
+    first, total = build_calibration_dismissed_view(nodes, limit=20)
     assert total == 47
     assert len(first.children) == 20
-    assert first.children[0].children[0].children == 'Node 00'
+    _dot, name, restore = first.children[0].children
+    assert name.children == 'Node 00'
+    assert restore.children == 'Restore'
+    assert restore.id == {'type': 'calibration-restore', 'index': 'Node 00'}
     assert _visible_excluded_count('modal-review-hub', 40, total) == 20
     assert _visible_excluded_count('hub-excluded-show-more', 20, total) == 40
     assert _visible_excluded_count('hub-excluded-show-more', 40, total) == 47
@@ -204,7 +283,7 @@ def test_history_pager_matches_the_events_triggered_divider():
     status, more = sentence.children
     assert status.id == "hub-history-page-status"
     assert more.children[0] == " · "
-    assert more.children[1].children == "show 20 more"
+    assert more.children[1].children == "show more"
     assert more.children[1].className == "events-triggered-toggle"
 
 

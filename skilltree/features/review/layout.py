@@ -20,7 +20,7 @@ import dash_bootstrap_components as dbc
 
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
-from skilltree.ui.kit import restore_button
+from skilltree.ui.kit import node_type_color
 from skilltree.features.review.values import PROJECT_NOTES_PLACEHOLDER
 from skilltree.store import settings
 from skilltree.ui import tokens
@@ -79,7 +79,7 @@ def history_sort_direction_icon(direction):
 
 
 def _build_pager(prefix):
-    """ "Showing 20 of 73 reflections · show 20 more" between two rules.
+    """ "Showing 20 of 73 reflections · show more" between two rules.
 
     Styled as the Events list's triggered divider: small gray text, the dot as
     plain text in the sentence, and a soft action that brightens on hover.
@@ -90,7 +90,7 @@ def _build_pager(prefix):
             html.Span(id=f"{prefix}-page-status"),
             html.Span([
                 " · ",
-                html.Button("show 20 more", id=f"{prefix}-show-more",
+                html.Button("show more", id=f"{prefix}-show-more",
                             type="button", className="events-triggered-toggle"),
             ], id=f"{prefix}-more-wrap"),
         ]),
@@ -98,44 +98,102 @@ def _build_pager(prefix):
     ], id=f"{prefix}-pager", className="events-triggered-divider review-hub-pager")
 
 
+# The queue card names this many pending nodes, then "+N more".
+PENDING_PREVIEW_LIMIT = 8
+
+
 def _build_reflect_tab():
     """The queue and the nodes excluded from it, one above the other.
 
     They are two halves of one question (which completed nodes get reflected
-    on), and each alone is too short to fill a fixed-size modal.
+    on), and each alone is too short to fill a fixed-size modal. The queue is
+    the reason to open the tab, so it is a card led by its count; Excluded is
+    rarely needed, so it sits quietly at the bottom.
     """
     return dbc.Tab(label="Reflect", tab_id="tab-review-reflect", children=[
         html.Div([
-            html.H5("Queue", className="mb-2"),
-            html.P(
-                "Walk through completed nodes that haven't been "
-                "reflected on yet.",
-                className="text-muted mb-3",
-            ),
-            html.Div([
-                html.Span("Nodes pending reflection: ", className="text-muted"),
-                html.Span(id="hub-pending-count", className="fw-bold ms-1",
-                          children="0"),
-            ], id="hub-pending-summary", className="mb-3"),
-            html.P([
-                html.I(className="bi bi-check-circle text-success me-2",
+            html.Section([
+                html.Div([
+                    html.Div([
+                        html.Div(id="hub-pending-count",
+                                 className="reflect-queue-count", children="0"),
+                        html.Div(id="hub-pending-label",
+                                 className="reflect-queue-label",
+                                 children="completed nodes waiting"),
+                    ]),
+                    dbc.Button("Start Reflection", id="btn-hub-pending-launch",
+                               color="primary"),
+                ], className="reflect-queue-head"),
+                html.P(
+                    "Walk through completed nodes that haven't been "
+                    "reflected on yet.",
+                    className="reflect-caption mb-0",
+                ),
+                html.Ul(id="hub-pending-list", className="reflect-node-list"),
+            ], id="hub-pending-summary", className="reflect-queue-card"),
+            html.Section([
+                html.I(className="bi bi-check-circle reflect-empty-icon",
                        **{"aria-hidden": "true"}),
-                "All caught up",
-            ], id="hub-pending-empty",
-                   className="mb-0", style={"display": "none"}),
-            dbc.Button("Start Reflection", id="btn-hub-pending-launch",
-                       color="primary"),
-            html.H5("Excluded", className="mt-5 mb-2"),
-            html.P(
-                "Nodes marked \"Don't ask again\" during reflection. "
-                "Restore one to make it eligible for the queue again.",
-                className="text-muted mb-3",
-            ),
-            dcc.Store(id="hub-excluded-visible-count", data=20),
-            html.Div(id="hub-excluded-list"),
-            _build_pager("hub-excluded"),
-        ], className="p-3")
+                html.Div("All caught up", className="reflect-empty-title"),
+                html.P("Nodes you complete will show up here.",
+                       className="reflect-caption mb-0"),
+            ], id="hub-pending-empty", className="reflect-queue-card reflect-queue-empty",
+                style={"display": "none"}),
+            # Collapsed behind one line, the Events list's triggered divider,
+            # so the queue leads however many nodes pile up here.
+            html.Section([
+                html.Div([
+                    html.Span(className="events-triggered-rule"),
+                    html.Span([
+                        html.Span(id="hub-excluded-summary"),
+                        " · ",
+                        html.Button("show", id="hub-excluded-toggle", type="button",
+                                    className="events-triggered-toggle",
+                                    **{"aria-expanded": "false",
+                                       "aria-controls": "hub-excluded-body"}),
+                    ]),
+                    html.Span(className="events-triggered-rule"),
+                ], className="events-triggered-divider"),
+                html.Div([
+                    html.P(
+                        "Marked \"Don't ask again\" during reflection. "
+                        "Restore one to queue it again.",
+                        className="reflect-caption mb-2",
+                    ),
+                    dcc.Store(id="hub-excluded-visible-count", data=20),
+                    html.Div(id="hub-excluded-list"),
+                    _build_pager("hub-excluded"),
+                ], id="hub-excluded-body", style={"display": "none"}),
+            ], id="hub-excluded-section", className="reflect-excluded",
+                style={"display": "none"}),
+        ], className="reflect-pane")
     ])
+
+
+def _type_dot(node_type):
+    return html.Span(className="reflect-type-dot", title=node_type,
+                     style={"backgroundColor": node_type_color(node_type)})
+
+
+def build_pending_preview(nodes, limit=PENDING_PREVIEW_LIMIT):
+    """The queue card's list: the first few pending nodes, each with its
+    type's dot, then how many more there are. `nodes` arrive in queue order."""
+    rows = [html.Li([_type_dot(node.type),
+                     html.Span(node.name, className="text-truncate")],
+                    className="reflect-node-row")
+            for node in nodes[:limit]]
+    if len(nodes) > limit:
+        rows.append(html.Li(f"+{len(nodes) - limit} more",
+                            className="reflect-node-row reflect-node-more"))
+    return rows
+
+
+def pending_label(count):
+    return "completed node waiting" if count == 1 else "completed nodes waiting"
+
+
+def excluded_summary(count):
+    return f"{count} excluded {'node' if count == 1 else 'nodes'}"
 
 
 def _build_history_tab():
@@ -230,23 +288,25 @@ def build_review_hub_modal():
        is_open=False, centered=True, scrollable=True)
 
 
-def build_calibration_dismissed_view(dismissed_names, limit=None):
+def build_calibration_dismissed_view(dismissed, limit=None):
     """List of nodes marked "Don't ask again" during a calibration review,
     each row with a Restore button (pattern-matched id
     `{'type': 'calibration-restore', 'index': <name>}`). Returns a Dash
-    component tree for the Review Hub's Excluded tab. Names arrive sorted."""
-    if not dismissed_names:
+    component tree for the Reflect tab's Excluded section. Nodes arrive
+    sorted by name."""
+    if not dismissed:
         return (html.Small("No nodes excluded from reflection.",
-                           className="text-muted d-block"), 0)
+                           className="reflect-caption d-block"), 0)
     rows = []
-    for name in dismissed_names[:limit]:
-        rows.append(html.Div([
-            html.Span(name, className="text-truncate"),
-            restore_button({'type': 'calibration-restore', 'index': name},
-                           tooltip="Include in future reflections",
-                           placement="right"),
-        ], className="d-flex align-items-center mb-1"))
-    return html.Div(rows), len(dismissed_names)
+    for node in dismissed[:limit]:
+        rows.append(html.Li([
+            _type_dot(node.type),
+            html.Span(node.name, className="text-truncate"),
+            html.Button("Restore", id={'type': 'calibration-restore', 'index': node.name},
+                        type="button", className="reflect-restore-btn",
+                        **{"aria-label": f"Include {node.name} in future reflections"}),
+        ], className="reflect-node-row"))
+    return html.Ul(rows, className="reflect-node-list"), len(dismissed)
 
 
 # Time-calibration modal: pops after an explicit single-node completion to

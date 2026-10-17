@@ -441,6 +441,17 @@ the explanation under each name, rather than a select plus an (i) reference.
 Reflection has three tabs and a wide History table, so its tabs stay on top.
 Its styles live under `.review-hub-body`. Both modals share one height.
 
+The Reflect tab leads with one card, `reflect-queue-card`. Its count is the
+largest text on the page, at the display size. The launch button sits beside
+the count, and the first few pending nodes are listed below, each with its
+type's dot. The Excluded list, rarely needed and able to grow long, collapses
+behind the Events triggered divider ("50 excluded nodes · show") at the bottom
+of the frame. It starts collapsed each time the modal opens, and it is absent
+while nothing is excluded. Captions use
+`reflect-caption`, the caption size in soft text, a step below body text.
+A row action that a bare icon would leave unclear is a quiet text button
+(`reflect-restore-btn`), not an icon.
+
 The app's top tabs stay horizontal, because they switch between workspaces
 rather than between pages of one dialog.
 
@@ -1035,9 +1046,9 @@ It stays in step with header clicks. At the default order its text is
 placeholder gray, like "All contexts" beside it. Any other order turns it the
 normal value color. The direction button's tooltip names the
 order in the criterion's terms, such as "Most over estimate first". The table initially shows 20 rows and reveals 20 more per
-click through a counted divider. The Excluded tab uses the same 20-row batches.
+click through a counted divider. The Excluded list uses the same 20-row batches.
 Both pagers reuse the Events list's triggered divider: small gray text between
-two rules, a plain " · " in the sentence, and a soft "Show 20 more" that
+two rules, a plain " · " in the sentence, and a soft "show more" that
 brightens on hover. The divider only appears while there is more to reveal, so a list that fits shows no "Showing 1 of 1", and past 100 rows it says "of many" rather than a count. Any "N hidden · show" line should use that divider. The
 modal width is shared across its tabs.
 

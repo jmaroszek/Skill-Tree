@@ -880,7 +880,7 @@ The reflection hub has two tabs:
 
 ## Reflect
 
-The top of this tab is the queue. Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
+The top of this tab is the queue. It shows how many completed nodes are waiting, and names the first few. Click **Start Reflection** to open a step-by-step walkthrough. For each project, you record the information shown below.
 
 Below the ratings is a notes box. Use it for what you learned, what was hard, and why your ratings or time estimates were off. The node's Description is for the plan you made before starting. The notes are for what happened.
 
@@ -892,7 +892,7 @@ A Milestone's reflection is the notes box alone. It holds no work of its own, so
   <em>Reflection feature screen after you hit "start reflection" </em>
 </p>
 
-Below the queue is your "Don't ask again" list. Nodes here are quietly bypassed during your reflection cycles. To bring one back, click **Restore** and it returns to the queue.
+At the bottom of the tab is your "Don't ask again" list, folded into one line that counts it. Click **show** to open it. Nodes here are quietly bypassed during your reflection cycles. To bring one back, click **Restore** and it returns to the queue.
 
 ## History
 
