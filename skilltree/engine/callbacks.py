@@ -194,7 +194,8 @@ def register_engine_callbacks(app, services):
     # store and, when freeze is on, injects pinned positions into each
     # node's data before pushing to Cytoscape. That's what keeps node
     # positions from drifting on save during bulk-edit freeze mode.
-    @app.callback(output=CORE_OUTPUTS, inputs=CORE_INPUTS, state=CORE_STATE,
+    # Dash merges the inputs into the state dict it is given, so it gets a copy.
+    @app.callback(output=CORE_OUTPUTS, inputs=CORE_INPUTS, state=dict(CORE_STATE),
                   prevent_initial_call='initial_duplicate')
     @keyed
     def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,

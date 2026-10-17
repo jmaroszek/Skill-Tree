@@ -12,7 +12,7 @@ from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_up
 from skilltree.domain.contexts import sort_subcontexts
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.names import normalize_name_for_comparison
-from skilltree.domain.time import ALL_WEEKDAYS, time_estimate_problem
+from skilltree.domain.time import time_estimate_problem
 from skilltree.features.editor.form import (
     EDITOR_FORM,
     NEW_NODE_SNAPSHOT,
@@ -21,7 +21,6 @@ from skilltree.features.editor.form import (
     editor_form_values_from,
     follow_done_status,
     follow_relationships,
-    habit_editor_view,
     habit_preview_text,
     is_form_dirty_vs_snapshot,
     snapshot_from_form_state,
@@ -32,7 +31,6 @@ from skilltree.features.editor.layout import (
     render_alias_rows,
     update_alias_rows,
 )
-from skilltree.features.editor.values import friendly_time_estimates
 from skilltree.store import database
 from skilltree.store.commands import bridge_form, plan_bridge
 from skilltree.store.settings import ConfigManager
@@ -48,6 +46,86 @@ from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.prerender import prerendered
 from skilltree.features.editor.resources import register_resource_link_callbacks
 from skilltree.features.editor.dormancy import register_dormancy_callbacks
+
+
+# populate_editor's outputs. An output that shows a form field takes the key of
+# the snapshot value it shows (form.build_editor_snapshot, NEW_NODE_SNAPSHOT):
+# the form is filled from the snapshot that becomes its pristine copy, so the
+# two always agree.
+EDITOR_FILL = dict(
+    name=Output('node-name', 'value', allow_duplicate=True),
+    n_type=Output('node-type', 'value'),
+    desc=Output('node-desc', 'value'),
+    context=Output('node-context', 'value'),
+    subctx=Output('node-subcontext', 'value'),
+    val=Output('node-value', 'value'),
+    interest=Output('node-interest', 'value'),
+    diff=Output('node-difficulty', 'value'),
+    time_o=Output('node-time-o', 'value'),
+    time_m=Output('node-time-m', 'value'),
+    time_p=Output('node-time-p', 'value'),
+    status_text=Output('auto-status-display', 'children'),
+    status_done=Output('node-status-done', 'value'),
+    e_needs_h=Output('edge-needs-hard', 'value'),
+    e_needs_s=Output('edge-needs-soft', 'value'),
+    e_supp_h=Output('edge-supports-hard', 'value'),
+    e_supp_s=Output('edge-supports-soft', 'value'),
+    e_helps=Output('edge-helps', 'value'),
+    e_needs_h_options=Output('edge-needs-hard', 'options'),
+    e_needs_s_options=Output('edge-needs-soft', 'options'),
+    e_supp_h_options=Output('edge-supports-hard', 'options'),
+    e_supp_s_options=Output('edge-supports-soft', 'options'),
+    e_helps_options=Output('edge-helps', 'options'),
+    resource_links=Output('resource-links-store', 'data'),
+    time_unit=Output('node-time-unit', 'value'),
+    time_unit_prev=Output('node-time-unit-prev', 'data', allow_duplicate=True),
+    original_name=Output('node-original-name', 'data', allow_duplicate=True),
+    search=Output('search-node', 'value', allow_duplicate=True),
+    priority_rank=Output('node-priority-rank', 'value'),
+    time_mode=Output('node-time-mode', 'value'),
+    aliases=Output('aliases-store', 'data'),
+    pending_nav=Output('pending-navigation-store', 'data'),
+    unsaved_open=Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
+    snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+    value_mode=Output('node-value-mode', 'value'),
+    time_habit_mode=Output('node-time-habit-mode', 'value'),
+    habit_duration=Output('node-habit-duration', 'value'),
+    habit_duration_unit=Output('node-habit-duration-unit', 'value'),
+    habit_intensity_o=Output('node-habit-intensity-o', 'value'),
+    habit_intensity_m=Output('node-habit-intensity-m', 'value'),
+    habit_intensity_p=Output('node-habit-intensity-p', 'value'),
+    habit_intensity_unit=Output('node-habit-intensity-unit', 'value'),
+    habit_days=Output('node-habit-days', 'value'),
+    # The bridge this editor was opened for, if any. Every load of the
+    # editor replaces it, so a bridge never outlives its form.
+    bridge=Output('bridge-pending-store', 'data'),
+)
+
+
+def _relationship_options(options):
+    return {f'{key}_options': options for key in RELATIONSHIP_FIELDS}
+
+
+def _untouched(options, **changes):
+    """populate_editor's outputs left as they are, except ``changes`` and the
+    relationship options, which are always refreshed."""
+    return {**dict.fromkeys(EDITOR_FILL, no_update),
+            **_relationship_options(options), **changes}
+
+
+def _filled(snapshot, options, *, status, original_name, search=no_update, bridge=None):
+    """populate_editor's outputs for a form that shows ``snapshot``.
+
+    A load closes the unsaved-changes dialog and forgets where it was going.
+    ``search`` is what the node picker shows. Leaving it alone avoids
+    triggering core_engine again.
+    """
+    out = {key: snapshot[key] for key in EDITOR_FILL if key in snapshot}
+    out.update(_relationship_options(options))
+    out.update(status_text=status, time_unit_prev=snapshot['time_unit'],
+               original_name=original_name, search=search, pending_nav=None,
+               unsaved_open=False, snapshot=snapshot, bridge=bridge)
+    return out
 
 
 def register_editor_callbacks(app, services):
@@ -175,61 +253,31 @@ def register_editor_callbacks(app, services):
 
     # --- Editor Form Population ---
     @app.callback(
-        [Output('node-name', 'value', allow_duplicate=True), Output('node-type', 'value'), Output('node-desc', 'value'),
-         Output('node-context', 'value'), Output('node-subcontext', 'value'),
-         Output('node-value', 'value'), Output('node-interest', 'value'), Output('node-difficulty', 'value'),
-         Output('node-time-o', 'value'), Output('node-time-m', 'value'), Output('node-time-p', 'value'),
-         Output('auto-status-display', 'children'), Output('node-status-done', 'value'),
-         Output('edge-needs-hard', 'value'), Output('edge-needs-soft', 'value'),
-         Output('edge-supports-hard', 'value'), Output('edge-supports-soft', 'value'),
-         Output('edge-helps', 'value'),
-         Output('edge-needs-hard', 'options'), Output('edge-needs-soft', 'options'),
-         Output('edge-supports-hard', 'options'), Output('edge-supports-soft', 'options'),
-         Output('edge-helps', 'options'),
-         Output('resource-links-store', 'data'),
-         # Type-specific outputs
-         Output('node-time-unit', 'value'),
-         Output('node-time-unit-prev', 'data', allow_duplicate=True),
-         Output('node-original-name', 'data', allow_duplicate=True),
-         Output('search-node', 'value', allow_duplicate=True),
-         Output('node-priority-rank', 'value'),
-         Output('node-time-mode', 'value'),
-         Output('aliases-store', 'data'),
-         Output('pending-navigation-store', 'data'),
-         Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
-         Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
-         Output('node-value-mode', 'value'),
-         Output('node-time-habit-mode', 'value'),
-         Output('node-habit-duration', 'value'),
-         Output('node-habit-duration-unit', 'value'),
-         Output('node-habit-intensity-o', 'value'),
-         Output('node-habit-intensity-m', 'value'),
-         Output('node-habit-intensity-p', 'value'),
-         Output('node-habit-intensity-unit', 'value'),
-         Output('node-habit-days', 'value'),
-         # The bridge this editor was opened for, if any. Every load of the
-         # editor replaces it, so a bridge never outlives its form.
-         Output('bridge-pending-store', 'data')],
-        [Input('cytoscape-graph', 'tapNodeData'),
-         Input('btn-add', 'n_clicks'),
-         Input('btn-unsaved-discard', 'n_clicks'),
-         Input('editor-save-result-store', 'data'),
-         Input('search-node', 'value'),
-         Input('background-click-input', 'value'),
-         Input('btn-editor-new', 'n_clicks'),
-         Input('edit-trigger-input', 'value'),
-         Input('details-edit-trigger-input', 'value'),
-         Input('details-add-choice-input', 'value'),
-         Input('btn-bridge-create', 'n_clicks'),
-         Input('btn-revert', 'n_clicks')],
-        [State('sidebar-editor-container', 'style'),
-         State('node-original-name', 'data'),
-         State('pending-navigation-store', 'data'),
-         State('editor-pristine-snapshot', 'data'),
-         State('details-selected-node-store', 'data'),
-         State('bridge-modal-store', 'data'),
-         State('bridge-type', 'value'),
-         EDITOR_FORM],
+        output=EDITOR_FILL,
+        inputs=dict(
+            tapped_node=Input('cytoscape-graph', 'tapNodeData'),
+            add_clicks=Input('btn-add', 'n_clicks'),
+            discard_clicks=Input('btn-unsaved-discard', 'n_clicks'),
+            save_result=Input('editor-save-result-store', 'data'),
+            search_val=Input('search-node', 'value'),
+            _bg_click=Input('background-click-input', 'value'),
+            editor_new_clicks=Input('btn-editor-new', 'n_clicks'),
+            edit_trigger_val=Input('edit-trigger-input', 'value'),
+            details_edit_trigger_val=Input('details-edit-trigger-input', 'value'),
+            details_add_choice=Input('details-add-choice-input', 'value'),
+            bridge_clicks=Input('btn-bridge-create', 'n_clicks'),
+            revert_clicks=Input('btn-revert', 'n_clicks'),
+        ),
+        state=dict(
+            ed_style=State('sidebar-editor-container', 'style'),
+            original_name=State('node-original-name', 'data'),
+            pending_nav=State('pending-navigation-store', 'data'),
+            pristine_snapshot=State('editor-pristine-snapshot', 'data'),
+            details_selected_node=State('details-selected-node-store', 'data'),
+            bridge_ends=State('bridge-modal-store', 'data'),
+            bridge_kind=State('bridge-type', 'value'),
+            form=EDITOR_FORM,
+        ),
         # Nothing to populate on page load. The form's defaults and its empty
         # alias and link rows are in the layout, and every path that opens
         # the editor runs this callback, which sends the relationship options.
@@ -237,153 +285,107 @@ def register_editor_callbacks(app, services):
         # a dozen follow-on callbacks, all before the editor could be seen.
         prevent_initial_call=True,
     )
-    def populate_editor(data, add_clicks, discard_clicks, save_result, search_val, _bg_click, editor_new_clicks, edit_trigger_val,
+    def populate_editor(tapped_node, add_clicks, discard_clicks, save_result, search_val,
+                        _bg_click, editor_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
-                        revert_clicks,
-                        ed_style, original_name, pending_nav, pristine_snapshot,
-                        details_selected_node, bridge_ends, bridge_kind, form):
+                        revert_clicks, ed_style, original_name, pending_nav,
+                        pristine_snapshot, details_selected_node, bridge_ends,
+                        bridge_kind, form):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
 
         `form` is what the editor holds now (editor form.EDITOR_FORM),
         checked against `pristine_snapshot` before a switch discards it.
+        Returns EDITOR_FILL's outputs by name.
         """
         trigger_id = get_trigger_id()
+        editor_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
 
         # Relationship pickers must include dormant nodes so active nodes can
         # be wired to work that has not triggered yet.
         all_nodes = manager.get_all_nodes(include_dormant=True)
         options = node_options(all_nodes)
 
-        # node-type starts empty so the "Choose node type..." placeholder
-        # survives until the user picks one. Defaulting it to Learn meant a
-        # new node silently claimed a type nobody chose; saving without one is
-        # already refused below ("Node type is required").
-        def_out = [
-            "", "", "", "", "", 5, 5, 5, None, None, None, STATUS_OPEN, [],
-            [], [], [], [], [],
-            options, options, options, options, options,
-            {},  # resource-links-store
-            # Type-specific defaults
-            NEW_NODE_SNAPSHOT['time_unit'], NEW_NODE_SNAPSHOT['time_unit'],
-            None,  # node-original-name
-            dash.no_update,  # search-node — don't change; avoids retriggering core_engine
-            "none",  # node-priority-rank
-            [],  # node-time-mode
-            [''],  # aliases-store
-            None,  # pending-navigation-store
-            False,  # modal-unsaved-changes
-            NEW_NODE_SNAPSHOT,  # editor-pristine-snapshot
-            [],  # node-value-mode (appended to keep existing indices stable)
-            # Habit-mode defaults (appended after value-mode)
-            [],  # node-time-habit-mode
-            0,   # node-habit-duration
-            'weeks',  # node-habit-duration-unit
-            0, 0, 0,  # node-habit-intensity o/m/p
-            'min_per_session',  # node-habit-intensity-unit
-            list(ALL_WEEKDAYS),  # node-habit-days
-            None,  # bridge-pending-store
-        ]
+        def _has_unsaved_edits():
+            return editor_open and is_form_dirty_vs_snapshot(
+                pristine_snapshot, editor_form_values_from(form))
 
-        def _untouched():
-            """Every output left as it is, but for the relationship options,
-            which are always refreshed. The one place the output count is
-            written for early returns."""
-            return [dash.no_update] * 18 + [options]*5 + [dash.no_update]*21
+        def _ask(target, picker=no_update):
+            """The unsaved-changes dialog, which goes on to `target` once
+            answered: a node name or a pending-navigation sentinel. `picker`
+            is what the node picker goes back to while the dialog asks."""
+            return _untouched(options, search=picker, pending_nav=target,
+                              unsaved_open=True)
 
-        def _has_unsaved_changes():
-            return is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
-
-        def _ask_before_leaving(target, picker=dash.no_update):
-            """The unsaved-changes dialog in place of loading `target`, or
-            None when the open form has nothing to lose. `target` is a node
-            name or a pending-navigation sentinel. Loading the node the form
-            already holds keeps its edits and asks nothing. `picker` is what
-            the node picker goes back to while the dialog asks."""
-            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-            if not (editor_open and _has_unsaved_changes()):
+        def _ask_before_leaving(target, picker=no_update):
+            """The dialog in place of loading `target`, or None when the open
+            form has nothing to lose. Loading the node the form already holds
+            keeps its edits and asks nothing."""
+            if not _has_unsaved_edits():
                 return None
-            no_change = _untouched()
-            no_change[27] = picker  # search-node
-            if target != original_name:
-                no_change[31] = target  # pending-navigation-store
-                no_change[32] = True    # modal-unsaved-changes
-            return no_change
+            if target == original_name:
+                return _untouched(options, search=picker)
+            return _ask(target, picker)
 
-        def _bridge_form_out():
-            """def_out for a new node between the bridge dialog's two nodes,
-            with the relationships filled in. None when the bridge no longer
-            holds, such as a node deleted since the dialog opened."""
+        def _new_node(search=None, bridge=None, **fields):
+            """A blank form, with `fields` filled in. Clearing the search bar
+            stops it showing the node loaded before.
+
+            node-type starts empty, so the "Choose node type..." placeholder
+            survives until the user picks one. Defaulting it to Learn meant a
+            new node silently claimed a type nobody chose; saving without one
+            is refused ("Node type is required")."""
+            return _filled({**NEW_NODE_SNAPSHOT, **fields}, options, status=STATUS_OPEN,
+                           original_name=None, search=search, bridge=bridge)
+
+        def _bridge_form():
+            """A new node between the bridge dialog's two nodes, with the
+            relationships filled in. None when the bridge no longer holds,
+            such as a node deleted since the dialog opened."""
             ends = bridge_ends or {}
             start, end = ends.get('start'), ends.get('end')
             plan = plan_bridge(manager, start, end, bridge_kind)
             if plan['problem']:
                 return None
-            fields = bridge_form(start, end, bridge_kind)
-            out = list(def_out)
-            for key, slot in (('e_needs_h', 13), ('e_needs_s', 14), ('e_supp_h', 15),
-                              ('e_supp_s', 16), ('e_helps', 17)):
-                out[slot] = fields[key]
-            out[27] = None  # clear the search bar
-            out[33] = {**NEW_NODE_SNAPSHOT, **fields}  # editor-pristine-snapshot
-            out[43] = {'start': start, 'end': end, 'kind': bridge_kind,
-                       'replaces': plan['replaces']}
-            return out
+            return _new_node(bridge={'start': start, 'end': end, 'kind': bridge_kind,
+                                     'replaces': plan['replaces']},
+                             **bridge_form(start, end, bridge_kind))
 
         if trigger_id == 'btn-add':
             # Toolbar toggle: open/close is handled by core_engine + the
             # clientside fast-path. Leave the form untouched so reopening shows
             # the last-loaded node (matches the Goals/Events toggles).
-            return _untouched()
+            return _untouched(options)
 
         if trigger_id in ('btn-editor-new', 'details-add-choice-input'):
+            parent = None
             if trigger_id == 'details-add-choice-input':
                 if not (details_add_choice or '').startswith('new|') or not details_selected_node:
-                    return _untouched()
+                    return _untouched(options)
                 if manager.get_node(details_selected_node) is None:
-                    return _untouched()
-            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-            if editor_open and _has_unsaved_changes():
-                # Show unsaved modal; store 'new-node' as pending action
-                no_change = _untouched()
-                no_change[31] = (f'__new_subtask__|{details_selected_node}'
-                                 if trigger_id == 'details-add-choice-input'
-                                 else '__new_node__')
-                no_change[32] = True            # modal-unsaved-changes
-                return no_change
-            # No unsaved changes — clear and reset, including the search bar so it
-            # doesn't keep showing the previously-loaded node. Clearing search-node
-            # re-fires core_engine with an empty value, but the editor is already
-            # open here and compute_sidebar_styles guards that case (search-node +
-            # no value → leave the editor untouched), so it stays open.
-            def_out[27] = None  # search-node value position
-            if trigger_id == 'details-add-choice-input':
-                def_out[15] = [details_selected_node]  # Supports > Hard
-                def_out[33] = {**NEW_NODE_SNAPSHOT,
-                               'e_supp_h': [details_selected_node]}
-            return def_out
+                    return _untouched(options)
+                parent = details_selected_node
+            if _has_unsaved_edits():
+                return _ask(f'__new_subtask__|{parent}' if parent else '__new_node__')
+            # Clearing search-node re-fires core_engine with an empty value,
+            # but the editor is already open here and compute_sidebar_styles
+            # guards that case (search-node + no value → leave the editor
+            # untouched), so it stays open. A subtask starts with its parent
+            # under Supports > Hard.
+            return _new_node(e_supp_h=[parent]) if parent else _new_node()
 
         if trigger_id == 'btn-bridge-create':
             if not bridge_clicks:
-                return _untouched()
-            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-            if editor_open and _has_unsaved_changes():
-                no_change = _untouched()
-                no_change[31] = '__bridge__'  # pending-navigation-store
-                no_change[32] = True          # modal-unsaved-changes
-                return no_change
-            return _bridge_form_out() or _untouched()
+                return _untouched(options)
+            if _has_unsaved_edits():
+                return _ask('__bridge__')
+            return _bridge_form() or _untouched(options)
 
         if trigger_id == 'background-click-input':
             # Intercept background click when the editor is open with unsaved
             # changes — show the save/discard modal instead of silently clobbering.
-            editor_open = ed_style and ed_style.get('transform', '') == 'translateX(0px)'
-            if editor_open and _has_unsaved_changes():
-                no_change = _untouched()
-                no_change[31] = '__background__'  # pending-navigation-store sentinel
-                no_change[32] = True              # modal-unsaved-changes
-                return no_change
-            def_out[27] = None  # clear search bar (search-node value position)
-            return def_out
+            if _has_unsaved_edits():
+                return _ask('__background__')
+            return _new_node()
 
         # The unsaved-changes dialog's Save moves on only once the save has
         # committed, which core_engine reports here. It used to move on at
@@ -391,173 +393,82 @@ def register_editor_callbacks(app, services):
         # the form out and lost the edits the error was about.
         if trigger_id == 'editor-save-result-store':
             if (save_result or {}).get('via') != 'btn-unsaved-save':
-                return [dash.no_update] * len(def_out)
+                return dict.fromkeys(EDITOR_FILL, no_update)
             trigger_id = 'btn-unsaved-save'
 
-        # Handle unsaved-discard / unsaved-save with pending navigation
+        # Find the node to load. A tap, an Edit (the node menu, the Events
+        # table, Details) and the node picker all ask before they replace
+        # unsaved edits.
+        node = None
         if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
-            if pending_nav:
-                if pending_nav == '__bridge__':
-                    return _bridge_form_out() or def_out
-                if pending_nav in ('__new_node__', '__background__') or pending_nav.startswith('__new_subtask__|'):
-                    # Discard/save done — reset form. __new_node__ leaves the editor
-                    # open on a blank form; __background__ closes it (core_engine).
-                    def_out[27] = None  # clear search bar
-                    if pending_nav.startswith('__new_subtask__|'):
-                        parent = pending_nav.split('|', 1)[1]
-                        if manager.get_node(parent) is not None:
-                            def_out[15] = [parent]
-                            def_out[33] = {**NEW_NODE_SNAPSHOT,
-                                           'e_supp_h': [parent]}
-                    return def_out
-                # Navigate to the pending node after discarding/saving
-                node = manager.get_node(pending_nav)
-                if node:
-                    data = node.to_dict()
-                    data['id'] = pending_nav
-                    # Fall through to populate logic below with this data
-                else:
-                    return def_out
-            else:
-                return def_out
-
-        # A tap, an Edit (the node menu, the Events table, Details) and the
-        # node picker all ask before they replace unsaved edits.
-        if trigger_id == 'cytoscape-graph' and data and data.get('id'):
-            asked = _ask_before_leaving(data.get('id'))
-            if asked is not None:
-                return asked
-
-        name = None
-        if trigger_id == 'btn-revert':
-            # Reload the node the editor holds, dropping what wasn't saved.
-            node = manager.get_node(original_name) if revert_clicks and original_name else None
+            # The dialog was answered: go on to where it was going.
+            if not pending_nav:
+                return _new_node(search=no_update)
+            if pending_nav == '__bridge__':
+                return _bridge_form() or _new_node(search=no_update)
+            if pending_nav in ('__new_node__', '__background__'):
+                # __new_node__ leaves the editor open on a blank form;
+                # __background__ closes it (core_engine).
+                return _new_node()
+            if pending_nav.startswith('__new_subtask__|'):
+                parent = pending_nav.split('|', 1)[1]
+                if manager.get_node(parent) is None:
+                    return _new_node()
+                return _new_node(e_supp_h=[parent])
+            node = manager.get_node(pending_nav)
             if node is None:
-                return _untouched()
-            name = node.name
-            data = node.to_dict()
-            data['id'] = name
+                return _new_node(search=no_update)
+        elif trigger_id == 'btn-revert':
+            # Reload the node the editor holds, dropping what wasn't saved.
+            if revert_clicks and original_name:
+                node = manager.get_node(original_name)
         elif trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
-            # Context menu / Events-table Edit: node ID carried in the trigger value
-            edit_val = edit_trigger_val if trigger_id == 'edit-trigger-input' else details_edit_trigger_val
+            # The node's name is carried in the trigger value.
+            edit_val = (edit_trigger_val if trigger_id == 'edit-trigger-input'
+                        else details_edit_trigger_val)
             if edit_val:
-                edit_node_name = bridge_payloads.strip_stamp(edit_val)
-                node = manager.get_node(edit_node_name)
-                if node:
-                    asked = _ask_before_leaving(node.name)
-                    if asked is not None:
-                        return asked
-                    name = node.name
-                    data = node.to_dict()
-                    data['id'] = name
-                else:
-                    return _untouched()
+                node = manager.get_node(bridge_payloads.strip_stamp(edit_val))
+            if node is not None:
+                asked = _ask_before_leaving(node.name)
+                if asked is not None:
+                    return asked
         elif trigger_id == 'search-node':
             # While the dialog asks, the picker goes back to the node the
             # form holds, so it never names a node the form isn't showing.
             if not search_val:
                 # Clearing the picker starts a blank form, as New Node does.
-                return _ask_before_leaving('__new_node__', picker=original_name) or def_out
+                return (_ask_before_leaving('__new_node__', picker=original_name)
+                        or _new_node(search=no_update))
             # Resolve alias: prefix to actual node name
             resolved_name = search_val
             if search_val.startswith('alias:'):
-                alias_key = search_val[6:]
                 # Case-insensitive resolve so the user's typed casing
                 # doesn't have to match the stored titlecase form.
-                resolved = manager.resolve_alias(alias_key)
+                resolved = manager.resolve_alias(search_val[6:])
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
-            if node:
+            if node is not None:
                 asked = _ask_before_leaving(node.name, picker=original_name)
                 if asked is not None:
                     return asked
-                name = node.name
-                data = node.to_dict()
-                data['id'] = name
-            else:
-                return _untouched()
-        elif data:
-            name = data.get('id')
-            # Always read fresh data from DB on tap (Cytoscape data may be stale)
-            if name:
-                db_node = manager.get_node(name)
-                if db_node:
-                    data = db_node.to_dict()
-                    data['id'] = name
+        elif trigger_id == 'cytoscape-graph' and tapped_node and tapped_node.get('id'):
+            # Read the node from the database: the canvas's copy may be stale.
+            node = manager.get_node(tapped_node['id'])
+            if node is not None:
+                asked = _ask_before_leaving(node.name)
+                if asked is not None:
+                    return asked
 
-        if not name or not data:
-            return _untouched()
+        if node is None:
+            return _untouched(options)
+        # The picker names the loaded node while the editor is open, and
+        # when an Edit opens it.
+        opened_by_edit = trigger_id in ('edit-trigger-input', 'details-edit-trigger-input')
+        return _filled(build_editor_snapshot(manager, services.events, node.name),
+                       node_options(all_nodes, exclude=node.name),
+                       status=node.status, original_name=node.name,
+                       search=node.name if editor_open or opened_by_edit else no_update)
 
-        # In/Out Edges mapping
-        relationships = stored_relationships(manager.get_edges(), name)
-        needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals, helps_vals = (
-            relationships[key] for key in RELATIONSHIP_FIELDS)
-        filtered_options = node_options(all_nodes, exclude=name)
-
-        actual_status = data.get('status', STATUS_OPEN)
-        done_val = [STATUS_DONE] if actual_status == STATUS_DONE else []
-
-        friendly_o, friendly_m, friendly_p, friendly_unit = friendly_time_estimates(
-            data.get('time_o', 1.0), data.get('time_m', 1.0), data.get('time_p', 1.0)
-        )
-
-        # Priority rank for Goal nodes
-        priority_goals = ConfigManager.get_priority_goals()
-        if data.get('type') == 'Goal' and name in priority_goals:
-            rank_value = str(priority_goals.index(name) + 1)
-        else:
-            rank_value = "none"
-
-        # Time mode — Inherit, Habit, or Manual (mutually exclusive in the UI)
-        time_mode_val = ["inherited"] if data.get('time_mode') == 'inherited' else []
-        time_habit_mode_val = ["habit"] if data.get('time_mode') == 'habit' else []
-        # Value mode (mirrors time_mode)
-        value_mode_val = ["inherited"] if data.get('value_mode') == 'inherited' else []
-
-        # Map stored habit fields onto the per-session editor widgets (legacy
-        # per-day/per-week units fold into the weekday picker; total preserved).
-        habit_unit_val, habit_o_val, habit_m_val, habit_p_val, habit_days_val = (
-            habit_editor_view(
-                data.get('habit_intensity_unit'),
-                data.get('habit_intensity_o', 0) or 0,
-                data.get('habit_intensity_m', 0) or 0,
-                data.get('habit_intensity_p', 0) or 0,
-                data.get('habit_days'),
-            )
-        )
-
-        return [
-            name, data.get('type'), data.get('description'),
-            data.get('context') or '', data.get('subcontext') or '',
-            data.get('value', 5), data.get('interest', 5), data.get('difficulty', 5),
-            friendly_o, friendly_m, friendly_p,
-            actual_status, done_val,
-            needs_hard_vals, needs_soft_vals, supp_hard_vals, supp_soft_vals,
-            helps_vals,
-            filtered_options, filtered_options, filtered_options, filtered_options, filtered_options,
-            data.get('resource_links') or {},  # resource-links-store
-            # Type-specific fields
-            friendly_unit, friendly_unit,
-            name,  # node-original-name — track what was loaded
-            name if (trigger_id in ('edit-trigger-input', 'details-edit-trigger-input') or (ed_style and ed_style.get('transform', '') == 'translateX(0px)')) else dash.no_update,  # search-node — update when editor is open or edit-trigger
-            rank_value,  # node-priority-rank
-            time_mode_val,  # node-time-mode
-            manager.get_aliases(name) or [''],  # aliases-store
-            None,  # pending-navigation-store — clear on successful populate
-            False,  # modal-unsaved-changes — close on successful populate
-            build_editor_snapshot(manager, services.events, name),  # editor-pristine-snapshot
-            value_mode_val,  # node-value-mode (appended)
-            # Habit-mode fields
-            time_habit_mode_val,
-            data.get('habit_duration', 0) or 0,
-            data.get('habit_duration_unit') or 'weeks',
-            habit_o_val,
-            habit_m_val,
-            habit_p_val,
-            habit_unit_val,
-            habit_days_val,
-            None,  # bridge-pending-store
-        ]
 
     # --- Post-save sync of original_name / name ---
     # After a Save (no close), the form still holds whatever the user typed but

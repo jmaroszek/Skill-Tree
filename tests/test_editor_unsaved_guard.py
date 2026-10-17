@@ -67,14 +67,14 @@ def populate(monkeypatch, manager):
 
 
 def _asked(out, target):
-    return (out[31] == target and out[32] is True  # pending navigation, dialog
-            and out[0] is dash.no_update and out[2] is dash.no_update)
+    return (out["pending_nav"] == target and out["unsaved_open"] is True
+            and out["name"] is dash.no_update and out["desc"] is dash.no_update)
 
 
 @pytest.mark.parametrize("trigger, values", [
     ("edit-trigger-input", {"edit_trigger_val": "B|1"}),
     ("details-edit-trigger-input", {"details_edit_trigger_val": "B|1"}),
-    ("cytoscape-graph", {"data": {"id": "B"}}),
+    ("cytoscape-graph", {"tapped_node": {"id": "B"}}),
 ])
 def test_loading_another_node_asks_first(populate, trigger, values):
     assert _asked(populate(trigger, **values), "B")
@@ -84,7 +84,7 @@ def test_the_node_picker_asks_first_and_goes_back_to_the_loaded_node(populate):
     out = populate("search-node", search_val="B")
 
     assert _asked(out, "B")
-    assert out[27] == "A"  # search-node: the form still holds A
+    assert out["search"] == "A"  # the form still holds A
 
 
 def test_an_alias_in_the_picker_asks_for_its_node(populate):
@@ -97,20 +97,20 @@ def test_clearing_the_picker_asks_before_it_blanks_the_form(populate):
     out = populate("search-node", search_val=None)
 
     assert _asked(out, "__new_node__")
-    assert out[27] == "A"
+    assert out["search"] == "A"
 
 
 @pytest.mark.parametrize("trigger, values", [
     ("edit-trigger-input", {"edit_trigger_val": "A|1"}),
     ("details-edit-trigger-input", {"details_edit_trigger_val": "A|1"}),
-    ("cytoscape-graph", {"data": {"id": "A"}}),
+    ("cytoscape-graph", {"tapped_node": {"id": "A"}}),
     ("search-node", {"search_val": "A"}),
 ])
 def test_the_node_already_open_keeps_its_edits(populate, trigger, values):
     out = populate(trigger, **values)
 
-    assert out[0] is dash.no_update and out[2] is dash.no_update
-    assert out[32] is dash.no_update  # no dialog: nothing would be lost
+    assert out["name"] is dash.no_update and out["desc"] is dash.no_update
+    assert out["unsaved_open"] is dash.no_update  # no dialog: nothing would be lost
 
 
 @pytest.mark.parametrize("trigger, values", [
@@ -121,21 +121,21 @@ def test_the_node_already_open_keeps_its_edits(populate, trigger, values):
 def test_a_clean_form_loads_straight_away(populate, trigger, values):
     out = populate(trigger, dirty=False, **values)
 
-    assert out[0] == "B" and out[26] == "B"
-    assert out[32] is False
+    assert out["name"] == "B" and out["original_name"] == "B"
+    assert out["unsaved_open"] is False
 
 
 def test_a_closed_editor_loads_straight_away(populate):
     out = populate("edit-trigger-input", edit_trigger_val="B|1", ed_style={})
 
-    assert out[0] == "B"
+    assert out["name"] == "B"
 
 
 def test_discard_goes_on_to_the_node_edit_asked_for(populate):
     asked = populate("edit-trigger-input", edit_trigger_val="B|1")
-    out = populate("btn-unsaved-discard", discard_clicks=1, pending_nav=asked[31])
+    out = populate("btn-unsaved-discard", discard_clicks=1, pending_nav=asked["pending_nav"])
 
-    assert out[0] == "B" and out[26] == "B"
+    assert out["name"] == "B" and out["original_name"] == "B"
 
 
 # --- The dialog itself ------------------------------------------------------

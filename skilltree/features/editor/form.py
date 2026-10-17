@@ -158,9 +158,8 @@ def dormancy_for_save(dormancy):
     }
 
 
-# Pristine snapshot for the new-node form — mirrors the def_out defaults
-# emitted by populate_editor when the user clicks "+ New Node". The type
-# starts unselected there, so it is blank here too.
+# The new-node form. populate_editor fills a blank form from it, and it is
+# that form's pristine snapshot. The type starts unselected.
 NEW_NODE_SNAPSHOT = {
     'name': '', 'n_type': '', 'desc': '',
     'context': '', 'subctx': '',
@@ -189,10 +188,9 @@ NEW_NODE_SNAPSHOT = {
 def build_editor_snapshot(manager, events, node_name):
     """Build a snapshot of the editor form state for an existing node.
 
-    The snapshot dict mirrors exactly what populate_editor writes into the form
-    fields, *including* any post-display transformations. The dirty check
-    compares form State against this snapshot so display transformations don't
-    produce false-positives.
+    populate_editor fills the form from this snapshot, display transformations
+    included, and keeps it as the pristine copy. The dirty check compares the
+    form with it, so a node that was only loaded never counts as edited.
 
     Returns None if the node doesn't exist.
     """

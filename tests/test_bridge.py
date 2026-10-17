@@ -10,7 +10,7 @@ import pytest
 from skilltree.features.links import bridge as bridge_callbacks
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.engine import callbacks
-from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
+from skilltree.features.editor.form import NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS
 from editor_forms import call
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
@@ -291,13 +291,11 @@ def test_create_fills_the_editor_in_with_the_bridge(monkeypatch, manager):
     out = _populate(monkeypatch, "btn-bridge-create", bridge_clicks=1,
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="hard")
 
-    needs_hard, needs_soft, supports_hard, supports_soft, helps = out[13:18]
-    assert (needs_hard, needs_soft, supports_hard, supports_soft, helps) == (
-        ["A"], [], ["B"], [], [])
-    assert out[0] == ""  # a new node, with no name yet
-    assert out[26] is None  # no original name: saving creates it
-    assert out[33]["e_needs_h"] == ["A"] and out[33]["e_supp_h"] == ["B"]
-    assert out[43] == {"start": "A", "end": "B", "kind": "hard",
+    assert [out[key] for key in RELATIONSHIP_FIELDS] == [["A"], [], ["B"], [], []]
+    assert out["name"] == ""  # a new node, with no name yet
+    assert out["original_name"] is None  # saving creates it
+    assert out["snapshot"]["e_needs_h"] == ["A"] and out["snapshot"]["e_supp_h"] == ["B"]
+    assert out["bridge"] == {"start": "A", "end": "B", "kind": "hard",
                        "replaces": ["A", "B", EDGE_NEEDS_HARD]}
 
 
@@ -305,8 +303,8 @@ def test_a_synergy_bridge_fills_the_helps_field(monkeypatch, manager):
     out = _populate(monkeypatch, "btn-bridge-create", bridge_clicks=1,
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="synergy")
 
-    assert out[17] == ["A", "B"]
-    assert out[43]["replaces"] is None
+    assert out["e_helps"] == ["A", "B"]
+    assert out["bridge"]["replaces"] is None
 
 
 def test_a_bridge_that_no_longer_holds_leaves_the_editor_alone(monkeypatch, manager):
@@ -315,8 +313,8 @@ def test_a_bridge_that_no_longer_holds_leaves_the_editor_alone(monkeypatch, mana
     out = _populate(monkeypatch, "btn-bridge-create", bridge_clicks=1,
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="hard")
 
-    assert out[0] is dash.no_update
-    assert out[43] is dash.no_update
+    assert out["name"] is dash.no_update
+    assert out["bridge"] is dash.no_update
 
 
 def test_unsaved_edits_ask_before_the_bridge_replaces_them(monkeypatch, manager):
@@ -325,9 +323,9 @@ def test_unsaved_edits_ask_before_the_bridge_replaces_them(monkeypatch, manager)
                     ed_style={"transform": "translateX(0px)"},
                     pristine_snapshot=NEW_NODE_SNAPSHOT, name="Half-typed")
 
-    assert out[31] == "__bridge__"  # pending-navigation-store
-    assert out[32] is True  # modal-unsaved-changes
-    assert out[0] is dash.no_update
+    assert out["pending_nav"] == "__bridge__"
+    assert out["unsaved_open"] is True
+    assert out["name"] is dash.no_update
 
 
 def test_the_unsaved_dialog_continues_into_the_bridge(monkeypatch, manager):
@@ -335,21 +333,21 @@ def test_the_unsaved_dialog_continues_into_the_bridge(monkeypatch, manager):
                     pending_nav="__bridge__",
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="soft")
 
-    assert out[16] == ["B"] and out[14] == ["A"]
-    assert out[43]["kind"] == "soft"
+    assert out["e_supp_s"] == ["B"] and out["e_needs_s"] == ["A"]
+    assert out["bridge"]["kind"] == "soft"
 
 
 def test_loading_any_node_clears_the_pending_bridge(monkeypatch, manager):
     out = _populate(monkeypatch, "edit-trigger-input", edit_trigger_val="A|1")
 
-    assert out[0] == "A"
-    assert out[43] is None
+    assert out["name"] == "A"
+    assert out["bridge"] is None
 
 
 def test_a_new_node_clears_the_pending_bridge(monkeypatch, manager):
     out = _populate(monkeypatch, "btn-editor-new", editor_new_clicks=1)
 
-    assert out[43] is None
+    assert out["bridge"] is None
 
 
 def test_every_hard_and_soft_edge_type_has_a_bridge_kind():

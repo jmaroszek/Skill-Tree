@@ -87,11 +87,11 @@ def test_the_unsaved_dialog_moves_on_only_after_its_save(monkeypatch, manager):
 
     # An ordinary Save is not the dialog's: nothing moves.
     unchanged = run({"name": "Nap", "via": "btn-save", "ts": 1})
-    assert all(value is dash.no_update for value in unchanged)
+    assert all(value is dash.no_update for value in unchanged.values())
 
     # The dialog's own save committed: go to the node the user clicked.
     moved = run({"name": "Nap", "via": "btn-unsaved-save", "ts": 2})
-    assert moved[0] == "Next"
+    assert moved["name"] == "Next"
 
 
 def test_the_editor_adopts_only_a_name_that_was_saved(manager):
