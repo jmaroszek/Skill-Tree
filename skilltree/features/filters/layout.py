@@ -5,7 +5,6 @@ from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.ui import tokens
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.components.duration import unit_select
-from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import bullet_hint
 from skilltree.ui.kit import hover_label
 from skilltree.ui.kit import panel_close_button
@@ -161,14 +160,7 @@ def build_filters_content():
         dcc.Store(id="community-memory-store", data=None),
 
         html.Hr(className="my-3"),
-        # A filter change often leaves a layout worth re-running. This Settle
-        # carries no layout of its own: assets/sidebars/filters_sidebar.js clicks the
-        # Settle in the graph-settings panel of the canvas on screen, so it
-        # behaves exactly like that one, Freeze included.
         html.Div([
-            dbc.Button("Settle", id="btn-sidebar-relayout", color="secondary", size="sm", className="flex-fill"),
-            Tooltip("Re-run layout physics on the graph on screen",
-                    target="btn-sidebar-relayout", placement="top"),
             dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
         ], className="d-flex gap-2 mb-3"),
     ], className="px-3 pb-2 pt-0", style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX})

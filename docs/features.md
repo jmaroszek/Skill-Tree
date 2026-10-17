@@ -568,7 +568,6 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 | Dormant Toggle | Show or hide dormant nodes. Hidden by default. |
 | Communities | Narrow the graph to an algorithmically-detected cluster of related nodes. See [Communities](#communities) below. |
 | Clear filters | Reset all filters to their default state |
-| Settle | Re-run the layout of the graph on screen. It is the same button as Settle in the [Graph Layout](#graph-layout-controls) panel, placed here because a fresh layout often reads better after a filter change. |
 
 When the filters leave the canvas empty, it says so and says why. Done and Dormant nodes are hidden by default, so a search for a finished node would otherwise look broken. The message counts the matching nodes those two switches are hiding and offers a *Show Done* or *Show Dormant* button for each that applies, alongside *Clear filters*.
 

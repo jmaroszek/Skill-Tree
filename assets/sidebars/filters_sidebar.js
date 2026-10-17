@@ -60,26 +60,6 @@ window.dash_clientside.filters = window.dash_clientside.filters || {};
 
         return style;
     };
-
-    // The filters sidebar's Settle forwards to the Settle of whichever canvas
-    // is on screen, so freeze handling and layout options stay in one place
-    // (layout_requests.js). The graph-settings button is clickable while its
-    // panel is hidden. With no canvas on screen, the click does nothing.
-    function visibleCanvas() {
-        var canvases = (window.SkillTree && window.SkillTree.canvases) || [];
-        for (var i = 0; i < canvases.length; i++) {
-            var container = document.getElementById(canvases[i].containerId);
-            if (container && container.getClientRects().length) return canvases[i];
-        }
-        return null;
-    }
-
-    document.addEventListener('click', function (event) {
-        if (!event.target.closest || !event.target.closest('#btn-sidebar-relayout')) return;
-        var canvas = visibleCanvas();
-        var settle = canvas && document.getElementById(canvas.settleButtonId);
-        if (settle) settle.click();
-    });
 })();
 
 // Drop subcontext picks whose context is no longer selected. Clientside:
