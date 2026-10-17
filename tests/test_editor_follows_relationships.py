@@ -56,7 +56,7 @@ def manager():
 
 def _loaded(manager, name):
     """The editor as populate_editor leaves it for ``name``: form and snapshot."""
-    snapshot = build_editor_snapshot(manager, EventManager(), name)
+    snapshot = build_editor_snapshot(manager, EventManager(GraphManager()), name)
     form = {key: list(snapshot[key]) for key in RELATIONSHIP_FIELDS}
     return form, snapshot
 

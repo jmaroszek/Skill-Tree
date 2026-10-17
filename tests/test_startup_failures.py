@@ -91,7 +91,7 @@ def test_the_integrity_check_of_a_busy_file_is_in_use_not_damaged(
 
 
 def test_restoring_a_backup_another_program_holds_says_so(
-        tmp_path, fast_busy_timeout):
+        tmp_path, fast_busy_timeout, services):
     from skilltree.store import backup
     GraphManager().add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
@@ -99,7 +99,7 @@ def test_restoring_a_backup_another_program_holds_says_so(
     blocker.execute("BEGIN EXCLUSIVE")
     try:
         with pytest.raises(data_transfer.TransferRefused) as refused:
-            data_transfer.restore_backup(saved)
+            data_transfer.restore_backup(services.graph, services.events, saved)
     finally:
         blocker.rollback()
         blocker.close()
@@ -107,7 +107,7 @@ def test_restoring_a_backup_another_program_holds_says_so(
     assert "damaged" not in str(refused.value)
 
 
-def test_restoring_into_a_busy_database_changes_nothing(fast_busy_timeout):
+def test_restoring_into_a_busy_database_changes_nothing(fast_busy_timeout, services):
     from skilltree.store import backup
     manager = GraphManager()
     manager.add_node(_node("Sleep"))
@@ -117,7 +117,7 @@ def test_restoring_into_a_busy_database_changes_nothing(fast_busy_timeout):
     blocker.execute("BEGIN EXCLUSIVE")
     try:
         with pytest.raises(data_transfer.TransferRefused, match="in use"):
-            data_transfer.restore_backup(saved)
+            data_transfer.restore_backup(services.graph, services.events, saved)
     finally:
         blocker.rollback()
         blocker.close()
@@ -148,7 +148,7 @@ def test_every_refusal_has_its_own_exit_code():
     assert len(set(codes)) == len(codes)
 
 
-def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
+def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch, services):
     from skilltree.store import backup
     GraphManager().add_node(_node("Sleep"))
     saved = backup.create_backup("manual")
@@ -160,7 +160,7 @@ def test_a_restore_whose_upgrade_is_refused_says_to_restart(monkeypatch):
     monkeypatch.setattr(schema, "init_db", refuse_once)
 
     with pytest.raises(data_transfer.TransferRefused, match="Restart Skill Tree"):
-        data_transfer.restore_backup(saved)
+        data_transfer.restore_backup(services.graph, services.events, saved)
 
 
 def test_an_unwritable_app_folder_is_refused_with_a_reason(monkeypatch, tmp_path, capsys):

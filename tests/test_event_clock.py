@@ -55,7 +55,7 @@ def test_a_due_date_trigger_fires_and_refreshes():
         name="Plant", type="Action", description="", value=5, time_o=1,
         time_m=2, time_p=4, interest=5, difficulty=5, status="Open",
         context="Life"))
-    events = EventManager()
+    events = EventManager(GraphManager())
     yesterday = (date.today() - timedelta(days=1)).isoformat()
     events.add_event(Event(name="Spring", trigger_date=yesterday))
     events.add_node_to_event("Spring", "Plant")
@@ -76,7 +76,7 @@ def test_with_nothing_due_the_sweeps_only_read(monkeypatch):
     other = sqlite3.connect(database.get_db_path())
     other.execute("BEGIN IMMEDIATE")
     try:
-        events = EventManager()
+        events = EventManager(GraphManager())
         assert events.check_pending_activations() == []
         assert events.check_scheduled_triggers() == []
     finally:

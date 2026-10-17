@@ -27,7 +27,7 @@ def manager():
     manager.add_node(_node("Notes", status=STATUS_DONE))
     manager.add_node(_node("Alone"))
     manager.add_edge("Notes", "Reading", EDGE_NEEDS_SOFT)
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Seed"), "Spring")
     manager.add_edge("Seed", "Alone", EDGE_NEEDS_SOFT)

@@ -66,7 +66,7 @@ class GraphMachine(RuleBasedStateMachine):
         database.get_db_path = lambda: path
         schema.init_db(recheck=True)
         self.manager = GraphManager()
-        self.events = EventManager()
+        self.events = EventManager(GraphManager())
 
     # --- Operations ---------------------------------------------------------
 

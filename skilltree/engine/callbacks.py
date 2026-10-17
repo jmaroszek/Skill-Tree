@@ -799,7 +799,7 @@ def register_callbacks(app, services):
         elif trigger_id == 'btn-undo-done-confirm' and pending_undo_done:
             # Modal confirmed: perform the previously-gated Done → Open toggle
             # on every node in pending_undo_done. Cascade re-blocks downstream
-            # Done dependents via _update_node_state.
+            # Done dependents via update_node_state.
             try:
                 target_names = list(pending_undo_done) if isinstance(pending_undo_done, list) else [pending_undo_done]
                 flipped = 0

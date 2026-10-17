@@ -41,7 +41,7 @@ def test_removing_outgoing_prerequisite_unblocks_former_dependent():
 def test_event_wake_invalidates_all_managers(operation):
     m = graph("A", "B")
     m.add_edge("A", "B", SOFT)
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Wake"))
     events.add_node_to_event("Wake", "B", delay_days=1 if operation == "delayed" else 0)
     scores(m)
@@ -67,7 +67,7 @@ def test_event_delete_cleans_references_and_unblocks_dependents(remove_only):
     m = graph("A", "B")
     m.add_edge("A", "B", HARD)
     ConfigManager.set_priority_goals(["A"])
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Delete"))
     events.add_node_to_event("Delete", "A")
     if remove_only:

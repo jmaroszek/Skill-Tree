@@ -17,6 +17,7 @@ from skilltree.store.events import EventManager
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
 from skilltree.domain.models import Event
 from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 
 def _callbacks(register):
@@ -55,7 +56,7 @@ def test_a_sort_choice_is_saved_and_loads_with_the_next_page():
 
 
 def test_event_order_is_saved_and_follows_renames_and_deletes():
-    events = EventManager()
+    events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch"):
         events.add_event(Event(name=name))
     reorder = _callbacks(event_callbacks.register_event_callbacks)["reorder_event"][0]
@@ -72,7 +73,7 @@ def test_event_order_is_saved_and_follows_renames_and_deletes():
 
 
 def test_manual_event_list_uses_the_saved_order():
-    events = EventManager()
+    events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch"):
         events.add_event(Event(name=name))
     ConfigManager.set_event_order(["Move", "Launch", "Trip"])
@@ -109,7 +110,7 @@ def test_a_drag_reorders_the_shown_names_within_the_saved_order():
 
 
 def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
-    events = EventManager()
+    events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch", "Party"):
         events.add_event(Event(name=name))
     ConfigManager.set_event_order(["Trip", "Move", "Launch", "Party"])

@@ -131,7 +131,7 @@ def register_data_callbacks(app, services):
         if not n_clicks or not selected:
             return no_update, no_update, no_update
         try:
-            data_transfer.restore_backup(selected)
+            data_transfer.restore_backup(services.graph, services.events, selected)
         except data_transfer.TransferRefused as exc:
             return _problem(str(exc)), False, no_update
         return _ok("Restored. Reloading…"), False, n_clicks
@@ -174,7 +174,7 @@ def register_data_callbacks(app, services):
         except (ValueError, UnicodeDecodeError):
             return _problem(f"{filename or 'That file'} isn't a Skill Tree export."), no_update
         try:
-            counts = data_transfer.import_data(bundle)
+            counts = data_transfer.import_data(services.graph, services.events, bundle)
         except data_transfer.TransferRefused as exc:
             return _problem(str(exc)), no_update
         return _ok(f"Imported {counts.get('Nodes', 0)} nodes. Reloading…"), filename or "import"

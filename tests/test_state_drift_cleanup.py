@@ -16,8 +16,6 @@ import pytest
 
 from skilltree.store import database
 from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD
-from skilltree.store.graph.manager import GraphManager
-from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.store import schema
 
@@ -31,13 +29,13 @@ def temp_database(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def mgr():
-    return GraphManager()
+def mgr(services):
+    return services.graph
 
 
 @pytest.fixture
-def em():
-    return EventManager()
+def em(services):
+    return services.events
 
 
 def _make_node(name: str = "TestNode", **overrides: Any) -> Node:

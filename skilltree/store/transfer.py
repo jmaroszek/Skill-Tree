@@ -20,6 +20,8 @@ from skilltree.store.graph.state import revisions
 from skilltree.domain.models import ALL_STATUSES, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from skilltree.runtime.version import __version__
 from skilltree.store import schema
+from skilltree.store.events import MAX_DELAY_DAYS
+from skilltree.store.settings import SUPPORTED_NODE_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +152,6 @@ def _check_values(tables) -> None:
     flag that's a list, a JSON setting that doesn't parse. SQLite stores
     whatever it's given, so such an import committed and then left a graph
     or settings the app couldn't read."""
-    from skilltree.store.settings import SUPPORTED_NODE_TYPES
-    from skilltree.store.events import MAX_DELAY_DAYS
-
     for row in tables.get("Nodes", []):
         name = _shown(row.get("name"))
         if row.get("type") not in SUPPORTED_NODE_TYPES:
@@ -280,7 +279,7 @@ def _validated_graph(tables) -> dict:
     return {**tables, "Edges": list(edges.values())}
 
 
-def import_data(bundle) -> dict:
+def import_data(graph, events, bundle) -> dict:
     """Load an export into this database, which must hold no graph yet.
 
     The export's settings and resource sections replace the ones a new
@@ -294,11 +293,11 @@ def import_data(bundle) -> dict:
     tables = _validated_graph(_validated_tables(bundle))
     with database.get_connection() as conn:
         nodes = conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0]
-        events = conn.execute("SELECT COUNT(*) FROM Events").fetchone()[0]
-    if nodes or events:
+        event_count = conn.execute("SELECT COUNT(*) FROM Events").fetchone()[0]
+    if nodes or event_count:
         raise TransferRefused(
             f"Import only fills an empty graph, and this one has {nodes} node(s) "
-            f"and {events} event(s). To bring back an earlier graph, restore a "
+            f"and {event_count} event(s). To bring back an earlier graph, restore a "
             "backup instead.")
     backup.create_backup("before-import")
     counts = {}
@@ -338,7 +337,7 @@ def import_data(bundle) -> dict:
     except sqlite3.DatabaseError as exc:
         raise TransferRefused(f"That export couldn't be imported ({exc}). "
                               "Nothing was changed.") from exc
-    _after_replacing_the_graph()
+    _after_replacing_the_graph(graph, events)
     logger.info("Imported an export: %s", counts)
     return counts
 
@@ -354,7 +353,7 @@ def _user_version(path) -> int:
         conn.close()
 
 
-def restore_backup(path) -> None:
+def restore_backup(graph, events, path) -> None:
     """Replace the live database with a backup's contents, in place.
 
     The backup must open, pass SQLite's integrity check, and not come from a
@@ -395,7 +394,7 @@ def restore_backup(path) -> None:
         raise TransferRefused(f"The backup was restored, but it couldn't be "
                               f"prepared for this version: {exc} Restart "
                               "Skill Tree to finish.") from exc
-    _after_replacing_the_graph()
+    _after_replacing_the_graph(graph, events)
     logger.info("Restored the database from %s", path)
 
 
@@ -423,7 +422,7 @@ def _refused_backup(path, problem):
     return TransferRefused("That backup is damaged and can't be restored.")
 
 
-def _after_replacing_the_graph():
+def _after_replacing_the_graph(graph, events):
     """Nothing in memory may describe the graph that was just replaced.
 
     The new graph never went through a startup either, so the startup safety
@@ -432,14 +431,10 @@ def _after_replacing_the_graph():
     priority ranks held by non-Goals or finished Goals, and events whose
     trigger nodes are already complete.
     """
-    from skilltree.store.events import EventManager
-    from skilltree.store.graph.manager import GraphManager
-    manager = GraphManager()
-    manager.pop_auto_done_candidates()
-    manager.canonicalize_helps_edges()
-    manager.recompute_all_statuses()
-    events = EventManager()
+    graph.pop_auto_done_candidates()
+    graph.canonicalize_helps_edges()
+    graph.recompute_all_statuses()
     events.reconcile_dormant_flags()
-    manager.prune_priority_goals()
+    graph.prune_priority_goals()
     events.fire_satisfied_events()
     revisions.changed(scoring=True)

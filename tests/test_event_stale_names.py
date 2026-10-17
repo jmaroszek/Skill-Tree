@@ -22,7 +22,7 @@ def events():
     manager = GraphManager()
     for name in ("A", "B"):
         manager.add_node(_node(name))
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     return events
 

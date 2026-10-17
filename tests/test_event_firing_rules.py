@@ -59,7 +59,7 @@ def _with_trigger(fn, prop_id, *args):
 
 
 def test_firing_an_event_again_changes_nothing(monkeypatch):
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Garden"), "Spring", delay_days=3)
     events.trigger_event("Spring")
@@ -79,7 +79,7 @@ def test_firing_an_event_again_changes_nothing(monkeypatch):
 
 
 def test_the_trigger_button_on_a_fired_event_says_so_and_announces_nothing():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Garden"), "Spring")
     events.trigger_event_manually("Spring")
@@ -94,7 +94,7 @@ def test_the_trigger_button_on_a_fired_event_says_so_and_announces_nothing():
 
 
 def test_a_node_that_wakes_done_stays_off_now():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Planted"), "Spring",
                                now_on_trigger=True)
@@ -115,7 +115,7 @@ def test_add_to_event_offers_no_finished_node():
     manager = GraphManager()
     manager.add_node(_node("Reading"))
     manager.add_node(_node("Finished", status=STATUS_DONE))
-    EventManager().add_event(Event(name="Spring"))
+    EventManager(GraphManager()).add_event(Event(name="Spring"))
     picked = json.dumps(["Reading", "Finished"]) + "|1700000000000"
 
     result = _with_trigger(_callbacks()["open_add_to_event_modal"],
@@ -126,8 +126,8 @@ def test_add_to_event_offers_no_finished_node():
     assert preselected == ["Reading"]
 
 
-def test_a_completion_fires_its_events_when_the_save_writes_the_node_twice():
-    manager, events = GraphManager(), EventManager()
+def test_a_completion_fires_its_events_when_the_save_writes_the_node_twice(services):
+    manager, events = services.graph, services.events
     manager.add_node(_node("Plan"))
     events.add_event(Event(name="Launch", trigger_nodes=["Plan"]))
     events.create_dormant_node(_node("Announce"), "Launch")
@@ -144,9 +144,9 @@ def test_a_completion_fires_its_events_when_the_save_writes_the_node_twice():
     assert manager.get_node("Announce").dormant == 0
 
 
-def test_a_node_reopened_and_redone_in_one_save_is_no_new_completion():
+def test_a_node_reopened_and_redone_in_one_save_is_no_new_completion(services):
     """Done before the save and Done after it: nothing was completed."""
-    manager, events = GraphManager(), EventManager()
+    manager, events = services.graph, services.events
     manager.add_node(_node("Plan"))
     events.add_event(Event(name="Later", trigger_nodes=["Plan"]))
     # Finished behind the saves' backs, so the event still waits.

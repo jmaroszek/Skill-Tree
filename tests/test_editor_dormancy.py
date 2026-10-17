@@ -18,21 +18,19 @@ from skilltree.features.editor.form import (
     NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT, build_dormancy_snapshot,
     build_editor_snapshot, dormancy_for_save, is_form_dirty_vs_snapshot,
 )
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
 from skilltree.store.commands import apply_dormancy, handle_save
 from skilltree.services import AppServices
 
 
 @pytest.fixture
-def mgr():
-    return GraphManager()
+def mgr(services):
+    return services.graph
 
 
 @pytest.fixture
-def em():
-    return EventManager()
+def em(services):
+    return services.events
 
 
 def _node(name, **overrides):

@@ -47,14 +47,13 @@ def build(path, nodes=1000, seed=7):
     schema.init_db(recheck=True)
 
     from skilltree.store.settings import ConfigManager, DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
-    from skilltree.store.events import EventManager
-    from skilltree.store.graph.manager import GraphManager
+    from skilltree.services import AppServices
     from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node,
                         STATUS_DONE, STATUS_OPEN)
 
     rng = random.Random(seed)
-    manager = GraphManager()
-    events = EventManager()
+    services = AppServices()
+    manager, events = services.graph, services.events
     goal_count = max(5, nodes // 40)
     milestone_count = max(2, nodes // 100)
     work_count = nodes - goal_count - milestone_count

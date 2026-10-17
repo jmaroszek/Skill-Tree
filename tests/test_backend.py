@@ -191,7 +191,7 @@ class TestNodeCRUD:
         must have no trace of it after delete_node returns."""
         from skilltree.store.events import EventManager
         from skilltree.domain.models import Event
-        em = EventManager()
+        em = EventManager(GraphManager())
 
         # Set up X with edges in/out, an alias, an event triggered by X,
         # an EventNode attachment, and X as a priority goal — covering every
@@ -696,7 +696,7 @@ class TestNodeRename:
         from skilltree.domain.models import Event
 
         mgr.add_node(_make_node("TriggerNode"))
-        em = EventManager()
+        em = EventManager(GraphManager())
         em.add_event(Event(
             name="TestEvent",
             trigger_nodes=["TriggerNode"],

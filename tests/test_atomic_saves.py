@@ -93,7 +93,7 @@ def test_missing_endpoint_is_not_silently_ignored():
 def test_invalid_done_save_does_not_activate_event_or_queue_suggestions():
     m = graph("A", "B")
     m.add_node(node("Reward", dormant=True))
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="On done", trigger_nodes=["A"]))
     events.add_node_to_event("On done", "Reward")
     m.pop_auto_done_candidates()
@@ -108,12 +108,12 @@ def test_invalid_done_save_does_not_activate_event_or_queue_suggestions():
 def test_caught_nested_failure_cannot_commit_partial_event_save():
     m = graph("A")
     with database.transaction():
-        EventManager().add_event(Event(name="New event"))
+        EventManager(GraphManager()).add_event(Event(name="New event"))
         try:
             m.add_edge("A", "Missing", HARD)
         except ValueError:
             pass  # A Dash callback may return a validation message here.
-    assert EventManager().get_event("New event") is None
+    assert EventManager(GraphManager()).get_event("New event") is None
 
 
 def test_simultaneous_opposite_edges_cannot_create_a_cycle():

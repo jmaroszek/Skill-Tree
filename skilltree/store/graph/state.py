@@ -8,6 +8,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 import threading
 
+from skilltree.store import database
+
 
 @dataclass
 class GraphRevisions:
@@ -15,8 +17,6 @@ class GraphRevisions:
     scoring: int = 0
 
     def changed(self, *, scoring=True):
-        from skilltree.store import database
-
         def bump_graph():
             self.graph += 1
 

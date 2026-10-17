@@ -65,7 +65,7 @@ def test_without_a_batch_each_start_scores(manager):
 
 
 def test_an_event_waking_nodes_onto_now_scores_once(manager):
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     for name, value in (("Seed", 8), ("Sprout", 4)):
         events.create_dormant_node(_node(name, value), "Spring", now_on_trigger=True)

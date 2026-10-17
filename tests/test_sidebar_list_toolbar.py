@@ -122,7 +122,7 @@ def _render_events_list():
 
 @pytest.fixture
 def render():
-    em = EventManager()
+    em = EventManager(GraphManager())
     em.add_event(Event(name="Alpha", description="plant the garden"))
     em.add_event(Event(name="Beta", status="Triggered"))
     em.add_event(Event(name="Gamma", description="garden shed", status="Triggered"))
@@ -180,7 +180,7 @@ def test_a_fired_event_with_nodes_still_waiting_stays_in_the_list():
     from skilltree.store.graph.manager import GraphManager
     from skilltree.domain.models import Node
 
-    em, gm = EventManager(), GraphManager()
+    em, gm = EventManager(GraphManager()), GraphManager()
     em.add_event(Event(name="Staged"))
     em.add_event(Event(name="Done With"))
     gm.add_node(Node(name="Soon", type="Learn", description="", value=5,
@@ -208,7 +208,7 @@ def test_a_fired_event_with_nodes_still_waiting_stays_in_the_list():
 
 def test_an_empty_fired_event_counts_as_finished():
     """Nothing left to wake, so it leaves the list the moment it fires."""
-    em = EventManager()
+    em = EventManager(GraphManager())
     em.add_event(Event(name="Decided"))
     em.trigger_event("Decided")
 

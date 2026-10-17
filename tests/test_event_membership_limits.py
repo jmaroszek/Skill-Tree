@@ -12,7 +12,6 @@ import pytest
 
 from skilltree.store import database
 from skilltree.store.events import EventManager, MAX_DELAY_DAYS
-from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
 
 
@@ -23,8 +22,8 @@ def _node(name):
 
 
 @pytest.fixture
-def events():
-    manager, events = GraphManager(), EventManager()
+def events(services):
+    manager, events = services.graph, services.events
     for name in ("Draft", "Edit", "Publish"):
         manager.add_node(_node(name))
     events.add_event(Event(name="Ready", trigger_nodes=["Draft"]))

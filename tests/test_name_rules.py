@@ -69,7 +69,7 @@ def test_aliases_follow_the_same_rule():
 
 
 def test_event_names_follow_the_same_rule():
-    events = EventManager()
+    events = EventManager(GraphManager())
     with pytest.raises(ValueError, match="Event name must be a single line"):
         events.add_event(Event(name="Trip\n2027"))
     events.add_event(Event(name="Trip"))
@@ -79,7 +79,7 @@ def test_event_names_follow_the_same_rule():
 
 def test_renaming_an_event_onto_another_says_so():
     """It raised a raw sqlite3.IntegrityError the save path didn't catch."""
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Trip"))
     events.add_event(Event(name="Move"))
     with pytest.raises(ValueError, match="'Move' already exists"):

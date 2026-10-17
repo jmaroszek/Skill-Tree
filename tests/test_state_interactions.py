@@ -170,7 +170,7 @@ def test_add_to_event_ends_now_and_cannot_bypass_cap_on_wake(handlers):
     item = manager.get_node('A')
     item.now = 1
     manager.update_node(item)
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later'))
     handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', [])
     assert manager.get_node('A').now == 0
@@ -187,7 +187,7 @@ def test_event_now_intent_still_obeys_cap_after_sleeping(handlers):
     manager = graph('A', 'B')
     ConfigManager.set_now_node_cap(1)
     handlers['handle_now_trigger']('["A"]|1')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later'))
     handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', ['on'])
     handlers['handle_now_trigger']('["B"]|2')
@@ -203,8 +203,8 @@ def test_ineligible_nodes_cannot_enter_now(handlers, via, state):
     if state == 'Done':
         complete(manager, 'A')
     else:
-        EventManager().add_event(Event('Later'))
-        EventManager().add_node_to_event('Later', 'A')
+        EventManager(GraphManager()).add_event(Event('Later'))
+        EventManager(GraphManager()).add_node_to_event('Later', 'A')
     before = history(manager, 'A')
     if via == 'menu':
         handlers['handle_now_trigger']('["A"]|1')
@@ -220,7 +220,7 @@ def test_ineligible_nodes_cannot_enter_now(handlers, via, state):
 
 def test_sleeping_completion_is_refused_without_firing_events(handlers, monkeypatch):
     manager = graph('A', 'Reward')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later'))
     events.add_node_to_event('Later', 'A')
     events.add_event(Event('On Done', trigger_nodes=['A']))
@@ -235,12 +235,12 @@ def test_sleeping_completion_is_refused_without_firing_events(handlers, monkeypa
 
 def test_done_node_cannot_be_attached_by_a_stale_event_dialog(handlers):
     manager = graph('A')
-    EventManager().add_event(Event('Later'))
+    EventManager(GraphManager()).add_event(Event('Later'))
     complete(manager, 'A')
     result = handlers['save_add_to_event'](1, ['A'], 'Later', 0, 'days', [])
     assert 'Reopen' in result[1]
     assert not manager.get_node('A').dormant
-    assert EventManager().get_node_membership('A') is None
+    assert EventManager(GraphManager()).get_node_membership('A') is None
 
 
 def test_removing_the_blocker_and_completing_is_one_valid_save():
@@ -270,7 +270,7 @@ def test_new_blocker_and_completion_refuse_the_entire_save(handlers, monkeypatch
 
 def test_wake_and_complete_can_share_a_save(handlers, monkeypatch):
     manager = graph('A')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later'))
     events.add_node_to_event('Later', 'A')
     run_core(handlers, monkeypatch, name='A', original_name='A',
@@ -293,8 +293,8 @@ def test_stale_auto_done_is_not_accepted_or_displayed(handlers, monkeypatch, cha
         item.status = 'Open'
         manager.update_node(item)
     elif change == 'dormant':
-        EventManager().add_event(Event('Later'))
-        EventManager().add_node_to_event('Later', 'Goal')
+        EventManager(GraphManager()).add_event(Event('Later'))
+        EventManager(GraphManager()).add_node_to_event('Later', 'Goal')
     elif change == 'type':
         item.type, item.time_mode = 'Learn', 'manual'
         manager.update_node(item)
@@ -338,8 +338,8 @@ def test_dormant_container_is_never_suggested():
     manager = graph('Child')
     manager.add_node(node('Goal', type='Goal'))
     manager.add_edge('Child', 'Goal', 'Needs_Hard')
-    EventManager().add_event(Event('Later'))
-    EventManager().add_node_to_event('Later', 'Goal')
+    EventManager(GraphManager()).add_event(Event('Later'))
+    EventManager(GraphManager()).add_node_to_event('Later', 'Goal')
     complete(manager, 'Child')
     assert manager.pop_auto_done_candidates() == []
 
@@ -366,7 +366,7 @@ def october_11(monkeypatch):
 
 def test_overdue_date_event_wakes_overdue_nodes_immediately(october_11):
     manager = graph('Overdue', 'Future')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('October', trigger_date='2026-10-01'))
     events.add_node_to_event('October', 'Overdue', 2, now_on_trigger=True)
     events.add_node_to_event('October', 'Future', 20)
@@ -384,7 +384,7 @@ def test_overdue_date_event_wakes_overdue_nodes_immediately(october_11):
 
 def test_late_manual_firing_also_counts_from_the_date(october_11):
     graph('A')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Past', trigger_date='2026-10-01'))
     events.add_node_to_event('Past', 'A', 20)
     events.trigger_event_manually('Past')
@@ -393,7 +393,7 @@ def test_late_manual_firing_also_counts_from_the_date(october_11):
 
 def test_manual_early_firing_anchors_delays_to_today(october_11):
     graph('A')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later', trigger_date='2026-12-01'))
     events.add_node_to_event('Later', 'A', 2)
     events.trigger_event_manually('Later')
@@ -488,7 +488,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     edit with it."""
     from skilltree.features.editor.form import build_dormancy_snapshot
     manager = graph('A')
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event('Later'))
     events.add_node_to_event('Later', 'A')
     loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
@@ -508,7 +508,7 @@ def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monke
     another event is a real request, refused with its own reason."""
     from skilltree.features.editor.form import build_dormancy_snapshot
     manager = graph('A')
-    events = EventManager()
+    events = EventManager(GraphManager())
     for name in ('Later', 'Other'):
         events.add_event(Event(name))
     events.add_node_to_event('Later', 'A')

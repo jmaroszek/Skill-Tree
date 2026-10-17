@@ -72,7 +72,7 @@ def canvases(services):
     shared node leads into Root, so it is one of Root's prerequisites on
     Details and one of the event's neighbors on Events.
     """
-    graph, events = GraphManager(), EventManager()
+    graph, events = services.graph, services.events
     graph.add_node(_node('Open Prereq', now=1))
     graph.add_node(_node('Done Prereq', status='Done'))
     graph.add_node(_node('Upstream'))
@@ -240,7 +240,7 @@ def test_canvas_view_preserves_filtering_and_focus_without_mutating_graph():
     manager.add_edge('A', 'B', 'Needs_Hard')
     version = revisions.graph
     view = build_canvas_view(
-        manager, functools.partial(generate_elements, manager, EventManager()),
+        manager, functools.partial(generate_elements, manager, EventManager(GraphManager())),
         'filter-context', None,
         'components', {}, 'All', 'B', None, None)
     assert {e['data']['id'] for e in view.elements if 'source' not in e['data']} == {'A', 'B'}

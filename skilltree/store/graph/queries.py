@@ -4,6 +4,8 @@ from skilltree.store import database
 from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.graph.state import revisions
+from skilltree.domain import communities as community_labels
+from skilltree.domain.communities import hub_scores
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -528,8 +530,6 @@ def name_community(manager, community: Set[str]) -> str:
 
 
 def _labels(manager, communities, nodes) -> List[str]:
-    from skilltree.domain import communities as community_labels
-    from skilltree.domain.communities import hub_scores
     edges = manager.get_edges()
     hubs = {name: row['score'] for name, row in hub_scores(nodes, edges).items()}
     return community_labels.label_communities(
@@ -540,7 +540,6 @@ def list_communities(manager, method: str = "louvain",
                      filters: Optional[Dict] = None):
     """The Community filter's rows: each community labelled, ranked by the
     summed priority of its members, and capped."""
-    from skilltree.domain import communities as community_labels
     communities = detect_communities(manager, method, filters)
     nodes = manager.get_all_nodes(include_dormant=True)
     labels = _labels(manager, communities, nodes)

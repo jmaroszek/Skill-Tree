@@ -4,6 +4,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT,
                     STATUS_DONE, STATUS_OPEN)
 from skilltree.store.resources import save_node_links
+from skilltree.domain.models import Event, Node
 
 @database.atomic
 def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, interest, diff,
@@ -22,7 +23,6 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     to links; only the sections it names are rewritten, and None leaves every
     link alone.
     """
-    from skilltree.domain.models import Node
 
     target_status = STATUS_DONE if (status_done and STATUS_DONE in status_done) else STATUS_OPEN
 
@@ -98,7 +98,6 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
     output: the delay already in days. `was_dormant` is the node's state
     before this save.
     """
-    from skilltree.domain.models import Event
 
     d = dormancy or {}
     if not d.get('dormant'):

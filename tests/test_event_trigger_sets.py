@@ -30,13 +30,13 @@ def temp_database(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def mgr():
-    return GraphManager()
+def mgr(services):
+    return services.graph
 
 
 @pytest.fixture
-def em():
-    return EventManager()
+def em(services):
+    return services.events
 
 
 def _node(name: str, **overrides: Any) -> Node:
@@ -305,7 +305,7 @@ class TestV5Migration:
         monkeypatch.setattr(database, "get_db_path", lambda: db_path)
         schema.init_db(recheck=True)
 
-        em = EventManager()
+        em = EventManager(GraphManager())
         assert em.get_event("Legacy").trigger_nodes == ["Key"]
         assert em.get_event("Legacy").trigger_mode == TRIGGER_MODE_ANY
         # Dangling reference dropped rather than migrated.
@@ -323,15 +323,15 @@ class TestV5Migration:
         for _ in range(3):
             schema.init_db(recheck=True)
 
-        assert EventManager().get_event("Legacy").trigger_nodes == ["Key"]
+        assert EventManager(GraphManager()).get_event("Legacy").trigger_nodes == ["Key"]
 
-    def test_migrated_event_still_fires(self, monkeypatch, tmp_path):
+    def test_migrated_event_still_fires(self, monkeypatch, tmp_path, services):
         db_path = str(tmp_path / "legacy3.db")
         self._build_v4_db(db_path)
         monkeypatch.setattr(database, "get_db_path", lambda: db_path)
         schema.init_db(recheck=True)
 
-        mgr, em = GraphManager(), EventManager()
+        mgr, em = services.graph, services.events
         mgr.add_node(_node("Reward"))
         em.add_node_to_event("Legacy", "Reward", delay_days=0)
 

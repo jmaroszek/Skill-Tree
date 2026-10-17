@@ -41,9 +41,9 @@ def _finish(manager, name):
 
 
 @pytest.fixture
-def graph():
+def graph(services):
     """An AND event on Draft and Edit that holds Publish. Draft is Done."""
-    manager, events = GraphManager(), EventManager()
+    manager, events = services.graph, services.events
     manager.add_node(_node("Draft"))
     manager.add_node(_node("Edit"))
     events.add_event(Event(name="Ready", trigger_nodes=["Draft", "Edit"],
@@ -130,7 +130,7 @@ def test_a_failure_to_fire_is_logged_and_the_edit_stays(graph, caplog):
 
 
 def test_a_sleeping_done_node_does_not_count():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Seed"), "Spring")
     events.add_event(Event(name="Bloom", trigger_nodes=["Seed"]))
@@ -143,8 +143,8 @@ def test_a_sleeping_done_node_does_not_count():
     assert events.get_event("Bloom").status == "Triggered"
 
 
-def test_a_new_event_on_a_finished_node_is_refused():
-    manager, events = GraphManager(), EventManager()
+def test_a_new_event_on_a_finished_node_is_refused(services):
+    manager, events = services.graph, services.events
     manager.add_node(_node("Draft", status=STATUS_DONE))
     manager.add_node(_node("Edit", status=STATUS_DONE))
     manager.add_node(_node("Print"))
@@ -162,8 +162,8 @@ def test_a_new_event_on_a_finished_node_is_refused():
     assert events.get_event("Waiting").status == "Pending"
 
 
-def test_the_launch_safety_net_fires_events_left_waiting():
-    manager, events = GraphManager(), EventManager()
+def test_the_launch_safety_net_fires_events_left_waiting(services):
+    manager, events = services.graph, services.events
     manager.add_node(_node("Draft"))
     events.add_event(Event(name="Ready", trigger_nodes=["Draft"]))
     events.create_dormant_node(_node("Publish"), "Ready")
@@ -205,7 +205,7 @@ def test_the_editor_shows_the_refusal_for_a_new_event():
     result = _save_event()(1, None, "Ready", "", "node", None, ["Draft"], "any")
 
     assert "'Draft' is complete already" in result[2]
-    assert EventManager().get_event("Ready") is None
+    assert EventManager(GraphManager()).get_event("Ready") is None
 
 
 def test_the_announcement_says_the_nodes_were_already_complete():

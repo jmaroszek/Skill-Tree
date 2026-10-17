@@ -144,7 +144,7 @@ def test_putting_it_to_sleep_asks_too(monkeypatch, manager):
     assert response.reopen_open is True
     assert not manager.get_node("Basics").dormant
     assert manager.get_node("Basics").status == STATUS_DONE
-    assert EventManager().get_event("Later On") is None
+    assert EventManager(GraphManager()).get_event("Later On") is None
     assert _statuses(manager)["Advanced"] == STATUS_DONE
 
 

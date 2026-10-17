@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import dash
 
 from skilltree.domain.communities import MAX_LISTED, build_listing, label_communities
+from skilltree.store.graph.manager import GraphManager
 
 
 def _n(name, type="Learn", context="Mind", subcontext=None):
@@ -196,7 +197,7 @@ class TestCanvasOptions:
     def _view(manager, f_community, method="components"):
         from skilltree.ui.canvas.view import build_canvas_view
         from skilltree.ui.canvas.elements import generate_elements
-        render = functools.partial(generate_elements, manager, EventManager())
+        render = functools.partial(generate_elements, manager, EventManager(GraphManager()))
         return build_canvas_view(manager, render, 'filter-community',
                                  None, method, {}, f_community, None, None, None)
 
@@ -261,7 +262,7 @@ class TestCanvasOptions:
     def _render(self, manager, f_community, memory=None):
         from skilltree.ui.canvas.view import build_canvas_view
         from skilltree.ui.canvas.elements import generate_elements
-        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager()),
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager(GraphManager())),
                                  'filter-community',
                                  None, "components", {'hide_done': True},
                                  f_community, None, None, None,
@@ -326,7 +327,7 @@ class TestCanvasOptions:
     def _view_with(self, manager, f_community, memory):
         from skilltree.ui.canvas.view import build_canvas_view
         from skilltree.ui.canvas.elements import generate_elements
-        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager()),
+        return build_canvas_view(manager, functools.partial(generate_elements, manager, EventManager(GraphManager())),
                                  'filter-community',
                                  None, "components", {}, f_community, None, None,
                                  None, community_memory=memory)

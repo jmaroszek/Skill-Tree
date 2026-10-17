@@ -44,7 +44,7 @@ def populate(monkeypatch, services):
 @pytest.fixture
 def events():
     GraphManager().add_node(_node("A"))
-    events = EventManager()
+    events = EventManager(GraphManager())
     for name in ("Later", "Other"):
         events.add_event(Event(name=name))
     events.add_node_to_event("Later", "A")

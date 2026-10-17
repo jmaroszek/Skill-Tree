@@ -9,6 +9,7 @@ counters that let the higher-level callback caches know when to rebuild.
 
 import contextlib
 import contextvars
+import logging
 import sqlite3
 import time
 from collections import defaultdict, deque
@@ -30,16 +31,20 @@ from skilltree.domain.names import format_name
 if TYPE_CHECKING:
     import networkx as nx
 
+logger = logging.getLogger(__name__)
 
 # The ranking a run of Now starts shares (see GraphManager.ranking_batch).
 _rank_batch: contextvars.ContextVar = contextvars.ContextVar("rank_batch", default=None)
-
 
 
 # A Done node of these types stays Done when a prerequisite reopens. A
 # Milestone records a result the world confirmed. Unfinishing the work that
 # was planned for it doesn't take the result back.
 _KEEPS_DONE_TYPES = frozenset({'Milestone'})
+
+
+def _ignore(name):
+    """A listener that does nothing: a GraphManager on its own fires no events."""
 
 
 def _utc_now_ts() -> int:
@@ -72,6 +77,11 @@ class GraphManager:
     def __init__(self):
         self._repository = GraphRepository(lambda: self.get_connection())
         self.caches = GraphCaches()
+        # Called with a node's name when it turns Done, and with an event's
+        # name when deleting a node narrows that event's trigger set, each
+        # after the commit. AppServices points them at its EventManager.
+        self.on_node_done = _ignore
+        self.on_trigger_set_narrowed = _ignore
 
     def _prepare_read_caches(self):
         epoch = (database.get_db_path(), revisions.graph)
@@ -264,7 +274,7 @@ class GraphManager:
         # the form said: a Goal turned into an Action kept Open with
         # unfinished prerequisites until the next launch repaired it.
         if node.type != "Goal" and node.status != STATUS_DONE:
-            self._update_node_state(node.name)
+            self.update_node_state(node.name)
         self._update_dependent_nodes_state(node.name)
         # Skip scoring-cache invalidation if only cosmetic fields changed.
         # _update_dependent_nodes_state may have touched other nodes' status
@@ -284,19 +294,15 @@ class GraphManager:
             # Fire any event whose trigger condition this completion satisfies
             # (OR fires on this node alone; AND needs its whole set Done), but only
             # on a true Open/Blocked → Done transition. Re-saving an already-
-            # Done node should be a no-op for events. Lazy import to avoid
-            # the event_manager ↔ graph_manager circular dependency.
+            # Done node should be a no-op for events.
             if not was_done:
                 try:
-                    from skilltree.store.events import EventManager
-                    EventManager().auto_trigger_by_node_completion(node.name)
+                    self.on_node_done(node.name)
                 except Exception:
                     # Event-firing must never block a node save. Failures here
                     # are logged but the node update remains committed.
-                    import logging
-                    logging.getLogger(__name__).exception(
-                        "auto_trigger_by_node_completion failed for %s", node.name
-                    )
+                    logger.exception("Firing events for %s's completion failed",
+                                     node.name)
                 # Auto-Done suggestion: any direct Hard dependent that is a
                 # Goal or inherited-time container (never a Milestone) whose
                 # prereqs are now ALL Done (and isn't already Done itself)
@@ -432,7 +438,7 @@ class GraphManager:
                 (demoted if cursor.fetchone()[0] == 0 else narrowed).append(ev)
             conn.commit()
         for dept in dependents:
-            self._update_node_state(dept)
+            self.update_node_state(dept)
         if affected_events:
             ConfigManager.add_pending_event_notification({
                 "kind": "trigger_node_deleted",
@@ -442,13 +448,9 @@ class GraphManager:
                 "deleted_node": node_name,
                 "when": date.today().isoformat(),
             })
-        if narrowed:
-            # The nodes left in a narrowed set may all be Done already. Lazy
-            # import: event_manager imports this module.
-            from skilltree.store.events import EventManager
-            events = EventManager()
-            for ev in narrowed:
-                events.fire_if_met_after_commit(ev)
+        # The nodes left in a narrowed set may all be Done already.
+        for ev in narrowed:
+            self.on_trigger_set_narrowed(ev)
         ConfigManager.delete_node_references(node_name)
         self._bump_version()
 
@@ -535,9 +537,7 @@ class GraphManager:
                     [n for n in self.get_all_nodes() if not n.now],
                     priority_goals=ConfigManager.get_priority_goals())
             except Exception:
-                import logging
-                logging.getLogger(__name__).exception(
-                    "Couldn't rank %s as it entered Now", node_name)
+                logger.exception("Couldn't rank %s as it entered Now", node_name)
                 return None, None
             ranked = [n.name for n in scored if getattr(n, 'priority_score', -1) >= 0]
             if batch is not None:
@@ -576,7 +576,6 @@ class GraphManager:
     @database.atomic
     def set_aliases(self, node_name: str, aliases: list):
         """Replace all aliases for a node."""
-        from skilltree.store.settings import ConfigManager
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM Aliases WHERE node_name=?", (node_name,))
@@ -709,7 +708,7 @@ class GraphManager:
                 cursor.execute("INSERT OR IGNORE INTO Edges (source, target, type) VALUES (?, ?, ?)", (source, target, edge_type))
                 changed = cursor.rowcount > 0
             if changed and not _defer_updates and edge_type == EDGE_NEEDS_HARD:
-                self._update_node_state(target)
+                self.update_node_state(target)
         if changed and not _defer_updates:
             self._bump_version()
 
@@ -731,7 +730,7 @@ class GraphManager:
             changed = cursor.rowcount > 0
             conn.commit()
             if changed and edge_type == EDGE_NEEDS_HARD:
-                self._update_node_state(target)
+                self.update_node_state(target)
         if changed:
             self._bump_version()
 
@@ -833,11 +832,11 @@ class GraphManager:
 
         # Recalculate state for the saved node and all nodes affected by its edges
         def settle():
-            self._update_node_state(node_name)
+            self.update_node_state(node_name)
             for trgt in set(supports_hard) | set(previous_dependents):
-                self._update_node_state(trgt)
+                self.update_node_state(trgt)
             for trgt in supports_soft:
-                self._update_node_state(trgt)
+                self.update_node_state(trgt)
             for src in needs_hard:
                 self._update_dependent_nodes_state(src)
 
@@ -877,7 +876,7 @@ class GraphManager:
         return graph_rules.is_prereq_satisfied(p_node)
 
     @database.atomic
-    def _update_node_state(self, node_name: str):
+    def update_node_state(self, node_name: str):
         """Recompute Blocked/Open for ``node_name`` and cascade to dependents.
 
         Iterative BFS over the dependency frontier so a single SQLite
@@ -1048,9 +1047,6 @@ class GraphManager:
         asymmetric state. Done Milestones are the exception: they keep their
         Done, as the cascade lets them.
         """
-        import logging
-        logger = logging.getLogger(__name__)
-
         nodes = self.get_all_nodes(include_dormant=True)   # connection 1
         edges = self.get_edges()                           # connection 2
 

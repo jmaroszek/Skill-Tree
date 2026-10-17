@@ -6,6 +6,7 @@ from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import score_nodes
 from skilltree.store.graph.state import revisions
+from skilltree.runtime.perf import append_perf_log
 
 
 def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Optional[List[str]] = None) -> List[Node]:
@@ -36,7 +37,6 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
         memo = {}  # Never read/publish committed caches for pending writes.
 
     if ConfigManager.get_show_scoring_perf() and not type(manager)._startup_perf_recorded:
-        from skilltree.runtime.perf import append_perf_log
         scored, timings = score_nodes(
             now_nodes, manager.get_all_nodes(),
             manager.get_edges(), hypers,

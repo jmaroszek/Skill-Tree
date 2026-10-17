@@ -8,8 +8,6 @@ import dash
 import pytest
 
 from skilltree.features.events.callbacks import register_event_callbacks
-from skilltree.store.events import EventManager
-from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node
 from skilltree.services import AppServices
 
@@ -36,11 +34,11 @@ def _callback(name):
 
 
 @pytest.fixture
-def render():
+def render(services):
     """Trip holds two dormant nodes, one in Mind and one in Body. Outside it
     sit a Mind and a Body prerequisite, a Done one, and a node asleep under
     another event."""
-    graph, events = GraphManager(), EventManager()
+    graph, events = services.graph, services.events
     graph.add_node(_node('Mind Prereq'))
     graph.add_node(_node('Body Prereq', context='Body'))
     graph.add_node(_node('Done Prereq', status='Done'))

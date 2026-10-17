@@ -12,7 +12,6 @@ from unittest.mock import patch
 import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, Event
-from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.store.settings import ConfigManager
 from skilltree.store import schema
@@ -27,13 +26,13 @@ def temp_database(monkeypatch, tmp_path):
 
 
 @pytest.fixture
-def mgr():
-    return GraphManager()
+def mgr(services):
+    return services.graph
 
 
 @pytest.fixture
-def em():
-    return EventManager()
+def em(services):
+    return services.events
 
 
 def _node(name: str, **overrides: Any) -> Node:

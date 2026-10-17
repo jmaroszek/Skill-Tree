@@ -18,7 +18,7 @@ def _node(name, value):
 
 def _fire(cap):
     GraphManager()
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     for name, value, flagged in (("Alpha", 2, False), ("Mid", 9, False), ("Zed", 1, True)):
         events.create_dormant_node(_node(name, value), "Spring", now_on_trigger=flagged)

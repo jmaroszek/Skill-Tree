@@ -87,7 +87,7 @@ def test_the_canvas_carries_it_as_data(manager, name):
     assert element["data"]["id"] == name
 
 
-def test_export_and_import_keep_every_name(manager, tmp_path, monkeypatch):
+def test_export_and_import_keep_every_name(manager, tmp_path, monkeypatch, services):
     for name in HOSTILE:
         _save(manager, name)
     bundle = json.loads(data_transfer.export_json())
@@ -95,7 +95,7 @@ def test_export_and_import_keep_every_name(manager, tmp_path, monkeypatch):
     fresh = str(tmp_path / "fresh.db")
     monkeypatch.setattr(database, "get_db_path", lambda: fresh)
     schema.init_db(recheck=True)
-    data_transfer.import_data(bundle)
+    data_transfer.import_data(services.graph, services.events, bundle)
 
     assert {n.name for n in GraphManager().get_all_nodes()} == set(HOSTILE)
 

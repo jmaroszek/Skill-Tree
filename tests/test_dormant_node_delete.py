@@ -65,7 +65,7 @@ def _text(component):
 
 
 def _setup(event):
-    em = EventManager()
+    em = EventManager(GraphManager())
     em.add_event(Event(name=event))
     GraphManager().add_node(_node("Audio Engineering"))
     em.add_node_to_event(event, "Audio Engineering")

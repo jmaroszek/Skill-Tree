@@ -11,6 +11,7 @@ import json
 from skilltree.store import database
 from typing import Optional
 from skilltree.store.database import get_connection
+from skilltree.store.graph.state import revisions
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
@@ -271,8 +272,7 @@ class ConfigManager:
             conn.commit()
         if key in {"HYPERPARAMS", "HP_PROFILE", "CONTEXT_WEIGHTS", "TIME_SETTINGS",
                    "PRIORITY_GOALS", "NODE_COLORS", "NODE_SHAPES"}:
-            from skilltree.store.graph.manager import GraphManager
-            GraphManager()._bump_version(scoring=False)
+            revisions.changed(scoring=False)
 
     @classmethod
     def get_node_types(cls):
@@ -423,8 +423,7 @@ class ConfigManager:
             removed = cursor.rowcount
             conn.commit()
         if removed:
-            from skilltree.store.graph.manager import GraphManager
-            GraphManager()._bump_version(scoring=False)
+            revisions.changed(scoring=False)
 
     @classmethod
     def get_graph_layout_defaults(cls):

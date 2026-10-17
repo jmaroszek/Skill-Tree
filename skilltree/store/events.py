@@ -14,7 +14,10 @@ flag.
 import logging
 import sqlite3
 from datetime import date, timedelta
+from skilltree.domain import rules as graph_rules
 from skilltree.store import database
+from skilltree.store.graph.state import revisions
+from skilltree.store.settings import ConfigManager
 from skilltree.domain.models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from typing import List, Dict, Optional, Tuple
 
@@ -38,10 +41,10 @@ class EventManager:
     """
 
 
-    @staticmethod
-    def _graph_changed(scoring=True):
-        from skilltree.store.graph.manager import GraphManager
-        GraphManager()._bump_version(scoring=scoring)
+    def __init__(self, graph):
+        # The GraphManager it deletes, wakes and re-derives nodes through.
+        # AppServices passes its own, so the two share one set of caches.
+        self.graph = graph
 
     def get_connection(self) -> sqlite3.Connection:
         return database.get_connection()
@@ -164,7 +167,7 @@ class EventManager:
             repaired = cursor.rowcount or 0
             conn.commit()
         if repaired:
-            self._graph_changed()
+            revisions.changed()
         return repaired
 
     # --- Event CRUD ---
@@ -179,7 +182,6 @@ class EventManager:
 
     @staticmethod
     def _check_name(name):
-        from skilltree.domain import rules as graph_rules
         problem = graph_rules.name_problem(name, "Event name")
         if problem:
             raise ValueError(problem)
@@ -212,7 +214,7 @@ class EventManager:
             except sqlite3.IntegrityError as exc:
                 raise ValueError(f"Event with name '{event.name}' already exists.") from exc
 
-        self._graph_changed(scoring=False)
+        revisions.changed(scoring=False)
 
     @database.atomic
     def update_event(self, old_name: str, event: Event):
@@ -264,10 +266,9 @@ class EventManager:
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
         if old_name != event.name:
-            from skilltree.store.settings import ConfigManager
             ConfigManager.rename_event_references(old_name, event.name)
         self.fire_if_met_after_commit(event.name)
-        self._graph_changed(scoring=False)
+        revisions.changed(scoring=False)
 
     @database.atomic
     def delete_event(self, event_name: str, delete_nodes: bool = True) -> Dict[str, List[str]]:
@@ -288,8 +289,7 @@ class EventManager:
             dormant_names = [row[0] for row in cursor.fetchall()]
             if delete_nodes:
                 for name in dormant_names:
-                    from skilltree.store.graph.manager import GraphManager
-                    GraphManager().delete_node(name)
+                    self.graph.delete_node(name)
                 result['deleted'] = dormant_names
             else:
                 # Wake the event's nodes instead of deleting them. A node
@@ -305,18 +305,16 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
-        from skilltree.store.settings import ConfigManager
         ConfigManager.delete_event_references(event_name)
-        self._graph_changed()
+        revisions.changed()
 
         # Re-derive status for any newly-activated node so a Blocked-on-prereqs
         # node doesn't sit stuck at Open. Done-status nodes also fire any
         # pending node-completion events tied to them.
         if activated_names:
-            from skilltree.store.graph.manager import GraphManager
-            gm = GraphManager()
+            gm = self.graph
             for name in activated_names:
-                gm._update_node_state(name)
+                gm.update_node_state(name)
                 node = gm.get_node(name)
                 if node and node.status == STATUS_DONE:
                     self._fire_completion_events_after_commit(name)
@@ -361,8 +359,7 @@ class EventManager:
         event; `move_node_to_event` re-homes it. A node its event has already
         woken keeps that row, so it can never go back to sleep.
         """
-        from skilltree.store.graph.manager import GraphManager
-        gm = GraphManager()
+        gm = self.graph
         node = gm.get_node(node_name)
         if node is None:
             raise ValueError(f"There is no node named '{node_name}' any more.")
@@ -406,7 +403,7 @@ class EventManager:
             gm.update_node(node)
             self._sync_dormant_flag(cursor, node_name)
             conn.commit()
-        self._graph_changed(scoring=True)
+        revisions.changed(scoring=True)
 
     @database.atomic
     def delete_dormant_node(self, event_name: str, node_name: str):
@@ -423,8 +420,7 @@ class EventManager:
                 "DELETE FROM EventNodes WHERE event_name=? AND node_name=?",
                 (event_name, node_name)
             )
-            from skilltree.store.graph.manager import GraphManager
-            GraphManager().delete_node(node_name)
+            self.graph.delete_node(node_name)
             conn.commit()
 
     @database.atomic
@@ -438,14 +434,13 @@ class EventManager:
         toggle-off flow when the user wants to bring a deferred node back
         without losing it.
         """
-        from skilltree.store.graph.manager import GraphManager
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM EventNodes WHERE node_name=?", (node_name,))
             cursor.execute("UPDATE Nodes SET dormant=0 WHERE name=?", (node_name,))
             conn.commit()
-        self._graph_changed(scoring=True)
-        GraphManager()._update_node_state(node_name)
+        revisions.changed(scoring=True)
+        self.graph.update_node_state(node_name)
 
     @database.atomic
     def move_node_to_event(self, from_event: str, node_name: str, to_event: str,
@@ -514,7 +509,7 @@ class EventManager:
             self._sync_dormant_flag(cursor, node_name)
             conn.commit()
 
-        self._graph_changed(scoring=True)
+        revisions.changed(scoring=True)
 
     def get_event_nodes(self, event_name: str) -> List[Dict]:
         """Returns list of {node, delay_days, activation_date, activated,
@@ -606,7 +601,7 @@ class EventManager:
             )
             self._check_still_in(cursor, event_name, node_name)
             conn.commit()
-        self._graph_changed(scoring=False)
+        revisions.changed(scoring=False)
 
     @database.atomic
     def set_now_on_trigger(self, event_name: str, node_name: str,
@@ -619,7 +614,7 @@ class EventManager:
             )
             self._check_still_in(cursor, event_name, node_name)
             conn.commit()
-        self._graph_changed(scoring=False)
+        revisions.changed(scoring=False)
 
     @database.atomic
     def set_node_wake_date(self, event_name: str, node_name: str,
@@ -639,7 +634,7 @@ class EventManager:
                 (wake_date or None, event_name, node_name),
             )
             conn.commit()
-        self._graph_changed(scoring=False)
+        revisions.changed(scoring=False)
 
     def get_events_triggered_by_node(self, node_name: str) -> List['Event']:
         """Returns Pending events that watch this node.
@@ -796,8 +791,7 @@ class EventManager:
         wakes each node when it was due, and today otherwise. A node already
         past its wake date wakes now.
         """
-        from skilltree.store.graph.manager import GraphManager
-        gm = GraphManager()
+        gm = self.graph
 
         result: Dict[str, list] = {'activated': [], 'scheduled': [],
                                    'already_awake': [], 'now_intent': [],
@@ -871,14 +865,14 @@ class EventManager:
         # stored as Done while dormant, it just became visible in the live
         # graph — fire any node-completion events tied to it.
         for node_name in result['activated']:
-            gm._update_node_state(node_name)
+            gm.update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
                 self._fire_completion_events_after_commit(node_name)
 
         # Even a no-op firing changes the event's own status, and the sidebar
         # reads that. Only a woken node is scoring-relevant.
-        self._graph_changed(scoring=bool(result['activated']))
+        revisions.changed(scoring=bool(result['activated']))
 
         return result
 
@@ -908,9 +902,7 @@ class EventManager:
 
     @database.atomic
     def _wake_due_nodes(self) -> List[str]:
-        from skilltree.store.graph.manager import GraphManager
-        from skilltree.store.settings import ConfigManager
-        gm = GraphManager()
+        gm = self.graph
 
         today = date.today().isoformat()
         activated: List[str] = []
@@ -942,7 +934,7 @@ class EventManager:
             conn.commit()
 
         for node_name in activated:
-            gm._update_node_state(node_name)
+            gm.update_node_state(node_name)
             node = gm.get_node(node_name)
             if node and node.status == STATUS_DONE:
                 self._fire_completion_events_after_commit(node_name)
@@ -966,7 +958,7 @@ class EventManager:
             })
 
         if activated:
-            self._graph_changed()
+            revisions.changed()
 
         return activated
 
@@ -989,7 +981,6 @@ class EventManager:
         Raises ValueError when the event is gone or has already fired, as it
         can have from another window or on its date, so the page can say so.
         """
-        from skilltree.store.settings import ConfigManager
 
         event = self.get_event(event_name)
         if event is None:
@@ -1066,7 +1057,6 @@ class EventManager:
 
     @database.atomic
     def _fire_due_events(self) -> List[str]:
-        from skilltree.store.settings import ConfigManager
 
         today = date.today().isoformat()
         with self.get_connection() as conn:
@@ -1144,7 +1134,6 @@ class EventManager:
         """Fire ``event`` because its completion condition holds, and queue
         the announcement. ``already_met`` says no save just finished
         ``trigger_node``: the event was satisfied some other way."""
-        from skilltree.store.settings import ConfigManager
 
         result = self.trigger_event(event.name)
         now_pinned, now_skipped = self._apply_now_intent(result.get('now_intent', []))
@@ -1211,18 +1200,15 @@ class EventManager:
                 "WHERE e.status='Pending' ORDER BY e.name")]
         return [name for name in names if self.fire_if_condition_met(name)]
 
-    @staticmethod
-    def _pin_all_order(activated: List[str], flagged: List[str]) -> List[str]:
+    def _pin_all_order(self, activated: List[str], flagged: List[str]) -> List[str]:
         """Every woken node, in the order Now takes them while it has room:
         the ones flagged "Add to Now" first, then the rest as the
         recommendations rank them. Alphabetical order chose arbitrarily, and
         passed over the nodes the user had flagged."""
-        from skilltree.store.settings import ConfigManager
-        from skilltree.store.graph.manager import GraphManager
         first = [name for name in flagged if name in activated]
         rest = sorted(set(activated) - set(first))
         if len(rest) > 1:
-            gm = GraphManager()
+            gm = self.graph
             try:
                 scored = gm.calculate_priority_scores(
                     [n for n in gm.get_all_nodes() if not n.now],
@@ -1250,12 +1236,10 @@ class EventManager:
         problem, and Now is a plain list. A node that wakes already Done stays
         off Now: there is nothing left to work on.
         """
-        from skilltree.store.settings import ConfigManager
-        from skilltree.store.graph.manager import GraphManager
         if not intent_nodes:
             return [], []
 
-        gm = GraphManager()
+        gm = self.graph
         current = gm.get_now_nodes()
         room = ConfigManager.get_now_node_cap() - len(current)
         rank = max((n.now for n in current), default=0)
@@ -1282,8 +1266,7 @@ class EventManager:
     def create_dormant_node(self, node: Node, event_name: str, delay_days: int = 0,
                             now_on_trigger: bool = False):
         """Creates a node as dormant and associates it with an event."""
-        from skilltree.store.graph.manager import GraphManager
-        gm = GraphManager()
+        gm = self.graph
 
         node.dormant = 1
         gm.add_node(node)

@@ -81,7 +81,7 @@ def test_a_sleeping_node_sits_out_of_a_bulk_done(monkeypatch, manager):
     """It used to refuse the whole action, though the menu offered it."""
     from skilltree.store.events import EventManager
     from skilltree.domain.models import Event, STATUS_DONE
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Later"))
     events.add_node_to_event("Later", "C")
     core_engine = _core_engine()

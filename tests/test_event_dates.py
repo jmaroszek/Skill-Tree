@@ -12,6 +12,7 @@ from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store.events import EventManager
 from skilltree.domain.models import Event, Node
 from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 
 
 def _node(name):
@@ -41,11 +42,11 @@ def test_a_date_event_without_a_date_is_refused():
     for blank in (None, "", "   ", "not a date"):
         result = _save(None, blank)
         assert result[2] == "Pick a date."
-    assert EventManager().get_event("Spring") is None
+    assert EventManager(GraphManager()).get_event("Spring") is None
 
 
 def test_an_edit_that_clears_the_date_is_refused():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring", trigger_date="2030-04-01"))
 
     assert _save("Spring", "")[2] == "Pick a date."
@@ -56,11 +57,11 @@ def test_a_date_event_with_a_date_saves():
     result = _save(None, "2030-04-01")
 
     assert result[2] == "Saved."
-    assert EventManager().get_event("Spring").trigger_date == "2030-04-01"
+    assert EventManager(GraphManager()).get_event("Spring").trigger_date == "2030-04-01"
 
 
 def test_a_blank_date_is_stored_as_none():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring", trigger_date="  "))
     assert events.get_event("Spring").trigger_date is None
 
@@ -72,7 +73,7 @@ def test_a_blank_date_is_stored_as_none():
 
 
 def test_an_empty_date_saved_before_the_fix_never_fires():
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Garden"), "Spring")
     with database.transaction() as conn:

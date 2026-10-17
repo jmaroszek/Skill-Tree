@@ -14,6 +14,7 @@ from skilltree.store.graph.state import revisions
 from skilltree.domain.models import Event, Node, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
 from skilltree.store.resources import save_node_links
 from skilltree.store import schema
+from skilltree.services import AppServices
 
 # Written around the Resource sections new databases used to start with.
 pytestmark = pytest.mark.usefixtures("legacy_resource_sections")
@@ -42,7 +43,7 @@ def _rich_graph():
     rest = manager.get_node("Rest")
     rest.status = STATUS_DONE
     manager.update_node(rest)
-    events = EventManager()
+    events = EventManager(GraphManager())
     events.add_event(Event(name="Winter", trigger_nodes=["Nap"]))
     events.add_node_to_event("Winter", "Dream", delay_days=3)
     ConfigManager.set_priority_goals(["Sleep"])
@@ -64,19 +65,19 @@ def _comparable(bundle):
 
 
 class TestExportImport:
-    def test_a_round_trip_reproduces_every_table(self, monkeypatch, tmp_path):
+    def test_a_round_trip_reproduces_every_table(self, monkeypatch, tmp_path, services):
         _rich_graph()
         exported = data_transfer.export_data()
         assert all(exported["tables"][table] for table in data_transfer.TABLES), (
             "the fixture should exercise every table")
 
         _fresh_database(monkeypatch, tmp_path)
-        counts = data_transfer.import_data(json.loads(json.dumps(exported)))
+        counts = data_transfer.import_data(services.graph, services.events, json.loads(json.dumps(exported)))
 
         assert counts["Nodes"] == 4
         assert _comparable(data_transfer.export_data()) == _comparable(exported)
 
-    def test_import_works_after_a_node_was_deleted(self, monkeypatch, tmp_path):
+    def test_import_works_after_a_node_was_deleted(self, monkeypatch, tmp_path, services):
         _rich_graph()
         exported = data_transfer.export_data()
         _fresh_database(monkeypatch, tmp_path)
@@ -84,7 +85,7 @@ class TestExportImport:
         GraphManager().add_node(_node("Trial"))
         GraphManager().delete_node("Trial")
 
-        data_transfer.import_data(json.loads(json.dumps(exported)))
+        data_transfer.import_data(services.graph, services.events, json.loads(json.dumps(exported)))
 
         assert _comparable(data_transfer.export_data()) == _comparable(exported)
 
@@ -103,21 +104,21 @@ class TestExportImport:
         assert conn.execute("SELECT COUNT(*) FROM Nodes").fetchone()[0] == 4
         conn.close()
 
-    def test_import_cannot_choose_a_new_extra_backup_destination(self, monkeypatch, tmp_path):
+    def test_import_cannot_choose_a_new_extra_backup_destination(self, monkeypatch, tmp_path, services):
         bundle = data_transfer.export_data()
         bundle["tables"]["Settings"].append({
             "key": "BACKUP_EXTRA_DIR", "value": r"\\attacker\private-backups"})
         _fresh_database(monkeypatch, tmp_path)
         assert ConfigManager.get_backup_extra_dir() == ""
 
-        data_transfer.import_data(bundle)
+        data_transfer.import_data(services.graph, services.events, bundle)
 
         assert ConfigManager.get_backup_extra_dir() == ""
         source = tmp_path / "private.db"
         source.write_bytes(b"private graph")
         assert backup.mirror(source) is None
 
-    def test_import_keeps_the_locally_chosen_backup_destination(self, monkeypatch, tmp_path):
+    def test_import_keeps_the_locally_chosen_backup_destination(self, monkeypatch, tmp_path, services):
         bundle = data_transfer.export_data()
         bundle["tables"]["Settings"].append({
             "key": "BACKUP_EXTRA_DIR", "value": r"\\attacker\private-backups"})
@@ -126,7 +127,7 @@ class TestExportImport:
         local.mkdir()
         ConfigManager.set_backup_extra_dir(str(local))
 
-        data_transfer.import_data(bundle)
+        data_transfer.import_data(services.graph, services.events, bundle)
 
         assert ConfigManager.get_backup_extra_dir() == str(local)
         source = tmp_path / "private.db"
@@ -134,23 +135,23 @@ class TestExportImport:
         assert backup.mirror(source) == local / source.name
         assert (local / source.name).read_bytes() == b"private graph"
 
-    def test_import_drops_device_local_resource_roots(self, monkeypatch, tmp_path):
+    def test_import_drops_device_local_resource_roots(self, monkeypatch, tmp_path, services):
         bundle = data_transfer.export_data()
         bundle["tables"]["ResourceSections"][0]["root_path"] = r"\\attacker\share"
         _fresh_database(monkeypatch, tmp_path)
 
-        data_transfer.import_data(bundle)
+        data_transfer.import_data(services.graph, services.events, bundle)
 
         with database.get_connection() as conn:
             roots = [row[0] for row in conn.execute(
                 "SELECT root_path FROM ResourceSections")]
         assert roots and all(root == "" for root in roots)
 
-    def test_import_needs_an_empty_graph(self):
+    def test_import_needs_an_empty_graph(self, services):
         bundle = data_transfer.export_data()
         GraphManager().add_node(_node("Existing"))
         with pytest.raises(data_transfer.TransferRefused, match="empty graph"):
-            data_transfer.import_data(bundle)
+            data_transfer.import_data(services.graph, services.events, bundle)
 
     @pytest.mark.parametrize("bundle, fragment", [
         ({"format": "something-else"}, "isn't a Skill Tree export"),
@@ -159,11 +160,11 @@ class TestExportImport:
         ({"format": data_transfer.EXPORT_FORMAT, "version": 1,
           "schema_version": 1, "tables": {"Nodes": "oops"}}, "malformed"),
     ])
-    def test_a_file_it_cant_trust_is_refused(self, bundle, fragment):
+    def test_a_file_it_cant_trust_is_refused(self, bundle, fragment, services):
         with pytest.raises(data_transfer.TransferRefused, match=fragment):
-            data_transfer.import_data(bundle)
+            data_transfer.import_data(services.graph, services.events, bundle)
 
-    def test_a_bad_row_imports_nothing(self, monkeypatch, tmp_path):
+    def test_a_bad_row_imports_nothing(self, monkeypatch, tmp_path, services):
         _rich_graph()
         bundle = data_transfer.export_data()
         # An edge to a node the export doesn't have fails its foreign key.
@@ -173,7 +174,7 @@ class TestExportImport:
         before = data_transfer.export_data()["tables"]
 
         with pytest.raises(data_transfer.TransferRefused, match="Nothing was changed"):
-            data_transfer.import_data(bundle)
+            data_transfer.import_data(services.graph, services.events, bundle)
 
         assert data_transfer.export_data()["tables"] == before
 
@@ -193,8 +194,9 @@ class TestImportChecksTheGraph:
         change(bundle)
         _fresh_database(monkeypatch, tmp_path)
         before = data_transfer.export_data()["tables"]
+        services = AppServices()
         with pytest.raises(data_transfer.TransferRefused, match=fragment) as refused:
-            data_transfer.import_data(bundle)
+            data_transfer.import_data(services.graph, services.events, bundle)
         assert "Nothing was changed" in str(refused.value)
         assert data_transfer.export_data()["tables"] == before
         # Refused before anything was written, the backup included.
@@ -269,7 +271,7 @@ class TestImportChecksTheGraph:
                 rows[0] = _row_like(bundle, table, **changes)
         self._refused(monkeypatch, tmp_path, change, fragment)
 
-    def test_helps_rows_are_put_in_order_not_refused(self, monkeypatch, tmp_path):
+    def test_helps_rows_are_put_in_order_not_refused(self, monkeypatch, tmp_path, services):
         """A rename in the exporting app can leave a Helps row back to front."""
         _rich_graph()
         bundle = data_transfer.export_data()
@@ -278,14 +280,14 @@ class TestImportChecksTheGraph:
         edges += [self._edge("Rest", "Nap", EDGE_HELPS), self._edge("Nap", "Rest", EDGE_HELPS)]
         _fresh_database(monkeypatch, tmp_path)
 
-        data_transfer.import_data(bundle)
+        data_transfer.import_data(services.graph, services.events, bundle)
 
         helps = [e for e in GraphManager().get_edges() if e["type"] == EDGE_HELPS]
         assert helps == [{"source": "Nap", "target": "Rest", "type": EDGE_HELPS}]
 
 
 class TestRestore:
-    def test_restore_brings_back_the_backed_up_graph(self):
+    def test_restore_brings_back_the_backed_up_graph(self, services):
         manager = _rich_graph()
         saved = backup.create_backup("manual")
         before = _comparable(data_transfer.export_data())
@@ -293,7 +295,7 @@ class TestRestore:
         manager.add_node(_node("Afterwards"))
         version_before = revisions.graph
 
-        data_transfer.restore_backup(saved)
+        data_transfer.restore_backup(services.graph, services.events, saved)
 
         assert _comparable(data_transfer.export_data()) == before
         # What it replaced was kept, and caches were told the graph changed.
@@ -303,7 +305,7 @@ class TestRestore:
         conn.close()
         assert revisions.graph > version_before
 
-    def test_the_oldest_before_restore_copy_can_be_restored(self):
+    def test_the_oldest_before_restore_copy_can_be_restored(self, services):
         import shutil
         manager = _rich_graph()
         saved = backup.create_backup("manual")
@@ -319,12 +321,12 @@ class TestRestore:
         saved.unlink()
         manager.delete_node("Nap")
 
-        data_transfer.restore_backup(copies[0])
+        data_transfer.restore_backup(services.graph, services.events, copies[0])
 
         assert _comparable(data_transfer.export_data()) == before
         assert copies[0].exists()
 
-    def test_an_older_backup_is_upgraded_after_restoring(self):
+    def test_an_older_backup_is_upgraded_after_restoring(self, services):
         _rich_graph()
         saved = backup.create_backup("manual")
         conn = sqlite3.connect(saved)
@@ -332,25 +334,25 @@ class TestRestore:
         conn.commit()
         conn.close()
 
-        data_transfer.restore_backup(saved)
+        data_transfer.restore_backup(services.graph, services.events, saved)
 
         conn = sqlite3.connect(database.get_db_path())
         assert conn.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
         conn.close()
 
-    def test_a_damaged_backup_is_refused_and_nothing_changes(self, tmp_path):
+    def test_a_damaged_backup_is_refused_and_nothing_changes(self, tmp_path, services):
         _rich_graph()
         before = _comparable(data_transfer.export_data())
         damaged = tmp_path / "damaged.db"
         damaged.write_bytes(b"garbage" * 500)
 
         with pytest.raises(data_transfer.TransferRefused, match="damaged"):
-            data_transfer.restore_backup(damaged)
+            data_transfer.restore_backup(services.graph, services.events, damaged)
 
         assert _comparable(data_transfer.export_data()) == before
         assert backup.list_backups("before-restore") == []
 
-    def test_a_backup_from_a_newer_version_is_refused(self):
+    def test_a_backup_from_a_newer_version_is_refused(self, services):
         _rich_graph()
         saved = backup.create_backup("manual")
         conn = sqlite3.connect(saved)
@@ -359,4 +361,4 @@ class TestRestore:
         conn.close()
 
         with pytest.raises(data_transfer.TransferRefused, match="newer version"):
-            data_transfer.restore_backup(saved)
+            data_transfer.restore_backup(services.graph, services.events, saved)
