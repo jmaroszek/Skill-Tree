@@ -113,7 +113,7 @@ Tests use a `temp_database` fixture that gives each test its own copy of a new d
 ## Key patterns to follow when editing
 
 - Use Dash `ALL` pattern-matching (`Input({'type': 'x', 'index': ALL}, ...)`) for any dynamically-generated component list.
-- Put new code in the layer it belongs to (see Package layout above). Don't add to `skilltree/engine/callbacks.py`: it is being broken up.
+- Put new code in the layer it belongs to (see Package layout above). The core callback in `skilltree/engine/callbacks.py` only routes: a new action it performs is a handler in `skilltree/engine/handlers.py`, and its outputs are `CoreResponse` fields, set by name.
 - The node editor's fields are declared once, as `EDITOR_FORM` in [`skilltree/features/editor/form.py`](skilltree/features/editor/form.py). A callback that reads the form takes that dict as one State and receives a dict of values. A new editor field goes there, not into each callback's State list.
 - Build canvas elements with `build_node_element` / `build_edge_element` in [`skilltree/ui/canvas/elements.py`](skilltree/ui/canvas/elements.py). A canvas chooses which nodes it shows; it doesn't decide how a node looks or which data fields it carries.
 - Behavior that belongs on every canvas loops over `CANVASES` in [`skilltree/ui/canvas/registry.py`](skilltree/ui/canvas/registry.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.

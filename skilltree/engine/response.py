@@ -1,6 +1,13 @@
-"""Named response matching the core callback's stable Dash output order."""
+"""The core callback's outputs, by name.
+
+A CoreResponse sets only what changed; every other output stays no_update.
+CORE_OUTPUTS maps each field to its Dash Output. `keyed` lets the callback
+build a CoreResponse while Dash receives the outputs by name.
+"""
+import functools
 from typing import NamedTuple
-from dash import no_update
+
+from dash import Output, no_update
 
 
 class CoreResponse(NamedTuple):
@@ -45,3 +52,46 @@ class CoreResponse(NamedTuple):
     # (canvas_view.resolve_community).
     community_value: object = no_update
     community_memory: object = no_update
+
+
+CORE_OUTPUTS = dict(
+    elements=Output('elements-pending-store', 'data', allow_duplicate=True),
+    message=Output('save-output', 'children'),
+    clear_disabled=Output('clear-interval', 'disabled'),
+    clear_intervals=Output('clear-interval', 'n_intervals'),
+    community_options=Output('filter-community', 'options'),
+    search_options=Output('search-node', 'options'),
+    editor_style=Output('sidebar-editor-container', 'style'),
+    filter_context_options=Output('filter-context', 'options'),
+    node_context_options=Output('node-context', 'options'),
+    node_type_options=Output('node-type', 'options'),
+    filter_type_options=Output('filter-node-type', 'options'),
+    stylesheet=Output('cytoscape-graph', 'stylesheet'),
+    clear_focus_style=Output('btn-clear-focus', 'style'),
+    goal_style=Output('details-goal-sidebar', 'style', allow_duplicate=True),
+    events_style=Output('events-sidebar-container', 'style', allow_duplicate=True),
+    undo_open=Output('modal-undo-done-confirm', 'is_open'),
+    undo_body=Output('undo-done-confirm-body', 'children'),
+    undo_pending=Output('pending-undo-done-store', 'data'),
+    calibration_open=Output('modal-time-calibration', 'is_open'),
+    calibration_reference=Output('time-calibration-reference', 'children'),
+    calibration_pending=Output('time-calibration-pending-store', 'data'),
+    calibration_unit=Output('time-calibration-unit', 'value', allow_duplicate=True),
+    calibration_title=Output('time-calibration-title', 'children', allow_duplicate=True),
+    save_result=Output('editor-save-result-store', 'data'),
+    editor_done=Output('node-status-done', 'value', allow_duplicate=True),
+    editor_snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+    reopen_open=Output('modal-editor-reopen-confirm', 'is_open', allow_duplicate=True),
+    reopen_body=Output('editor-reopen-confirm-body', 'children'),
+    reopen_pending=Output('editor-reopen-pending-store', 'data'),
+    community_value=Output('filter-community', 'value', allow_duplicate=True),
+    community_memory=Output('community-memory-store', 'data'),
+)
+
+
+def keyed(callback):
+    """Let `callback` return a CoreResponse. Dash receives its fields by name."""
+    @functools.wraps(callback)
+    def wrapped(*args, **kwargs):
+        return callback(*args, **kwargs)._asdict()
+    return wrapped

@@ -1,49 +1,30 @@
-"""Tests for the Phase D core_engine tab-switch short-circuit guard.
+"""Tests for the core_engine gates: the tab-switch short-circuit, the editor
+open and close short-circuit, and which outputs a render sends.
 
 Only tab-canvas shows `cytoscape-graph`, so only a switch to it needs a graph
 regen. Every other tab refreshes its own content, and the guard short-circuits
 to no_update when the trigger is `main-tabs` and the destination is one of them.
 """
+import inspect
 
 import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.engine.callbacks import (
-    _CORE_ENGINE_NUM_OUTPUTS,
-    _NON_GRAPH_TABS,
-    _EDITOR_UI_ONLY_TRIGGERS,
-    _SIDEBAR_EDITOR_STYLE_IDX,
-    _DETAILS_GOAL_SIDEBAR_STYLE_IDX,
-    _EVENTS_SIDEBAR_STYLE_IDX,
-    _core_engine_noop_tuple,
-    _core_engine_editor_only_tuple,
-)
-from support.triggers import fire
+from skilltree.engine.callbacks import _EDITOR_UI_ONLY_TRIGGERS, _NON_GRAPH_TABS
+from skilltree.engine.response import CORE_OUTPUTS, CoreResponse
 from skilltree.engine import sidebars
 from skilltree.services import AppServices
+from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
+from support.triggers import fire
 
-
-def _core_engine_args():
-    """Positional placeholder args sized to core_engine's current signature.
-
-    Derived rather than hardcoded: the Inputs list shifts whenever a control is
-    added or removed, and a stale literal fails every test in this module with
-    an unhelpful TypeError. The *indices* asserted below are stable because
-    they all precede the tail of the Inputs list, which is where changes land.
-    """
-    import inspect
-    cb, _ = _core_engine_fn()
-    return [None] * len(inspect.signature(cb).parameters)
+SIDEBAR_FIELDS = ("editor_style", "goal_style", "events_style")
 
 
 def _core_engine_fn():
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
     callbacks.register_engine_callbacks(app, AppServices())
-    # core_engine's first output is now the elements-pending-store (its data
-    # is routed to cytoscape-graph.elements by a clientside callback that
-    # injects pinned positions during freeze).
     target = [k for k in app.callback_map if k.startswith("..elements-pending-store.data")][0]
     cb = app.callback_map[target]["callback"]
     spec = app.callback_map[target]
@@ -52,20 +33,17 @@ def _core_engine_fn():
     return cb, spec
 
 
-def test_core_engine_arity_matches_constant():
-    """Drift guard: if new Outputs are added, bump _CORE_ENGINE_NUM_OUTPUTS too."""
+def _call(cb, **values):
+    """Call core_engine with every argument None except those given."""
+    kwargs = dict.fromkeys(inspect.signature(cb).parameters)
+    kwargs.update(values)
+    return cb(**kwargs)
+
+
+def test_every_response_field_is_an_output():
     _, spec = _core_engine_fn()
-    actual = len(spec["output"]) if isinstance(spec.get("output"), list) else len(spec["outputs"])
-    assert actual == _CORE_ENGINE_NUM_OUTPUTS, (
-        f"core_engine has {actual} outputs but _CORE_ENGINE_NUM_OUTPUTS={_CORE_ENGINE_NUM_OUTPUTS}; "
-        "update the constant in callbacks.py"
-    )
-
-
-def test_noop_tuple_arity():
-    t = _core_engine_noop_tuple()
-    assert len(t) == _CORE_ENGINE_NUM_OUTPUTS
-    assert all(x is dash.no_update for x in t)
+    assert len(spec["output"]) == len(CoreResponse._fields)
+    assert tuple(CORE_OUTPUTS) == CoreResponse._fields
 
 
 def test_non_graph_tabs_set_content():
@@ -79,36 +57,24 @@ def test_core_engine_noop_on_non_graph_tab_switch(monkeypatch, tab):
     """Switching to a non-graph tab short-circuits to all no_update."""
     cb, _ = _core_engine_fn()
     fire("main-tabs")
-    # core_engine accepts positional args from Inputs + States; supply Nones and
-    # let the guard fire before any of them are used.
-    args = _core_engine_args()
-    # Looked up by name: removing an Input ahead of it shifts the index.
-    import inspect
-    args[list(inspect.signature(cb).parameters).index("active_tab")] = tab
-    result = cb(*args)
-    assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
+    result = _call(cb, active_tab=tab)
     assert all(r is dash.no_update for r in result), (
         f"expected all no_update for tab-switch to {tab}, got: {result}"
     )
 
 
-@pytest.mark.parametrize("tab", ["tab-canvas"])
-def test_core_engine_runs_on_graph_tabs(monkeypatch, tab):
+def test_core_engine_runs_on_graph_tabs(monkeypatch):
     """tab-canvas owns cytoscape-graph, so it must NOT short-circuit."""
     cb, _ = _core_engine_fn()
     fire("main-tabs")
-    args = _core_engine_args()
-    args[38] = tab
-    # The rest of core_engine can fail downstream on None args — we only need
-    # to verify the guard does NOT trigger. Catch the downstream exception and
-    # assert it isn't a "tuple mismatch" / doesn't return the no_update tuple.
+    # The rest of core_engine can fail downstream on None arguments. All that
+    # matters is that the guard didn't short-circuit.
     try:
-        result = cb(*args)
+        result = _call(cb, active_tab="tab-canvas")
     except Exception:
-        return  # good — guard didn't short-circuit; execution proceeded and failed later
-    # If it did return, it should NOT be all no_update
+        return
     assert not all(r is dash.no_update for r in result), (
-        f"core_engine unexpectedly short-circuited for graph tab {tab}"
+        "core_engine unexpectedly short-circuited for tab-canvas"
     )
 
 
@@ -116,19 +82,17 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     """Data-mutation triggers (save, toggle-done) must run regardless of active_tab."""
     cb, _ = _core_engine_fn()
     fire("btn-save")
-    args = _core_engine_args()
-    args[38] = "tab-analyze"  # even though tab is non-graph, trigger is not main-tabs
     try:
-        result = cb(*args)
+        result = _call(cb, active_tab="tab-analyze")
     except Exception:
-        return  # guard didn't short-circuit; body ran and failed on None args — expected
+        return  # the body ran and failed on None arguments, as expected
     assert not all(r is dash.no_update for r in result)
 
 
 # ---------------------------------------------------------------------------
 # Editor-UI-only short-circuit: edit-trigger-input / details-edit-trigger-input
 # / btn-close-editor / btn-goals-toggle alone should skip the expensive path
-# and return only the three sidebar-style slots populated.
+# and send only the three sidebar styles.
 # ---------------------------------------------------------------------------
 
 
@@ -139,18 +103,11 @@ def test_editor_ui_only_triggers_set_content():
     })
 
 
-def test_editor_only_tuple_arity_and_slots():
-    """_core_engine_editor_only_tuple fills only the three sidebar slots."""
-    t = _core_engine_editor_only_tuple("ed", "goal", "events")
-    assert len(t) == _CORE_ENGINE_NUM_OUTPUTS
-    assert t[_SIDEBAR_EDITOR_STYLE_IDX] == "ed"
-    assert t[_DETAILS_GOAL_SIDEBAR_STYLE_IDX] == "goal"
-    assert t[_EVENTS_SIDEBAR_STYLE_IDX] == "events"
-    # Every other slot is no_update
-    for i, slot in enumerate(t):
-        if i in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX):
-            continue
-        assert slot is dash.no_update, f"slot {i} should be no_update"
+def _only_sidebars_change(result, trigger):
+    for field in result._fields:
+        if field not in SIDEBAR_FIELDS:
+            assert getattr(result, field) is dash.no_update, (
+                f"{field} should be no_update when short-circuiting on {trigger}")
 
 
 @pytest.mark.parametrize("trigger", ['edit-trigger-input', 'details-edit-trigger-input'])
@@ -158,31 +115,22 @@ def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
     """An Edit trigger alone short-circuits and opens the sidebar (translateX(0px))."""
     cb, _ = _core_engine_fn()
     fire(trigger)
-    args = _core_engine_args()
-    # edit_trigger_data / details_edit_trigger_data positional indexes: 31, 32
-    args[31] = "NodeX|123"
-    args[32] = "NodeX|123"
-    result = cb(*args)
-    assert len(result) == _CORE_ENGINE_NUM_OUTPUTS
-    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
+    result = _call(cb, edit_trigger_data="NodeX|123", details_edit_trigger_data="NodeX|123")
+    ed = result.editor_style
     assert isinstance(ed, dict), f"ed_style should be a dict, got {type(ed)}"
     assert ed.get('transform') == 'translateX(0px)', f"editor should open, got {ed}"
-    # Every non-sidebar slot is no_update — scoring + elements did NOT run.
-    for i, slot in enumerate(result):
-        if i in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX):
-            continue
-        assert slot is dash.no_update, f"slot {i} should be no_update when short-circuiting on {trigger}"
+    # Scoring and the canvas did NOT run.
+    _only_sidebars_change(result, trigger)
 
 
 def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
-    """btn-goals-toggle alone short-circuits and closes the editor (SIDEBAR_TRANSLATE_CLOSED)."""
+    """btn-goals-toggle alone short-circuits and closes the editor."""
     cb, _ = _core_engine_fn()
     fire("btn-goals-toggle")
-    args = _core_engine_args()
-    result = cb(*args)
-    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
-    assert isinstance(ed, dict)
-    assert ed.get('transform') == callbacks.SIDEBAR_TRANSLATE_CLOSED
+    result = _call(cb)
+    assert isinstance(result.editor_style, dict)
+    assert result.editor_style.get('transform') == SIDEBAR_TRANSLATE_CLOSED
+    _only_sidebars_change(result, "btn-goals-toggle")
 
 
 def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
@@ -191,48 +139,35 @@ def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch)
     fire("btn-close-editor")
     # Stub out the unsaved-changes check — a blank form, no pending nav.
     monkeypatch.setattr(sidebars, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
-    args = _core_engine_args()
-    result = cb(*args)
-    ed = result[_SIDEBAR_EDITOR_STYLE_IDX]
-    assert isinstance(ed, dict)
-    assert ed.get('transform') == callbacks.SIDEBAR_TRANSLATE_CLOSED
+    result = _call(cb)
+    assert isinstance(result.editor_style, dict)
+    assert result.editor_style.get('transform') == SIDEBAR_TRANSLATE_CLOSED
 
 
 def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatch):
     """If edit-trigger-input fires batched with a non-editor Input, the full path must run."""
     cb, _ = _core_engine_fn()
-    # A batched fire: edit-trigger AND search-node both triggered.
     fire("edit-trigger-input", "search-node")
-    args = _core_engine_args()
-    args[31] = "NodeX|123"
     try:
-        result = cb(*args)
+        result = _call(cb, edit_trigger_data="NodeX|123")
     except Exception:
-        return  # full path entered and failed on None args downstream — proves no short-circuit
-    # If it did return, it must NOT be the minimal editor-only tuple shape:
-    # at least one output beyond the three sidebar slots must have been computed
-    # (i.e. not no_update). Otherwise we'd know the short-circuit mistakenly fired.
-    non_sidebar_updates = [
-        i for i, v in enumerate(result)
-        if i not in (_SIDEBAR_EDITOR_STYLE_IDX, _DETAILS_GOAL_SIDEBAR_STYLE_IDX, _EVENTS_SIDEBAR_STYLE_IDX)
-        and v is not dash.no_update
-    ]
-    assert non_sidebar_updates, (
-        "batched edit-trigger+search-node should have run the full path and updated "
-        "non-sidebar outputs; short-circuit fired incorrectly"
-    )
+        return  # the full path ran and failed on None arguments: no short-circuit
+    # It must not be the editor-only response: something besides the
+    # sidebars was computed.
+    computed = [field for field in result._fields
+                if field not in SIDEBAR_FIELDS and getattr(result, field) is not dash.no_update]
+    assert computed, ("batched edit-trigger+search-node should have run the full "
+                      "path; the short-circuit fired instead")
 
 
 def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
     """The layout already holds the empty message and the closed undo and
     calibration modals. Restating them on load woke six startup callbacks
     that only reset again."""
-    from skilltree.engine.response import CoreResponse
-
     cb, _ = _core_engine_fn()
     fire()
     monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda *a: set())
-    out = CoreResponse(*cb(*_core_engine_args()))
+    out = _call(cb)
 
     assert out.elements is not dash.no_update
     for field in ("message", "clear_disabled", "clear_intervals",
@@ -244,19 +179,11 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
 
 def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
     """Run core_engine for one trigger, with the Nodes tab state given."""
-    import inspect
-    from skilltree.engine.response import CoreResponse
-
     cb, _ = _core_engine_fn()
-    names = list(inspect.signature(cb).parameters)
-    args = _core_engine_args()
-    args[names.index("active_tab")] = active_tab
-    args[names.index("canvas_stamp")] = stamp
-    args[names.index("f_search")] = search
     fire(trigger)
     monkeypatch.setattr(callbacks, "get_all_triggered_ids",
                         lambda *a: {trigger} if trigger else set())
-    return CoreResponse(*cb(*args))
+    return _call(cb, active_tab=active_tab, canvas_stamp=stamp, f_search=search)
 
 
 def test_the_nodes_canvas_loads_on_its_first_visit(monkeypatch):
@@ -317,3 +244,17 @@ def test_the_search_query_reaches_the_canvas_filters(monkeypatch):
             search={"text": "skill tree", "descriptions": True})
     assert seen[-1]["search"] == "skill tree"
     assert seen[-1]["search_descriptions"] is True
+
+
+def test_the_registered_callback_hands_dash_its_outputs_by_name():
+    """Dash receives a dict keyed by CORE_OUTPUTS, whatever the response sets."""
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    callbacks.register_engine_callbacks(app, AppServices())
+    target = [k for k in app.callback_map if k.startswith("..elements-pending-store.data")][0]
+    keyed = app.callback_map[target]["callback"].__wrapped__
+    fire("main-tabs")
+    out = keyed(**dict.fromkeys(inspect.signature(keyed).parameters,
+                                None) | {"active_tab": "tab-next"})
+    assert set(out) == set(CORE_OUTPUTS)
+    assert all(value is dash.no_update for value in out.values())

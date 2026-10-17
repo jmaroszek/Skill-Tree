@@ -12,6 +12,7 @@ from dash import Input, Output
 from skilltree import app as app_module
 from skilltree.engine import callbacks
 from skilltree.services import AppServices
+from skilltree.features.editor import save as editor_save
 
 
 @pytest.fixture
@@ -59,7 +60,7 @@ def test_an_unexpected_save_failure_is_logged_not_shown_raw(monkeypatch, caplog)
     """The core save path used to show str(exception) and log nothing."""
     def broken(*_args, **_kwargs):
         raise RuntimeError("database is locked")
-    monkeypatch.setattr(callbacks, "handle_save", broken)
+    monkeypatch.setattr(editor_save, "handle_save", broken)
 
     with caplog.at_level(logging.ERROR):
         message = _save_new_node(monkeypatch)
