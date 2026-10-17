@@ -53,7 +53,7 @@ The Node Editor is where you create projects and update existing ones. It is a s
 Access the node editor from anywhere in the app by clicking the icon in the top-left corner. 
 
 <p align="center">
-    <img src="../images/node-editor-with-nodes-tab.png">
+    <img src="images/node-editor-with-nodes-tab.png">
     <br>
     <em> The Node Editor with a project loaded, and the Nodes Tab beside it. </em>
 </p>
@@ -61,7 +61,7 @@ Access the node editor from anywhere in the app by clicking the icon in the top-
 
 ## General Section
 <p align="center">
-<img src="../images/node-editor-general-section.png" width=300>
+<img src="images/node-editor-general-section.png" width=300>
 <br>
 <em> Top section of the node editor </em>
 </p>
@@ -78,7 +78,7 @@ Details view instead. From a tab without a graph, Locate keeps its usual Nodes
 tab fallback.
 
 <p align="center">
-  <img src="../images/locate-feature.png" width="400">
+  <img src="images/locate-feature.png" width="400">
   <br>
   <em> Locate feature active </em>
 </p>
@@ -116,7 +116,7 @@ Every project belongs to a context (and optionally, a subcontext). Contexts do t
 Every user will have their own mental model for how to partition their life, but the taxonomy below is the one I use. The goal is not philosophical elegance, but a pragmatic classification system that makes it clear where each project should go. You, of course, probably want a different system.
 
 <p align="center">
-  <img src="../images/skill_tree_context_taxonomy.svg" alt="The eight contexts and their subcontexts that I use to organize my graph" width="600">
+  <img src="images/skill_tree_context_taxonomy.svg" alt="The eight contexts and their subcontexts that I use to organize my graph" width="600">
   <br>
   <em>The eight contexts I use to organize my graph.</em>
 </p>
@@ -125,7 +125,7 @@ Every user will have their own mental model for how to partition their life, but
 The Status section of the node editor has three toggles: **Now**, **Done**, and **Dormant**. 
 
 <p align="center">
-  <img src="../images/node-editor-status-section.png" alt="Node Editor status section" width="300">
+  <img src="images/node-editor-status-section.png" alt="Node Editor status section" width="300">
   <br>
   <em> The Status section's three toggles. </em>
 </p>
@@ -159,7 +159,7 @@ Value, interest, and effort are collectively called **Ratings**. Score each on a
 
 <table>
   <tr>
-    <td valign="top"><img src="../images/node-editor-ratings-section.png" alt="Node editor ratings section" width="750"></td>
+    <td valign="top"><img src="images/node-editor-ratings-section.png" alt="Node editor ratings section" width="750"></td>
     <td valign="top">
 
 | Rating | Meaning |
@@ -187,7 +187,7 @@ Looking for a way to override the algorithm? That is what **Now** is for. Markin
 In order to standardize the rating process, there is a table that describes what each rating means. Open it by clicking the info icon next to the Ratings header. Every cell is editable, so you can personalize the definitions. 
 
 <p align="center">
-  <img src="../images/node-editor-ratings-table.png" alt="Node editor ratings table">
+  <img src="images/node-editor-ratings-table.png" alt="Node editor ratings table">
   <br>
   <em> The editable ratings rubric. </em>
 </p>
@@ -211,8 +211,8 @@ The methods above assume total time is all that matters. For a book, it is — t
 The duration here is calendar time, because it is how long the routine runs, so the editor labels it **Calendar duration**. The minutes per session are work time. The total comes out in work hours.
 
 <p align="center">
-  <img src="../images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
-  <img src="../images/node-editor-time-habit-section.png" alt="Node editor time section with habit mode on" width="350" style="vertical-align: middle; margin: 0 20px;">
+  <img src="images/node-editor-time-section.png" alt="Node editor time section" width="350" style="vertical-align: middle; margin: 0 20px;">
+  <img src="images/node-editor-time-habit-section.png" alt="Node editor time section with habit mode on" width="350" style="vertical-align: middle; margin: 0 20px;">
   <br>
   <em>Standard estimation (left) and Habit Mode (right).</em>
 </p>
@@ -250,7 +250,7 @@ In the editor, directional edges (hard and soft needs) are split into a **Needs*
 A Done node stays Done only while all of its Hard prerequisites are. If a save would give a Done node a Hard prerequisite that isn't Done yet, it would reopen that node and the Done nodes after it. So the editor lists them and asks first. **Save** goes ahead, and **Cancel** leaves the form as it is, unsaved.
 
 <p align="center">
-    <img src="../images/node-editor-relationships.png" width=400>
+    <img src="images/node-editor-relationships.png" width=400>
     <br>
     <em> Node editor relationships section </em>
 </p>
@@ -272,7 +272,7 @@ When you mark a node Done, that change can ripple outward — unblocking its dep
 When a book, course, or article is substantial enough that you want to track and rate it, give it its own **Resource** node and wire it into the graph like anything else. Just as often, though, you want to staple a lightweight reference to a node. That's what **external resources** are for.
 
 <p align="center">
-    <img src="../images/node-editor-external-resources.png" width=400>
+    <img src="images/node-editor-external-resources.png" width=400>
     <br>
     <em>The Resources section of the node editor.</em>
 </p>
@@ -292,7 +292,7 @@ Most links open straight away. A few ask first, because opening them does more t
 This is the tab the app opens on. If you only look at one screen, this is the one. It reminds you of your current priorities, and suggests new ones. 
 
 <p align="center">
-    <img src="../images/next-tab-overview.png" >
+    <img src="images/next-tab-overview.png" >
     <br>
     <em> The Home Tab </em>
 </p>
@@ -349,7 +349,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/context-menu.png" height="300"></td>
+    <td valign="top" style="padding-right: 30px;"><img src="images/context-menu.png" height="300"></td>
     <td valign="top">
 
 | Option | What it does |
@@ -409,7 +409,7 @@ A Synergy has no direction and no strength, so its menu offers only Insert Node 
 A score on its own doesn't tell you much. Explain tells you where that score came from. Right-click any suggestion and choose **Explain Priority** to open it. It works anywhere a node appears, not just here.
 
 <p align="center">
-    <img src="../images/explain-modal.png" >
+    <img src="images/explain-modal.png" >
     <br>
     <em> The score breakdown for a node. </em>
 </p>
@@ -436,7 +436,7 @@ If all of a node's value flows along one line, Focus shows one route, however ma
 This is especially useful when a recommendation is valuable because it feeds a long chain. In the example below, the node does not just point vaguely toward "Writing." The focus view shows the whole route: *Plot Structure* supports *Planning*, which leads through the various stages of writing to *Writing*, before branching toward *Career* and *Literature*.
 
 <p align="center">
-  <img src="../images/explain-focus.png">
+  <img src="images/explain-focus.png">
   <br>
   <em> Focus Mode Active on the Plot Structure Node</em>
 </p>
@@ -446,7 +446,7 @@ This is especially useful when a recommendation is valuable because it feeds a l
 Click **Nodes** to see your entire network. A physics engine arranges it automatically, pulling connected nodes together, so related work clusters visually. 
 
 <p align="center">
-    <img src="../images/nodes-tab.png">
+    <img src="images/nodes-tab.png">
     <br>
     <em> My Entire Network</em>
 </p>
@@ -461,7 +461,7 @@ Obviously, there is a lot going on here. We will cover tools for how to work wit
 Every node's shape and color has meaning. Shape tells you node type, and color tells you node [state](#state).
 
 <p align="center">
-    <img src="../images/node-types.png" width=600>
+    <img src="images/node-types.png" width=600>
     <br>
     <em> The five node types, their default shapes, and default Open colors. </em>
 </p>
@@ -478,7 +478,7 @@ If you prefer a different visual scheme, you can adjust both the shape and color
 [Relationships](#relationships) are encoded with arrows between nodes. From top to bottom, the relationships are hard, soft, and helps. 
 
 <p align="center">
-  <img src="../images/relationship-types.png" alt="The three relationship types: hard prerequisite, soft prerequisite, and synergy" width="600">
+  <img src="images/relationship-types.png" alt="The three relationship types: hard prerequisite, soft prerequisite, and synergy" width="600">
   <br> 
   <em> Relationship Types: hard need, soft need, and helps (synergy) </em>
 </p>
@@ -514,7 +514,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/graph-settings-close-up.png" ></td>
+    <td valign="top" style="padding-right: 30px;"><img src="images/graph-settings-close-up.png" ></td>
     <td valign="top">
 
 | Control | What it does |
@@ -551,7 +551,7 @@ Click the filter icon in the top-right corner to open the filters sidebar. Filte
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/filters-sidebar-overview.png" alt="The filters sidebar" width="400"></td>
+    <td valign="top" style="padding-right: 30px;"><img src="images/filters-sidebar-overview.png" alt="The filters sidebar" width="400"></td>
     <td valign="top">
 
 | Filter | Function |
@@ -579,7 +579,7 @@ Filters last as long as the app stays open. They are never saved. Every restart 
 </table>
 
 <p align="center">
-  <img src="../images/filters-humanities.png">
+  <img src="images/filters-humanities.png">
   <br>
   <em> Sandbox Humanities context. You can select multiple contexts & subcontexts at once.</em>
 </p>
@@ -602,7 +602,7 @@ Communities move as the graph changes. Marking a node Done hides it, which can r
 Here is an example. The algorithm identified a cluster of physics nodes, and as you can see, it also pulled in many chemistry nodes. That is because chemistry is closely related to atomic physics. You will be amazed at how often Skill Tree can find connections between areas that only have one joint edge, but are conceptually related. 
 
 <p align="center">
-  <img src="../images/filters-community.png">
+  <img src="images/filters-community.png">
   <br>
   <em> Physics + Chemistry clustering example </em>
 </p>
@@ -624,7 +624,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/details-suggestions.png" alt="Details starting-point suggestions" width="800"></td>
+    <td valign="top" style="padding-right: 30px;"><img src="images/details-suggestions.png" alt="Details starting-point suggestions" width="800"></td>
     <td valign="top">
 
 | Path | How it works |
@@ -641,7 +641,7 @@ The Details tab is empty by default — since it doesn't know what you want the 
 Once a node is loaded, the tab splits into four panels: node information, a local dependency graph, subtasks, and simulation. These four panels are different views of the same selected project, so changing the dependency controls updates them together.
 
 <p align="center">
-  <img src="../images/details-tab-overview-filled.png">
+  <img src="images/details-tab-overview-filled.png">
   <br>
   <em> Details Tab with an example project loaded </em>
 </p>
@@ -674,7 +674,7 @@ Clicking a node here loads its information into every panel. This is unlike the 
 There are three buttons in the bottom right corner of the canvas. Two of them were introduced elsewhere: [graph layout](#graph-layout-controls) and fullscreen, but one is unique to this tab: the magnifying glass. Clicking this icon switches you to the Nodes Tab, highlights this network, and dims everything else. This is a easy and quick way to see a topic in its broader context.
 
 <p align="center">
-  <img src="../images/details-focus-religion.png">
+  <img src="images/details-focus-religion.png">
   <br>
   <em> Focus mode: religion goal with synergies on</em>
 </p>
@@ -687,7 +687,7 @@ The Subtasks table in the lower-left lists every node related to the selected on
 Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The priority score is the same one the Home tab shows. 100 is the Home tab's top recommendation, so the best subtask here can read lower. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
 <p align="center">
-  <img src="../images/details-stoicism.png">
+  <img src="images/details-stoicism.png">
   <br>
   <em> Details Tab with Stoicism Goal. </em>
 </p>
@@ -709,7 +709,7 @@ The controls in the top-right let you dial the local view from a compact list of
 | Hide Blocked | Top-right | Drop subtasks currently blocked by an incomplete prerequisite. | Off |
 
 <p align="center">
-  <img src="../images/details-view-controls.png" alt="The Details local-view controls">
+  <img src="images/details-view-controls.png" alt="The Details local-view controls">
   <br>
   <em>Max Depth limits the dependency view; Show Cross-Links changes only the relationships drawn between nodes already inside it.</em>
 </p>
@@ -732,7 +732,7 @@ The feature shines on large, vague, long-horizon Goals. It lets you say with con
 In the two screenshots of the Details Tab so far, the simulated distributions looked symmetric. That is because the upper and lower time estimates were close to each other for those particular goals. If they are further apart, the distribution will look different. Here is an example of a project with a long right tail.
 
 <p align="center">
-  <img src="../images/details-skewed-distribution.png">
+  <img src="images/details-skewed-distribution.png">
   <br>
   <em> Time Simulation with high uncertainty (a dense book, in this case) </em>
 </p>
@@ -744,7 +744,7 @@ Most node types — Learn, Action, and Resource — are ranked by the standard s
 For now, we can just focus on using the Goals Sidebar. Open it with the star icon in the top-left corner. 
 
 <p align="center">
-  <img src="../images/goals-sidebar.png" alt="The goals sidebar" width="200">
+  <img src="images/goals-sidebar.png" alt="The goals sidebar" width="200">
   <br>
   <em> Goal Sidebar </em>
 </p>
@@ -763,7 +763,7 @@ The **+** next to "Goals" creates a new one. Search for existing goals in the fi
 
 <table>
   <tr>
-    <td valign="top" style="padding-right: 30px;"><img src="../images/goals-context-menu.png" alt="The goals context menu" width="1000"></td>
+    <td valign="top" style="padding-right: 30px;"><img src="images/goals-context-menu.png" alt="The goals context menu" width="1000"></td>
     <td valign="top">
 
 Your top three goals are your **Priority Goals.** Because Skill Tree respects your autonomy, you must set these explicitly. While the app functions perfectly well without them, designating Priority Goals allows the [scoring](scoring.md#goal-priority-boost) algorithm to apply a priority boost to all tasks in their subtrees.
@@ -815,7 +815,7 @@ A node can't sleep in an event it triggers. It would have to wake before it coul
 The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.
 
 <p align="center">
-  <img src="../images/events-empty.png">
+  <img src="images/events-empty.png">
   <br>
   <em> Empty Events tab </em>
 </p>
@@ -828,7 +828,7 @@ The sidebar lists every event as a card showing its name, description, trigger, 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
 <p align="center">
-  <img src="../images/events-full.png">
+  <img src="images/events-full.png">
   <br>
   <em>Events tab with an event loaded. </em>
 </p>
@@ -888,7 +888,7 @@ Below the ratings is a notes box. Use it for what you learned, what was hard, an
 A Milestone's reflection is the notes box alone. It holds no work of its own, so there are no hours or ratings to compare.
 
 <p align="center">
-  <img src="../images/reflection-focused-node.png" width=500>
+  <img src="images/reflection-focused-node.png" width=500>
   <br>
   <em>Reflection feature screen after you hit "start reflection" </em>
 </p>
@@ -904,7 +904,7 @@ A small note icon beside a name means that reflection has notes. Hover it to rea
 It starts with your newest completions first. Pick another order from the sort dropdown beside the filters. The arrow button next to it reverses the order. Hover it to see what comes first. You can also click a column header to sort by it, and click it again to reverse.
 
 <p align="center">
-  <img src="../images/reflection-history.png" width=500>
+  <img src="images/reflection-history.png" width=500>
   <br>
   <em> The Reflection History table. </em>
 </p>
@@ -917,7 +917,7 @@ The Analyze tab gives you a bird's eye view of your entire network. It helps you
 The overview strip shows key facts about your graph.
 
 <p align="center">
-  <img src="../images/analyze-callouts.png">
+  <img src="images/analyze-callouts.png">
   <br>
   <em>Sandbox overview strip</em>
 </p>
@@ -935,7 +935,7 @@ The app remembers the last subtab you opened.
 The Plan subtab opens with two charts side by side. Each has a gear icon by its title that sets how many rows it shows.
 
 <p align="center">
-  <img src="../images/analyze-goals.png">
+  <img src="images/analyze-goals.png">
   <br>
   <em> Goals (left) and Bottlenecks (right) </em>
 </p>
@@ -969,7 +969,7 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 **By Context** rolls those same ratios up into one box plot per context. A box to the right of the 1× line means that context's tasks routinely take longer than you expect; a box to the left means they don't take as long.
 
 <p align="center">
-  <img src="../images/analyze-time-estimation-accuracy.png">
+  <img src="images/analyze-time-estimation-accuracy.png">
   <br>
   <em> Estimate accuracy By Node (left) and By Context (right). </em>
 </p>
@@ -981,7 +981,7 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has. Milestones and nodes that inherit their ratings are left out. Their ratings don't count toward a score, so there is nothing to drift from.
 
 <p align="center">
-  <img src="../images/analyze-reflection-drift.png" width=600>
+  <img src="images/analyze-reflection-drift.png" width=600>
   <br>
   <em> Rating Drift by Context </em>
 </p>
@@ -993,7 +993,7 @@ The Throughput chart shows work time completed per calendar bucket, stacked by c
 The dashed line is your capacity: the hours a week from your [time settings](#settings), spread over each bucket's days. The chart runs to the current month, quarter, or year, so a quiet stretch shows up as empty bars under the line. The bucket under way counts only the days so far.
 
 <p align="center">
-  <img src="../images/analyze-throughput-bars.png">
+  <img src="images/analyze-throughput-bars.png">
 <br>
 <em> The Throughput chart on sandbox data (I am not actually doing 2 years of work in one month). </em>
 </p>
@@ -1001,7 +1001,7 @@ The dashed line is your capacity: the hours a week from your [time settings](#se
 The gear icon by the title opens four controls: **Granularity** (months, quarters, or years), **Color by** (context or node type), and **Start / End date** to clip the range. The defaults — monthly buckets by context, covering the full range of your time with Skill Tree -- work for most uses. Use the gear when you want to zoom in. Color by node type shows what kind of work you finish: study, reading, or practice.
 
 <p align="center">
-  <img src="../images/analyze-throughput-gear.png" width=200>
+  <img src="images/analyze-throughput-gear.png" width=200>
 <br>
 <em> Throughput Visualization Filters </em>
 </p>

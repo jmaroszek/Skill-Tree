@@ -119,14 +119,137 @@ the lift, so the server's timing hardly mattered. The before profile split
 roughly as: dash-renderer's store updates 2.1 s, Cytoscape ingest and fCoSE
 1.0 s, Analyze's Plotly charts 0.6 s. The store updates scale with mounted
 components times updates, which is why removing startup callbacks paid off
-more than their server time suggests. [app_architecture.md](app_architecture.md)
-lists the changes under Startup readiness.
+more than their server time suggests. What changed is below, and
+[app_architecture.md](app_architecture.md) lists the rules under Startup readiness.
 
 Analyze and the Nodes canvas now load on their first visit. With the hover
 head start, Analyze's charts appeared about 0.8 s after the click. The Nodes
 canvas answer came back in about 30 ms; the rest of its 1.4 s is Cytoscape
 ingesting 567 nodes and running fCoSE. Its payload is 374 KB, down from
 747 KB, since elements carry only the fields something reads.
+
+### What startup cost, and what changed
+
+Before the cover, the window between first paint and readiness was on screen,
+looking ready. A click on a Home row waited behind the startup cascade. In the
+first two seconds it could be dropped outright, because the Next table
+re-rendered and replaced the row under it. The Node Editor's search opened
+empty. Tab switches took up to 650 ms instead of 200.
+
+Startup is bound by the browser's main thread. The largest cost was
+dash-renderer itself. Each mounted component subscribes to Dash's Redux store,
+and every store update re-checks all of them. The layout mounts about 2,150
+components. One callback costs about a dozen updates: requested, dispatched,
+loading, applied and so on. With 82 startup callbacks that came to about 1,600
+updates and roughly 3 s of main-thread time.
+
+The changes, and what each removed:
+
+- `populate_editor` ran on load and sent about 230 KB of relationship options,
+  setting off a dozen follow-on callbacks.
+- Each mounting in-memory `dcc.Store` reported a change: 53 store updates, and
+  the `None` ones woke their listeners even under `prevent_initial_call`.
+- The core engine's page-load answer restated the empty message and the closed
+  modals, which woke six callbacks.
+- The Next table rebuilt on load and held up the core engine. It feeds
+  `selected-suggestion-store`, a State of the core engine, and Dash won't
+  dispatch a callback while a pending one can still reach its Inputs.
+- A prewarmed Goals list kept hundreds of components mounted while hidden,
+  which made every store update dearer, on every tab.
+- Dash's core-js 2 polyfill replaces the browser's `trim`, `parseFloat` and
+  `parseInt` with versions 13 to 60 times slower, while reporting
+  "[native code]". Cytoscape calls them constantly as it reads styles: about
+  0.16 s of the Nodes canvas's first load.
+- The core engine's view build opened a SQLite connection per node, to name the
+  community filter's options. Under one read snapshot a core render went from
+  about 350 ms to about 60 ms on the server.
+- NetworkX is hundreds of modules. Importing it where community detection
+  needs it, and warming it while the window opens, took about 0.15 s off a warm
+  0.85 s boot, and more from a cold disk.
+
+What remains is mostly fixed cost: loading and evaluating the scripts,
+rendering the layout, dash-renderer's store updates, and about 0.25 s for
+Plotly, which loads because the Details simulation chart is mounted from the
+start.
+
+## Nodes first paint and layout transitions
+
+Measured on the 568-node sandbox graph. The main canvas mounts inside a hidden
+tab. Elements landed about 3.6 s after load, and the layout started about 1.6 s
+later; fCoSE itself took 45 ms. That gap was not scheduling. Calling
+`layout.run()` the instant the elements landed did not start it any sooner,
+because it queued behind the same blocked main thread. It only added a second
+randomized pass. Until the layout ran, every node sat at the origin, and `fit`
+did nothing at 0x0, so opening the tab early drew the graph piled in the
+top-left corner. Hence the first-paint cover.
+
+The cover's caption first waited 400 ms, so a nearly-ready graph wouldn't flash
+a spinner. A timer can't fire during the main-thread work it was explaining:
+due at 400 ms, it fired at 915 ms. The module also waited for Dash to render the
+canvas with a 300 ms retry, which was starved as well, so a tab opened early
+went unwatched until 542 ms after the reveal. A `MutationObserver` replaced the
+retry, and the caption now goes up in the reveal task itself, without a fade.
+
+Filter changes re-run whatever `layout` prop the canvas holds. The prop said
+`animate: False` while the Animate switch said on, so Animate did nothing until
+a slider moved, and every filter change re-randomized the whole graph. As a
+transition instead, adding the 127-node STEM context back spread it through its
+own region, with none of its nodes within 12 px of another, while existing
+nodes moved 152 px on average across a 3,200 px graph. A Settle wrote
+`randomize: true` into the same prop, so each later filter change reshuffled
+the graph, until requests randomized only their first run.
+
+A cold start can't be a transition. Incremental from most nodes stacked at the
+origin, fCoSE left 547 of 568 nodes within 12 px of a neighbor; a randomized
+seed left none. A smaller pile still bent the drawing. For two nodes on the
+same spot, fCoSE always pushes along the same (1, 1) direction, so a pile can
+only spread along one diagonal. On a 118-node Details view, an incremental run
+from a full pile came out as an exact line: flatness 0, the square root of the
+ratio of the positions' two principal variances. With two placed survivors it
+measured 0.23, and with 45% of the view piled, 0.47. A healthy drawing measures
+0.8 to 0.9. CoSE breaks the tie itself and never went flat. Seeding each piled
+node beside its placed neighbors brought the same piles to 0.85 to 0.93.
+
+## CoSE or fCoSE, proof or default
+
+fCoSE seeds its layout from the top two eigenvectors of the view's squared
+graph distances. A chain's distances run along one dimension, so every node
+lands on one line, and fCoSE's refinement adds no randomness to move it off.
+
+The rule comes from the sandbox's 182 default Details views, three layouts each
+per algorithm. A layout counted as flat when its narrow side was under 20% of
+its long side. 44% of fCoSE's chain layouts were flat, against 5% of CoSE's. Two
+near-chains were flat in every fCoSE run. No view with a cross-link was ever
+flat. On those views fCoSE crossed fewer edges up to 24 nodes, 0.31 against
+CoSE's 1.15 per layout at 11–24 nodes, and above 24 nodes it ran two to four
+times faster. A read-only check of production found the same profile: its 56
+chains are all 3–7 nodes, and no tree has more than 20 nodes. The earlier
+cutoff of 24 nodes had sent small cross-linked views to CoSE, and would have
+left a chain of 25 to fCoSE.
+
+At `proof` quality fCoSE cools slowly, and its cost grows with about the square
+of the node count. In the 1,000-node benchmark above, proof took 7.4 s at 831
+nodes and default 2.2 s. On the sandbox's 567-node graph, default took 0.31 s
+against proof's 0.72 s and crossed about 10% more edges. A graph that large
+reads as one cluster either way, so past 500 nodes speed wins.
+
+## Hidden canvases
+
+The filters are shared, so a filter change re-renders every canvas. A hidden
+canvas used to lay its payload out at once. A Nodes filter change laid out the
+hidden Details graph inside the Nodes animation, and once Nodes had loaded, a
+filter change on Details laid out all of Nodes first: about 0.8 s of blocked
+page before the Details graph could start moving. Applying a held payload with
+the tab switch made the click seem to do nothing for a second.
+
+Now a hidden canvas keeps its newest payload until its tab is shown and
+painted. Returning to Nodes after widening Health to every context paints the
+tab at about 150 ms. The 567-node layout then blocks the page for about 0.65 s
+before it tweens. Returning after a small change animates at once.
+
+A filter change also used to send the core engine's reset outputs. The empty
+save message alone woke six callbacks, among them Analyze and time
+calibration.
 
 ## 1,000 nodes (P6.6)
 
@@ -284,7 +407,7 @@ The Details opening animation had grown choppier since 2026-09-13. Nothing had
 undone that day's fixes. Each Dash store update had grown dearer, from 1.9 ms
 to 2.3–3 ms, because more components were mounted. The largest addition was
 the prewarmed Goals list. And more callbacks answered inside the layout's first
-frames. The fixes are in Details responsiveness in
+frames. The rules that fixed it are under Responsiveness rules in
 [app_architecture.md](app_architecture.md).
 
 The check clicks a suggestion on the sandbox data in headless Chrome. It times

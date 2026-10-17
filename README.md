@@ -11,7 +11,7 @@ Skill Tree is a task-prioritization app that models your projects as a graph, sc
 In a video game, a skill tree gates the powerful abilities behind the basic ones. You master the fundamentals, and new branches open up based on what you've unlocked previously. Every "skill point" you spend is a strategic bet about what will be most valuable, both now and later.
 
 <p align="center">
-  <img src="images/video-game-skill-tree.png" alt="video-game-skill-tree" width=450>
+  <img src="docs/images/video-game-skill-tree.png" alt="video-game-skill-tree" width=450>
   <br>
   <em> A Skill Tree from the video game Outriders</em>
 </p>

@@ -69,7 +69,8 @@ The three real edge types are *not* a single "strength" gradient — `Helps` is 
 
 Don't duplicate these in this file — they're the source of truth for their respective topics:
 
-- [`docs/app_architecture.md`](docs/app_architecture.md) — module responsibilities, tab-callback pattern, Cytoscape pipeline, JS-Dash bridge, persistence and caching.
+- [`docs/app_architecture.md`](docs/app_architecture.md) — the layers and the package, composition, the store wiring and the mutation-render loop, the JS-Dash bridge, revisions and caches, the server, and how to add a feature, setting, canvas or field.
+- [`docs/performance.md`](docs/performance.md) — what things cost, and why the architecture's rules are what they are: dated measurements and the history behind them.
 - [`docs/modeling.md`](docs/modeling.md) — how to build a good graph: node types, relationships, contexts. Read it before a hands-on graph review.
 - [`docs/scoring.md`](docs/scoring.md) — full math for scoring, profiles, goal ranking, explainability, status cascade.
 - [`docs/time.md`](docs/time.md) — what the lower/expected/upper bracket means, the weighting rule that produces `t(n)`, and the Monte Carlo simulator behind the Time Simulation panel.
@@ -121,6 +122,6 @@ Tests use a `temp_database` fixture that gives each test its own copy of a new d
 - Behavior that belongs on every canvas loops over `CANVASES` in [`skilltree/ui/canvas/registry.py`](skilltree/ui/canvas/registry.py), or `window.SkillTree.canvases` in `assets/`. Don't list canvas IDs by hand.
 - A feature's scripts go in its folder under `assets/`, and stylesheets in `assets/css/`. Dash loads the files at the top of `assets/` first, then each folder in name order, so only the boot scripts sit at the top. A script that calls another's `window.SkillTree` function as it loads must load after it: `tests/app/test_asset_order.py` loads them all in Dash's order and fails on any that throws.
 - A clientside callback longer than a few lines lives in its feature's asset, as `window.dash_clientside.<namespace>.<name>`, and the Python refers to it with `ClientsideFunction`. Tests run its JavaScript through `support.clientside.clientside_source`.
-- Cycle detection is already handled in `graph_manager.add_edge` — don't reimplement.
+- Cycle detection is already handled in `GraphManager.add_edge` — don't reimplement.
 - For anything time/duration-related, let the `Node.time` property weight the bracket; don't compute a single "time" from `time_o/m/p` yourself.
 - When you add a scoring-relevant field to `Node`, also add it to `SCORING_RELEVANT_FIELDS` in `skilltree/store/graph/state.py`, or the scoring cache won't invalidate and rankings silently go stale. See [`docs/app_architecture.md`](docs/app_architecture.md).

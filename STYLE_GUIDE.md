@@ -30,7 +30,7 @@ place any of them appear.
 
 ### Enforcement
 
-[`tests/test_style_tokens.py`](tests/test_style_tokens.py) fails on a new raw
+[`tests/ui/test_style_tokens.py`](tests/ui/test_style_tokens.py) fails on a new raw
 colour or font size in a UI module, on a token defined in only one of the two
 languages, on a badge value this guide documents that `BADGE_PALETTE` disagrees
 with, and on the component shapes that silently render as nothing. A genuine
@@ -306,10 +306,10 @@ token only inside an inline style dict where a class cannot go.
 
 ### Labels
 
-Duration inputs share `duration_ui.bracket_label` to attach the percentile
+Duration inputs share `duration.bracket_label` to attach the percentile
 reading (10% chance of finishing sooner / a 50/50 estimate / 10% chance of
 taking longer) as a hover tooltip on the Lower/Expected/Upper word itself,
-rather than as inline paragraph text. `duration_ui.time_estimates_heading`
+rather than as inline paragraph text. `duration.time_estimates_heading`
 puts a hover tooltip on the "Time Estimates" heading itself. It says that
 times are work time and quotes the hour rates from Settings, and it explains
 the Expected-only exception. Habit mode swaps in text that separates the
@@ -332,7 +332,7 @@ is one focus group: moving between its fields and unit selector stays quiet;
 leaving reveals any remaining error. Returning to edit or loading another
 form hides it again. Save paths always validate independently of this display.
 
-`ui_kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
+`kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
 builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
 targeting it, in a `display: contents` wrapper so it lays out as its two parts. Every such label gets the
 `.hover-hint` class, which shows the help cursor (a pointer with a question
@@ -340,7 +340,7 @@ mark), so it reads as explainable before it is hovered. Give each label a unique
 id. The node editor's hover copy lives in `_EDITOR_HINTS` in
 `skilltree/features/editor/layout.py`, the Filters sidebar's in `_FILTER_HINTS` in
 `skilltree/features/filters/layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
-tooltip enumerates is a bullet list (`ui_kit.bullet_hint(intro, *items)`), not
+tooltip enumerates is a bullet list (`kit.bullet_hint(intro, *items)`), not
 a run-on sentence. Any label, heading or table cell whose tooltip only explains takes the
 `hover-hint` class too. Explain a group of switches on their section heading, not
 per switch. A single switch gets `hover-hint-label`, which puts the help cursor
@@ -474,7 +474,7 @@ select — move the affordance to the heading instead.
 **A helper that returns a list will not render.** Dash does not flatten nested
 lists inside `children`; React rejects them and silently drops the whole
 subtree, and nothing at the Python level notices because the component tree
-looks correct. `ui_kit` wraps a button and its tooltip in a `.ui-affordance`
+looks correct. `kit` wraps a button and its tooltip in a `.ui-affordance`
 span with `display: contents`, which stays out of layout so the button remains
 a direct flex item of its row. A test guards this.
 
@@ -494,7 +494,7 @@ dark theme. The classes are background-aware:
 | Class | Background | Used for |
 |-------|-----------|----------|
 | `.btn.editor-icon-btn` | inside a white field | trailing actions in an `.editor-field-group` |
-| `.btn.panel-close-btn`, `.adder-btn`, `.info-btn`, `.restore-btn`, `.edit-btn`, `.step-btn` | dark panel | the `ui_kit` affordances above |
+| `.btn.panel-close-btn`, `.adder-btn`, `.info-btn`, `.restore-btn`, `.edit-btn`, `.step-btn` | dark panel | the `kit` affordances above |
 | `#main-toolbar .btn-secondary`, `.btn-canvas-overlay.btn-secondary`, `.details-header-btn.btn-secondary` | dark panel/canvas | toolbar, canvas overlay, details header |
 
 Add `.editor-icon-btn-danger` to a remove button so the red appears only on
@@ -641,7 +641,7 @@ and inherits the danger colour.
 ## Cards
 
 ```python
-import style_tokens as tokens
+from skilltree.ui import tokens
 
 style = tokens.card_style(selected=False)
 ```
@@ -660,7 +660,7 @@ card has no type strip or type label. The subcontext is left out, since a Goal's
 subcontext often repeats its own name. The corner badge matches the Goal's card in the
 Goals sidebar, and both come from `_goal_corner_badge`. Priority Goals show
 their rank in `PriorityRank` orange. Other Goals show their 0-100 priority
-from `analyze_callbacks.normalize_goal_scores`. Leave out metadata that every
+from `domain/goals.normalize_goal_scores`. Leave out metadata that every
 card would repeat, such as a status the type already implies. Never normalize a
 score against the visible list, since the number would then describe the list
 rather than the node.
@@ -756,7 +756,7 @@ not give it, change the shared rules.
 
 ### Unit selects
 
-Use `duration_ui.unit_select(...)` with `TIME_UNITS` or `DURATION_UNITS`. The
+Use `duration.unit_select(...)` with `TIME_UNITS` or `DURATION_UNITS`. The
 four-unit select was typed out by hand at nine sites, which is how one ended up
 missing `Years` while `hours_to_friendly_unit` could still return it, and how
 four picked up a 100px width the others never got.
@@ -967,7 +967,7 @@ in `skilltree/domain/contexts.py` and its rows in `build_context_editor_rows`.
 
 ### Filtered chip
 
-A pill that says a view is narrowed by the Filters sidebar. Build it with `ui_kit.filter_chip`; its text, tooltip and `hidden` come from `ui/filters.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details and Events graphs (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
+A pill that says a view is narrowed by the Filters sidebar. Build it with `kit.filter_chip`; its text, tooltip and `hidden` come from `ui/filters.filter_summary` and `filter_chip_state`. A funnel icon, then the first three active filters and "+N" for the rest (contexts first; three or more contexts or types shorten to a count), and its ✕ presses Clear Filters. The word "Filtered" is only its accessible name. Raised-grey fill, soft border and soft grey text: visible without borrowing a node-type or accent colour. It sits inline in the Next heading row and over the top-left corner of the Details and Events graphs (`filter-chip-overlay`). The top bar's funnel turns solid white while any filter is on. Show Done and Show Dormant are not filters here, as in `is_filters_active`.
 
 ### Details local-view control row
 
@@ -1066,7 +1066,7 @@ Valid names: `Goal`, `Priority`, `PriorityRank`, `Action`, `Learn`,
 ## Tooltips (hover)
 
 ```python
-import style_tokens as tokens
+from skilltree.ui import tokens
 
 style = tokens.TOOLTIP_STYLE
 ```
@@ -1085,7 +1085,7 @@ the plot. `assets/details/sim_label_rows.js` lifts a label a row only when it wo
 overlap one already placed, measured after every draw. That way the rows
 follow the panel's real width.
 
-Analyze charts follow the same rule. `_graph` in `skilltree/features/analyze/callbacks.py` turns
+Analyze charts follow the same rule. `_graph` in `skilltree/features/analyze/charts.py` turns
 drag-zoom off by default, so the cursor stays a plain arrow. Only a chart
 whose points crowd together opts back in with `zoom=True`: today, the two
 Time Estimation Accuracy charts.

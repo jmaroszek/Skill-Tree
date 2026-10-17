@@ -23,7 +23,7 @@ To use it:
   `https://jmaroszek.github.io/Skill-Tree/`.
 
 The installer names it looks for come from `electron/electron-builder.yml`.
-`tests/test_download_page.py` fails if the two drift apart.
+`tests/packaging/test_download_page.py` fails if the two drift apart.
 
 GitHub answers 60 requests an hour from each visitor's address without a key,
 which is far more than one page view needs.

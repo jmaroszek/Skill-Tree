@@ -1,10 +1,10 @@
-# Setup — the desktop shell, for developers
+# The desktop shell, for developers
 
 People who just want to use Skill Tree install it from a release (the Windows
 installer, the macOS dmg, or the Linux AppImage or deb). This file is for
-running the desktop shell from a checkout. The shell (`electron/`) starts the
+running the desktop shell, this folder, from a checkout. The shell starts the
 Python/Dash server and shows it in a native window. The Python app's own setup
-is in [`docs/setup.md`](docs/setup.md).
+is in [`docs/setup.md`](../docs/setup.md).
 
 ## Prerequisites
 
@@ -48,4 +48,4 @@ npm run start:sandbox   # the sandbox database
 
 A packaged build runs its bundled server instead (`packaging/skilltree-server.spec`)
 and ignores `--sandbox`. To build the installers, see
-[`docs/setup.md`](docs/setup.md#5-build-the-desktop-installers-optional).
+[`docs/setup.md`](../docs/setup.md#5-build-the-desktop-installers-optional).

@@ -45,7 +45,7 @@ That is not pedantry. It is the difference between a model that can be wrong and
 
 The reason to distrust the ceiling reading is that nobody can produce a real one. A worst case is imagined, and imagination runs out well before reality does. This is the most reliable finding in the study of estimation: people asked for a range they are almost certain about produce one that is far too narrow. Reading your upper estimate as a 90th percentile is not an insult to it. It is the correction that finding calls for.
 
-![One bracket of 20, 40 and 80 hours drawn twice: as a bounded Beta-PERT that stops dead at 80 hours, and as a log-normal whose right tail carries a tenth of its mass past 80](../images/time-quantile-reading.png)
+![One bracket of 20, 40 and 80 hours drawn twice: as a bounded Beta-PERT that stops dead at 80 hours, and as a log-normal whose right tail carries a tenth of its mass past 80](images/time-quantile-reading.png)
 
 Both curves come from the same three numbers. The bounded reading puts every possible outcome between 20 and 80 hours. The percentile reading keeps the same centre and the same 20-to-80 span, then adds what the bounded reading cannot: the tenth of the time you run past your own worst case. That shaded tail is where projects actually go wrong.
 
@@ -79,7 +79,7 @@ Standard estimation imagines that errors add up. Each surprise tacks on a fixed 
 
 Real delays do not add, they multiply. Waiting on feedback doesn't cost a flat hour; it stretches whatever work remains. A wrong assumption doesn't add a step; it doubles the remaining effort. Pile up enough of these independent multipliers and the durations spread into a **log-normal** shape: bounded by zero on the left, with a long tail running out to the right.
 
-![Additive vs multiplicative error: a symmetric Normal that leaks below zero versus a right-skewed log-normal bounded at zero](../images/time-lognormal-tail.png)
+![Additive vs multiplicative error: a symmetric Normal that leaks below zero versus a right-skewed log-normal bounded at zero](images/time-lognormal-tail.png)
 
 An additive view implies a Normal distribution: symmetric, and assigning probability to negative durations that cannot happen. The multiplicative view bounds the task at zero and lets the surprises stretch out into the long right tail.
 
@@ -117,7 +117,7 @@ This is **Swanson's rule**, an approximation to the mean for moderately skewed d
 
 The rule has a quiet virtue beyond accuracy. It never extrapolates. It weighs the three points you gave and stops. A model that instead fits a curve through your numbers has to invent the tail beyond them, and that invented tail can swing wildly on a small change to one input. Skill Tree's estimates come from a rubric, so they arrive in coarse steps. A rule that amplifies a one-notch change is the wrong tool for coarse input.
 
-![Error in recovering a task's true expected duration, plotted against the spread of the underlying distribution, for the PERT weighting and the Swanson weighting](../images/time-estimator-accuracy.png)
+![Error in recovering a task's true expected duration, plotted against the spread of the underlying distribution, for the PERT weighting and the Swanson weighting](images/time-estimator-accuracy.png)
 
 The figure holds the three percentiles fixed and varies how spread out the underlying task really is. The Swanson weighting tracks the truth to within a percent across the range this graph occupies. The PERT weighting drifts low, and the drift grows as the task gets less certain.
 
@@ -206,7 +206,7 @@ $$ \log T_n = \log(\text{median}_n) + \sigma_n\left(\sqrt{\rho}\,Z_{\text{shared
 
 $Z_{\text{shared}}$ is drawn once per trial and reused by every task. $Z_n$ is drawn fresh for each one. The combination is still a standard normal at any $\rho$, which is what makes this safe: no individual task's distribution changes at all. Only the way they add up does.
 
-![Width of a project's 80 percent forecast plotted against the number of tasks remaining, for independent tasks and for tasks sharing 40 percent of their estimating error](../images/time-chain-correlation.png)
+![Width of a project's 80 percent forecast plotted against the number of tasks remaining, for independent tasks and for tasks sharing 40 percent of their estimating error](images/time-chain-correlation.png)
 
 With independent tasks the forecast collapses toward a point as the project grows. With a shared component it settles instead, holding a realistic band however long the chain runs. Both curves start in the same place, because a one-task project has nothing to share error with.
 

@@ -41,7 +41,7 @@ Separating out $t_{\text{ref}}$ matters more than it looks. Without it the formu
 
 $t_{\text{ref}}$ is deliberately hardcoded rather than measured from the graph. A reference taken from the live median would make every node's cost depend on the whole graph. Long projects would get quietly cheaper as work is completed. The scoring cache would also no longer be sound.
 
-![Perceived Cost](../images/scoring-cost-beta.png)
+![Perceived Cost](images/scoring-cost-beta.png)
 
 *The exponent $`\beta`$ bends the time penalty sublinearly. A lower $`\beta`$ bends harder. Every curve meets at the reference.*
 

@@ -1,127 +1,205 @@
 # App Architecture
 
-How the app fits together: the layering, the module map, the `dcc.Store` wiring, and the handful of cross-file flows that are painful to reconstruct from code. Node/edge semantics and must-know rules live in [AGENTS.md](../AGENTS.md); the scoring and time math live in [scoring.md](scoring.md) and [time.md](time.md). This doc is the "how do the pieces talk to each other" layer between them.
+How the app fits together: its layers, where code lives, how the pieces talk, and the rules that keep them working. Node and edge semantics and the must-know rules are in [AGENTS.md](../AGENTS.md). The scoring and time math are in [scoring.md](scoring.md) and [time.md](time.md). What things cost, and how they got that way, is in [performance.md](performance.md).
 
-## The layering
+## Layers
 
-The app is six layers: construction, callbacks, shared operations, the state
-gateway, pure compute, and persistence. Each one only knows about the layer below
-it. Shared operations sit between the callbacks and the gateway so that graph
-logic has a home of its own, rather than living in whichever tab first needed it.
+The app is the `skilltree/` package. The root `app.py` only launches it.
 
+| Layer | Folder | Holds | May import |
+|---|---|---|---|
+| Domain | `domain/` | Pure logic: models, scoring, time, names, contexts, rules | Domain only |
+| Runtime | `runtime/` | Paths, the version, the server, the opener | Runtime only |
+| Store | `store/` | SQLite and everything that reads or writes it | Domain, runtime |
+| UI | `ui/` | Dash pieces two or more features share | Domain, runtime, store |
+| Feature | `features/<name>/` | One feature's layout and callbacks | The layers above, and itself |
+| Composition | `app.py`, `services.py`, `shell.py`, `engine/` | Tying the features together | Anything |
 
-- **Construction and layout** (`skilltree/app.py`, `skilltree/services.py`, `skilltree/shell.py`, `*_layout.py`) — explicit startup and fresh component factories. Layout construction reads settings and hydrates Next under one read snapshot; the hidden main canvas starts empty and its initial callback populates it. Imports do not open SQLite or configure logging.
-- **Callbacks and shared operations** (`skilltree/engine/callbacks.py`, `*_callbacks.py`) — Dash trigger routing and registration through `register_<feature>_callbacks(app, services)`. Shared ranking, analytics, commands, and view preparation live outside tab registration modules. The core delegates canvas preparation to `skilltree/ui/canvas/view.py` and returns named `CoreResponse` fields in the existing Dash output order.
-- **State gateway** (`skilltree/store/graph/manager.py`, `skilltree/store/events.py`) — graph/event state access and transaction ownership. `GraphManager` retains CRUD orchestration and status cascades, delegating SQL to `skilltree/store/graph/repository.py`, queries to `skilltree/store/graph/queries.py`, and scoring orchestration to `skilltree/store/graph/scoring.py`. `skilltree/store/graph/state.py` owns shared revisions and per-manager caches.
-- **Settings** (`skilltree/store/settings.py`) — one `Setting` per stored key in the `Settings` table, with its default. No persistent settings cache; operation-scoped snapshots reduce repeated reads (see Versioning below).
-- **Pure compute** (`skilltree/domain/scoring.py`, `skilltree/domain/simulation.py`) — data in, rankings/simulations out. No DB access, no globals.
-- **Persistence** (`skilltree/store/database.py`, `skilltree/store/schema.py`) — connections, snapshots and transactions; the DB path comes from `paths.ENVIRONMENT`. `schema.init_db` creates or upgrades the tables at startup.
+`tests/app/test_architecture_boundaries.py` enforces these imports, and four more rules:
 
-Sitting beside all of this: **`assets/`** — raw-served JS/CSS for behavior the Dash callback model can't express (context menus, position-freeze, drag-sortables, the value-setter bridge). It talks to Python only through `dcc.Store` components and hidden inputs. The one exception is the list of canvases, which the page receives from `skilltree/ui/canvas/registry.py` before any asset runs.
+- No module imports another module's `_private` names, or reads them as `module._name`.
+- Only `skilltree.app` imports skilltree modules inside functions. A launch that hands over to a running instance then exits before loading Dash.
+- `__init__.py` files stay empty.
+- Importing a module opens no database and configures no logging.
 
-The one-way rule has a payoff: a tab module sees only `app`, the shared operations
-and the managers it is handed — never another tab's internals. Tabs coordinate
-*through the database*, not with each other (a write bumps a version counter; the
-next tab notices on its next callback). `tests/app/test_architecture_boundaries.py`
-enforces the layers: each module may import only the layers below it, so domain
-and store code never drags in the Dash UI stack.
+Features never import each other. They coordinate through the database: a write bumps a revision, and every view notices on its next callback. What crosses features, such as the core engine or the page layout, sits in composition.
 
-`register_*_callbacks(app, services)` receives the graph/event managers from
-`AppServices`, and `generate_elements` is bound to those same managers, so the
-canvas renders through the managers the callbacks mutate. No module keeps a
-manager of its own: helpers take the managers as arguments. Every
-manager reads one database per process, and the revision counters in
-`skilltree/store/graph/state.py` are process-wide, so their caches stay coherent with each other.
+## The package
 
-## Module map
+```
+skilltree/
+  app.py        create_app and main: environment, logging, schema, startup repairs, registration
+  services.py   AppServices: the one GraphManager and EventManager
+  shell.py      the page: its template with the startup cover, and the layout assembled from features
+  engine/       the core callback: router, handlers, response, sidebars, and the modals it opens
+  domain/       models, scoring, synergy, profiles, goals, simulation, time, names, rules, contexts, communities
+  runtime/      paths, version, server, perf, opener, file_picker
+  store/        database, schema, settings, events, resources, backup, transfer, commands
+    graph/      manager (the state gateway), repository, queries, scoring, state, taxonomy
+  ui/           tokens, styles, kit, dash_tools, payloads, prerender, filters, sidebars, tabs, timing
+    canvas/     registry, elements, view, settings_panel, tooltip, callbacks
+    components/ context_picker, list_toolbar, duration, menus, ratings_table, confirm
+  features/     analyze, details, editor, events, filters, goals, home, links, nodes,
+                onboarding, review, settings
+assets/         boot scripts at the top, feature folders, css/, vendor/
+```
 
-| Module | Role |
-|---|---|
-| [skilltree/app.py](../skilltree/app.py) | Entry point (the root `app.py` only launches it). Sets `paths.ENVIRONMENT` from `--sandbox`, configures logging, seeds config types, runs the `recompute_all_statuses` startup safety-net, builds the layout, and registers the core engine + every tab. Its Resource routes use the shared opener. |
-| [skilltree/domain/models.py](../skilltree/domain/models.py) | `Node` / `Event` dataclasses, the `expected_time_estimate` duration rule, edge/status constants. |
-| [skilltree/store/database.py](../skilltree/store/database.py), [skilltree/store/schema.py](../skilltree/store/schema.py) | Thin `sqlite3` wrapper: connections, read snapshots, transactions, and the errors that refuse a file. Production/sandbox filename from `paths.ENVIRONMENT`, stored beneath the platform's per-user app-data directory. `schema` holds the tables and the migration ladder; `schema.init_db` checks each database once per process. Schema v10 migrates legacy Resource columns into named sections and ordered links. |
-| [skilltree/store/resources.py](../skilltree/store/resources.py), [skilltree/runtime/opener.py](../skilltree/runtime/opener.py) | Named Resource settings, per-node ordered links and relative-path storage; and the shared Windows/macOS/Linux file and URI opener, which asks before a link that could run a program. Web URLs use `webbrowser`. |
-| [skilltree/store/settings.py](../skilltree/store/settings.py) | The defaults, and one `Setting` per key in the `Settings` key/value table. A few functions combine settings, such as `hyperparams()`. |
-| [skilltree/store/graph/manager.py](../skilltree/store/graph/manager.py) | **The state gateway.** Public graph API, transaction boundaries, node/edge mutation orchestration, status cascades, completion notifications, and field migrations. Delegates row persistence, traversal, and scoring while preserving callers. |
-| [skilltree/services.py](../skilltree/services.py) | Graph/event manager ownership for callback registration. |
-| [skilltree/store/graph/repository.py](../skilltree/store/graph/repository.py) | Row reads and node insert/update/rename SQL, including lifecycle history in the same transaction lease. |
-| [skilltree/store/graph/queries.py](../skilltree/store/graph/queries.py), [skilltree/store/graph/scoring.py](../skilltree/store/graph/scoring.py), [skilltree/domain/rules.py](../skilltree/domain/rules.py) | Graph queries, scoring orchestration, and pure prerequisite/endpoint rules respectively. |
-| [skilltree/domain/communities.py](../skilltree/domain/communities.py) | Pure labelling and ranking for the Community filter: a context prefix plus hub nodes, ranked by summed priority, capped at 20 rows. |
-| [skilltree/store/graph/state.py](../skilltree/store/graph/state.py) | Shared commit-published graph/scoring revisions and per-manager `GraphCaches`; compatibility aliases for former private attributes. |
-| [skilltree/store/events.py](../skilltree/store/events.py) | Same pattern for the `Events` table: event CRUD, dormant-node activation, trigger-node lookup. Owns the awake/dormant rule and the one-Event-per-node rule. |
-| [skilltree/domain/scoring.py](../skilltree/domain/scoring.py) | Pure functions. `build_adjacency`, `total_value` (forward DAG walk), `score_nodes`, `explain_score`, `focus_route_data`. |
-| [skilltree/domain/simulation.py](../skilltree/domain/simulation.py) | Monte Carlo time simulation. Pure NumPy. |
-| [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py) | **The core engine** — the largest non-test module. `register_engine_callbacks(app, services)` owns the main Cytoscape canvas, the graph-version bridge, filter/clear, the node editor's open/save/unsaved-changes flow, the undo/done flow, and the per-canvas freeze and layout-request registrations. |
-| [skilltree/features/review/calibration.py](../skilltree/features/review/calibration.py), [skilltree/features/editor/resources.py](../skilltree/features/editor/resources.py) | Split out of the core engine and registered beside the tab modules: the time-calibration and reflection modal (after a completion, a review, or an edit from the Review Hub), and the node editor's Resources section. |
-| [skilltree/features/editor/form.py](../skilltree/features/editor/form.py), [skilltree/ui/filters.py](../skilltree/ui/filters.py) | The node editor's form state, and the shared filters. `EDITOR_FORM` declares the node editor's fields once; a callback that reads the form takes it as one grouped State and receives a dict. `FILTER_INPUTS` and `FILTER_STATES` do the same for the filters sidebar, and `filters_from` turns their values into a filter dict. |
+A feature package has a `layout.py` and a `callbacks.py`. `callbacks.py` exposes `register_<feature>_callbacks(app, services)`, which also registers the feature's other modules. Larger features split by panel: the editor has `form.py`, `save.py`, `dormancy.py` and `resources.py`, and Details has `explain.py`, `simulation.py` and `subtasks.py`.
 
-| [skilltree/domain/goals.py](../skilltree/domain/goals.py), [skilltree/features/analyze/data.py](../skilltree/features/analyze/data.py) | Shared goal ranking/explanations and analytics data preparation. |
-| [skilltree/store/commands.py](../skilltree/store/commands.py), [skilltree/domain/contexts.py](../skilltree/domain/contexts.py), [skilltree/features/editor/values.py](../skilltree/features/editor/values.py), [skilltree/features/home/view.py](../skilltree/features/home/view.py) | Editor mutations, pure context rules, editor/calibration values, and Next query/view hydration. |
-| [skilltree/ui/canvas/view.py](../skilltree/ui/canvas/view.py), [skilltree/engine/sidebars.py](../skilltree/engine/sidebars.py), [skilltree/engine/response.py](../skilltree/engine/response.py) | Canvas view preparation, sidebar/draft decisions, and the core callback's named response contract (26 fields). |
-| [skilltree/runtime/server.py](../skilltree/runtime/server.py) | How the server runs: launch options, the per-database instance lock, the `SKILLTREE_READY`/`RUNNING`/`DAMAGED` lines the shell reads, the access guard, and the stdin watchdog. See How the server runs, under Startup. |
-| [skilltree/runtime/paths.py](../skilltree/runtime/paths.py), [skilltree/runtime/version.py](../skilltree/runtime/version.py) | The per-user Data and Logs folders on each OS, the `SKILLTREE_HOME` override, and `resource_path` for frozen builds; and the one version number. |
-| [skilltree/store/backup.py](../skilltree/store/backup.py), [skilltree/store/transfer.py](../skilltree/store/transfer.py) | Backups in `Data/Backups` by kind, with keep counts, and mending a damaged database from the newest good one; JSON export and import, the database-file export, and restore. Settings → App drives both ([skilltree/features/settings/data.py](../skilltree/features/settings/data.py)). |
-| [skilltree/features/settings/about.py](../skilltree/features/settings/about.py), [skilltree/features/onboarding/steps.py](../skilltree/features/onboarding/steps.py) | Standalone diagnostic and notices helpers; the Settings App page's desktop update preference; the welcome and the Getting Started steps. Their callbacks are [skilltree/features/settings/about_callbacks.py](../skilltree/features/settings/about_callbacks.py) and [skilltree/features/onboarding/callbacks.py](../skilltree/features/onboarding/callbacks.py). |
-| [skilltree/features/links/bridge.py](../skilltree/features/links/bridge.py), [skilltree/features/links/layout.py](../skilltree/features/links/layout.py) | The Create Bridge dialog (see Bridges below). `bridge_callbacks` opens it, keeps its Start and End and plans the bridge; Create hands off to `populate_editor`. |
-| [skilltree/features/links/menu.py](../skilltree/features/links/menu.py) | The link menu's changes: Make Hard or Soft, Reverse Direction and Remove Link. `node_commands.change_link` applies one in a transaction, and `details-refresh-trigger` redraws the canvases. A change that would reopen Done nodes asks first: `link_change_reopens` runs it in a transaction it rolls back and compares the Done sets, so it agrees with the status cascade in every case. An editor save does the same inside its own transaction: `core_engine` compares the Done sets before and after, raises `ReopensDoneNodes` to roll back, and holds the Save button that was pressed in `editor-reopen-pending-store`. The dialog's Save (`btn-editor-reopen-confirm`, a `core_engine` Input) runs that save again, confirmed. |
-| [skilltree/ui/payloads.py](../skilltree/ui/payloads.py) | The values page scripts write into hidden inputs (`value|timestamp`, JSON name lists, edge keys) and how to read them, so a name containing `|` reads back whole. |
-| [skilltree/runtime/perf.py](../skilltree/runtime/perf.py) | The scoring timings log behind the Graph Statistics readout (toggled in Settings → App). |
-| [skilltree/shell.py](../skilltree/shell.py) + `*_layout.py` | Dash layout factories. No callbacks. Declare the `dcc.Store` wiring. `skilltree/shell.py` also builds the page template, which carries the startup cover. |
-| [skilltree/ui/styles.py](../skilltree/ui/styles.py), [skilltree/ui/tokens.py](../skilltree/ui/tokens.py), [skilltree/ui/kit.py](../skilltree/ui/kit.py) | Component style dicts, the design tokens they draw on, and small shared controls (close, add, info, restore, and the split handles that resize neighbouring panels). [STYLE_GUIDE.md](../STYLE_GUIDE.md) says how to use them. |
-| [skilltree/ui/components/context_picker.py](../skilltree/ui/components/context_picker.py), [skilltree/ui/components/list_toolbar.py](../skilltree/ui/components/list_toolbar.py), [skilltree/ui/components/duration.py](../skilltree/ui/components/duration.py) | Shared pieces of the UI: the context/subcontext picker, the Goals and Events sidebars' search-and-sort toolbar, and estimate guidance with the Time Simulation chart. |
-| [skilltree/ui/prerender.py](../skilltree/ui/prerender.py) | The `@prerendered` marker and the pass that runs marked callbacks' page-load calls into the layout while it is built. See Startup readiness. |
-| [skilltree/ui/canvas/registry.py](../skilltree/ui/canvas/registry.py) | The Cytoscape canvases, listed once. The hover tooltip, freeze wiring and layout requests loop over `CANVASES`. `install_client_registry` hands the page the same list as `window.SkillTree.canvases`, ahead of every asset script. The assets that act on every canvas (tooltip, freeze, fullscreen, context menu, Now pulse, layout requests, canvas fit) loop over that. |
-| `tools/`, `packaging/` | Developer tools: the synthetic graph and benchmark for performance checks, and the server launcher the browser journeys share (`tools/`). The server's PyInstaller spec and the package files it leaves out, its smoke test, the packaged-app journey and the third-party notices (`packaging/`). |
-| [assets/](../assets) | Served raw. Cytoscape hooks, context menus, position-freeze, layout requests, sortables, the JS-Dash value-setter bridge. Third-party files live in `assets/vendor/` (the DARKLY theme and its Lato font, Bootstrap Icons, SortableJS), each with its license, so the app makes no network requests. Dash's automatic includes skip that folder; `app.VENDOR_STYLESHEETS` loads its CSS ahead of the app's own, and the sortables load `Sortable.min.js` on demand. |
-| Tab modules | [skilltree/features/home/callbacks.py](../skilltree/features/home/callbacks.py), [skilltree/features/details/callbacks.py](../skilltree/features/details/callbacks.py), [skilltree/features/analyze/callbacks.py](../skilltree/features/analyze/callbacks.py), [skilltree/features/events/callbacks.py](../skilltree/features/events/callbacks.py), [skilltree/features/settings/callbacks.py](../skilltree/features/settings/callbacks.py), [skilltree/features/review/callbacks.py](../skilltree/features/review/callbacks.py), [skilltree/features/goals/callbacks.py](../skilltree/features/goals/callbacks.py), [skilltree/features/settings/data.py](../skilltree/features/settings/data.py), [skilltree/features/settings/about_callbacks.py](../skilltree/features/settings/about_callbacks.py), [skilltree/features/onboarding/callbacks.py](../skilltree/features/onboarding/callbacks.py). Each feature's `callbacks.py` exposes one `register_<feature>_callbacks(app, services)`, which registers the feature's other modules; `create_app` in [skilltree/app.py](../skilltree/app.py) registers them all from one list. Adding a feature = one package + one entry in that list. |
+Some store modules carry most of the weight:
 
-Resource links live only in `NodeResourceLinks`, keyed by node and section
-([skilltree/store/resources.py](../skilltree/store/resources.py)); `GraphRepository` attaches them to
-each `Node` as `resource_links`. Every section is ordinary: its optional root
-makes paths relative. A file that Obsidian opens and that sits inside a vault (a
-folder above it holds `.obsidian`) opens in Obsidian through an `obsidian://`
-URI; everything else goes to the browser or the OS default. The
-`ResourceSections.kind` column is unused and waits for the next schema change. The editor renders every section with one set of pattern-matched
-callbacks (`resource-link`, index `"<section>:<row>"`, in
-[skilltree/features/editor/resources.py](../skilltree/features/editor/resources.py)) and saves them through
-`handle_save` in the node transaction. Settings removes a section with its
-links only on Save. Electron uses a context-isolated preload/IPC bridge for its
-native file and folder dialogs; the standalone-browser mode retains a tkinter
-subprocess picker. Context-menu opens resolve a saved node/section link on the
-Python server rather than accepting an arbitrary path from the page. Before
-opening a local file that could run a program (an `.exe`, a script, a shortcut
-and the like; `RUNNABLE_SUFFIXES`), the opener asks first.
+- `store/graph/manager.py` is the state gateway. It owns the graph's public API, transaction boundaries, status cascades and completion notifications. SQL goes through `repository.py`, traversals through `queries.py`, scoring through `scoring.py`, and taxonomy remaps through `taxonomy.py`.
+- `store/graph/state.py` owns the process-wide revisions and each manager's caches.
+- `store/events.py` is the same for the Events table. It owns the awake/dormant rule and the one-Event-per-node rule.
+- `store/settings.py` declares each stored setting once, as a `Setting`: its key in the Settings table, its default, how its text reads and writes, and whether writing it redraws the graph.
+- `store/commands.py` holds the mutations the editor and the menus run: save, delete, Done, links and bridges.
+- `store/database.py` and `store/schema.py` hold connections, snapshots, transactions and the refusal errors; and the tables with their migration ladder.
+
+## Composition
+
+`create_app(app_settings, services)` builds one app:
+
+1. It selects the database (`paths.ENVIRONMENT`) before opening SQLite. A process can't switch databases later.
+2. It configures logging, runs `schema.init_db`, seeds the node types and runs the status repair.
+3. It builds Dash with the page template from `shell.build_index_string`, which carries the startup cover, and installs the canvas registry.
+4. Its layout factory builds the page under one read snapshot, then prerenders the marked callbacks into it.
+5. It registers the engine, the shared ui pieces and every feature from one list, in order. A new feature adds one entry.
+
+`AppServices` builds one `GraphManager` and an `EventManager` on it. It connects two listeners: a completed node fires the events watching it, and a narrowed trigger set fires its event if the rest are already Done. A bare `GraphManager()` fires no events. Callbacks get their managers from `services`, and no module builds one of its own.
+
+Importing `skilltree.app` does none of this. Tests replace `database.get_db_path` before building an app on disposable data.
+
+### The core engine
+
+One callback, in `engine/callbacks.py`, saves, deletes, toggles Done and renders the Nodes canvas, so each action is one request. It only routes:
+
+1. Gates come first. A switch to a tab other than Nodes, or an editor open or close, sends only what changed.
+2. `handlers.handle(Request(...))` runs the handler for the trigger: save, delete the loaded node, toggle Done on a tap or a selection, confirm undo-Done, or group delete. A handler returns an `Outcome`: a message, the completed node, the undo-pending names, or a whole early response.
+3. The shared render builds the canvas view, and the outcome merges into a `CoreResponse`.
+
+Its inputs, state and outputs are dicts keyed by name. The outputs are `CoreResponse`'s fields (`CORE_OUTPUTS` in `engine/response.py`). Dash merges the inputs into the state dict it is given, so the engine passes a copy. A render that only the filters fired sends only the view.
+
+The editor's save transaction is `save_editor_form` in `features/editor/save.py`. It doesn't touch Dash, and it raises `ReopensDoneNodes`, `ValueError` or `TypeError` for the handler to report.
 
 ## State flow: stores are the wiring
 
-`dcc.Store` components (declared in the layout layer) are how server callbacks and clientside JS pass data without direct coupling. The load-bearing ones:
+`dcc.Store` components, declared in the layouts, pass data between server callbacks and the browser without coupling them. The load-bearing ones:
 
-- **`graph-version-store`** — mirrors `revisions.graph` (`store/graph/state.py`). Downstream callbacks subscribe to it so they recompute only when the graph *actually* changed, not on every cosmetic re-render.
-- **`elements-pending-store`** (+ `details-` / `events-` variants) — mutating callbacks write the new element list **here, not directly to the Cytoscape `elements` prop.** The freeze layer (below) sits in between.
-- **`freeze-rerender-store`** (+ variants) — per-canvas freeze toggle state.
-- **`*-pending-store`, `focus-goal-store`, `selected-suggestion-store`** — carry intermediate state across the steps of confirm/multi-stage flows.
+- `graph-version-store` mirrors `revisions.graph`. Callbacks that subscribe to it recompute only when the graph really changed.
+- `elements-pending-store`, and its `details-` and `events-` variants, take each canvas's new elements. Callbacks never write Cytoscape's `elements` directly.
+- `canvas-payload-stamp` records each Nodes render: whether the canvas has loaded, its node count, and when. Server callbacks listen to it instead of to the elements, which as an Input would send the whole canvas back.
+- `freeze-rerender-store` and its variants hold each canvas's freeze switch.
+- `editor-pristine-snapshot` holds the form as it loaded, for the unsaved-changes check.
+- `editor-save-result-store` is written once a save commits (`{name, via, ts}`). Every follow-up to a save acts on it, never on the click.
+- The `*-pending-store`s, `focus-goal-store` and `selected-suggestion-store` carry state across the steps of confirm flows.
 
-## Key flows
+Write a store only when its value changes. Dash re-fires every dependent callback on a write, even of the same value, so a refresh that rewrites a selection store looks like a new selection.
 
-### 1. Startup ([skilltree/app.py](../skilltree/app.py))
+## The mutation → render loop
 
-`main()` parses the launch flags (`server_runtime.parse_args`), takes this
-database's instance lock, and calls `create_app(AppSettings(...))`. The factory
-selects `paths.ENVIRONMENT` before opening SQLite, configures logging if enabled,
-initializes the schema, seeds required types, and runs the existing status-repair
-safety net. It then constructs Dash, sets the page template that carries the
-startup cover, installs the canvas registry, assigns a snapshot-wrapped layout
-factory that also prerenders the marked callbacks, and registers callbacks with
-`AppServices`. Importing `app` does none
-of this. Switching databases after startup is rejected; tests replace
-`database.get_db_path` before constructing an app with disposable data. What the
-browser does next, and why the page stays covered while it does, is in Startup
-readiness below.
+Almost every edit takes this path. Get it wrong and the canvas either doesn't update or jumps.
 
-**Refusals.** `schema.init_db` refuses a database it can't safely open by raising
-a `DatabaseError` subclass. The file is left untouched. `main()` logs the message
-and exits with the class's `exit_code`, which is how the desktop shell tells the
-cases apart:
+1. A callback calls a `GraphManager` mutator: `add_node`, `update_node`, `add_edge`, `sync_edges` and the like.
+2. The mutator writes SQLite, runs the status cascade if the change affects status, and bumps the revisions.
+3. The callback returns `generate_elements(...)` to `elements-pending-store`.
+4. `assets/canvas/freeze_positions.js` diffs those elements into the live graph in place. It keeps the positions nodes have and seeds new ones near their neighbors. Replacing the whole `elements` list would relayout the graph on every edit.
+5. A clientside callback stamps the payload into `canvas-payload-stamp`. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `revisions.graph` advanced.
+
+```mermaid
+flowchart TD
+    C["Callback calls a<br/>GraphManager mutator"] --> M["Mutator writes SQLite,<br/>runs the status cascade,<br/>bumps the revisions"]
+    M --> P["Callback returns<br/>generate_elements() to<br/>elements-pending-store"]
+    P --> J["freeze_positions.js diffs<br/>the elements into the<br/>live graph in place"]
+    J --> V["The payload's stamp fires<br/>sync_graph_version, bumping<br/>graph-version-store"]
+    V --> D["Downstream callbacks<br/>recompute, only on<br/>a real mutation"]
+```
+
+Transactions:
+
+- A compound save runs in `database.transaction()`. Nested manager and settings writes share one request-local connection, and only the outer scope commits.
+- `BEGIN IMMEDIATE` serializes writers. Deferred foreign keys let a rename stay atomic without turning integrity checks off.
+- A failed nested operation marks the whole save for rollback, even when a callback catches the error to show it.
+- Revision bumps and completion notifications wait for the commit. A rejected save publishes neither.
+- A save that would reopen Done nodes compares the Done sets inside its transaction, raises `ReopensDoneNodes` to roll back, and asks first. The link menu does the same through `link_change_reopens`.
+- Settings commits one complete draft. `assets/settings/settings_close.js` routes every dismissal through one save request, and the dialog closes only after the commit.
+
+What each canvas shows:
+
+- `generate_elements` (`ui/canvas/elements.py`) decides the Nodes canvas: filtered nodes and the edges between them. Details and Events choose their own nodes, and redraw on `graph-version-store`.
+- Every canvas builds elements with `build_node_element` and `build_edge_element`, so a node looks the same everywhere. A canvas passes only what is its own: selection, Events' attached flag, Details' view root.
+- Elements carry the fields in `CANVAS_NODE_FIELDS`, which names each field's reader.
+- The browser owns the selection. A render sets it only when asked to show one node; every other render passes `KEEP_SELECTION`.
+- Until the Nodes canvas loads on its first visit, the engine sends `CANVAS_DEFERRED` in place of its elements. The stamp still fires.
+
+## The node editor
+
+There is one node editor, and every way of opening it runs `populate_editor`.
+
+- `EDITOR_FORM` (`features/editor/form.py`) declares the form's fields once. A callback that reads the form takes it as one grouped State and receives a dict.
+- `populate_editor` returns `EDITOR_FILL`'s outputs by name. It fills the form from a snapshot, `build_editor_snapshot` for a node or `NEW_NODE_SNAPSHOT` for a blank form, and keeps that snapshot as the pristine copy. So a node that was only loaded never counts as edited.
+- Loading another node asks before dropping unsaved edits. The dialog stores where it was going in `pending-navigation-store`: a node's name, or a sentinel (`__new_node__`, `__new_subtask__|<parent>`, `__bridge__`, `__background__`).
+- The dialog's Save moves on only after its own save commits. `sync_original_name_after_save` adopts a saved name only after Save.
+- `bridge-pending-store` holds the link a bridge replaces. Every load of the editor rewrites it, and the save removes the link only for a new node that really sits between the two ends.
+- Dormant is a field of the editor, saved with Save. `features/editor/dormancy.py` fills the section from the database and collects it into `node-dormancy-form`. A refusal rolls back the whole save.
+
+## The browser
+
+`assets/` holds the browser's half: context menus, freeze, layout requests, sortables, covers.
+
+### The JS–Dash bridge
+
+Page scripts talk to Python through hidden inputs and stores.
+
+- `SkillTree.setInputValue` in `assets/00_browser_bridge.js` writes a hidden input through the native value setter and a synthetic `input` event. A plain `el.value = x` is ignored, because React controls the input.
+- A value is suffixed with `|` and a timestamp, so editing the same node again still changes it. `ui/payloads.py` reads these values, so a name containing `|` reads back whole.
+- The bridge also owns `SkillTree.getCy`, the one boundary to Cytoscape's private DOM registration, and `SkillTree.wrapLayout`, which composes each canvas's layout hooks.
+- A context menu's Edit routes by source. The Nodes canvas writes `edit-trigger-input`, which switches to that tab. Everything else writes `details-edit-trigger-input`, which opens the editor in place.
+
+### How assets load
+
+- Dash loads the files at the top of `assets/` first, then each folder in name order. Only the boot scripts sit at the top: the `00_` and `01_` files, `native_builtins.js`, `store_mount.js`, `startup_cover.js`, `window_chrome.js` and the dev-only `hard_reload_on_restart.js`.
+- Feature scripts sit in their folders: `analyze`, `canvas`, `components`, `details`, `editor`, `events`, `home`, `menus`, `settings`, `sidebars`.
+- A script that calls another's `SkillTree` function as it loads must load after it. `tests/app/test_asset_order.py` runs every script in Dash's order against a stand-in for the browser, and fails on any that throws.
+- Stylesheets sit in `assets/css/`, so they load in name order, the order their cascade was written for.
+- Dash skips any folder whose name contains "vendor". `assets/vendor/` holds the third-party files, each with its license. `app.VENDOR_STYLESHEETS` loads their CSS ahead of the app's own.
+- The canvas list reaches the page before any asset runs, in an inline script from `ui/canvas/registry.py`: `window.SkillTree.canvases`.
+- A clientside callback longer than a few lines lives in its feature's asset, as `window.dash_clientside.<namespace>.<name>`. The Python refers to it with `ClientsideFunction`.
+
+## Status cascade and history
+
+- Marking a node Done, or changing a hard prerequisite, calls `update_node`. It walks forward along `Needs_Hard` out-edges, and each dependent becomes Blocked or Open.
+- Goals keep the status the user set. A Done Milestone never re-blocks (`_KEEPS_DONE_TYPES`).
+- A Goal whose hard children just became all Done is queued for the auto-Done prompt (`pop_auto_done_candidates`). The app suggests; it never marks the Goal itself.
+- `recompute_all_statuses` runs the same logic over the whole graph, as the startup repair.
+- `NodeLifecycleEvents` is the append-only history of Now, completion and reopen crossings, in UTC seconds. A `now_started` row carries the node's place in the ranking just before it entered Now.
+- `NodeLedger` records each node added and deleted. Nothing reads it yet.
+
+## Scoring and the Next ranking
+
+`features/home/view.py` asks `GraphManager.calculate_priority_scores` for the ranking. `store/graph/scoring.py` keys its memo on the database, the scoring revision and the hyperparameters. On a miss it calls the pure `domain/scoring.score_nodes`, which scores the whole graph, so filtering can't change a node's number. `get_priority_normalizer()` gives every view one common base. Explain and the ranking share the same contribution arithmetic.
+
+## Revisions and caches
+
+`revisions` in `store/graph/state.py` holds two process-wide counters. They publish on commit, and a rollback publishes neither.
+
+- `revisions.graph` bumps on any node or edge change. It keys `graph-version-store`, the goal-subtree cache and the community cache.
+- `revisions.scoring` bumps only when a field in `SCORING_RELEVANT_FIELDS` changes. It keys the scoring memo. A cosmetic edit leaves the memo warm.
+- A setting with `refreshes_graph` bumps `revisions.graph` when written.
+
+When you add a scoring-relevant field to `Node`, add it to `SCORING_RELEVANT_FIELDS`, or scores go stale.
+
+Reads:
+
+- Settings have no persistent cache.
+- Hot read operations share one `database.read_snapshot()` (or `@database.snapshot_read`): Nodes, Edges, Settings and pending-trigger rows, read in one transaction that closes before rendering. A local write invalidates it, and it ends with the operation.
+- Within a snapshot, each node row is normalized once and every read gets its own copy.
+- Each manager owns one `GraphCaches`: at most 32 community entries and 128 subtree entries, dropped when the graph moves on.
+
+## Startup and the server
+
+### Refusals
+
+`schema.init_db` refuses a database it can't safely open, and leaves the file untouched. `main()` exits with the refusal's code, which is how the desktop shell tells the cases apart:
 
 | Code | Refusal | The user's way out |
 |---|---|---|
@@ -131,753 +209,91 @@ cases apart:
 | 5 | `SQLiteTooOldError` | A build with a newer SQLite |
 | 6 | `DatabaseLockedError`: another program holds the file | Close that program |
 | 7 | `DatabaseUnwritableError`: read-only, no permission, or disk full | Fix it and relaunch |
+| 8 | Another Skill Tree owns this database | It hands over to that one |
 
-Only code 4 may lead to an offer to restore a backup. `database.refusal_for` maps
-SQLite's error names, so a file that is only busy or read-only is never called
-damaged. Restoring over it would discard good data. Code 8 comes from
-`server_runtime`: another Skill Tree owns this database (below).
+Only code 4 may lead to a restore. `database.refusal_for` maps SQLite's error names, so a busy or read-only file is never called damaged. Before exiting 4, the server names the newest backup that passes `quick_check` on stdout. On the user's yes, the shell starts it again with `--restore-backup`. `backup.restore_over_damaged` restores only if the file is still damaged, keeps a copy of it, moves any journal aside, and swaps the backup in one step.
 
-**Mending a damaged database.** Before exiting 4, the server names the newest
-backup that passes `quick_check` (`backup.newest_good_backup`) on stdout:
-`SKILLTREE_DAMAGED backup=<file name> when=<ISO time>`. The desktop shell offers
-it (`restorePrompt` in `electron/server_process.js`), and on a yes starts the
-server again with `--restore-backup <file name>`. The server then checks the
-database once more and restores only if it is still damaged: a healthy file, or
-one that is only busy, is never replaced. `backup.restore_over_damaged` accepts
-only a backup in this database's Backups folder that opens cleanly. It keeps a
-copy of the damaged file as `<db>.damaged-<time>` and moves any journal aside.
-SQLite would otherwise roll that journal into the restored copy. It copies the
-backup in beside the database and swaps it into place in one step, so the
-database never goes missing on the way. A restore that fails exits 4 again,
-without a second offer.
+### How the server runs
 
-**How the server runs** ([skilltree/runtime/server.py](../skilltree/runtime/server.py)):
+`runtime/server.py`:
 
-- **One server per database.** `InstanceLock` holds an OS lock on `<db>.lock` for
-  the life of the process, and the OS drops it even on a crash. The lock is taken
-  before `init_db`, so two processes never migrate one file. The owner writes
-  `<db>.instance.json` (pid, port, token), readable only by its user. A second launch
-  hands over instead of serving: a browser launch opens the owner's link, and a
-  desktop launch prints `SKILLTREE_RUNNING port=<n> token=<t>` and exits 8.
-- **The handshake.** Werkzeug's `make_server` binds 127.0.0.1, on any free port for
-  `--desktop` or else 8050/8051 (a free port if that one is taken). When it can
-  answer, the server prints `SKILLTREE_READY port=<n>` on stdout. The shell reads
-  that line rather than guessing a port.
-- **Access.** `AccessGuard` runs ahead of Dash on every request. The Host header
-  must be `127.0.0.1:<port>` or `localhost:<port>`, which defeats DNS rebinding.
-  `/?token=<t>` serves the page; its earliest script stores the token in
-  origin-scoped `sessionStorage`, removes it from the address bar, and attaches
-  it as `X-Skill-Tree-Token` to same-origin fetch and XHR requests. Plain `/`
-  serves only a bootstrap page that reopens the token link from that tab's
-  storage. Static assets are public; graph-bearing Dash and custom endpoints
-  require the header. The desktop shell makes the token and passes it in
-  `SKILLTREE_TOKEN`; a browser launch makes its own and opens that link.
-  A request that changes something (anything but GET or HEAD) and names an
-  Origin must name the server's own, `http://127.0.0.1:<port>` or
-  `http://localhost:<port>`. `null` is refused too. A request with no Origin
-  still needs the header. The page has `Referrer-Policy: no-referrer` so the
-  launch URL never travels to another origin as a referrer.
-- **Stopping.** The desktop shell holds the server's stdin. When it closes, because
-  the shell quit or crashed, the server finishes its requests and exits, so no
-  server outlives its window. SIGTERM and Ctrl+C do the same.
-- **`--dev`** replaces all this serving with Flask's debug server on the fixed port,
-  with hot reload in the sandbox, verbose request logs, and
-  `hard_reload_on_restart.js`. The reloader's parent holds the lock and hands the
-  token to each child it restarts. Werkzeug's debugger sits outside Flask, so its
-  console skips `AccessGuard` and relies on its own PIN. That is one reason
-  `--dev` is for developers only, and the desktop shell never passes it. A frozen
-  build ignores it: it ships without Dash's development bundles.
+- One server per database. `InstanceLock` holds an OS lock on `<db>.lock`, taken before `init_db`. A second launch hands over: a browser launch opens the owner's link, and a desktop launch prints `SKILLTREE_RUNNING` and exits 8.
+- The server binds 127.0.0.1 and prints `SKILLTREE_READY port=<n>` once it can answer. The shell reads that line rather than guessing a port.
+- `AccessGuard` runs ahead of Dash. The Host header must name the server, which defeats DNS rebinding. Graph-bearing requests need the per-launch token, which the page keeps in `sessionStorage` and sends as `X-Skill-Tree-Token`. A changing request that names an Origin must name the server's own.
+- When the desktop shell closes the server's stdin, the server finishes its requests and exits. SIGTERM and Ctrl+C do the same.
+- `--dev` swaps in Flask's debug server with hot reload. It is for developers only, and a frozen build ignores it.
 
-### 2. Graph mutation → render (the central loop)
+### Startup readiness
 
-Compound node saves use `database.transaction()`: nested manager/config writes
-share one request-local connection, and only the outer scope commits. Validation
-reads the proposed graph on that connection. `BEGIN IMMEDIATE` serializes writers;
-deferred foreign keys allow atomic renames without disabling integrity checks.
-A failed nested operation marks the entire save for rollback, including when a
-callback catches the error to display it. Cache-version changes and completion
-notifications are deferred until commit; rejected saves publish neither.
+The page opens behind a cover, in the page template, so it is in the first paint. `assets/startup_cover.js` keeps the app `inert` until two things hold: the core engine's first response has landed, and Dash has had nothing pending for 150 ms. A 20 s backstop lifts it regardless.
 
-Settings also commits one complete draft in a transaction. `assets/settings/settings_close.js`
-routes X, Escape and backdrop dismissal through `settings-close-request`, waits
-for pending form callbacks, and prevents repeated requests while saving.
-`save_settings` validates before writing and closes only after commit; errors
-leave the mounted draft intact. Context removals hold the full draft in
-`pending-settings-store` until the migration dialog is answered. Cancel returns
-to that draft; Apply or Skip commits it and closes Settings. Unchanged drafts
-close without rewriting settings, resources or scoring overrides.
+Everything the cover waits for adds to the wait, so startup does as little as it can:
 
-This is the path almost every edit takes. Get it wrong and the canvas either doesn't update or jumps around.
+- A callback marked `@prerendered` (`ui/prerender.py`) runs its page-load call on the server while the layout is built, and never in the browser. `create_app` fails if a marked callback would also run in the browser.
+- `populate_editor`, the Next table and the Now section don't run on load. The layout already holds what they would send.
+- `assets/store_mount.js` stops a mounting in-memory Store from reporting a change.
+- The core engine's page-load answer leaves out the resets the layout already holds.
+- Analyze and the Nodes canvas render on their first visit. The Goals list builds once its sidebar's open slide finishes.
+- `assets/native_builtins.js` puts back the browser's own `trim`, `parseFloat` and `parseInt`, which Dash's polyfill replaces with slower ones.
+- NetworkX is imported where community detection needs it, and `main` warms it while the window opens.
 
-1. A callback (node editor in [skilltree/features/goals/callbacks.py](../skilltree/features/goals/callbacks.py), node ops in [skilltree/engine/callbacks.py](../skilltree/engine/callbacks.py), …) calls a `GraphManager` **mutator** (`add_node`, `update_node`, `add_edge`, `sync_edges`, …).
-2. The mutator writes SQLite, runs the status cascade if the change is status-affecting, and calls `_bump_version(scoring=…)`.
-3. The callback returns `generate_elements(filters, active_node_id, …)` to **`elements-pending-store`** (with `allow_duplicate`) — *not* to the Cytoscape `elements` prop.
-4. A clientside callback (`freeze_positions.js`) consumes the pending elements (a hidden canvas holds them until its tab opens; see Hidden canvases) and **diffs them into the live graph in place** — adding/removing/updating individual elements and preserving existing node positions, seeding new nodes near their neighbors. Replacing the whole `elements` list instead would trigger a full fcose relayout and the graph would jump on every edit. *This indirection is why you can't simply `Output('cytoscape-graph', 'elements')`.*
-5. The same pending payload is stamped by a clientside bridge into `canvas-payload-stamp`: whether the canvas has loaded, its node count, and when. The stamp fires `sync_graph_version`, which bumps `graph-version-store` only if `revisions.graph` advanced — gating downstream recomputation to real mutations. Server callbacks listen to the stamp, not to the elements, which as an Input would send the whole canvas back to the server on every render.
+Every callback costs about a dozen Dash store updates, and each update re-checks every mounted component. So a callback that doesn't need to run is worth removing, however fast it is on the server.
 
-Until the Nodes canvas loads on its first visit, the core engine writes a deferred marker (`canvas_view.CANVAS_DEFERRED`) in place of the elements. The freeze bridge skips anything that isn't a list, and the stamp still fires, so the graph version stays current. See Nodes-tab first paint.
+## Canvases
 
-```mermaid
-flowchart TD
-    C["Callback calls a<br/>GraphManager mutator"] --> M["Mutator writes SQLite,<br/>runs the status cascade,<br/>bumps the version"]
-    M --> P["Callback returns<br/>generate_elements() to<br/>elements-pending-store"]
-    P --> J["freeze_positions.js diffs<br/>the elements into the<br/>live graph in place"]
-    J --> V["The payload's stamp fires<br/>sync_graph_version, bumping<br/>graph-version-store"]
-    V --> D["Downstream callbacks<br/>recompute — only on<br/>a real mutation"]
-```
+`CANVASES` in `ui/canvas/registry.py` lists the canvases once. Python loops over it for the tooltip, freeze and layout requests, and the assets loop over `window.SkillTree.canvases`.
 
-`generate_elements` ([skilltree/ui/canvas/elements.py](../skilltree/ui/canvas/elements.py)) decides what the Nodes canvas shows. It pulls filtered nodes from `GraphManager` and keeps the edges between them. Details and Events choose their own nodes, in `_build_graph_elements` and `render_event_graph`. Both redraw on `graph-version-store`, so an edit anywhere reaches them. Events also redraws on `events-refresh-trigger`, since its roster isn't part of the graph.
+First paint:
 
-All three canvases build their elements with `build_node_element` and `build_edge_element` in [skilltree/ui/canvas/elements.py](../skilltree/ui/canvas/elements.py). So a node gets the same fill color, shape, classes (`trigger`, `dormant`, `now`) and data fields on every canvas. The hover tooltip, context menu, stylesheet and Now pulse all read that payload, whichever canvas raised them. A canvas passes only what is its own: its selection state, Events' "attached to this event" dormant flag, or Details' view-root marker. Edges are not selectable: nothing acts on a selected link.
+- The Nodes canvas stays behind a cover until its graph is laid out and framed (`assets/canvas/canvas_first_paint.js`).
+- The cover's caption goes up in the same task that reveals the tab. A timer can't fire during the work it would explain.
+- A backstop, timed from the reveal, lifts the cover no matter what. The cover is first-paint only.
 
-The browser owns the selection. Cytoscape selects on a click and adds or removes a node on a click with Ctrl, Cmd or Shift held; `context_menu.js` only records the order. dash-cytoscape changes a node's selection when its `selected` differs from the previous render's, so a render that sets it overrides the user's picks. The Nodes canvas sets it only when asked to show one node (a search, a save, entering focus). Every other render passes `KEEP_SELECTION`, which leaves `selected` out. Details marks its view root, and a held click there leaves the view where it is (`SkillTree.additiveTap`). The data fields are the list `CANVAS_NODE_FIELDS`, which names each field's reader. Elements used to carry every `Node` field so that no canvas could miss one, but nothing read most of them, and a test now checks the list covers the tooltip and the context menu. `canvas_node_styles` reads the colors, shapes and trigger names together, so no canvas can paint without one.
+Layout requests (`assets/canvas/layout_requests.js`, one clientside callback per canvas):
 
-`assets/canvas/now_pulse.js` draws the ambient Now outline in an SVG beneath each
-canvas's drawing layers. Its CSS opacity cycle leaves Cytoscape's drawing
-cached. Render events update the outline positions and viewport transform;
-a 250 ms scan reconciles classes, styles, visibility and replaced instances.
-The layer supports all ten shapes offered by Settings, suspends on hidden tabs,
-and yields to Locate and dormant styling. It never starts or stops a Cytoscape
-animation, so layout completion and Locate's cleanup remain independent.
+- A request randomizes only its first run. Later runs are transitions from the current positions.
+- Before an incremental run, a node at the origin starts beside the placed nodes it links to. A canvas that is more than half piled up is randomized instead.
+- After any run, a drawing of 8 or more nodes that came out flat gets one automatic Settle.
+- Trees and forests lay out with CoSE, everything else with fCoSE. fCoSE's seed puts a chain on a line.
+- Past 500 nodes, fCoSE runs at `default` quality instead of `proof`.
+- Every layout tweens for 1000 ms. The prop carries `skillTreeTween`, since dash-cytoscape types `animate` as a boolean.
+- Each request carries an increasing sequence, so two identical requests still differ.
+- While a canvas is frozen, control changes wait.
+- A fit never zooms past natural size, and `assets/canvas/canvas_fit.js` refreshes Cytoscape's cached size before each layout.
+- Details and Events lay out their own element updates and filter dash-cytoscape's position echo by a structural signature.
 
-`assets/00_cytoscape_extent.js` wraps the public React Cytoscape component's
-`setProps` relay before Dash mounts it. The library's read-only `extent` reports
-otherwise dispatch a page-wide store update on nearly every pan/zoom frame.
-The facade reports the latest extent after 150 ms without another report.
-No app callback currently consumes extent, and Cytoscape continues rendering
-its live viewport throughout. Pending reports are canceled on unmount.
+Hidden canvases and drawing:
 
-The library also writes its live elements, now carrying positions, back to
-Dash 100 ms after nodes are added or removed. That lands inside the layout
-those nodes started. The facade holds that echo while the canvas has a layout
-running and relays the latest one when the last layout stops. It goes out with
-the positions the nodes have then. The held report still carries the
-positions from early in the layout, and relaying those would pull every node
-back to them. A 4 s deadline
-relays it if a stop never arrives. It counts layouts from mount, so the first
-layout's echo is held too. New elements from Dash discard a held echo.
-Relaying it then would put the previous graph back, and the new graph sends
-its own. Every other prop, node and edge events included, is
-immediate.
+- A hidden canvas keeps only its newest payload (`assets/canvas/hidden_canvas_payloads.js`). It lands once the tab has a size and has painted, and Locate reads it.
+- `assets/canvas/cytoscape_frame_pacing.js` keeps Cytoscape drawing every animation tick, unless a canvas's draws take more than half a frame.
+- `assets/00_cytoscape_extent.js` holds Cytoscape's read-only extent and element echoes while the graph moves, and relays the latest when it stops.
+- `assets/canvas/now_pulse.js` draws the Now outline in an SVG beneath the canvas, so Cytoscape's drawing stays cached.
 
-### 3. Right-click → editor (the JS-Dash bridge)
+## Responsiveness rules
 
-1. `context_menu.js` shows the node menu on right-click and stashes `_currentNodeData`. On a canvas the data is the Cytoscape node's; on a Next row, Now card or goal card it comes from the `node_menu_attributes` data attributes. `menus.js` positions and closes it, as it does every floating menu.
-2. "Edit" calls `triggerEdit()`, which routes by source: the Nodes canvas → `edit-trigger-input` (which switches to the canvas tab); anywhere else, the Events canvas included → `details-edit-trigger-input` (opens the editor *in place*, no tab switch). Dormant nodes take the same route; there is one node editor.
-3. It pokes that hidden Dash input via the **value-setter bridge**: the native `HTMLInputElement` value setter plus a synthetic `input` event. A plain `el.value = x` is silently ignored because the input is React-controlled. The value is suffixed with `'|' + Date.now()` so that re-editing the *same* node still changes the value and re-fires the callback.
-4. The Dash callback bound to that input opens and populates the editor sidebar.
+- Heavy callbacks don't subscribe to `main-tabs`. Analyze and Events listen to small arrival stores that fire only when their tab opens.
+- Analyze starts rendering when the pointer or focus reaches its tab (`assets/analyze/analyze_prewarm.js`), and records a signature so an unchanged visit recomputes nothing.
+- The Details selection callback doesn't render the subtasks table. `assets/details/details_deferred_subtasks.js` releases it, and the simulation, once the newest layout settles.
+- Navigation history, graph taps and suggestion clicks on Details are clientside, so no callback lands inside the opening layout.
+- The Explain modal's inputs are written only while it is open.
+- Some releases go out through `set_props`, since Dash holds a callback while a pending one could still change its inputs.
+- `assets/00_dash_noop_dispatch.js` drops Dash's empty aggregate dispatches, which re-check every component for nothing.
+- Next selection is clientside, and descriptions travel with the rows. Refreshes keep a selection that is still visible.
+- The filters' search reaches every consumer as one store, `filter-search-query`, written only when the query changes.
 
-[`00_browser_bridge.js`](../assets/00_browser_bridge.js) loads before feature assets
-and owns `SkillTree.setInputValue`, used by menus, sortables, and context pickers.
-It also owns `SkillTree.getCy`, the single boundary for Cytoscape's private DOM
-registration, and `SkillTree.wrapLayout`, which composes cold-start, fit, and request
-hooks once per live instance. The latest registered hook remains outermost, matching
-the former wrappers; a remounted canvas gets its own hook chain.
+Simulation requests:
 
-### Bridges
+- `assets/details/simulation_requests.js` gives each request a session ID and an increasing sequence. The page shows only the response to its current request.
+- The server reads a detached snapshot, then samples. At most two calculations run at once, and a newer request cancels older work between chunks.
+- A payload that starts no layout releases the simulation directly (`settleUnchanged` in `layout_requests.js`).
+- The service keeps at most 16 summaries and 128 session records, and samples with a private deterministic generator.
 
-A bridge puts a new node between two existing ones. The node itself is made in the ordinary editor.
+## How to add
 
-1. `context_menu.js` offers **Create Bridge…** only when the menu acts on exactly two nodes of a canvas (a row or card is always one). It records pick order in `cy.scratch`, since Cytoscape keeps none, and the first node picked is Start. Right-clicking an edge, on any canvas, opens the link menu, whose first item is **Insert Node Here…**. A Synergy edge opens the dialog as Synergy, which replaces nothing. Both write `bridge-open-input` (a JSON name list, with the edge type as a third entry for an edge). The same menu's other items write `link-action-input` (`[action, source, target, type]`) for `link_menu_callbacks`.
-2. `bridge_callbacks.open_bridge_modal` opens the dialog. `opening_ends` uses an existing prerequisite link's order and type. `render_bridge_modal` calls `node_commands.plan_bridge`, which returns a `problem` (End already leads to Start: a circle) or the direct link the bridge `replaces`. A problem disables Create.
-3. Create slides the editor open (the same `open_on_add` the Details tab uses) and is an Input of `populate_editor`. That callback fills the relationship fields from `bridge_form`, sets the pristine snapshot to match (so the prefill isn't "unsaved"), and writes `bridge-pending-store`. With unsaved edits it asks first, through the pending-navigation sentinel `__bridge__`.
-4. `bridge-pending-store` holds the link to replace. It is an Output of `populate_editor`, so every load of the editor clears it. `core_engine` reads it as a State. In the save transaction, after `handle_save`, `finish_bridge` removes the link, but only for a node that is new (`original_name` is empty) and really sits between the two ends. A refused save rolls back, links included. A form edited away from the bridge leaves the old link alone.
-
-### Dormancy in the node editor
-
-Dormant is a form field of the one node editor, saved with Save.
-
-- `populate_node_dormancy` ([skilltree/features/events/callbacks.py](../skilltree/features/events/callbacks.py)) fills the Dormant switch and the Event section from the database whenever `node-original-name` changes or `events-refresh-trigger` fires. It also writes the `dormancy` key of `editor-pristine-snapshot`, so the unsaved-changes check compares against what it just drew.
-- A clientside callback collects the switch, the event and its wake settings into `node-dormancy-form`. `core_engine`, `populate_editor`, `toggle_unsaved_modal` and `sync_original_name_after_save` read that one store. Its shape is documented beside `NEW_NODE_DORMANCY` in [skilltree/features/editor/form.py](../skilltree/features/editor/form.py).
-- On Save, `core_engine` runs `handle_save`, then `node_commands.apply_dormancy`, in one transaction. A refusal (no event chosen, a node its event already woke) raises `ValueError` and rolls back the whole save. Choosing a different event for a dormant node calls `move_node_to_event`.
-- `refresh_events_after_save` bumps `events-refresh-trigger` once the save message appears, which is after the commit. That redraws the Events tab table and refills the section from the database.
-- `sync_original_name_after_save` rewrites `node-original-name` only on a rename or a new node. A rewrite on every save would refill the section from the database, and after a refused save that would throw away the user's Dormant switch.
-- Follow-ups to a save act on `editor-save-result-store`, which `core_engine` writes only once a save has committed (`{name, via, ts}`), never on the Save click. `sync_original_name_after_save` adopts the saved name after Save. `populate_editor` moves the unsaved-changes dialog on to its pending node only after that dialog's own save. Both used to fire on the click, so a refused save still lost its form, and a refused duplicate name made the editor adopt the existing node.
-- The Events tab's **+** opens a floating menu (`assets/menus/dormant_add_menu.js`) that writes `new|<ms>` or `existing|<ms>` to `dormant-add-choice-input`. **New node** writes `editor-dormant-preset` and clicks `btn-editor-new`; the populator applies the preset to the next blank form. **Existing nodes…** opens the **Add to Event** modal (`build_add_to_event_modal`), which puts nodes with no event to sleep in bulk. The context menu's "Add to Event…" opens the same modal through `dormant-existing-trigger-input`.
-- The Details Subtasks **+** uses the same menu pattern (`assets/menus/details_add_menu.js`). **New node** opens the shared editor with the selected node in Supports > Hard and includes that relationship in the pristine snapshot. **Existing node…** opens a focused Hard/Soft linking modal. Both paths refresh Details after saving through the normal graph version or Details refresh signals.
-
-### 4. Status cascade
-
-Marking a node Done (or changing a hard prereq) calls `update_node`, which detects the status change and seeds `_cascade_update_states`. That walk goes **forward along `Needs_Hard` out-edges**: each dependent recomputes to Blocked (any incomplete hard prereq) or Open. Goals whose hard children just became all-Done are collected via `_collect_auto_done_candidates` and surfaced through `pop_auto_done_candidates` for the auto-done prompt. `recompute_all_statuses` is the same logic run globally — the startup safety-net.
-
-`Nodes.start_date` and `Nodes.done_date` remain latest-state snapshots for the existing UI and reports. `NodeLifecycleEvents` is the append-only history: `update_node` records crossings into and out of Now plus completion and reopen transitions as UTC Unix seconds. Positive-to-positive Now changes are ordering only and produce no event. The v7 migration records when complete coverage began and gives nodes already in Now a `migration_snapshot` start at that boundary; it does not invent earlier cycles. Rename updates the event owner in the same deferred-FK transaction, and node deletion cascades its history. A `now_started` row also carries `rank` and `ranked_of`: the node's place in the unfiltered Next ranking just before it entered Now, and how many nodes that ranking held (`GraphManager._recommendation_rank`, read before the write). `rank` is NULL for a node the ranking leaves out, such as a Goal.
-
-`NodeLedger` records each node added (`insert_node`) and deleted (`delete_node`), with its type, context, status and own estimate at that moment. It has no foreign key, so a deleted node's rows outlive it; a rename moves only the rows written since the name's last deletion. The v12 migration stores `node_ledger_started_at`, since nodes created earlier have no creation record. Together with the completions above, it is the raw material for asking whether work enters the graph faster than it leaves, and whether Now picks follow the recommendations. Nothing reads it yet.
-
-### 5. Scoring → Next ranking
-
-[skilltree/features/home/view.py](../skilltree/features/home/view.py), shared by layout and Next callbacks, calls
-`GraphManager.calculate_priority_scores(now_nodes, priority_goals)`. The gateway
-delegates to `skilltree/store/graph/scoring.py`, whose memo key includes database identity, scoring
-revision, and hyperparameters. On a miss it calls pure `scoring.score_nodes(...)`
-(adjacency → value propagation → cost/eligibility → variety → ranking).
-`score_nodes` scores the whole graph even for a requested subset so filtering cannot
-change a node's number. `GraphManager.get_priority_normalizer()` supplies the common
-base for UI scores. Cosmetic edits retain these scoring caches.
-
-## Versioning & caches
-
-`revisions` in `store/graph/state.py` owns two process-wide counters, so every
-manager sees the same revisions.
-Changes publish through deduplicated commit callbacks; rollback publishes neither.
-
-- **`revisions.graph`** — bumps on any node/edge mutation. Drives UI-level caches: the `graph-version-store` bridge, the goal-subtree cache, and the community-detection cache (all keyed on it).
-- **`revisions.scoring`** — bumps **only** when a scoring-relevant field changes: `type`, `value`, `interest`, `difficulty`, `time_o/m/p`, `time_mode`, `value_mode`, `status`, `dormant`, `now`, `context`, `subcontext`. Drives the scoring memo and the `calculate_priority_scores` cache. `now` earns its place because Now membership is what the variety pool and the priority normalizer are built from — flipping one node moves its context peers' numbers too.
-
-The list is the `SCORING_RELEVANT_FIELDS` constant; `update_node` diffs it against the prior node to decide whether to pass `scoring=True` to `_bump_version`. The bulk remappers (`apply_migration`, `apply_node_migration`) test their `field` against the same constant; `apply_taxonomy_migration`, which carries the Contexts editor's renames and moves onto nodes, only ever writes `context` and `subcontext`, so it always bumps both. The split is the optimization: cosmetic edits (description, paths, aliases) bump `revisions.graph` only, so the scoring memo stays warm and the next ranking is near-free. **When you add a new scoring-relevant field, add it to `SCORING_RELEVANT_FIELDS` or scores will silently go stale.**
-
-Settings have no persistent cache. Hot read operations use
-`database.read_snapshot()` / `@database.snapshot_read` to share detached Nodes,
-Edges, Settings and pending-trigger rows across their nested helpers. Four SELECTs
-run on one connection/read transaction, which closes before rendering starts.
-The snapshot is discarded at the end of the operation; a local write invalidates
-it immediately. Subsequent operations read fresh state. Outside a snapshot,
-settings getters query SQLite normally. Connection context managers close their
-owned connection on both success and failure; nested write leases stay open until
-the owning transaction ends.
-
-Within a snapshot, the repository normalizes each requested node row once and
-returns a fresh copy on every read. Resource-link dictionaries and lists are
-copied too, so edits and computed scoring fields cannot leak into another read.
-The Now lookup constructs only awake Now nodes, rather than the whole graph.
-
-Each manager owns one `GraphCaches` object. Community caches retain at most 32 filter/method combinations and subtree caches
-at most 128 entries per manager. Both discard entries from older graph versions.
-Scoring memoization still survives cosmetic edits. See [performance.md](performance.md)
-for the synthetic benchmark and its limits.
-
-The scoring memo retains scalar total values alongside route and required-work
-maps. Its totals distinguish every value parameter and excluded synergy partner;
-the existing scoring revision discards them when graph inputs change. Ranking
-uses the same contribution arithmetic as Explain, without allocating Explain's
-per-beneficiary attribution rows. Filters, unblocking-step selection and priority
-normalization can therefore reuse values computed earlier in the refresh.
-
-All graph-affecting event operations and field migrations participate in the same
-transaction/version protocol. Removing relationships repairs the former hard
-dependents as well as the new ones. Status cascades invalidate scores when they
-change stored status, and may revisit a shared dependent after another prerequisite
-changes. Cache reads/publication share the write coordination lock; reads inside
-an uncommitted save bypass committed caches. The UI version bridge also observes
-event, Details and settings refreshes, independently of the main canvas.
-
-## Startup readiness
-
-The Home tab is part of the initial layout, so it paints about 0.4 s after
-load. The app behind it isn't ready for a few seconds more. Startup is a
-cascade of callbacks, and Dash stays busy from the moment the layout renders
-until the last of them finishes. The core engine's first response is the heavy
-step. It carries the canvas payload, the editor's search options and every
-other dropdown the core engine fills. Cytoscape then spends most of a second
-ingesting that payload.
-
-That window used to be on screen, looking ready. A click on a Home row waited
-behind the cascade. In the first two seconds it could be dropped outright,
-because the Next table re-rendered and replaced the row under it. The Node
-Editor's search opened empty. Tab switches took up to 650 ms instead of 200.
-
-So the page opens behind a cover. `layout.build_index_string` adds it to Dash's
-page template, ahead of the entry point. That puts it in the first paint, and
-React never re-renders it. `assets/startup_cover.js` makes the app beneath it
-`inert` and lifts the cover once two things hold:
-
-- The core engine's first response has landed. It writes the Nodes canvas's
-  pending store: the elements once that canvas has loaded, a deferred marker
-  before. Dash applies every output of a response together, so the dropdowns
-  it fills are in place. The canvas bridge in `skilltree/engine/callbacks.py` reports it.
-- Dash has then had nothing pending for 150 ms, confirmed once the browser is
-  idle. Dash renders `._dash-loading-callback` as a child of the entry point
-  while any callback is requested, blocked or in flight. That marker is the
-  busy signal.
-
-The payload has to come first, because the marker is also absent before the
-layout loads. On the 774-node sandbox, Dash never went idle mid-startup. The
-quiet window is a margin for a chain that continues through a timer, such as
-dash-cytoscape's element echo about 100 ms after an ingest. A 20 s backstop
-lifts the cover regardless. The lift fades over 200 ms, and clicks reach the
-app from its first frame.
-
-### What startup costs
-
-Startup is bound by the browser's main thread, not the server. Before the work
-below, the main thread was busy without a break from 0.5 s until the cover
-lifted, so reordering work could not help. Only removing it could.
-
-The largest cost was dash-renderer itself. Each mounted component subscribes to
-Dash's Redux store, and every store update re-checks all of them. The layout
-mounts about 2,150 components. One callback costs about a dozen updates:
-requested, dispatched, loading, applied and so on. With 82 startup callbacks
-that came to about 1,600 updates and roughly 3 s of main-thread time. The same
-arithmetic taxes every later interaction, so a callback that doesn't need to
-run is worth removing even when it is fast on the server.
-
-Everything the cover waits for adds to the wait, so startup work changed:
-
-- Callbacks marked `@prerendered` ([skilltree/ui/prerender.py](../skilltree/ui/prerender.py)) run their
-  page-load call on the server while the layout is built. Each is called as
-  Dash would call it on load, with the layout's own values and nothing
-  triggered, and its outputs go into the layout. They register with
-  `prevent_initial_call=True`, so the browser never repeats them. That covers
-  tab styles, trigger hints, subcontext options, the empty alias and link rows,
-  the Details dropdown and suggestions, the Events list and the editor's Now
-  switch. A callback qualifies when every input is in the initial
-  layout and none is pattern-matched. `create_app` fails at startup if a marked
-  callback would also run in the browser.
-- `populate_editor` no longer runs on load. Every path that opens the editor
-  runs it, and that run sends the relationship options. Its load-time run sent
-  about 230 KB of those options and set off a dozen follow-on callbacks.
-- A mounting `dcc.Store` no longer reports a change. Each in-memory Store gets
-  a fresh, empty backing store, so its mount code always called `setProps`:
-  with a timestamp when it had data, with `data: undefined` when it started as
-  `None`. That was 53 store updates, and the `None` ones woke their listeners
-  even under `prevent_initial_call`. `assets/store_mount.js` replaces the mount
-  for a memory Store with nothing stored. It records the initial data and
-  stops. Every other case runs Dash's own code, and so does a Dash whose Store
-  no longer matches the guards.
-- The core engine's page-load answer leaves out the message, the clear timer
-  and the undo and calibration modals. Nothing has run, and the layout already
-  holds them closed and empty. Restating them woke six callbacks.
-- Analyze renders on its first visit, not at startup. See Hidden-tab and
-  Details responsiveness.
-- So does the Nodes canvas. Its ingest and cold fCoSE layout were about a
-  second of main-thread work. See Nodes-tab first paint.
-- The Next table and Now section don't rebuild on load. The table also held
-  up the core engine. It feeds `selected-suggestion-store`, a State of the core
-  engine, and Dash won't dispatch a callback while a pending callback can still
-  reach one of its Inputs.
-- The Goals list isn't built at startup. It builds once the sidebar's open
-  slide finishes, behind a spinner the first time, and is cleared once the
-  close slide finishes. A prewarmed list kept hundreds of components mounted
-  while hidden, and every store update re-checked them. That made every
-  update dearer, on every tab.
-- The browser remembers the last list built. A reopen slides in with it if the
-  graph, priorities, search, sort and manual order are unchanged. The rebuild
-  still runs after the slide and corrects anything else.
-
-Two costs weren't Dash's. Dash loads a core-js 2 polyfill that replaces the
-browser's `trim`, `parseFloat` and `parseInt` with versions 13 to 60 times
-slower, while reporting "[native code]". Cytoscape calls them constantly as it
-reads styles. `assets/native_builtins.js` reinstalls the native ones from a
-fresh iframe realm; they return primitives, so that is safe across realms.
-And the core engine's view build opened a SQLite connection per node, to name
-the community filter's options. It now runs under one read snapshot, which
-took a core render from about 350 ms to about 60 ms on the server.
-
-The server boots before any of this, and the desktop window waits for it.
-NetworkX is only needed for community detection in the first canvas render, so
-it is imported where it is used. `app.main` warms it on a background thread
-while the window opens. That took about 0.15 s off a warm 0.85 s boot, and more
-from a cold disk, since NetworkX is hundreds of modules.
-
-Measured in headless Chrome with a warm cache, on a copy of the 774-node
-sandbox, the cover now lifts at 1.4 s instead of 4.7 s. Startup requests fell
-from 82 to 13. After the lift, a Home row selects in about 40 ms, as before,
-and no long task runs. The first Nodes visit takes about 1.4 s behind its
-cover; later visits show the graph at once and send nothing.
-
-What remains at startup is mostly fixed cost: loading and evaluating the
-scripts, rendering the ~2,150-component layout, dash-renderer's store updates,
-and about 0.25 s for Plotly, which loads because the Details simulation chart is
-mounted from the start.
-
-## Next responsiveness
-
-Next and Now content is included in the initial layout, using the same hydrated
-filter controls as the sidebar. Layout factories construct fresh components for each
-request. The hidden main canvas starts empty and loads on its first visit.
-Because the layout carries both, their refresh callbacks don't run on page load.
-The layout fills the Home tab's scoring-time caption too, since that load-time
-rebuild was its first update.
-
-`skilltree/features/home/callbacks.py` owns recommendation refreshes for graph versions, filters,
-row count and settings. The core callback's legacy table output returns
-`no_update`; it no longer scores and renders Next during unrelated graph work.
-Descriptions travel with visible rows as text. `assets/home/next_selection.js` handles
-row/Now-card selection, highlights and description changes clientside. Selection
-is State, not Input, for server callbacks. Refreshes retain a still-visible
-selection, update its description, and clear it when the row disappears.
-
-## Nodes-tab first paint
-
-The main canvas mounts inside a hidden tab, and two consequences of that used
-to be visible. Elements reach Cytoscape well before any layout runs, and until
-it runs every position-less node sits stacked at the origin. Meanwhile `fit` is
-a no-op while the container is 0x0, so the layout's own fit leaves zoom at 1 and
-pan at the origin. Opening the tab inside that window drew the whole graph piled
-into the top-left corner, and then it jumped.
-
-Measured on the 568-node sandbox graph: elements land about 3.6 s after load,
-the layout starts about 1.6 s later, and fcose itself takes 45 ms. That gap is
-not scheduling — calling `layout.run()` the instant the elements land does not
-start it any sooner, because it queues behind the same blocked main thread. It
-only adds a second randomized pass that reshuffles the graph again.
-
-So the canvas is held behind an opaque cover instead. It also loads on its
-first visit, not at startup: `canvas_view.canvas_wanted` sends the elements
-when the Nodes tab is open or the canvas has loaded, and a deferred marker
-otherwise. After that first load, a render while the tab is hidden is held in
-the browser and laid out when the tab opens (see Hidden canvases). A first visit
-takes about 1.4 s on the sandbox, behind the cover's caption. Locate from
-another tab navigates to an unloaded canvas and waits for its first paint
-before pulsing the node. `assets/canvas/canvas_first_paint.js` lifts it once the graph is both
-laid out (`layoutstop` on a graph with nodes, positions away from the origin, or
-an element payload with no nodes to lay out) and framed (the canvas has a real
-size, so the fit can land). That fit used to live in `fullscreen.js`, which
-framed the graph the moment the canvas had a size but held back none of the
-frames before it. The empty-graph check matters because dash-cytoscape runs the
-layout prop once at mount, over no elements, and that `layoutstop` says nothing
-about the payload still on its way.
-
-Two rules keep the cover from becoming its own defect. The first is that its
-caption goes up in the same task that reveals the tab. It first waited 400 ms,
-so a nearly-ready graph wouldn't flash a spinner. But a timer can't fire during
-the main-thread work it was explaining. Due at 400 ms, it fired at 915 ms, and
-arriving just before the payload was ingested left the tab blank until the
-graph appeared. A graph that is already laid out still shows nothing, because
-the reveal lifts the cover before that frame is painted.
-
-Holding to that at startup took two more changes. The module now waits for Dash
-to render the canvas with a `MutationObserver` instead of a 300 ms retry. That
-retry was starved as well, so a tab opened early went unwatched until the poll
-noticed it, 542 ms after the reveal. With the observer, the caption lands in the
-reveal task itself. The caption also appears outright instead of fading in,
-because a fade needs rendered frames that a stalled main thread doesn't produce.
-
-The second rule is a backstop timed from the reveal, which lifts the cover no
-matter what: an unframed graph beats a canvas stranded behind a spinner. The
-cover is first-paint only. Covering the graph the user is looking at would be
-worse than any transition it could hide.
-
-### Layout transitions
-
-Filter changes make dash-cytoscape re-run whatever `layout` prop the canvas
-holds, on every `add` or `remove`. The graph-settings callback only rewrites
-that prop once a control is touched, and the prop in `skilltree/shell.py` said
-`animate: False` while the Animate switch said on. So Animate did nothing until a
-slider moved, and every filter change also re-randomized the whole graph.
-
-The prop now describes a transition, as Details does for same-root changes. It
-keeps the current positions (`randomize: False`) and animates when the Animate switch is on.
-Adding the 127-node STEM context back that way spread it through its own region,
-with none of its nodes within 12 px of another. Existing nodes moved 152 px on
-average across a 3,200 px graph. In the running sandbox, switching the context
-filter to Health (67 nodes) and back to All (568) started fCoSE with
-`animate: true` and `randomize: false` both ways.
-
-A Settle writes `randomize: true` into that same prop. Every later add or
-remove re-ran it as is, so each filter change after a Settle reshuffled the
-whole graph. `assets/canvas/layout_requests.js` now randomizes a request only on its
-first run. The re-runs are transitions.
-
-The one run that can't be a transition is the cold start, from most nodes
-stacked at the origin. Incremental from that pile, fCoSE left 547 of 568 nodes
-within 12 px of a neighbor; a randomized seed left none. "Most" is more than
-half, not all: filtering down to two nodes and clearing the filters brings back
-hundreds of new nodes beside two that kept their places, and an incremental run
-from that came out as a diagonal line. `canvas_first_paint.js`
-wraps `cy.layout` so that run randomizes, and skips its animation while the
-cover is still up, since nobody can watch it. Settle passes through untouched,
-because its graph is already laid out.
-
-That rule only covered Nodes, and only past half. A smaller pile still bent the
-drawing. The cause is in fCoSE's force step. For two nodes on the same spot,
-it always pushes along the same (1, 1) direction, so a pile can only spread
-along one diagonal. On a 118-node Details view, an incremental run from a full
-pile came out as an exact line (flatness 0, defined below). With two placed
-survivors it measured 0.23, and with 45% of the view piled, 0.47. A healthy
-drawing measures 0.8 to 0.9. CoSE breaks the tie itself and never went flat.
-
-`layout_requests.js` now handles every canvas in two steps:
-
-- **Before an incremental run**, each node at the origin starts next to the
-  placed nodes it connects to. It goes at their average position, plus a
-  random offset of half to one edge length. Arrivals that only connect to
-  other arrivals are placed breadth-first, once a neighbor has a spot. Arrivals
-  with no route to a placed node land at random inside the placed graph's
-  bounding box. A canvas that is more than half pile is randomized. The same
-  piles then measured 0.85 to 0.93.
-- **After any run**, the drawing's flatness is checked. Flatness is the square
-  root of the ratio of the positions' two principal variances. A view of 8 or
-  more nodes measuring under 0.2 gets one automatic Settle: the same request,
-  randomized. A randomized fCoSE run that came out flat retries with CoSE,
-  because fCoSE's randomized seed is deterministic and would draw the same
-  line. The retry is skipped when a newer layout has already started, and on
-  a frozen canvas.
-
-## Hidden-tab and Details responsiveness
-
-All tab layouts remain mounted. Heavy callbacks therefore do not subscribe
-directly to every `main-tabs.active_tab` change: Analyze and Events use small
-clientside arrival stores that only notify their server callbacks when their
-own tab opens. Analyze renders on its first visit, not at startup. Its charts
-cost the browser about 0.6 s of main-thread work, and the startup cover waited
-for them. `assets/analyze/analyze_prewarm.js` writes `analyze-prewarm-store` when the
-pointer or keyboard focus reaches the Analyze tab, so the render starts before
-the click. Dash drops the earlier request's response when the click
-re-requests, so the server shares one render between the two. A click that
-arrives mid-render waits for it instead of computing again. Each render records a
-signature in `analyze-rendered-store`: the graph version, the context list, and
-the date. An arrival that finds the signature current makes no recompute. Until
-the first render, the sections sit hidden behind a spinner. Its charts are
-responsive graphs with pinned heights, so charts drawn while hidden re-measure
-their width when the tab opens. The two Analyze subtabs render together, and a
-switch only shows and hides their panes. `assets/analyze/analyze_first_paint.js` treats
-a pane being shown like the tab opening, and sizes its charts before they paint. Details dropdown options are hydrated initially and refreshed
-from graph/version stores, so opening Details does not resend an unchanged
-node list. Empty-state suggestions likewise ignore node selection once hidden.
-
-The Details selection callback returns the summary and selected-node store but
-not the large subtasks table. `assets/details/details_deferred_subtasks.js` observes the
-Cytoscape layout lifecycle, ignores superseded layout generations, and writes
-the settled root to `details-layout-settled-trigger-input` after a short quiet
-window. Only then does the table callback render its rows; a stale root is
-rejected server-side. Existing filter and graph refresh inputs still update an
-already-visible table immediately. The selection is only a State of the table
-callback. The browser swaps in the "Loading subtasks…" placeholder when the
-dropdown value changes, before the graph starts moving. When the canvas is
-frozen, no layout runs, so a clientside callback sends the settle signal as
-soon as the selection lands.
-
-That placeholder makes `details-selected-node-store` load-bearing. Dash re-fires
-dependent callbacks on any write, including one whose value is unchanged. Most
-of the selection callback's Inputs are refresh signals, so it holds the store
-slot at `no_update` unless the selection actually moved. Without that guard a
-plain graph refresh looks like a fresh selection, and the simulation goes back
-to waiting with no root transition left to release it. The same rule
-applies wherever a deferred render is keyed off a store: write the store only
-when its value changes. `handle_edit_trigger` in `skilltree/engine/callbacks.py` guards
-`main-tabs.active_tab` for the same reason.
-
-### The Details opening animation
-
-A Details selection starts a one-second layout. Every Dash store update during
-it costs a few milliseconds, because each mounted component re-checks the
-store. Each callback costs about ten of those updates. So the selection keeps
-callbacks out of that second:
-
-- The graph's request goes out with the selection's, keyed on the dropdown
-  value, rather than after the selection callback returns.
-- Navigation history, graph taps and suggestion clicks are clientside
-  callbacks.
-- The node count is counted in the browser from the graph payload, and names
-  the depth limit when one is set. A server callback updates only the filter
-  chip, and only when the filters change.
-- The Explain modal's inputs come from `details-explain-node`, which is
-  written only while the modal is open.
-- Node-less simulation cancellations reach the server only while a
-  calculation may still be running.
-- Some releases are sent with `set_props` instead of a declared Output. Dash
-  holds a callback while a pending callback could still change one of its
-  Inputs. A declared Output made every selection's graph callback wait behind
-  one.
-
-`assets/00_dash_noop_dispatch.js` removes the rest of the noise. Dash's
-requested-callbacks observer runs asynchronously. After a burst of callbacks,
-its queued runs find nothing to do, but each still dispatches a
-`Callbacks.Aggregate` whose entries are all null. The reducer leaves state
-unchanged, yet every component re-checks the store. About ten of those landed
-in the graph's first frames. The asset drops exactly that action. Dash assigns
-`window.store` after assets load, so the asset wraps the store's `dispatch` as
-it is assigned.
-
-Selecting an event does not emit a data refresh. A clientside ALL callback
-updates card styles without remounting the list or rebuilding search
-suggestions and trigger-node options alongside the animation. Actual event
-mutations still emit the shared refresh. The Events node count is counted in
-the browser from the payload, as on Details.
-
-### Nodes filter changes
-
-A filter change starts the Nodes layout, and the same rules apply there.
-
-- `core_engine` returns only the elements and the community options when the
-  filters are all that fired. The other outputs stay as they were. Its reset
-  outputs used to go out too, and the empty save message alone woke six
-  callbacks, among them Analyze and time calibration.
-- One server callback reports whether any filter is active, for the top bar's
-  funnel, and fills the Nodes and Next filter chips. It writes only what
-  changed. The count itself is read in the browser from
-  `canvas-payload-stamp`.
-- Next's scoring-time caption rides on the table's own callback, which writes
-  it only when it changes.
-- The Search field and its descriptions switch reach every consumer as one
-  value, the `filter-search-query` store. A clientside callback writes it only
-  when the query changes, and writes `None` when there is no text. Flipping the
-  switch with nothing to search therefore wakes nothing. The field itself
-  applies on Enter or blur, so a graph is not laid out again for each letter.
-  The suggestions under it are drawn by `assets/sidebars/filter_suggest.js` from the
-  node editor Search list's options, with no round trip.
-
-### Hidden canvases
-
-The filters are shared, so a filter change re-renders every canvas. A hidden
-canvas used to lay its payload out at once. A Nodes filter change laid out the
-hidden Details graph inside the Nodes animation. Once Nodes had loaded, a
-filter change on Details laid out all of Nodes first. That was about 0.8 s of
-blocked page before the Details graph could start moving.
-
-Now the pending-store bridge hands a hidden canvas's payload to
-`assets/canvas/hidden_canvas_payloads.js`. It keeps only the newest one. A payload
-that arrives while the canvas is shown drops it. When the tab opens, the held
-payload lands once the canvas has a size and a frame has painted it. Applied
-with the tab switch, a large layout ran before the browser drew the new tab,
-so the click seemed to do nothing for a second. Now the tab appears with the
-previous graph, and the user watches it move to the new one.
-
-On the sandbox, returning to Nodes after widening Health to every context
-paints the tab at about 150 ms. The 567-node layout then blocks the page for
-about 0.65 s before it tweens. Returning after a small change animates at
-once.
-
-Locate reads the held payload. It decides whether a node is on a canvas from
-the held graph, and it waits for that graph to settle before pulsing.
-
-### Drawing every frame of an animation
-
-Cytoscape draws each canvas from its own `requestAnimationFrame` loop. A tick
-draws only if a redraw was requested before the tick began. The tick then
-steps the running animations, and each step requests the next redraw. On a
-tick that draws, the loop clears that request after drawing. So the next tick
-only steps, and a moving graph was drawn on every other tick.
-
-`assets/canvas/cytoscape_frame_pacing.js` keeps that request on every canvas. A
-redraw requested while a tick prepares its draw is renewed after the draw. A
-graph that stops moving stops asking, so a still canvas draws once per change
-as before.
-
-A canvas whose draws average more than half a frame keeps Cytoscape's pacing.
-Drawing a large graph twice as often could starve the rest of the page. The
-frame is measured from the ticks themselves, since it is 4 ms on a 240 Hz
-screen and 17 ms on a 60 Hz one. The Details tween draws in under 1.5 ms, so
-it draws every tick. A Settle of the 567-node sandbox graph draws in about
-25 ms at 4K, so Nodes keeps the old pacing there.
-[performance.md](performance.md) has the measurements.
-
-## Layout requests
-
-Every canvas's `layout` prop comes from `assets/canvas/layout_requests.js`.
-`skilltree/engine/callbacks.py` registers one clientside callback per canvas in `CANVASES`, and
-the module builds the prop each one returns. The canvases share its rules and
-differ only in a small policy table.
-
-Nodes leaves element updates to dash-cytoscape's `autoRefreshLayout`, which
-re-runs the current prop on every add or remove (see Layout transitions).
-Details and Events turn it off and lay out their own element updates. The
-dash-cytoscape component echoes its live elements, now carrying positions,
-roughly 100 ms after add/remove events. Their layout callbacks must still
-listen to `elements`, so a real topology reaches Cytoscape before layout
-starts. A structural signature filters the position-only echo. Without it, the
-echo started a second incremental pass from half-animated positions, and the
-two tweens finishing out of step read as a jerk. A new view gets one
-randomized pass. Same-view topology changes get one incremental pass.
-Display-only data changes get none. The signature is reset when `onCytoReady`
-reports a replacement Cytoscape instance. Otherwise a remount of the same view
-would be mistaken for an echo, and its nodes would stay stacked at the default
-origin.
-
-Every layout asks Cytoscape to fit the graph, and Cytoscape fits against the
-canvas size it has cached. That cache lags a revealed tab by 100 ms, and at 0x0
-the fit does nothing. So a context menu's View Details, which opens the Details
-tab and selects the node in one step, could draw the graph in the canvas's
-top-left corner. A payload held for a hidden canvas waits for a size, but
-other layout requests can still reach one. `assets/canvas/canvas_fit.js` refreshes the cached
-size before every layout. A layout that still finds no size owes its fit, and
-pays it when the canvas gets a size and the layout has stopped. Nothing else
-moves the viewport, so returning to a tab keeps its pan and zoom.
-
-A fit never zooms past natural size (1). Filtering down to two nodes would
-otherwise scale them to fill the canvas, about eight times their size. The same
-file pulls any fit back to 1 about the canvas's center once the layout stops,
-and `canvas_first_paint.js` does the same through `SkillTree.capFitZoom`.
-
-Details marks the selected node as the view root inside the elements payload.
-A new selection is then randomized even if Dash has not yet propagated the
-matching selected-node State. Events needs no marker, because the
-selected-event store drives its graph render. Its State already names the
-event the elements belong to.
-
-Views without cross-links, trees or forests of them, use force-only CoSE.
-Everything else uses fCoSE, with an iteration budget scaled to node count.
-fCoSE seeds its layout from the top two eigenvectors of the view's squared
-graph distances. A chain's distances run along one dimension, so the second
-eigenvector is nearly zero and every node lands on one line. fCoSE's
-refinement adds no randomness, so the chain stays there. A spine with a short
-branch comes out nearly as flat. Nodes shows the whole graph, a single
-cross-linked component, so it keeps fCoSE and its full 2,500 iterations at
-every size.
-
-The rule comes from measuring the sandbox's 182 default Details views, three
-layouts each per algorithm. A layout counted as flat when its narrow side was
-under 20% of its long side. 44% of fCoSE's chain layouts were flat, against 5%
-of CoSE's. Two near-chains were flat in every fCoSE run. No view with a
-cross-link was ever flat. On those views fCoSE crossed fewer edges up to 24
-nodes, 0.31 against CoSE's 1.15 per layout at 11–24 nodes. Above 24 nodes it
-ran two to four times faster. A read-only check of production found the same
-profile. Its 56 chains are all 3–7 nodes, and no tree has more than 20 nodes.
-No cross-linked view there has a seed flatter than ones fCoSE drew in two
-dimensions in the sandbox. The earlier cutoff of 24 nodes sent small
-cross-linked views to CoSE, and it would have left a chain of 25 to fCoSE.
-
-Past 500 nodes, a view lays out at fCoSE's `default` quality rather than
-`proof`. Proof cools slowly, and its cost grows with about the square of the
-node count. Nodes re-runs its layout on every add or remove, and each run
-blocks the page. In the 1,000-node benchmark ([performance.md](performance.md))
-proof took 7.4 s at 831 nodes; default took 2.2 s. On the sandbox's 567-node
-graph, default took 0.31 s against proof's 0.72 s and crossed about 10% more
-edges. A graph that large reads as one cluster either way, so speed wins.
-Smaller views, such as a filtered Nodes canvas, keep proof. A `cy.layout` hook applies
-the rule, so it holds whatever asked for the layout: the cold start, an
-auto-refresh, a Settle, or a control change.
-
-Every layout tweens to its final positions over 1000 ms. CoSE has to be asked
-for that tween with `animate: 'end'`, but dash-cytoscape declares
-`layout.animate` a boolean. In debug mode Dash checks prop types, and the
-string tore the Details and Events canvases down on every page load. So the
-prop carries a boolean plus `skillTreeTween`, and a `cy.layout` hook swaps in
-`'end'` as dash-cytoscape starts the layout. The same hook lets a randomized
-request randomize only its first run.
-
-Every accepted request carries a monotonically increasing client sequence. It
-keeps the `layout` prop distinct when two requests happen to produce identical
-options. Without it, `autoRefreshLayout=False` would leave a second view's new
-nodes stacked at their default origin.
-
-While a canvas is frozen, control changes wait. The freeze store is an input
-of each layout request, so the freeze-off transition lays the graph out with
-the canvas's current controls. `freeze_positions.js` used to run its own
-relayout there, with one hard-coded set of physics for every canvas.
-
-## Simulation requests
-
-`assets/details/simulation_requests.js` assigns a browser-session ID and increasing
-sequence to each Details simulation request. The server reads a detached graph
-and settings snapshot, releases database coordination, then calls
-`skilltree/features/details/simulation_service.py`. At most two calculations sample concurrently; newer
-requests cancel older work between chunks. The client only displays a response
-matching its current request, including when server responses arrive out of order.
-
-Inputs that also change the Details graph first issue a node-less cancellation
-request. `assets/details/details_deferred_subtasks.js` releases the real simulation
-request only after the newest layout generation has stopped and stayed quiet,
-keeping sampling and chart serialization out of the animation-critical window.
-The status remains `Calculating…` and stale results stay hidden while waiting.
-A frozen canvas bypasses this gate because it intentionally emits no layout
-events; simulation-only inputs such as time units and settings remain immediate.
-
-A payload that starts no layout would leave that wait open for good. A filter
-change can send back the selected subtree's nodes and edges unchanged, such as
-a context with no nodes in it, and the layout request skips that payload like
-the echo. So `settleUnchanged()` in `assets/canvas/layout_requests.js` runs on the
-same payload, before the request records it, and applies the same signature
-check. When no layout will run, `releaseUnchanged()` sends the settled token
-itself, through `set_props`. It does nothing on a frozen
-canvas, which already bypasses the gate, or on a replacement Cytoscape
-instance, which will lay the payload out. It also defers while
-`detailsLayoutSettling()` reports an earlier layout still running, because that
-layout's own release will clear the wait.
-
-The service retains at most 16 compact histogram/statistic summaries and 128
-session sequence records. Cache keys include relevant node times/statuses,
-relationships and effective trial count. Sampling uses a private deterministic
-generator, so cache eviction does not cause an unchanged estimate to jump.
-See [time.md](time.md) for the calculation budget and precision tradeoff.
+- **A feature:** a package under `features/` with `layout.py` and `callbacks.py`, its register function in `create_app`'s list, its layout in `shell.py`, and its tests in `tests/features/<name>/`.
+- **A setting:** one `Setting` in `store/settings.py`, and a sample value in `tests/store/test_setting_registry.py`.
+- **A canvas:** an entry in `CANVASES`. The Python and the assets that act on every canvas pick it up.
+- **A scoring field:** the `Node` field, and its name in `SCORING_RELEVANT_FIELDS`.
+- **An editor field:** `EDITOR_FORM`, `NEW_NODE_SNAPSHOT`, `build_editor_snapshot` and `EDITOR_FILL`, under one key.
+- **A core engine action:** a handler in `engine/handlers.py`. Its outputs are `CoreResponse` fields, set by name.
+- **A clientside callback:** a function in its feature's asset, referenced with `ClientsideFunction`.

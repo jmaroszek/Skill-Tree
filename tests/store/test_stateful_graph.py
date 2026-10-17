@@ -18,7 +18,7 @@ every step:
 - a read snapshot, which callbacks share, holds what direct reads see.
 
 It runs 25 sequences by default, to keep CI quick. For a deep run:
-    STATEFUL_EXAMPLES=300 pytest tests/test_stateful_graph.py
+    STATEFUL_EXAMPLES=300 pytest tests/store/test_stateful_graph.py
 """
 import math
 import os
