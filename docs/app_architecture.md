@@ -253,6 +253,7 @@ Layout requests (`assets/canvas/layout_requests.js`, one clientside callback per
 
 - A request randomizes only its first run. Later runs are transitions from the current positions.
 - Before an incremental run, a node at the origin starts beside the placed nodes it links to. A canvas that is more than half piled up is randomized instead.
+- A run is randomized too when the nodes added and removed since the last layout outnumber half the larger view. A filter that swaps out most of the graph gets a fresh layout without a Settle.
 - After any run, a drawing of 8 or more nodes that came out flat gets one automatic Settle.
 - Trees and forests lay out with CoSE, everything else with fCoSE. fCoSE's seed puts a chain on a line.
 - Past 500 nodes, fCoSE runs at `default` quality instead of `proof`.

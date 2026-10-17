@@ -524,7 +524,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 | Edge Length | The length of the springs between connected nodes. |
 | Gravity | How strongly nodes are pulled toward the center. |
 | Repulsion | How hard nodes push away from each other. |
-| Settle | Re-run the layout physics to untangle the graph. |
+| Settle | Re-run the layout physics to untangle the graph. A filter change that swaps out more than half the nodes on screen gets a fresh layout on its own. |
 | Max Depth | *Details tab only.* How many relationship steps out the local view reaches. Unlike the controls above it, this one is not just about layout — it also limits the Subtasks table, Milestones and time simulation. |
 | Nodes outside event | *Events tab only.* Shows nodes outside the event that link to its nodes. Turn it off to see only the event's own nodes and the links between them. The app remembers your choice. |
 

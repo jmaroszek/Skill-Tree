@@ -510,7 +510,8 @@ PLACED_CY = r'''
 // A Cytoscape stand-in with positions: `placed` maps ids to positions,
 // `arriving` lists ids at the origin, and `edges` joins them. layout() records
 // what each run received, and stop() finishes the newest run with the given
-// positions.
+// positions. show() narrows the nodes on screen to the given ids, as a filter
+// change does.
 function placedCy(placed, arriving = [], edges = []) {
     const nodes = [];
     const byId = {};
@@ -532,10 +533,12 @@ function placedCy(placed, arriving = [], edges = []) {
     }
     Object.entries(placed).forEach(([id, p]) => makeNode(id, p));
     arriving.forEach(id => makeNode(id, {x: 0, y: 0}));
+    let shown = null;
     const cy = {
         runs: [],
         byId,
-        nodes: () => nodes,
+        show(ids) { shown = new Set(ids); },
+        nodes: () => shown ? nodes.filter(node => shown.has(node.id())) : nodes,
         edges: () => [],
         batch: fn => fn(),
         layout(options) {
@@ -606,6 +609,51 @@ for (const key of ['main', 'details', 'events']) {
     cy.layout({name: 'fcose', randomize: false});
     assert.equal(cy.runs[0].randomize, true, key);
 }
+''')
+
+
+def test_a_view_that_mostly_turned_over_lays_out_fresh():
+    """A filter that removes most of a view leaves no newcomers, but the
+    survivors hold positions worked out around nodes that are gone. In the
+    sandbox, adjusting from them kept up to three times the edge crossings of
+    a fresh layout."""
+    _run_async(r'''
+const ids = count => Object.keys(scatter(count)).slice(0, count);
+for (const key of ['main', 'details', 'events']) {
+    const cy = ready(key, placedCy(scatter(10)));
+    cy.layout({name: 'fcose', randomize: false});
+    assert.equal(cy.runs[0].randomize, false, key + ': nothing to compare against yet');
+
+    cy.show(ids(4));
+    cy.layout({name: 'fcose', randomize: false});
+    assert.equal(cy.runs[1].randomize, true, key + ': six of ten removed');
+}
+
+// Exactly half is not more than half.
+let cy = ready('main', placedCy(scatter(10)));
+cy.layout({name: 'fcose', randomize: false});
+cy.show(ids(5));
+cy.layout({name: 'fcose', randomize: false});
+assert.equal(cy.runs[1].randomize, false);
+
+// Both directions count. Nodes a frozen canvas placed as they arrived are no
+// pile, but three out and three in turn over six of ten.
+cy = ready('main', placedCy(scatter(13)));
+cy.show(ids(10));
+cy.layout({name: 'fcose', randomize: false});
+cy.show(['n3', 'n4', 'n5', 'n6', 'n7', 'n8', 'n9', 'n10', 'n11', 'n12']);
+cy.layout({name: 'fcose', randomize: false});
+assert.equal(cy.runs[1].randomize, true);
+
+// Turnover is measured from the last layout, so a run of small changes stays
+// incremental, and a freeze-off layout measures from the frozen drawing.
+cy = ready('main', placedCy(scatter(10)));
+cy.layout({name: 'fcose', randomize: false});
+for (const count of [8, 6, 5]) {
+    cy.show(ids(count));
+    cy.layout({name: 'fcose', randomize: false});
+}
+assert.deepEqual(cy.runs.map(run => run.randomize), [false, false, false, false]);
 ''')
 
 

@@ -383,6 +383,29 @@
         });
     }
 
+    // A filter change that removes most of the view leaves no newcomers, but
+    // the survivors hold positions worked out around nodes that are gone.
+    // Adjusting from there kept the old graph's tangles. In the sandbox,
+    // narrowing the 567-node graph to one context left an incremental run
+    // with up to three times the edge crossings of a fresh one. Changes that
+    // kept most of the view drew nearly as cleanly either way, and the
+    // incremental run kept every node where the user last saw it. So
+    // when the nodes added and removed since the last layout outnumber half
+    // the larger of the two views, the layout starts over, as Settle does.
+    function turnedOver(shown, nodes) {
+        if (!shown) return false;
+        var added = 0;
+        nodes.forEach(function (node) { if (!shown.ids[node.id()]) added += 1; });
+        var removed = shown.count - (nodes.length - added);
+        return (added + removed) * 2 > Math.max(shown.count, nodes.length);
+    }
+
+    function shownNodes(nodes) {
+        var ids = Object.create(null);
+        nodes.forEach(function (node) { ids[node.id()] = true; });
+        return { ids: ids, count: nodes.length };
+    }
+
     // Registered before the other hooks, so it runs after them and sees the
     // randomize each request finally resolved to.
     function resolvePlacement(cy, key) {
@@ -394,13 +417,16 @@
             var nodes = layoutNodes(cy);
             if (nodes && options && options.randomize !== true) {
                 var newcomers = nodes.filter(function (node) { return !isPlaced(node); });
-                if (newcomers.length * 2 > nodes.length) {
+                if (newcomers.length * 2 > nodes.length || turnedOver(cy._skillTreeShown, nodes)) {
                     options = Object.assign({}, options, { randomize: true });
                 } else if (newcomers.length) {
                     var spacing = Number(options.idealEdgeLength) || 100;
                     cy.batch(function () { placeNewcomers(nodes, newcomers, spacing); });
                 }
             }
+            // A frozen canvas stops this run, but its nodes are still the
+            // ones on screen, so the freeze-off layout measures from them.
+            if (nodes) cy._skillTreeShown = shownNodes(nodes);
             var run = next(options);
             settleIfFlat(cy, key, run);
             return run;

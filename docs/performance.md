@@ -210,6 +210,16 @@ measured 0.23, and with 45% of the view piled, 0.47. A healthy drawing measures
 0.8 to 0.9. CoSE breaks the tie itself and never went flat. Seeding each piled
 node beside its placed neighbors brought the same piles to 0.85 to 0.93.
 
+A filter that removes most of a view leaves no pile, but the survivors keep
+positions worked out around nodes that are gone (2026-10-17, 567-node sandbox).
+Narrowed to one context, an incremental run kept the old graph's tangles: 67
+edge crossings against a fresh run's 23 for Wisdom, 166 against 85 for STEM.
+Filters that turned over a quarter to a third of the view came out within
+about 20% of a fresh run's crossings, and from 37% to 48%, comparable by eye.
+So a layout starts fresh when the nodes added and removed since the last one
+outnumber half the larger view. A Learn-only view, at 44%, stays incremental,
+and drops its grid of orphaned nodes in the middle of the graph.
+
 ## CoSE or fCoSE, proof or default
 
 fCoSE seeds its layout from the top two eigenvectors of the view's squared
