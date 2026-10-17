@@ -5,7 +5,7 @@ import dash
 
 from skilltree.store import database
 from skilltree.features.settings import callbacks as settings_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.settings import draft as settings_draft
 from skilltree.features.settings import contexts as settings_contexts
 from skilltree.services import AppServices
@@ -33,20 +33,20 @@ def _callbacks():
 def _draft(callbacks):
     save = callbacks['save_settings']
     args = dict.fromkeys(inspect.signature(save).parameters)
-    ts = ConfigManager.get_time_settings()
-    formatting = ConfigManager.get_name_formatting()
+    ts = settings.TIME_SETTINGS.get()
+    formatting = settings.NAME_FORMATTING.get()
     args.update(
         n_clicks='close-1', hpw=ts['hours_per_week'], hpm=ts['hours_per_month'],
-        hp_profile=ConfigManager.get_hp_profile(), name_format_mode=formatting['mode'],
+        hp_profile=settings.HP_PROFILE.get(), name_format_mode=formatting['mode'],
         linter_exclusions_val=', '.join(formatting['exclusions']),
-        show_scoring_perf_val=['enabled'] if ConfigManager.get_show_scoring_perf() else [],
-        time_calibration_val=['enabled'] if ConfigManager.get_time_calibration_enabled() else [],
-        now_node_cap_val=ConfigManager.get_now_node_cap(),
-        context_sort_mode_val=ConfigManager.get_context_sort_mode(),
-        subcontext_sort_mode_val=ConfigManager.get_subcontext_sort_mode(),
+        show_scoring_perf_val=['enabled'] if settings.SHOW_SCORING_PERF.get() else [],
+        time_calibration_val=['enabled'] if settings.TIME_CALIBRATION_ENABLED.get() else [],
+        now_node_cap_val=settings.NOW_NODE_CAP.get(),
+        context_sort_mode_val=settings.CONTEXT_SORT_MODE.get(),
+        subcontext_sort_mode_val=settings.SUBCONTEXT_SORT_MODE.get(),
         editor_store=settings_contexts.editor_state(GraphManager()),
         section_store=settings_callbacks.get_sections(),
-        backup_extra_dir=ConfigManager.get_backup_extra_dir())
+        backup_extra_dir=settings.BACKUP_EXTRA_DIR.get())
     return args
 
 
@@ -56,7 +56,7 @@ def _stored():
 
 
 def test_unchanged_close_writes_nothing_and_preserves_profile_overrides(monkeypatch):
-    ConfigManager.set_hyperparams({'gamma': 1.25})
+    settings.set_hyperparams({'gamma': 1.25})
     callbacks = _callbacks()
     args = _draft(callbacks)
     before = _stored()
@@ -64,13 +64,14 @@ def test_unchanged_close_writes_nothing_and_preserves_profile_overrides(monkeypa
     def unexpected(*_args):
         raise AssertionError('an unchanged close attempted a write')
 
-    monkeypatch.setattr(ConfigManager, '_set_db_value', unexpected)
+    monkeypatch.setattr(settings, 'write_stored', unexpected)
+    monkeypatch.setattr(settings, 'clear_stored', unexpected)
     monkeypatch.setattr(settings_draft, 'save_sections', unexpected)
     result = callbacks['save_settings'](**args)
     assert result[5] is False and result[6] == 'close-1'
     assert result[0] is dash.no_update
     assert _stored() == before
-    assert ConfigManager.get_hyperparams()['gamma'] == 1.25
+    assert settings.hyperparams()['gamma'] == 1.25
 
 
 def test_successful_close_commits_all_fields_and_acknowledges_request():
@@ -80,20 +81,20 @@ def test_successful_close_commits_all_fields_and_acknowledges_request():
     result = callbacks['save_settings'](**args)
     assert result[0] == 'Settings saved' and result[5] is False
     assert result[6] == 'close-1'
-    assert ConfigManager.get_now_node_cap() == 7
-    assert ConfigManager.get_hp_profile() == 'Explorer'
-    assert ConfigManager.get_time_settings()['hours_per_week'] == 17.5
+    assert settings.NOW_NODE_CAP.get() == 7
+    assert settings.HP_PROFILE.get() == 'Explorer'
+    assert settings.TIME_SETTINGS.get()['hours_per_week'] == 17.5
 
 
 def test_hour_equivalents_default_on_and_round_trip_with_capacity():
     # Older settings have no preference yet; the default still applies.
-    ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
-    assert ConfigManager.get_time_settings()['show_hour_equivalents'] is True
+    settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
+    assert settings.TIME_SETTINGS.get()['show_hour_equivalents'] is True
     callbacks = _callbacks()
     args = _draft(callbacks)
     args.update(show_hour_equivalents_val=[], hpw=17.5, hpm=70)
     assert callbacks['save_settings'](**args)[5] is False
-    assert ConfigManager.get_time_settings() == {
+    assert settings.TIME_SETTINGS.get() == {
         'hours_per_week': 17.5, 'hours_per_month': 70, 'show_hour_equivalents': False,
     }
     assert callbacks['load_settings'](True)[-2] == []
@@ -101,7 +102,7 @@ def test_hour_equivalents_default_on_and_round_trip_with_capacity():
     args = _draft(callbacks)
     args['show_hour_equivalents_val'] = ['enabled']
     assert callbacks['save_settings'](**args)[5] is False
-    assert ConfigManager.get_time_settings()['show_hour_equivalents'] is True
+    assert settings.TIME_SETTINGS.get()['show_hour_equivalents'] is True
     assert callbacks['load_settings'](True)[-2] == ['enabled']
 
 

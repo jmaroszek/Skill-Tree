@@ -6,7 +6,7 @@ tooltip text, which quotes the live hour rates, and the heading that carries it.
 """
 
 from skilltree.ui.components import duration as duration_ui
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.components.duration import time_estimates_heading, work_time_tooltip, work_time_unit_items
 
 DEFAULT_RATES = {"hours_per_week": 20, "hours_per_month": 80}
@@ -36,9 +36,8 @@ class TestUnitsLine:
                          "1 year = 1,820 hours"]
 
     def test_the_app_reads_the_saved_settings(self, temp_database):
-        settings = dict(ConfigManager.get_time_settings())
-        settings.update(hours_per_week=10, hours_per_month=40)
-        ConfigManager.set_time_settings(settings)
+        settings.TIME_SETTINGS.set({**settings.TIME_SETTINGS.get(),
+                                    'hours_per_week': 10, 'hours_per_month': 40})
         assert (work_time_unit_items()
                 == ["1 day = 1.4 hours", "1 week = 10 hours", "1 month = 40 hours",
                     "1 year = 520 hours"])

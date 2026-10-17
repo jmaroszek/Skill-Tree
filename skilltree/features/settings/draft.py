@@ -1,27 +1,30 @@
 """A Settings draft: which settings it changes, and writing them in one go."""
 from skilltree.store.resources import get_sections, live_sections, save_sections
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 # The same complete draft is committed after an ordinary close or after the
 # migration dialog. Validation and migration planning happen before any write.
-_SETTING_METHODS = {
-    'hp_profile': 'hp_profile', 'ts': 'time_settings',
-    'contexts': 'contexts', 'subcontexts': 'subcontexts',
-    'context_weights': 'context_weights', 'shapes': 'node_shapes',
-    'colors': 'node_colors', 'name_formatting': 'name_formatting',
-    'show_scoring_perf': 'show_scoring_perf',
-    'time_calibration_enabled': 'time_calibration_enabled',
-    'now_node_cap': 'now_node_cap', 'subcontext_sort_mode': 'subcontext_sort_mode',
-    'context_sort_mode': 'context_sort_mode', 'backup_extra_dir': 'backup_extra_dir',
+# Each draft key, and the setting it holds.
+_DRAFT_SETTINGS = {
+    'hp_profile': settings.HP_PROFILE, 'ts': settings.TIME_SETTINGS,
+    'contexts': settings.CONTEXTS, 'subcontexts': settings.SUBCONTEXTS,
+    'context_weights': settings.CONTEXT_WEIGHTS, 'shapes': settings.NODE_SHAPES,
+    'colors': settings.NODE_COLORS, 'name_formatting': settings.NAME_FORMATTING,
+    'show_scoring_perf': settings.SHOW_SCORING_PERF,
+    'time_calibration_enabled': settings.TIME_CALIBRATION_ENABLED,
+    'now_node_cap': settings.NOW_NODE_CAP,
+    'subcontext_sort_mode': settings.SUBCONTEXT_SORT_MODE,
+    'context_sort_mode': settings.CONTEXT_SORT_MODE,
+    'backup_extra_dir': settings.BACKUP_EXTRA_DIR,
 }
 
 
 def changed_settings(draft):
     changed = {}
-    for key, method in _SETTING_METHODS.items():
+    for key, setting in _DRAFT_SETTINGS.items():
         if key not in draft:
             continue
-        current = getattr(ConfigManager, 'get_' + method)()
+        current = setting.get()
         if key == 'context_weights':
             # Missing weights already mean 1. Opening/closing the modal must
             # not turn those defaults into an edit or clear profile overrides.
@@ -40,8 +43,8 @@ def normalized_sections(rows):
 
 def apply_settings(draft):
     for key, value in changed_settings(draft).items():
-        getattr(ConfigManager, 'set_' + _SETTING_METHODS[key])(value)
+        _DRAFT_SETTINGS[key].set(value)
         if key == 'hp_profile':
-            ConfigManager.clear_hyperparams()
+            settings.clear_hyperparams()
     if (normalized_sections(draft['resource_sections']) != get_sections()):
         save_sections(draft['resource_sections'])

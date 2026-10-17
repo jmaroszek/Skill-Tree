@@ -11,7 +11,8 @@ from skilltree.domain.time import (
     friendly_unit,
     unit_for,
 )
-from skilltree.store.settings import DEFAULT_TIME_SETTINGS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_TIME_SETTINGS
 from skilltree.ui.kit import Tooltip
 
 _BRACKET_HINTS = {
@@ -41,11 +42,11 @@ def work_time_unit_items(time_settings=None):
     tests; the app passes nothing and gets the live values.
     """
     if time_settings is None:
-        per_unit = {unit: ConfigManager.get_time_multiplier(unit)
+        per_unit = {unit: settings.time_multiplier(unit)
                     for unit in ("days", "weeks", "months", "years")}
     else:
-        settings = {**DEFAULT_TIME_SETTINGS, **time_settings}
-        week, month = settings["hours_per_week"], settings["hours_per_month"]
+        given = {**DEFAULT_TIME_SETTINGS, **time_settings}
+        week, month = given["hours_per_week"], given["hours_per_month"]
         per_unit = {"days": week / DAYS_PER_WEEK, "weeks": week,
                     "months": month, "years": HOURS_PER_YEAR_MULT * month}
     return [f"1 {unit[:-1]} = {_compact_hours(hours)} {'hour' if hours == 1 else 'hours'}"
@@ -290,7 +291,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
 
 def _time_settings(time_settings=None):
     if time_settings is None:
-        return ConfigManager.get_time_settings()
+        return settings.TIME_SETTINGS.get()
     return {**DEFAULT_TIME_SETTINGS, **time_settings}
 
 

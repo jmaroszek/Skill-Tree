@@ -8,7 +8,7 @@ import pytest
 
 from skilltree.store import backup
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.store import schema
@@ -100,7 +100,7 @@ class TestBackups:
     def test_backups_can_be_mirrored_to_an_extra_folder(self, tmp_path):
         extra = tmp_path / "Synced"
         extra.mkdir()
-        ConfigManager.set_backup_extra_dir(str(extra))
+        settings.BACKUP_EXTRA_DIR.set(str(extra))
         GraphManager().add_node(_node("Sleep"))
 
         path = backup.run_daily_backup()
@@ -109,17 +109,17 @@ class TestBackups:
 
     def test_automatic_backups_can_be_switched_off(self):
         GraphManager().add_node(_node("Sleep"))
-        ConfigManager.set_auto_backup(False)
+        settings.AUTO_BACKUP.set(False)
 
         assert backup.run_daily_backup() is None
         assert backup.list_backups("daily") == []
         assert backup.create_backup("manual") is not None
 
-        ConfigManager.set_auto_backup(True)
+        settings.AUTO_BACKUP.set(True)
         assert backup.run_daily_backup() is not None
 
     def test_an_unreachable_extra_folder_does_not_stop_the_backup(self, tmp_path):
-        ConfigManager.set_backup_extra_dir(str(tmp_path / "Unmounted"))
+        settings.BACKUP_EXTRA_DIR.set(str(tmp_path / "Unmounted"))
         GraphManager().add_node(_node("Sleep"))
 
         assert backup.run_daily_backup() is not None

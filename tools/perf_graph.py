@@ -46,7 +46,8 @@ def build(path, nodes=1000, seed=7):
     database.get_db_path = lambda: str(path)
     schema.init_db(recheck=True)
 
-    from skilltree.store.settings import ConfigManager, DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
+    from skilltree.store import settings
+    from skilltree.store.settings import DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
     from skilltree.services import AppServices
     from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Event, Node,
                         STATUS_DONE, STATUS_OPEN)
@@ -87,9 +88,9 @@ def build(path, nodes=1000, seed=7):
             hard_prereqs.setdefault(target, set()).add(source)
 
     with database.transaction():
-        ConfigManager.set_contexts(list(DEFAULT_CONTEXTS))
-        ConfigManager.set_subcontexts({k: list(v) for k, v in DEFAULT_SUBCONTEXTS.items()})
-        ConfigManager.set_welcome_done(True)
+        settings.CONTEXTS.set(list(DEFAULT_CONTEXTS))
+        settings.SUBCONTEXTS.set({k: list(v) for k, v in DEFAULT_SUBCONTEXTS.items()})
+        settings.WELCOME_DONE.set(True)
 
         work = []
         by_context = {context: [] for context in DEFAULT_CONTEXTS}
@@ -158,7 +159,7 @@ def build(path, nodes=1000, seed=7):
             current = manager.get_node(name)
             current.now = 1
             manager.update_node(current)
-        ConfigManager.set_priority_goals(goals[:3])
+        settings.PRIORITY_GOALS.set(goals[:3])
 
         sleepers = [n for n in work if n not in done and n not in now][-15:]
         for e in range(3):

@@ -61,10 +61,10 @@ def test_the_served_page_opens_behind_the_startup_cover(isolated_app_import):
 
 
 def test_app_records_the_version_that_opened_the_database(isolated_app_import):
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
     from skilltree.runtime.version import __version__
 
-    assert ConfigManager.get_last_app_version() == __version__
+    assert settings.LAST_APP_VERSION.get() == __version__
 
 
 def test_app_title_reflects_environment(isolated_app_import):

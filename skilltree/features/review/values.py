@@ -1,7 +1,7 @@
 """What the time calibration and reflection modal shows: its title and reference
 line, the first unit, the prefilled actuals, and the queue a review walks."""
 from skilltree.domain.models import STATUS_DONE
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.components.duration import hours_to_friendly_unit
 
@@ -91,7 +91,7 @@ def calibration_prepop(node):
     anchor = next((hours for hours in (saved[1], saved[0], saved[2])
                    if hours is not None), None)
     time_unit = calibration_unit_for(node.time if anchor is None else anchor)
-    multiplier = ConfigManager.get_time_multiplier(time_unit)
+    multiplier = settings.time_multiplier(time_unit)
     time_lower, time_point, time_upper = (
         None if hours is None or not multiplier else round(hours / multiplier, 2)
         for hours in saved)

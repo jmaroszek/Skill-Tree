@@ -2,7 +2,8 @@
 import statistics
 from collections import defaultdict
 from datetime import date, timedelta
-from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS
 from skilltree.store.graph.queries import summarize_completion
 from skilltree.domain.models import (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_OPEN,
                     STATUS_BLOCKED, STATUS_DONE)
@@ -286,7 +287,7 @@ def compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_gra
         full_keys.append(cur)
         cur = _next_key(cur)
 
-    per_week = ConfigManager.get_time_settings()['hours_per_week']
+    per_week = settings.TIME_SETTINGS.get()['hours_per_week']
     rows = []
     for k in full_keys:
         groups = buckets.get(k, {})
@@ -359,10 +360,10 @@ def compute_goal_progress(nodes, edges, hard_rev, limits, today=None):
     """
     all_goals = [n for n in nodes if n.type == 'Goal']
     node_map = {n.name: n for n in nodes}
-    priority_goals = ConfigManager.get_priority_goals()
-    hp = ConfigManager.get_hyperparams()
+    priority_goals = settings.PRIORITY_GOALS.get()
+    hp = settings.hyperparams()
     ranked = rank_goals(all_goals, nodes, edges, priority_goals, hp,
-                        context_weights=ConfigManager.get_context_weights())
+                        context_weights=settings.CONTEXT_WEIGHTS.get())
     cutoff = ((today or date.today()) - timedelta(days=RECENT_DAYS)).isoformat()
 
     rows = []

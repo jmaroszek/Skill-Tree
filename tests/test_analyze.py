@@ -10,7 +10,7 @@ import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS
 from skilltree.store.graph.manager import GraphManager
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.analyze.callbacks import (
     adjacency_maps, compute_overview, compute_bottlenecks, compute_goal_progress,
     compute_throughput, compute_reflection_drift, compute_rating_distribution,
@@ -291,7 +291,7 @@ class TestComputeGoalProgress:
             _make_node("Done1", status="Done", done_date="2026-05-01", time_o=1, time_m=1, time_p=1),
             _make_node("Open1", status="Open", time_o=299, time_m=299, time_p=299),
         ], [("Done1", "Goal1", EDGE_NEEDS_HARD), ("Open1", "Goal1", EDGE_NEEDS_HARD)])
-        ConfigManager.set_priority_goals(["Goal1"])
+        settings.PRIORITY_GOALS.set(["Goal1"])
         rows, _ = self._rows(mgr, today=date(2026, 6, 1))
         parts = list(_walk(_render_goal_progress(rows)))
         name = next(p for p in parts if getattr(p, 'className', None) == 'gp-name')
@@ -343,11 +343,11 @@ class TestComputeGoalProgress:
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
         from skilltree.domain.goals import rank_goals
-        hp = ConfigManager.get_hyperparams()
+        hp = settings.hyperparams()
         ranked = rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
-            ConfigManager.get_priority_goals(), hp,
+            settings.PRIORITY_GOALS.get(), hp,
             with_components=True,
         )
         comps = {g.name: c for g, c in ranked}
@@ -374,13 +374,13 @@ class TestComputeGoalProgress:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        hp = ConfigManager.get_hyperparams()
+        hp = settings.hyperparams()
 
         from skilltree.domain.goals import rank_goals
         ranked = rank_goals(
             [n for n in nodes if n.type == 'Goal'],
             nodes, edges,
-            ConfigManager.get_priority_goals(), hp,
+            settings.PRIORITY_GOALS.get(), hp,
             with_components=True,
         )
         comps = {g.name: c for g, c in ranked}
@@ -409,8 +409,8 @@ class TestComputeGoalProgress:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        hp = ConfigManager.get_hyperparams()
-        pgoals = ConfigManager.get_priority_goals()
+        hp = settings.hyperparams()
+        pgoals = settings.PRIORITY_GOALS.get()
 
         from skilltree.domain.goals import rank_goals, explain_goal
         ranked = dict(
@@ -438,8 +438,8 @@ class TestComputeGoalProgress:
         nodes = mgr.get_all_nodes()
         from skilltree.domain.goals import explain_goal
         assert explain_goal("L", nodes, mgr.get_edges(),
-                            ConfigManager.get_hyperparams(),
-                            ConfigManager.get_priority_goals()) is None
+                            settings.hyperparams(),
+                            settings.PRIORITY_GOALS.get()) is None
 
 
 # ============================================================================
@@ -458,7 +458,7 @@ class TestGoalDensityNormalization:
         """
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        hp = ConfigManager.get_hyperparams()
+        hp = settings.hyperparams()
         if hp_overrides:
             hp = {**hp, **hp_overrides}
         from skilltree.domain.goals import rank_goals
@@ -466,7 +466,7 @@ class TestGoalDensityNormalization:
             g.name: c for g, c in rank_goals(
                 [n for n in nodes if n.type == 'Goal'],
                 nodes, edges,
-                ConfigManager.get_priority_goals(), hp,
+                settings.PRIORITY_GOALS.get(), hp,
                 with_components=True,
             )
         }
@@ -611,10 +611,10 @@ class TestGoalDensityNormalization:
         ])
         nodes = mgr.get_all_nodes()
         edges = mgr.get_edges()
-        hp = ConfigManager.get_hyperparams()
+        hp = settings.hyperparams()
         from skilltree.domain.goals import explain_goal
         bd, _ = explain_goal("G1", nodes, edges, hp,
-                             ConfigManager.get_priority_goals())
+                             settings.PRIORITY_GOALS.get())
         ca = bd['context_adjustment']
         assert ca['n_bucket'] == 2
         assert ca['alpha'] == pytest.approx(hp['alpha_goal'])
@@ -725,7 +725,7 @@ class TestRenderRatingDistribution:
                 if 'rd-cell' in (getattr(p, 'className', '') or '')]
         # All nodes, Mind, Logic, Memory: four rows of 3 x 10 cells.
         assert len(tips) == 4 * 30
-        definition = ConfigManager.get_ratings_definitions()[3]['value']
+        definition = settings.RATINGS_DEFINITIONS.get()[3]['value']
         assert f"Mind > Logic\n1 of 1 node has Value 4\n{definition}" in tips
         assert "All nodes\n0 of 2 nodes have Value 1\n" in tips[0]
 
@@ -881,7 +881,7 @@ class TestThroughputCapacity:
 
     @staticmethod
     def _per_day():
-        return ConfigManager.get_time_settings()['hours_per_week'] / 7
+        return settings.TIME_SETTINGS.get()['hours_per_week'] / 7
 
     def test_runs_to_today_with_the_current_month_prorated(self):
         nodes = [_make_node("A", status="Done", done_date="2026-01-15")]

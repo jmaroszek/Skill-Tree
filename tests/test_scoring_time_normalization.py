@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.profiles import (
     DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES,
 )
@@ -93,40 +93,40 @@ class TestStoredSettings:
     def test_a_snapshot_from_an_older_save_is_ignored(self):
         """Settings used to store a copy of its profile. That copy held back
         every later retune, so the profile as the code defines it wins."""
-        ConfigManager._set_db_value("HP_PROFILE", "Glider")
+        settings.write_stored("HP_PROFILE", "Glider")
         for stamp in (None, 4):
             row = {"w_t": 1.0, "beta": 0.85, "w_e": 2.5}
             if stamp:
                 row["_schema"] = stamp
-            ConfigManager._set_db_value("HYPERPARAMS", json.dumps(row))
-            assert ConfigManager.get_hyperparams() == PROFILES["Glider"]
+            settings.write_stored("HYPERPARAMS", json.dumps(row))
+            assert settings.hyperparams() == PROFILES["Glider"]
 
     def test_a_retune_reaches_an_install_that_saved_settings(self, monkeypatch):
-        ConfigManager._set_db_value("HP_PROFILE", "Sage")
-        ConfigManager._set_db_value(
+        settings.write_stored("HP_PROFILE", "Sage")
+        settings.write_stored(
             "HYPERPARAMS", json.dumps({**DEFAULT_HYPERPARAMS, "_schema": 4}))
         monkeypatch.setitem(PROFILES["Sage"], "d_H", 0.7)
-        assert ConfigManager.get_hyperparams()["d_H"] == 0.7
+        assert settings.hyperparams()["d_H"] == 0.7
 
     def test_an_old_profile_name_reads_as_its_new_one(self):
-        ConfigManager._set_db_value("HP_PROFILE", "Sprinter")
-        assert ConfigManager.get_hyperparams() == PROFILES["Glider"]
+        settings.write_stored("HP_PROFILE", "Sprinter")
+        assert settings.hyperparams() == PROFILES["Glider"]
 
     def test_set_hyperparams_overrides_the_profile(self):
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
-        raw = json.loads(ConfigManager._get_db_value("HYPERPARAMS"))
+        settings.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
+        raw = json.loads(settings.read_stored("HYPERPARAMS"))
         assert raw["_schema"] == HYPERPARAMS_SCHEMA_VERSION
-        hp = ConfigManager.get_hyperparams()
+        hp = settings.hyperparams()
         assert hp["w_t"] == 9.0 and "_schema" not in hp
 
     def test_clear_hyperparams_leaves_the_profile(self):
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
-        ConfigManager.clear_hyperparams()
-        assert ConfigManager._get_db_value("HYPERPARAMS") is None
-        assert ConfigManager.get_hyperparams() == DEFAULT_HYPERPARAMS
+        settings.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
+        settings.clear_hyperparams()
+        assert settings.read_stored("HYPERPARAMS") is None
+        assert settings.hyperparams() == DEFAULT_HYPERPARAMS
 
     def test_absent_row_returns_the_default_profile(self):
-        assert ConfigManager.get_hyperparams() == DEFAULT_HYPERPARAMS
+        assert settings.hyperparams() == DEFAULT_HYPERPARAMS
 
     def test_the_rescaled_w_t_reproduces_the_v1_curve(self):
         """The v2 time term with w_t * TIME_REF_HOURS**beta is the v1 term."""
@@ -297,9 +297,9 @@ class TestValueExponent:
             ranked = gateway.calculate_priority_scores(gateway.get_all_nodes())
             return next(node.total_value for node in ranked if node.name == 'P')
 
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 1.0})
+        settings.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 1.0})
         linear = parent_value(manager)
-        ConfigManager.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 2.0})
+        settings.set_hyperparams({**DEFAULT_HYPERPARAMS, 'value_exponent': 2.0})
         refreshed = parent_value(manager)
         assert refreshed > linear
         assert refreshed == pytest.approx(parent_value(GraphManager()))

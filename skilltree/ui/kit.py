@@ -26,7 +26,8 @@ aspirational.
 from dash import html
 import dash_bootstrap_components as dbc
 
-from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.ui.styles import BADGE_PALETTE
 from skilltree.ui.timing import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
@@ -343,7 +344,7 @@ def done_color():
     Three surfaces reached for this with their own inline fallback hex; a
     fallback repeated four times is a value that can drift from its default.
     """
-    return ConfigManager.get_node_colors().get(
+    return settings.NODE_COLORS.get().get(
         STATUS_DONE, DEFAULT_NODE_COLORS[STATUS_DONE])
 
 

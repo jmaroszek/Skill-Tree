@@ -14,7 +14,7 @@ from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunc
 
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.goals.layout import build_goal_card
@@ -40,7 +40,7 @@ def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
         search_lower = search_val.strip().lower()
         goals = [g for g in goals if search_lower in g.name.lower()]
 
-    priority_goals = ConfigManager.get_priority_goals()
+    priority_goals = settings.PRIORITY_GOALS.get()
     completion_cache = {}
     for g in goals:
         completion_cache[g.name] = graph.get_goal_completion(g.name, include_soft=False)
@@ -72,8 +72,8 @@ def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
         edges = graph.get_edges()
         ranked = rank_goals([n for n in all_nodes if n.type == "Goal"],
                             all_nodes, edges, priority_goals,
-                            ConfigManager.get_hyperparams(),
-                            context_weights=ConfigManager.get_context_weights(),
+                            settings.hyperparams(),
+                            context_weights=settings.CONTEXT_WEIGHTS.get(),
                             with_scores=True)
         rank_order = {g.name: index for index, (g, _) in enumerate(ranked)}
         goals.sort(key=lambda g: rank_order[g.name])
@@ -231,7 +231,7 @@ def register_goals_callbacks(app, services):
             # The manual order comes from the database, not the store. The
             # store is loaded with the page and only written by a drag, while
             # renames and deletes keep the saved order current.
-            return _goal_list(graph_manager, search_val, sort_mode, ConfigManager.get_goal_order(),
+            return _goal_list(graph_manager, search_val, sort_mode, settings.GOAL_ORDER.get(),
                               selected_node)
 
 
@@ -258,13 +258,13 @@ def register_goals_callbacks(app, services):
         if action in ('1', '2', '3') and (
                 goal is None or goal.type != "Goal" or goal.status == STATUS_DONE):
             return no_update
-        priority_goals = ConfigManager.get_priority_goals()
+        priority_goals = settings.PRIORITY_GOALS.get()
         if goal_name in priority_goals:
             priority_goals.remove(goal_name)
         if action in ('1', '2', '3'):
             rank_idx = min(int(action) - 1, len(priority_goals))
             priority_goals.insert(rank_idx, goal_name)
-        ConfigManager.set_priority_goals(priority_goals)
+        settings.PRIORITY_GOALS.set(priority_goals)
         return f'goal-priority-{time.time()}'
 
     # --- Goal Drag Reorder ---
@@ -283,10 +283,10 @@ def register_goals_callbacks(app, services):
         # The drag reorders the cards it shows, within the saved order. The
         # pinned priority Goals lead the list whatever that order says, so
         # their places in it aren't the drag's to change.
-        pinned = set(ConfigManager.get_priority_goals()[:3])
-        order = merge_manual_order(ConfigManager.get_goal_order(),
+        pinned = set(settings.PRIORITY_GOALS.get()[:3])
+        order = merge_manual_order(settings.GOAL_ORDER.get(),
                                    [name for name in shown if name not in pinned])
-        ConfigManager.set_goal_order(order)
+        settings.GOAL_ORDER.set(order)
         return order
 
     # A card click selects its goal in Details. Selection only changes card

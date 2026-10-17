@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import json
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import score_nodes, variety_divisors
@@ -179,20 +179,20 @@ def test_an_actionable_now_node_pins_nothing(monkeypatch):
 def test_the_named_profile_decides_without_writing(profile):
     raw = json.dumps(dict(_schema=3, alpha=.8, alpha_goal=.42, w_t=6,
                           future_work_half_credit_hours=444, future_work_exponent=.7))
-    ConfigManager._set_db_value('HYPERPARAMS', raw)
-    ConfigManager._set_db_value('HP_PROFILE', profile)
-    hp = ConfigManager.get_hyperparams()
+    settings.write_stored('HYPERPARAMS', raw)
+    settings.write_stored('HP_PROFILE', profile)
+    hp = settings.hyperparams()
     assert 'alpha' not in hp
     assert hp == PROFILES.get(profile, PROFILES['Sage'])
-    assert ConfigManager._get_db_value('HYPERPARAMS') == raw
+    assert settings.read_stored('HYPERPARAMS') == raw
 
 
 @pytest.mark.parametrize('old,new', [('Curious','Explorer'), ('Sprinter','Glider'), ('Industrious','Pragmatist'),
                                      ('Compounder','Investor')])
 def test_legacy_profile_alias_migrates_without_write(old, new):
-    ConfigManager._set_db_value('HP_PROFILE', old)
-    ConfigManager._set_db_value('HYPERPARAMS', json.dumps({'_schema': 3}))
-    hp = ConfigManager.get_hyperparams()
+    settings.write_stored('HP_PROFILE', old)
+    settings.write_stored('HYPERPARAMS', json.dumps({'_schema': 3}))
+    hp = settings.hyperparams()
     assert hp['suggestion_context_premium'] == PROFILES[new]['suggestion_context_premium']
     assert hp['suggestion_subcontext_premium'] == PROFILES[new]['suggestion_subcontext_premium']
-    assert ConfigManager._get_db_value('HP_PROFILE') == old
+    assert settings.read_stored('HP_PROFILE') == old

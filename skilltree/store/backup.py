@@ -22,7 +22,7 @@ from typing import List, Optional
 
 from skilltree.store import database
 from skilltree.runtime.paths import get_log_dir
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +201,7 @@ def mirror(path) -> Optional[Path]:
     A missing or unreachable folder (a cloud drive that isn't mounted, say) is
     logged and skipped: the local backup already exists.
     """
-    extra = (ConfigManager.get_backup_extra_dir() or "").strip()
+    extra = (settings.BACKUP_EXTRA_DIR.get() or "").strip()
     if not path or not extra:
         return None
     target_dir = Path(extra)
@@ -226,7 +226,7 @@ def run_daily_backup(now=None) -> Optional[Path]:
     user has switched automatic backups off. Never raises; a failed backup is
     logged and must not stop the app."""
     try:
-        if not ConfigManager.get_auto_backup():
+        if not settings.AUTO_BACKUP.get():
             return None
         today = (now or datetime.now()).date()
         if any(info["when"].date() == today for info in list_backups("daily")):

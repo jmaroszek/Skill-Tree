@@ -21,7 +21,7 @@ from skilltree.store.commands import (
     ReopensDoneNodes, conflicting_node_name, handle_delete, handle_group_delete,
     handle_toggle_done,
 )
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
@@ -137,7 +137,7 @@ def save(request):
     ed_style = request.sidebars[0]
     name = form.get('name')
     if name and name.strip():
-        name = format_name(name.strip(), ConfigManager.get_name_formatting())
+        name = format_name(name.strip(), settings.NAME_FORMATTING.get())
     if not name or not name.strip():
         # Only show the error if the user has filled in something meaningful.
         # A blank form means they changed their mind after New Node: close.

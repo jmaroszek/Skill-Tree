@@ -7,7 +7,8 @@ import dash_bootstrap_components as dbc
 from skilltree.features.onboarding import steps as onboarding
 import copy
 
-from skilltree.store.settings import DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_CONTEXTS, DEFAULT_SUBCONTEXTS
 
 
 def register_onboarding_callbacks(app, services):
@@ -25,15 +26,15 @@ def register_onboarding_callbacks(app, services):
         choice = dash.ctx.triggered_id
         if choice not in ("btn-welcome-suggested", "btn-welcome-empty", "btn-welcome-import"):
             return no_update, no_update, no_update, no_update
-        ConfigManager.set_welcome_done(True)
+        settings.WELCOME_DONE.set(True)
         if choice == "btn-welcome-suggested":
             # Saved, so a later edit to the suggestions leaves this list alone.
-            ConfigManager.set_contexts(list(DEFAULT_CONTEXTS))
-            ConfigManager.set_subcontexts(copy.deepcopy(DEFAULT_SUBCONTEXTS))
+            settings.CONTEXTS.set(list(DEFAULT_CONTEXTS))
+            settings.SUBCONTEXTS.set(copy.deepcopy(DEFAULT_SUBCONTEXTS))
         if choice == "btn-welcome-empty":
             # Every node needs a context, so "none" is one plain one to rename.
-            ConfigManager.set_contexts(["General"])
-            ConfigManager.set_subcontexts({"General": []})
+            settings.CONTEXTS.set(["General"])
+            settings.SUBCONTEXTS.set({"General": []})
             # The context pickers were built with the old list.
             return False, "reload", no_update, no_update
         if choice == "btn-welcome-import":
@@ -55,7 +56,7 @@ def register_onboarding_callbacks(app, services):
         Input("graph-version-store", "data"),
     )
     def render_getting_started(_version):
-        if ConfigManager.get_getting_started_dismissed():
+        if settings.GETTING_STARTED_DISMISSED.get():
             return None
         steps = onboarding.getting_started(services.graph)
         if all(step.done for step in steps):
@@ -71,7 +72,7 @@ def register_onboarding_callbacks(app, services):
     def dismiss_getting_started(clicks):
         if not any(clicks or []):
             return no_update
-        ConfigManager.set_getting_started_dismissed(True)
+        settings.GETTING_STARTED_DISMISSED.set(True)
         return None
 
 

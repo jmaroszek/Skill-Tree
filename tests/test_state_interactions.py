@@ -10,7 +10,7 @@ from skilltree.engine import callbacks
 from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store import events as event_manager
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from editor_forms import call
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
@@ -163,7 +163,7 @@ def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
 
 def test_add_to_event_ends_now_and_cannot_bypass_cap_on_wake(handlers):
     manager = graph('A', 'B')
-    ConfigManager.set_now_node_cap(1)
+    settings.NOW_NODE_CAP.set(1)
     item = manager.get_node('A')
     item.now = 1
     manager.update_node(item)
@@ -182,7 +182,7 @@ def test_add_to_event_ends_now_and_cannot_bypass_cap_on_wake(handlers):
 
 def test_event_now_intent_still_obeys_cap_after_sleeping(handlers):
     manager = graph('A', 'B')
-    ConfigManager.set_now_node_cap(1)
+    settings.NOW_NODE_CAP.set(1)
     handlers['handle_now_trigger']('["A"]|1')
     events = EventManager(GraphManager())
     events.add_event(Event('Later'))
@@ -252,7 +252,7 @@ def test_removing_the_blocker_and_completing_is_one_valid_save():
 @pytest.mark.parametrize('existing', [False, True])
 def test_new_blocker_and_completion_refuse_the_entire_save(handlers, monkeypatch, existing):
     manager = graph('A', *(['B'] if existing else []))
-    ConfigManager.set_time_calibration_enabled(True)
+    settings.TIME_CALIBRATION_ENABLED.set(True)
     result = run_core(handlers, monkeypatch, name='B',
                       original_name='B' if existing else None,
                       status_done=['Done'], e_needs_h=['A'])
@@ -465,7 +465,7 @@ def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, s
                       if getattr(spec.get('callback'), '__name__', None) == name)
     handler = registered.__wrapped__  # Dash's wrapper, then ours
     manager = graph('A', 'B')
-    ConfigManager.set_now_node_cap(1)
+    settings.NOW_NODE_CAP.set(1)
     original = GraphManager.update_node
 
     def slow_update(self, node, *a, **kw):

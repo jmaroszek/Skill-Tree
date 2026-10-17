@@ -6,7 +6,7 @@ from dash import Input, Output, no_update
 
 from skilltree.domain.models import STATUS_DONE
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 
 
@@ -58,7 +58,7 @@ def register_now_callbacks(app, services):
                     node.now = 0
                     current_count -= 1
                 elif wants_now and node.now <= 0:
-                    if current_count >= ConfigManager.get_now_node_cap():
+                    if current_count >= settings.NOW_NODE_CAP.get():
                         refused_any = True
                         continue  # Cap reached — skip this set-Now.
                     max_now += 1
@@ -99,7 +99,7 @@ def register_now_callbacks(app, services):
         # the cap.
         if trigger.startswith("error|"):
             return True, trigger.split("|", 2)[2], "Couldn't change Now"
-        cap = ConfigManager.get_now_node_cap()
+        cap = settings.NOW_NODE_CAP.get()
         return True, f"{cap} Now nodes is the cap. Clear one to make room.", "Now Cap Reached"
 
     # --- Drag and drop reordering of Now cards ---

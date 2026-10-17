@@ -11,7 +11,8 @@ from dash import dcc, html
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT
 from skilltree.features.analyze.data import RECENT_DAYS, REFLECTION_MIN_N, TYPE_ORDER
-from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS
 from skilltree.ui import kit as ui_kit
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
@@ -120,9 +121,9 @@ def _friendly_xticks(max_val: float) -> tuple[list, list]:
     """
     if max_val <= 0:
         return [0], ["0h"]
-    settings = ConfigManager.get_time_settings()
-    hw = max(1, settings['hours_per_week'])
-    hm = max(1, settings['hours_per_month'])
+    time_settings = settings.TIME_SETTINGS.get()
+    hw = max(1, time_settings['hours_per_week'])
+    hm = max(1, time_settings['hours_per_month'])
     hy = HOURS_PER_YEAR_MULT * hm
     hd = hw / DAYS_PER_WEEK
 
@@ -330,7 +331,7 @@ def render_estimation_accuracy(rows):
             className="text-muted small")])
 
     fmt = format_time_friendly
-    colors = ConfigManager.get_node_colors()
+    colors = settings.NODE_COLORS.get()
 
     all_vals = [r['estimate'] for r in rows] + [r['actual'] for r in rows]
     lo = min(v for v in all_vals if v > 0) * 0.7
@@ -841,7 +842,7 @@ def render_rating_distribution(dist):
         return _card([html.P("No open rated nodes.",
                              className="text-muted small mb-0")])
 
-    defs = {d['rating']: d for d in ConfigManager.get_ratings_definitions()}
+    defs = {d['rating']: d for d in settings.RATINGS_DEFINITIONS.get()}
     header = [html.Div()]
     for i, (_, name) in enumerate(_RATING_METRICS):
         header.append(html.Div([

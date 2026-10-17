@@ -11,7 +11,8 @@ from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.graph import queries as graph_queries
 from skilltree.domain.contexts import compute_orphaned_subcontext_pairs
-from skilltree.store.settings import ConfigManager, DEFAULT_NODE_TYPES
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_TYPES
 from skilltree.domain.profiles import DEFAULT_HYPERPARAMS
 from skilltree.domain.scoring import (intrinsic_value, perceived_cost, is_eligible, build_adjacency,
                      total_value, score_nodes, explain_score, TIME_REF_HOURS)
@@ -186,7 +187,7 @@ class TestNodeCRUD:
         assert len(mgr.get_edges()) == 0
 
     def test_delete_node_full_reference_cleanup(self, mgr):
-        """Pinning the implicit FK-CASCADE + ConfigManager.delete_node_references
+        """Pinning the implicit FK-CASCADE + settings.NODE_NAME_SETTINGS
         contract: every table or settings list that references the deleted node
         must have no trace of it after delete_node returns."""
         from skilltree.store.events import EventManager
@@ -205,7 +206,7 @@ class TestNodeCRUD:
         em.add_event(Event(name="EvtX", trigger_nodes=["X"]))
         mgr.add_node(_make_node("Dormant", status="Open"))
         em.add_node_to_event("EvtX", "Dormant", delay_days=0)
-        ConfigManager.set_priority_goals(["X"])
+        settings.PRIORITY_GOALS.set(["X"])
 
         mgr.delete_node("X")
 
@@ -226,7 +227,7 @@ class TestNodeCRUD:
         assert evt is not None
         assert evt.trigger_nodes == []
         # Priority goals list cleaned
-        assert "X" not in ConfigManager.get_priority_goals()
+        assert "X" not in settings.PRIORITY_GOALS.get()
 
     def test_get_all_nodes(self, mgr):
         mgr.add_node(_make_node("A"))
@@ -1562,27 +1563,27 @@ class TestScoringFunctions:
 
 
 # ============================================================================
-# ConfigManager
+# Settings
 # ============================================================================
 
-class TestConfigManager:
+class TestSettings:
     def test_default_node_types(self):
-        assert ConfigManager.get_node_types() == DEFAULT_NODE_TYPES
+        assert settings.NODE_TYPES.get() == DEFAULT_NODE_TYPES
 
     def test_set_and_get_node_types(self):
         custom = ["Alpha", "Beta"]
-        ConfigManager.set_node_types(custom)
-        assert ConfigManager.get_node_types() == custom
+        settings.NODE_TYPES.set(custom)
+        assert settings.NODE_TYPES.get() == custom
 
     def test_set_and_get_contexts(self):
         custom = ["Work", "Play"]
-        ConfigManager.set_contexts(custom)
-        assert ConfigManager.get_contexts() == custom
+        settings.CONTEXTS.set(custom)
+        assert settings.CONTEXTS.get() == custom
 
     def test_set_and_get_subcontexts(self):
         custom = {"Mind": ["Rational", "Sensory"], "Body": ["Stress"]}
-        ConfigManager.set_subcontexts(custom)
-        assert ConfigManager.get_subcontexts() == custom
+        settings.SUBCONTEXTS.set(custom)
+        assert settings.SUBCONTEXTS.get() == custom
 
     def test_subcontexts_invalid_json_returns_empty(self):
         # Manually write bad data
@@ -1590,16 +1591,16 @@ class TestConfigManager:
         with get_connection() as conn:
             conn.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)", ("SUBCONTEXTS", "not valid json"))
             conn.commit()
-        assert ConfigManager.get_subcontexts() == {}
+        assert settings.SUBCONTEXTS.get() == {}
 
     def test_subcontexts_list_returns_empty(self):
         # Legacy format was a list, should return {} for safety
-        ConfigManager._set_db_value("SUBCONTEXTS", '["a", "b"]')
-        assert ConfigManager.get_subcontexts() == {}
+        settings.write_stored("SUBCONTEXTS", '["a", "b"]')
+        assert settings.SUBCONTEXTS.get() == {}
 
     def test_subcontext_sort_mode_default_is_definition(self):
         from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
-        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+        assert settings.SUBCONTEXT_SORT_MODE.get() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_round_trip(self):
         from skilltree.domain.contexts import (
@@ -1607,18 +1608,18 @@ class TestConfigManager:
             SUBCONTEXT_SORT_DEFINITION,
         )
         for mode in (SUBCONTEXT_SORT_LENGTH, SUBCONTEXT_SORT_ALPHABETICAL, SUBCONTEXT_SORT_DEFINITION):
-            ConfigManager.set_subcontext_sort_mode(mode)
-            assert ConfigManager.get_subcontext_sort_mode() == mode
+            settings.SUBCONTEXT_SORT_MODE.set(mode)
+            assert settings.SUBCONTEXT_SORT_MODE.get() == mode
 
     def test_subcontext_sort_mode_invalid_falls_back_to_default(self):
         from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
-        ConfigManager._set_db_value("SUBCONTEXT_SORT_MODE", "garbage")
-        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+        settings.write_stored("SUBCONTEXT_SORT_MODE", "garbage")
+        assert settings.SUBCONTEXT_SORT_MODE.get() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_subcontext_sort_mode_setter_rejects_invalid(self):
         from skilltree.domain.contexts import DEFAULT_SUBCONTEXT_SORT_MODE
-        ConfigManager.set_subcontext_sort_mode("not-a-mode")
-        assert ConfigManager.get_subcontext_sort_mode() == DEFAULT_SUBCONTEXT_SORT_MODE
+        settings.SUBCONTEXT_SORT_MODE.set("not-a-mode")
+        assert settings.SUBCONTEXT_SORT_MODE.get() == DEFAULT_SUBCONTEXT_SORT_MODE
 
     def test_sort_subcontexts_definition_preserves_order(self):
         from skilltree.domain.contexts import (
@@ -1657,21 +1658,21 @@ class TestConfigManager:
 
     def test_set_and_get_hyperparams(self):
         custom = {**DEFAULT_HYPERPARAMS, 'w_v': 2.0}
-        ConfigManager.set_hyperparams(custom)
-        result = ConfigManager.get_hyperparams()
+        settings.set_hyperparams(custom)
+        result = settings.hyperparams()
         assert result['w_v'] == 2.0
 
     def test_sync_shapes_to_types_adds_new(self):
-        ConfigManager.set_node_shapes({"Learn": "ellipse", "Goal": "star"})
-        ConfigManager.sync_shapes_to_types(["Learn", "Goal", "Quest"])
-        shapes = ConfigManager.get_node_shapes()
+        settings.NODE_SHAPES.set({"Learn": "ellipse", "Goal": "star"})
+        settings.sync_shapes_to_types(["Learn", "Goal", "Quest"])
+        shapes = settings.NODE_SHAPES.get()
         assert shapes["Quest"] == "rectangle"
         assert shapes["Learn"] == "ellipse"
 
     def test_sync_shapes_to_types_removes_old(self):
-        ConfigManager.set_node_shapes({"Learn": "ellipse", "Goal": "star", "Removed": "diamond"})
-        ConfigManager.sync_shapes_to_types(["Learn", "Goal"])
-        shapes = ConfigManager.get_node_shapes()
+        settings.NODE_SHAPES.set({"Learn": "ellipse", "Goal": "star", "Removed": "diamond"})
+        settings.sync_shapes_to_types(["Learn", "Goal"])
+        shapes = settings.NODE_SHAPES.get()
         assert "Removed" not in shapes
         assert shapes["Learn"] == "ellipse"
 
@@ -2217,44 +2218,42 @@ class TestFindOrphanedSubcontextPairs:
 
 
 # ============================================================================
-# ConfigManager — Time Multiplier
+# Settings — Time Multiplier
 # ============================================================================
 
 class TestTimeMultiplier:
     def test_hours_returns_one(self):
-        assert ConfigManager.get_time_multiplier('hours') == 1.0
+        assert settings.time_multiplier('hours') == 1.0
 
     def test_weeks_returns_hours_per_week(self):
-        result = ConfigManager.get_time_multiplier('weeks')
-        settings = ConfigManager.get_time_settings()
-        assert result == settings.get('hours_per_week', 40.0)
+        result = settings.time_multiplier('weeks')
+        assert result == settings.TIME_SETTINGS.get()['hours_per_week']
 
     def test_months_returns_hours_per_month(self):
-        result = ConfigManager.get_time_multiplier('months')
-        settings = ConfigManager.get_time_settings()
-        assert result == settings.get('hours_per_month', 160.0)
+        result = settings.time_multiplier('months')
+        assert result == settings.TIME_SETTINGS.get()['hours_per_month']
 
     def test_unknown_unit_returns_one(self):
-        assert ConfigManager.get_time_multiplier('fortnights') == 1.0
+        assert settings.time_multiplier('fortnights') == 1.0
 
     def test_days_is_a_seventh_of_a_week(self):
-        ConfigManager.set_time_settings({'hours_per_week': 21, 'hours_per_month': 84})
-        assert ConfigManager.get_time_multiplier('days') == 3
-        ConfigManager.set_time_settings({'hours_per_week': 70, 'hours_per_month': 280})
-        assert ConfigManager.get_time_multiplier('days') == 10
+        settings.TIME_SETTINGS.set({'hours_per_week': 21, 'hours_per_month': 84})
+        assert settings.time_multiplier('days') == 3
+        settings.TIME_SETTINGS.set({'hours_per_week': 70, 'hours_per_month': 280})
+        assert settings.time_multiplier('days') == 10
 
     def test_custom_settings_reflected(self):
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
-        assert ConfigManager.get_time_multiplier('weeks') == 20
-        assert ConfigManager.get_time_multiplier('months') == 80
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
+        assert settings.time_multiplier('weeks') == 20
+        assert settings.time_multiplier('months') == 80
 
     def test_years_returns_thirteen_months(self):
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
-        assert ConfigManager.get_time_multiplier('years') == 13 * 80
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
+        assert settings.time_multiplier('years') == 13 * 80
 
 
 # ============================================================================
-# ConfigManager — format_time_friendly
+# Settings — format_time_friendly
 # ============================================================================
 
 class TestFormatTimeFriendly:
@@ -2276,41 +2275,41 @@ class TestFormatTimeFriendly:
         assert result == "1h"  # Should not show ".0"
 
     def test_exactly_one_week(self):
-        hw = ConfigManager.get_time_settings().get('hours_per_week', 40)
+        hw = settings.TIME_SETTINGS.get().get('hours_per_week', 40)
         result = format_time_friendly(float(hw))
         assert "w" in result
 
     def test_exactly_one_month(self):
-        hm = ConfigManager.get_time_settings().get('hours_per_month', 160)
+        hm = settings.TIME_SETTINGS.get().get('hours_per_month', 160)
         result = format_time_friendly(float(hm))
         assert "m" in result
 
     def test_weeks_format(self):
         # With default 40h/week, 80h = 2w
-        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        settings.TIME_SETTINGS.set({'hours_per_week': 40, 'hours_per_month': 160})
         result = format_time_friendly(80.0)
         assert result == "2w"
 
     def test_months_format(self):
-        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        settings.TIME_SETTINGS.set({'hours_per_week': 40, 'hours_per_month': 160})
         result = format_time_friendly(320.0)
         assert result == "2m"
 
     def test_years_format(self):
-        ConfigManager.set_time_settings({'hours_per_week': 40, 'hours_per_month': 160})
+        settings.TIME_SETTINGS.set({'hours_per_week': 40, 'hours_per_month': 160})
         # 13 months = 1 year; 2 years = 26 months = 4160 hours
         result = format_time_friendly(4160.0)
         assert result == "2y"
 
     def test_exactly_one_year(self):
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
         # 1 year = 13 × 80 = 1040h
         result = format_time_friendly(1040.0)
         assert result == "1y"
 
     def test_year_threshold_just_under(self):
         # Just below 1 year should still display as months.
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
         result = format_time_friendly(1039.0)
         assert result.endswith("m")
 
@@ -2320,7 +2319,7 @@ class TestFormatTimeFriendly:
         int.is_integer() doesn't exist before Python 3.12 — so on the app's
         3.10 runtime an int argument used to raise AttributeError and 500 the
         Analyze tab. Every magnitude branch must accept an int."""
-        ConfigManager.set_time_settings({'hours_per_week': 35, 'hours_per_month': 140})
+        settings.TIME_SETTINGS.set({'hours_per_week': 35, 'hours_per_month': 140})
         assert format_time_friendly(4) == "4h"      # hours branch
         assert format_time_friendly(10) == "2d"     # days branch
         assert format_time_friendly(70) == "2w"     # weeks branch
@@ -2330,7 +2329,7 @@ class TestFormatTimeFriendly:
         assert format_time_friendly(4, force_one_decimal=True) == "4.0h"
 
     def test_time_unit_is_the_unit_format_time_friendly_uses(self):
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
         assert time_unit(0) == (1.0, "h")
         assert time_unit(2.8) == (1.0, "h")
         assert time_unit(20 / 7) == (20 / 7, "d")
@@ -2344,50 +2343,50 @@ class TestFormatTimeFriendly:
 
 
 # ============================================================================
-# ConfigManager — Priority Goals
+# Settings — Priority Goals
 # ============================================================================
 
 class TestPriorityGoals:
     def test_default_empty(self):
-        assert ConfigManager.get_priority_goals() == []
+        assert settings.PRIORITY_GOALS.get() == []
 
     def test_set_and_get(self):
-        ConfigManager.set_priority_goals(["Goal A", "Goal B"])
-        result = ConfigManager.get_priority_goals()
+        settings.PRIORITY_GOALS.set(["Goal A", "Goal B"])
+        result = settings.PRIORITY_GOALS.get()
         assert result == ["Goal A", "Goal B"]
 
     def test_capped_at_three(self):
-        ConfigManager.set_priority_goals(["A", "B", "C", "D", "E"])
-        result = ConfigManager.get_priority_goals()
+        settings.PRIORITY_GOALS.set(["A", "B", "C", "D", "E"])
+        result = settings.PRIORITY_GOALS.get()
         assert len(result) == 3
 
     def test_empty_list(self):
-        ConfigManager.set_priority_goals([])
-        assert ConfigManager.get_priority_goals() == []
+        settings.PRIORITY_GOALS.set([])
+        assert settings.PRIORITY_GOALS.get() == []
 
 
 # ============================================================================
-# ConfigManager — ensure_action_type
+# Settings — ensure_node_type('Action')
 # ============================================================================
 
 class TestEnsureActionType:
     def test_adds_action_if_missing(self):
-        ConfigManager.set_node_types(["Learn", "Goal"])
-        ConfigManager.ensure_action_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Goal"])
+        settings.ensure_node_type('Action')
+        types = settings.NODE_TYPES.get()
         assert "Action" in types
 
     def test_no_duplicate_if_present(self):
-        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
-        ConfigManager.ensure_action_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Action", "Goal"])
+        settings.ensure_node_type('Action')
+        types = settings.NODE_TYPES.get()
         assert types.count("Action") == 1
 
     def test_shape_added_for_new_type(self):
-        ConfigManager.set_node_types(["Learn"])
-        ConfigManager.set_node_shapes({"Learn": "ellipse"})
-        ConfigManager.ensure_action_type()
-        shapes = ConfigManager.get_node_shapes()
+        settings.NODE_TYPES.set(["Learn"])
+        settings.NODE_SHAPES.set({"Learn": "ellipse"})
+        settings.ensure_node_type('Action')
+        shapes = settings.NODE_SHAPES.get()
         assert "Action" in shapes
 
 
@@ -2745,52 +2744,52 @@ class TestSyncEdgesWithoutResources:
 
 
 # ============================================================================
-# ConfigManager — ensure_goal_type
+# Settings — ensure_node_type('Goal')
 # ============================================================================
 
 class TestEnsureGoalType:
     def test_adds_goal_if_missing(self):
-        ConfigManager.set_node_types(["Learn", "Action"])
-        ConfigManager.ensure_goal_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Action"])
+        settings.ensure_node_type('Goal')
+        types = settings.NODE_TYPES.get()
         assert "Goal" in types
 
     def test_no_duplicate_if_present(self):
-        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
-        ConfigManager.ensure_goal_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Action", "Goal"])
+        settings.ensure_node_type('Goal')
+        types = settings.NODE_TYPES.get()
         assert types.count("Goal") == 1
 
     def test_shape_added_for_new_type(self):
-        ConfigManager.set_node_types(["Learn"])
-        ConfigManager.set_node_shapes({"Learn": "ellipse"})
-        ConfigManager.ensure_goal_type()
-        shapes = ConfigManager.get_node_shapes()
+        settings.NODE_TYPES.set(["Learn"])
+        settings.NODE_SHAPES.set({"Learn": "ellipse"})
+        settings.ensure_node_type('Goal')
+        shapes = settings.NODE_SHAPES.get()
         assert "Goal" in shapes
 
 
 # ============================================================================
-# ConfigManager — ensure_milestone_type
+# Settings — ensure_node_type('Milestone')
 # ============================================================================
 
 class TestEnsureMilestoneType:
     def test_adds_milestone_if_missing(self):
-        ConfigManager.set_node_types(["Learn", "Action", "Goal"])
-        ConfigManager.ensure_milestone_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Action", "Goal"])
+        settings.ensure_node_type('Milestone')
+        types = settings.NODE_TYPES.get()
         assert "Milestone" in types
 
     def test_no_duplicate_if_present(self):
-        ConfigManager.set_node_types(["Learn", "Action", "Goal", "Milestone"])
-        ConfigManager.ensure_milestone_type()
-        types = ConfigManager.get_node_types()
+        settings.NODE_TYPES.set(["Learn", "Action", "Goal", "Milestone"])
+        settings.ensure_node_type('Milestone')
+        types = settings.NODE_TYPES.get()
         assert types.count("Milestone") == 1
 
     def test_shape_added_for_new_type(self):
-        ConfigManager.set_node_types(["Learn"])
-        ConfigManager.set_node_shapes({"Learn": "ellipse"})
-        ConfigManager.ensure_milestone_type()
-        shapes = ConfigManager.get_node_shapes()
+        settings.NODE_TYPES.set(["Learn"])
+        settings.NODE_SHAPES.set({"Learn": "ellipse"})
+        settings.ensure_node_type('Milestone')
+        shapes = settings.NODE_SHAPES.get()
         assert shapes.get("Milestone") == "diamond"
 
 
@@ -3854,12 +3853,12 @@ class TestEstimateCorrelationSetting:
     """The one free parameter in the duration model — guard its bounds."""
 
     def _with(self, stored, temp_database):
-        from skilltree.store.settings import ConfigManager, DEFAULT_ESTIMATE_CORRELATION
-        settings = dict(ConfigManager.get_time_settings())
+        from skilltree.store.settings import DEFAULT_ESTIMATE_CORRELATION
+        time_settings = settings.TIME_SETTINGS.get()
         if stored is not None:
-            settings['estimate_correlation'] = stored
-        ConfigManager.set_time_settings(settings)
-        return ConfigManager.get_estimate_correlation(), DEFAULT_ESTIMATE_CORRELATION
+            time_settings['estimate_correlation'] = stored
+        settings.TIME_SETTINGS.set(time_settings)
+        return settings.estimate_correlation(), DEFAULT_ESTIMATE_CORRELATION
 
     def test_default_when_unset(self, temp_database):
         value, default = self._with(None, temp_database)

@@ -12,7 +12,7 @@ from dash.development.base_component import Component
 
 from skilltree.domain.goals import rank_goals, explain_goal, normalize_goal_scores
 from skilltree.features.details.explore import select_explore_goals
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
 
@@ -102,8 +102,8 @@ def _ranked(manager):
     nodes = manager.get_all_nodes()
     edges = manager.get_edges()
     ranked = rank_goals([n for n in nodes if n.type == "Goal"], nodes, edges,
-                         ConfigManager.get_priority_goals(),
-                         ConfigManager.get_hyperparams(), with_scores=True)
+                         settings.PRIORITY_GOALS.get(),
+                         settings.hyperparams(), with_scores=True)
     return ranked, nodes, edges
 
 
@@ -130,7 +130,7 @@ def test_finished_goals_get_no_number_and_do_not_set_the_base():
     priorities = normalize_goal_scores(ranked, nodes, edges)
 
     assert priorities == {"Open": 100}
-    hp = ConfigManager.get_hyperparams()
+    hp = settings.hyperparams()
     assert explain_goal("Open", nodes, edges, hp, [])[1] == 100
     assert explain_goal("Finished", nodes, edges, hp, [])[1] is None
 

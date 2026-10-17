@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.details.layout import build_details_tab_content
 from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.shell import build_app_layout
@@ -272,7 +272,7 @@ def test_graph_layout_sliders_use_qualitative_endpoint_labels():
 
 def test_events_layout_panel_has_smooth_and_freeze():
     panel = build_graph_settings_panel(
-        "test-events-layout", defaults_getter=ConfigManager.get_events_graph_layout_defaults
+        "test-events-layout", defaults_getter=settings.EVENTS_GRAPH_LAYOUT_DEFAULTS.get
     )
     ids = _ids(panel)
 

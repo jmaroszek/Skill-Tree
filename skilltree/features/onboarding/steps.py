@@ -7,7 +7,7 @@ A step once done stays done: finishing a Now node, say, clears its Now flag.
 """
 from dataclasses import dataclass
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
 from skilltree.store import database
 
@@ -26,7 +26,7 @@ def should_welcome() -> bool:
     Someone upgrading with a graph already has never seen it either, and
     doesn't need it.
     """
-    if ConfigManager.get_welcome_done():
+    if settings.WELCOME_DONE.get():
         return False
     conn = database.get_connection()
     try:
@@ -37,10 +37,10 @@ def should_welcome() -> bool:
 
 def getting_started(manager) -> list:
     steps = _steps_now(manager)
-    seen = set(ConfigManager.get_getting_started_progress())
+    seen = set(settings.GETTING_STARTED_PROGRESS.get())
     reached = {step.key for step in steps if step.done}
     if not reached <= seen:
-        ConfigManager.set_getting_started_progress(seen | reached)
+        settings.GETTING_STARTED_PROGRESS.set(seen | reached)
     return [Step(s.key, s.label, s.hint, s.done or s.key in seen) for s in steps]
 
 

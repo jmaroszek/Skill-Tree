@@ -17,7 +17,7 @@ from skilltree.store import database
 from skilltree.domain.models import Node, Event, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store import schema
 
 
@@ -62,7 +62,7 @@ def _setup(mgr, em, mode, triggers=("A", "B")):
     mgr.add_node(_node("Reward"))
     em.add_event(Event(name="E", trigger_nodes=list(triggers), trigger_mode=mode))
     em.add_node_to_event("E", "Reward", delay_days=0)
-    ConfigManager.clear_pending_event_notifications()
+    settings.PENDING_EVENT_NOTIFICATIONS.set([])
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +168,7 @@ class TestAndTriggers:
         _setup(mgr, em, TRIGGER_MODE_ALL)
         _complete(mgr, "A")
         _complete(mgr, "B")
-        entries = [e for e in ConfigManager.get_pending_event_notifications()
+        entries = [e for e in settings.PENDING_EVENT_NOTIFICATIONS.get()
                    if e["kind"] == "node_triggered"]
         assert len(entries) == 1
         assert entries[0]["trigger_node"] == "B"
@@ -201,7 +201,7 @@ class TestFiringIsLatched:
         node.status = "Open"
         mgr.update_node(node)
         _complete(mgr, "A")
-        entries = [e for e in ConfigManager.get_pending_event_notifications()
+        entries = [e for e in settings.PENDING_EVENT_NOTIFICATIONS.get()
                    if e["kind"] == "node_triggered"]
         assert len(entries) == 1
 
@@ -228,11 +228,11 @@ class TestDeleteNarrowsTriggerSet:
         em.add_event(Event(name="Narrowed", trigger_nodes=["A", "B"],
                            trigger_mode=TRIGGER_MODE_ALL))
         em.add_event(Event(name="Demoted", trigger_nodes=["B"]))
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
 
         mgr.delete_node("B")
 
-        entries = [e for e in ConfigManager.get_pending_event_notifications()
+        entries = [e for e in settings.PENDING_EVENT_NOTIFICATIONS.get()
                    if e["kind"] == "trigger_node_deleted"]
         assert len(entries) == 1
         assert entries[0]["narrowed"] == ["Narrowed"]

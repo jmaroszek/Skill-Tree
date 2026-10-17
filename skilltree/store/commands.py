@@ -1,6 +1,6 @@
 """Editor node operations sharing the existing atomic manager transactions."""
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT,
                     STATUS_DONE, STATUS_OPEN)
 from skilltree.store.resources import save_node_links
@@ -30,7 +30,7 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     sub = (subctx or '').strip() or None
     if ctx is None:
         sub = None
-    elif sub is not None and sub not in ConfigManager.get_subcontexts().get(ctx, []):
+    elif sub is not None and sub not in settings.SUBCONTEXTS.get().get(ctx, []):
         sub = None
 
     node = Node(

@@ -110,33 +110,34 @@ def report_callback_error(err):
     return None
 
 
-def create_app(settings=None, services=None):
+def create_app(app_settings=None, services=None):
     """Build one app after selecting its database and running startup repairs.
 
     Like the desktop launcher, this process owns one database. Tests may
     replace database.get_db_path before construction to use disposable data.
     """
-    settings = settings or AppSettings()
-    if settings.environment not in {"production", "sandbox"}:
+    app_settings = app_settings or AppSettings()
+    environment = app_settings.environment
+    if environment not in {"production", "sandbox"}:
         raise ValueError("Unknown application environment")
-    if database.resolved_db_path() is not None and paths.ENVIRONMENT != settings.environment:
+    if database.resolved_db_path() is not None and paths.ENVIRONMENT != environment:
         raise RuntimeError("A process cannot switch databases after startup")
-    paths.ENVIRONMENT = settings.environment
-    if settings.configure_logging:
-        _configure_logging(settings.environment)
+    paths.ENVIRONMENT = environment
+    if app_settings.configure_logging:
+        _configure_logging(environment)
     _logger.info("Skill Tree %s starting (%s; Python %s on %s).", __version__,
-                 settings.environment, platform.python_version(), platform.platform())
+                 environment, platform.python_version(), platform.platform())
 
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
     from skilltree.services import AppServices
     schema.init_db()
     services = services or AppServices()
-    ConfigManager.ensure_action_type()
-    ConfigManager.ensure_goal_type()
-    ConfigManager.ensure_milestone_type()
+    settings.ensure_node_type('Action')
+    settings.ensure_node_type('Goal')
+    settings.ensure_node_type('Milestone')
     # Diagnostics, and any future migration, can tell which build last opened
     # this data.
-    ConfigManager.set_last_app_version(__version__)
+    settings.LAST_APP_VERSION.set(__version__)
     # At most once a day, and never fatal: a failure is logged.
     from skilltree.store import backup
     backup.run_daily_backup()
@@ -200,9 +201,9 @@ def create_app(settings=None, services=None):
                     assets_folder=str(resource_path("assets")),
                     assets_path_ignore=["vendor"],
                     # Polls every 2 s for a restart; only the dev loop restarts.
-                    assets_ignore="" if settings.dev else r"hard_reload_on_restart\.js$",
+                    assets_ignore="" if app_settings.dev else r"hard_reload_on_restart\.js$",
                     on_error=report_callback_error)
-    app.title = "Skill Tree (Sandbox)" if settings.environment == "sandbox" else "Skill Tree"
+    app.title = "Skill Tree (Sandbox)" if environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
     install_client_registry(app)
     # Built per request, after registration below. prerender_layout runs the
@@ -210,7 +211,7 @@ def create_app(settings=None, services=None):
     # doesn't ask for them on load.
     app.layout = database.snapshot_read(
         lambda: prerender_layout(
-            build_app_layout(services.graph, env=settings.environment),
+            build_app_layout(services.graph, env=environment),
             app))
     # The engine, the pieces every tab shares, and each feature, which
     # registers its own parts. When callbacks share an input, the browser
@@ -231,7 +232,7 @@ def create_app(settings=None, services=None):
     app.server.add_url_rule('/open-resource', 'open_resource',
                             functools.partial(open_resource_route, services.graph),
                             methods=['POST'])
-    if settings.dev:
+    if app_settings.dev:
         # hard_reload_on_restart.js reloads the page when this changes.
         boot_id = uuid.uuid4().hex
         app.server.add_url_rule('/_server_boot_id', view_func=lambda: boot_id)

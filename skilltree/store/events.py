@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from skilltree.domain import rules as graph_rules
 from skilltree.store import database
 from skilltree.store.graph.state import revisions
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import Node, Event, STATUS_DONE, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from typing import List, Dict, Optional, Tuple
 
@@ -266,7 +266,7 @@ class EventManager:
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
             conn.commit()
         if old_name != event.name:
-            ConfigManager.rename_event_references(old_name, event.name)
+            settings.EVENT_ORDER.rename(old_name, event.name)
         self.fire_if_met_after_commit(event.name)
         revisions.changed(scoring=False)
 
@@ -305,7 +305,7 @@ class EventManager:
 
             cursor.execute("DELETE FROM Events WHERE name=?", (event_name,))
             conn.commit()
-        ConfigManager.delete_event_references(event_name)
+        settings.EVENT_ORDER.drop(event_name)
         revisions.changed()
 
         # Re-derive status for any newly-activated node so a Blocked-on-prereqs
@@ -948,7 +948,7 @@ class EventManager:
 
         for event_name, nodes in event_nodes_map.items():
             names = set(nodes)
-            ConfigManager.add_pending_event_notification({
+            settings.add_event_notification({
                 "kind": "delayed_activated",
                 "event": event_name,
                 "nodes": nodes,
@@ -996,7 +996,7 @@ class EventManager:
 
         # A manual firing used to leave no durable record at all: it reported
         # inline into a status line that clears itself on a timer.
-        ConfigManager.add_pending_event_notification({
+        settings.add_event_notification({
             "kind": "manual_triggered",
             "event": event_name,
             "activated": result['activated'],
@@ -1073,7 +1073,7 @@ class EventManager:
             result = self.trigger_event(name)
             triggered.append(name)
             now_pinned, now_skipped = self._apply_now_intent(result.get('now_intent', []))
-            ConfigManager.add_pending_event_notification({
+            settings.add_event_notification({
                 "kind": "date_triggered",
                 "event": name,
                 "activated": result.get('activated', []),
@@ -1152,7 +1152,7 @@ class EventManager:
         }
         if already_met:
             entry["already_met"] = True
-        ConfigManager.add_pending_event_notification(entry)
+        settings.add_event_notification(entry)
 
     @database.atomic
     def fire_if_condition_met(self, event_name: str) -> bool:
@@ -1212,7 +1212,7 @@ class EventManager:
             try:
                 scored = gm.calculate_priority_scores(
                     [n for n in gm.get_all_nodes() if not n.now],
-                    priority_goals=ConfigManager.get_priority_goals())
+                    priority_goals=settings.PRIORITY_GOALS.get())
             except Exception:
                 logger.exception("Couldn't rank the woken nodes; pinning them by name")
                 scored = []
@@ -1241,7 +1241,7 @@ class EventManager:
 
         gm = self.graph
         current = gm.get_now_nodes()
-        room = ConfigManager.get_now_node_cap() - len(current)
+        room = settings.NOW_NODE_CAP.get() - len(current)
         rank = max((n.now for n in current), default=0)
 
         pinned, skipped = [], []

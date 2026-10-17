@@ -6,7 +6,7 @@ import random
 import networkx as nx
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.profiles import DEFAULT_HYPERPARAMS, PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import explain_score, score_nodes
@@ -132,17 +132,17 @@ def test_goal_scope_and_explanation_exclude_optional_work_and_second_discount():
 def test_an_older_stored_bundle_gives_way_to_the_profile(schema):
     stored = dict(_schema=schema, w_t=6, beta=.6, value_exponent=1.0,
                   future_work_half_credit_hours=444)
-    ConfigManager._set_db_value('HYPERPARAMS', json.dumps(stored))
-    hp = ConfigManager.get_hyperparams()
+    settings.write_stored('HYPERPARAMS', json.dumps(stored))
+    hp = settings.hyperparams()
     assert hp == DEFAULT_HYPERPARAMS
-    ConfigManager.set_hyperparams(hp)
-    assert ConfigManager.get_hyperparams() == hp
+    settings.set_hyperparams(hp)
+    assert settings.hyperparams() == hp
 
 
 def test_cached_required_work_updates_after_remote_prerequisite_edit():
     from skilltree.store.graph.manager import GraphManager
     manager = GraphManager()
-    ConfigManager.set_show_scoring_perf(False)
+    settings.SHOW_SCORING_PERF.set(False)
     for n in [node('A'),node('B',100),node('D')]: manager.add_node(n)
     manager.add_edge('A','D','Needs_Hard')
     manager.add_edge('B','D','Needs_Hard')
@@ -178,7 +178,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
         assert len(inspect.signature(fn).parameters) == sum(isinstance(d, (Input, State)) for d in deps)
     load, deps = registry.callbacks['load_settings']
     assert len(load(False)) == sum(isinstance(d, Output) for d in deps)
-    ConfigManager.set_hp_profile('Investor')
+    settings.HP_PROFILE.set('Investor')
     loaded = load(True)
     outputs = [d for d in deps if isinstance(d, Output)]
     assert len(loaded) == len(outputs)
@@ -187,7 +187,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
 
     save, _ = registry.callbacks['save_settings']
     args = {key: None for key in inspect.signature(save).parameters}
-    ConfigManager.set_time_settings({
+    settings.TIME_SETTINGS.set({
         'hours_per_week': 20,
         'hours_per_month': 80,
         'monte_carlo_trials': 4321,
@@ -195,11 +195,11 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
     })
     args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100)
     assert save(**args)[0] == 'Settings saved'
-    assert ConfigManager.get_hp_profile() == 'Explorer'
+    assert settings.HP_PROFILE.get() == 'Explorer'
     # Only the name is stored, so a later retune of Explorer reaches this install.
-    assert ConfigManager._get_db_value('HYPERPARAMS') is None
-    assert ConfigManager.get_hyperparams() == PROFILES['Explorer']
-    assert ConfigManager.get_time_settings() == {
+    assert settings.read_stored('HYPERPARAMS') is None
+    assert settings.hyperparams() == PROFILES['Explorer']
+    assert settings.TIME_SETTINGS.get() == {
         'hours_per_week': 25,
         'hours_per_month': 100,
         'show_hour_equivalents': True,

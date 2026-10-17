@@ -7,7 +7,7 @@ import pytest
 from skilltree.store import backup
 from skilltree.store import transfer as data_transfer
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.graph.state import revisions
@@ -46,8 +46,8 @@ def _rich_graph():
     events = EventManager(GraphManager())
     events.add_event(Event(name="Winter", trigger_nodes=["Nap"]))
     events.add_node_to_event("Winter", "Dream", delay_days=3)
-    ConfigManager.set_priority_goals(["Sleep"])
-    ConfigManager.set_contexts(["Mind", "Body"])
+    settings.PRIORITY_GOALS.set(["Sleep"])
+    settings.CONTEXTS.set(["Mind", "Body"])
     return manager
 
 
@@ -109,11 +109,11 @@ class TestExportImport:
         bundle["tables"]["Settings"].append({
             "key": "BACKUP_EXTRA_DIR", "value": r"\\attacker\private-backups"})
         _fresh_database(monkeypatch, tmp_path)
-        assert ConfigManager.get_backup_extra_dir() == ""
+        assert settings.BACKUP_EXTRA_DIR.get() == ""
 
         data_transfer.import_data(services.graph, services.events, bundle)
 
-        assert ConfigManager.get_backup_extra_dir() == ""
+        assert settings.BACKUP_EXTRA_DIR.get() == ""
         source = tmp_path / "private.db"
         source.write_bytes(b"private graph")
         assert backup.mirror(source) is None
@@ -125,11 +125,11 @@ class TestExportImport:
         _fresh_database(monkeypatch, tmp_path)
         local = tmp_path / "chosen-backups"
         local.mkdir()
-        ConfigManager.set_backup_extra_dir(str(local))
+        settings.BACKUP_EXTRA_DIR.set(str(local))
 
         data_transfer.import_data(services.graph, services.events, bundle)
 
-        assert ConfigManager.get_backup_extra_dir() == str(local)
+        assert settings.BACKUP_EXTRA_DIR.get() == str(local)
         source = tmp_path / "private.db"
         source.write_bytes(b"private graph")
         assert backup.mirror(source) == local / source.name

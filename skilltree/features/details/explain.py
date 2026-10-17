@@ -9,7 +9,7 @@ from skilltree.domain.goals import explain_goal, rank_goals
 from skilltree.domain.models import EDGE_NEEDS_HARD
 from skilltree.domain.scoring import explain_score, focus_route_data
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
@@ -419,9 +419,9 @@ def register_explain_callbacks(app, services):
     def _build_explain_content(node_name):
         # Explanation and both ranking pools reuse one set of normalized rows.
         all_nodes = graph_manager.get_all_nodes()
-        priority_goals = ConfigManager.get_priority_goals()
-        hypers = ConfigManager.get_hyperparams()
-        hypers['context_weights'] = ConfigManager.get_context_weights()
+        priority_goals = settings.PRIORITY_GOALS.get()
+        hypers = settings.hyperparams()
+        hypers['context_weights'] = settings.CONTEXT_WEIGHTS.get()
         node = next((n for n in all_nodes if n.name == node_name), None)
         is_goal = node is not None and node.type == 'Goal'
         count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
@@ -443,7 +443,7 @@ def register_explain_callbacks(app, services):
             result = explain_goal(node_name, all_nodes,
                                   graph_manager.get_edges(),
                                   hypers, priority_goals,
-                                  context_weights=ConfigManager.get_context_weights())
+                                  context_weights=settings.CONTEXT_WEIGHTS.get())
             breakdown, normalized = result if result else (None, None)
         else:
             # The repetition adjustment is a property of the whole pool, so
@@ -482,7 +482,7 @@ def register_explain_callbacks(app, services):
                 ranked_goals = rank_goals(
                     goals, all_nodes, graph_manager.get_edges(),
                     priority_goals, hypers,
-                    context_weights=ConfigManager.get_context_weights(),
+                    context_weights=settings.CONTEXT_WEIGHTS.get(),
                     with_components=True,
                 )
                 peers = [c['tv'] / c['n_tasks'] for _, c in ranked_goals if c['n_tasks']]
@@ -603,7 +603,7 @@ def register_explain_callbacks(app, services):
             ]
         pi = focus_route_data(
             selected_node, contributors, k_int, all_nodes_fc, edges_fc,
-            ConfigManager.get_hyperparams(),
+            settings.hyperparams(),
             skip_done=not is_goal_fc, flat_goals=not is_goal_fc,
         )
         edge_rank_items = list(pi['edge_rank'].items())

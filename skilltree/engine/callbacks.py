@@ -22,7 +22,7 @@ from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, CANVAS_DE
 import dash
 from dash import html, Input, Output, State, no_update
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import STATUS_DONE
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.features.editor.form import (
@@ -350,7 +350,7 @@ def register_engine_callbacks(app, services):
         tc_pending = None
         tc_unit = no_update  # only set the dropdown when the modal opens
         tc_title = no_update
-        if outcome.completed and ConfigManager.get_time_calibration_enabled():
+        if outcome.completed and settings.TIME_CALIBRATION_ENABLED.get():
             _tc_node = manager.get_node(outcome.completed)
             if _tc_node is not None and _tc_node.status == STATUS_DONE and not _tc_node.dormant:
                 tc_modal_open = True

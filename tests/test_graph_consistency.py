@@ -5,7 +5,7 @@ from threading import Event as ThreadEvent
 import pytest
 
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, EDGE_NEEDS_HARD as HARD, EDGE_NEEDS_SOFT as SOFT
@@ -14,7 +14,7 @@ from skilltree.store.graph.state import revisions
 
 
 def scores(manager):
-    ConfigManager.set_show_scoring_perf(False)
+    settings.SHOW_SCORING_PERF.set(False)
     return {n.name: n.priority_score for n in
             manager.calculate_priority_scores(manager.get_all_nodes())}
 
@@ -66,7 +66,7 @@ def test_event_wake_invalidates_all_managers(operation):
 def test_event_delete_cleans_references_and_unblocks_dependents(remove_only):
     m = graph("A", "B")
     m.add_edge("A", "B", HARD)
-    ConfigManager.set_priority_goals(["A"])
+    settings.PRIORITY_GOALS.set(["A"])
     events = EventManager(GraphManager())
     events.add_event(Event(name="Delete"))
     events.add_node_to_event("Delete", "A")
@@ -75,7 +75,7 @@ def test_event_delete_cleans_references_and_unblocks_dependents(remove_only):
     else:
         events.delete_event("Delete")
     assert m.get_node("B").status == "Open"
-    assert ConfigManager.get_priority_goals() == []
+    assert settings.PRIORITY_GOALS.get() == []
 
 
 @pytest.mark.parametrize("bulk", [True, False])

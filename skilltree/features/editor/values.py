@@ -1,5 +1,5 @@
 """How the node editor shows a node's time estimates."""
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.components.duration import hours_to_friendly_unit
 
 
@@ -15,7 +15,7 @@ def friendly_time_estimates(time_o, time_m, time_p):
     # Cap at weeks: months/years are too coarse for direct editing
     if unit in ('months', 'years'):
         unit = 'weeks'
-    multiplier = ConfigManager.get_time_multiplier(unit)
+    multiplier = settings.time_multiplier(unit)
     def _convert(h):
         v = round((h or 0) / multiplier, 2)
         if v == int(v):

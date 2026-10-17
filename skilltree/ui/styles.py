@@ -4,7 +4,7 @@ Shared Cytoscape stylesheet definitions for Cytoscape graph components.
 from skilltree.domain.models import STATUS_BLOCKED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.domain.models import STATUS_OPEN
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 # Badge for nodes whose completion triggers an event: a gold lightning bolt in
 # a dark circle. Served from assets/ — Dash exposes this at /assets/ automatically.
@@ -262,7 +262,7 @@ def _resolved_badge_colors(name: str) -> tuple[str, str]:
     consistent under a custom color choice.
     """
     if name == 'Now':
-        bg = ConfigManager.get_node_colors().get('Now', '#ffd000')
+        bg = settings.NODE_COLORS.get().get('Now', '#ffd000')
         return (bg, '#ffffff')
     return BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
 

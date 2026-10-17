@@ -2,7 +2,7 @@
 from collections import namedtuple
 from copy import deepcopy
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.home.table import (
     format_now_nodes_section, format_suggestions_table,
 )
@@ -40,7 +40,7 @@ def initial_next_view(graph, template, sidebars):
         f_time_min=value('filter-time-min'),
         f_search=controls['filter-search-query'].data)
     parts = _components_by_id(view)
-    count = ConfigManager.get_next_table_rows()
+    count = settings.NEXT_TABLE_ROWS.get()
     parts['suggestion-count-store'].data = count
     parts['suggestion-count-display'].children = str(count)
     next_rows = get_suggestions(graph, filters, count=count)
@@ -94,11 +94,11 @@ def get_suggestions(graph, filters=None, count=5):
         filters = {}
     nodes = [n for n in graph.get_all_nodes() if not n.now]
     filtered_nodes = graph.filter_nodes(nodes, filters)
-    priority_goals = ConfigManager.get_priority_goals()
+    priority_goals = settings.PRIORITY_GOALS.get()
 
     steps = graph.get_unblocking_steps(
         [n.name for n in graph.get_now_nodes()],
-        limit=ConfigManager.get_unblocking_steps_per_now(),
+        limit=settings.UNBLOCKING_STEPS_PER_NOW.get(),
         priority_goals=priority_goals,
     )
     pinned_steps = {node.name: target for node, target in steps}

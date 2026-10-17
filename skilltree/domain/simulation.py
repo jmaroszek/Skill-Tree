@@ -125,7 +125,7 @@ def simulate_task_chain(
     against "did this one task surprise me". It widens the total without moving
     it: the mean of the returned samples equals the sum of the chain's
     `Node.time` values at every value of `correlation`. Callers in the app pass
-    `ConfigManager.get_estimate_correlation()`; the 0.0 default keeps this
+    `settings.estimate_correlation()`; the 0.0 default keeps this
     function a pure, explicit primitive for tests.
 
     Returns dict with keys 'samples', 'stats', 'chain_nodes', 'chain_size'.

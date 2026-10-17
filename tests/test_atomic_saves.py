@@ -7,7 +7,7 @@ import networkx as nx
 import pytest
 
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.events import EventManager
 from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD as HARD
@@ -72,7 +72,7 @@ def test_rename_alias_and_settings_failure_rolls_back_everything():
     m = graph("A", "B")
     m.set_aliases("A", ["Original Alias"])
     m.set_aliases("B", ["Taken"])
-    ConfigManager.set_priority_goals(["A"])
+    settings.PRIORITY_GOALS.set(["A"])
     with pytest.raises(ValueError, match="already belongs"):
         with database.transaction():
             m.rename_node("A", "Renamed")
@@ -80,7 +80,7 @@ def test_rename_alias_and_settings_failure_rolls_back_everything():
             m.set_aliases("Renamed", ["Taken"])
     assert m.get_node("Renamed") is None
     assert m.get_node("A").description == "original"
-    assert ConfigManager.get_priority_goals() == ["A"]
+    assert settings.PRIORITY_GOALS.get() == ["A"]
     assert m.get_aliases("A") == ["Original Alias"]
 
 

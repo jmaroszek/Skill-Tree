@@ -30,7 +30,7 @@ from hypothesis import HealthCheck, settings, strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, initialize, invariant, rule
 
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings as stored_settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import (EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE,
@@ -114,8 +114,8 @@ class GraphMachine(RuleBasedStateMachine):
     def prioritize_goal(self, name):
         node = self.manager.get_node(name)
         if node is not None and node.type == "Goal":
-            goals = [g for g in ConfigManager.get_priority_goals() if g != name]
-            ConfigManager.set_priority_goals([name] + goals[:2])
+            goals = [g for g in stored_settings.PRIORITY_GOALS.get() if g != name]
+            stored_settings.PRIORITY_GOALS.set([name] + goals[:2])
 
     @rule(event=st.sampled_from(EVENTS), trigger=names)
     def add_event(self, event, trigger):
@@ -179,8 +179,8 @@ class GraphMachine(RuleBasedStateMachine):
         if not hasattr(self, "manager"):
             return
         existing = {n.name for n in self.manager.get_all_nodes(include_dormant=True)}
-        assert set(ConfigManager.get_priority_goals()) <= existing
-        assert set(ConfigManager.get_goal_order() or []) <= existing
+        assert set(stored_settings.PRIORITY_GOALS.get()) <= existing
+        assert set(stored_settings.GOAL_ORDER.get() or []) <= existing
 
     @invariant()
     def names_are_unique_ignoring_case(self):

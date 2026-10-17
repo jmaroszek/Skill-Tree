@@ -18,7 +18,7 @@ from typing import NamedTuple
 
 from dash import Input, Output, dcc, html, no_update
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.kit import Tooltip
 from skilltree.ui import tokens
 
@@ -116,7 +116,7 @@ def build_list_toolbar(search_input, sort: SortMenu):
         # Saved in Settings, not the browser, so the choice survives a new
         # port or a cleared profile.
         dcc.Store(id=sort.store_id,
-                  data=ConfigManager.get_list_sort(sort.store_id, sort.default)),
+                  data=settings.list_sort(sort.store_id, sort.default)),
     ], className="d-flex align-items-center",
        style={"gap": "4px", "padding": "0 12px", "marginBottom": tokens.SPACE_BLOCK})
 
@@ -148,7 +148,7 @@ def register_list_toolbar_callbacks(app, services) -> None:
         def save_sort(value, _sort=sort, _values=tuple(values)):
             if value not in _values:
                 return no_update
-            ConfigManager.set_list_sort(_sort.store_id, value)
+            settings.set_list_sort(_sort.store_id, value)
             return value
 
         # The tooltip names the current sort and the menu checks it. A stored

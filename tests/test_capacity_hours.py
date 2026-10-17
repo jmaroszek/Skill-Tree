@@ -10,7 +10,8 @@ import dash
 import pytest
 
 from skilltree.domain.time import capacity_hours
-from skilltree.store.settings import ConfigManager, DEFAULT_TIME_SETTINGS
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_TIME_SETTINGS
 from skilltree.features.settings import layout as settings_layout
 from skilltree.services import AppServices
 
@@ -55,7 +56,7 @@ def _save_settings():
 
 
 def _saved_hours():
-    ts = ConfigManager.get_time_settings()
+    ts = settings.TIME_SETTINGS.get()
     return ts['hours_per_week'], ts['hours_per_month']
 
 
@@ -68,7 +69,7 @@ def test_a_fractional_week_saves_as_typed():
 
 
 def test_blank_fields_keep_the_stored_hours():
-    ConfigManager.set_time_settings({'hours_per_week': 35, 'hours_per_month': 140,
+    settings.TIME_SETTINGS.set({'hours_per_week': 35, 'hours_per_month': 140,
                                      'monte_carlo_trials': 4321})
     save, args = _save_settings()
     args.update(n_clicks=1, hpw=None, hpm=None)
@@ -76,11 +77,11 @@ def test_blank_fields_keep_the_stored_hours():
     save(**args)
 
     assert _saved_hours() == (35, 140)
-    assert ConfigManager.get_time_settings()['monte_carlo_trials'] == 4321
+    assert settings.TIME_SETTINGS.get()['monte_carlo_trials'] == 4321
 
 
 def test_a_stored_value_missing_a_key_reads_the_default():
-    ConfigManager.set_time_settings({'monte_carlo_trials': 4321})
+    settings.TIME_SETTINGS.set({'monte_carlo_trials': 4321})
 
     assert _saved_hours() == (DEFAULT_TIME_SETTINGS['hours_per_week'],
                               DEFAULT_TIME_SETTINGS['hours_per_month'])
@@ -113,6 +114,6 @@ def test_a_contexts_error_keeps_the_complete_draft_unsaved():
     message = result[0]
     assert "Contexts need a fix" in message
     assert "Nothing was saved" in message
-    assert ConfigManager.get_now_node_cap() != 7
+    assert settings.NOW_NODE_CAP.get() != 7
     assert _saved_hours() != (30, 120)
     assert result[5] is dash.no_update  # Settings stays open without reloading the form.

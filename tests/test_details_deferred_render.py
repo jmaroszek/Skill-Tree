@@ -9,7 +9,7 @@ from dash import html
 from dash.development.base_component import Component
 
 from skilltree.features.details import callbacks as details_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.details.callbacks import register_details_callbacks
 from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.store.graph.manager import GraphManager
@@ -318,7 +318,7 @@ def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore()
         manager.add_node(node)
     manager.add_edge("Priority child", "Priority", EDGE_NEEDS_HARD)
     manager.add_edge("Explore child", "Explore", EDGE_NEEDS_HARD)
-    ConfigManager.set_priority_goals(["Priority"])
+    settings.PRIORITY_GOALS.set(["Priority"])
 
     app = _app_with(register_details_callbacks)
     callback = _raw_callback(_spec_for_output(
@@ -664,11 +664,11 @@ def test_subtask_priority_reads_as_on_home_under_a_priority_goal():
         manager.add_node(task)
     manager.add_edge("Boosted", "Focus", EDGE_NEEDS_HARD)
     manager.add_edge("Plain", "Other", EDGE_NEEDS_HARD)
-    ConfigManager.set_priority_goals(["Focus"])
-    ConfigManager.set_hyperparams({**ConfigManager.get_hyperparams(), "goal_boost": 1.5})
+    settings.PRIORITY_GOALS.set(["Focus"])
+    settings.set_hyperparams({**settings.hyperparams(), "goal_boost": 1.5})
 
     scored = manager.calculate_priority_scores(
-        manager.get_all_nodes(), priority_goals=ConfigManager.get_priority_goals())
+        manager.get_all_nodes(), priority_goals=settings.PRIORITY_GOALS.get())
     base = manager.get_priority_normalizer()
     on_home = {n.name: str(round(n.priority_score / base * 100))
                for n in scored if n.name in ("Boosted", "Plain")}

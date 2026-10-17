@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
@@ -25,7 +25,7 @@ def manager():
     manager = GraphManager()
     for name, value in (("Top", 10), ("Middle", 6), ("Low", 2)):
         manager.add_node(_node(name, value))
-    ConfigManager.set_now_node_cap(5)
+    settings.NOW_NODE_CAP.set(5)
     return manager
 
 

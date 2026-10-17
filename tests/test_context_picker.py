@@ -14,6 +14,7 @@ from skilltree.ui.components.context_picker import (
 )
 from skilltree.shell import build_app_layout
 from skilltree.store.graph.manager import GraphManager
+from skilltree.store import settings
 
 
 def _walk(component):
@@ -82,22 +83,10 @@ def test_every_ordinary_context_selection_surface_uses_the_shared_picker():
 
 
 def test_taxonomy_keeps_no_subcontext_out_of_user_defined_options(monkeypatch):
-    monkeypatch.setattr(
-        "skilltree.ui.components.context_picker.ConfigManager.get_contexts",
-        lambda: ["STEM"],
-    )
-    monkeypatch.setattr(
-        "skilltree.ui.components.context_picker.ConfigManager.get_subcontexts",
-        lambda: {"STEM": ["Math", "Computers"]},
-    )
-    monkeypatch.setattr(
-        "skilltree.ui.components.context_picker.ConfigManager.get_context_sort_mode",
-        lambda: "definition",
-    )
-    monkeypatch.setattr(
-        "skilltree.ui.components.context_picker.ConfigManager.get_subcontext_sort_mode",
-        lambda: "definition",
-    )
+    monkeypatch.setattr(settings.CONTEXTS, "get", lambda: ["STEM"])
+    monkeypatch.setattr(settings.SUBCONTEXTS, "get", lambda: {"STEM": ["Math", "Computers"]})
+    monkeypatch.setattr(settings.CONTEXT_SORT_MODE, "get", lambda: "definition")
+    monkeypatch.setattr(settings.SUBCONTEXT_SORT_MODE, "get", lambda: "definition")
 
     assert build_context_taxonomy() == [{
         "context": "STEM",

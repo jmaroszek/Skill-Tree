@@ -5,7 +5,7 @@ import pytest
 
 from skilltree.store import database
 from skilltree.features.home.table import format_suggestions_table
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD as HARD
 from test_atomic_saves import graph, node
@@ -108,8 +108,8 @@ def test_write_invalidates_snapshot_and_next_read_sees_new_values():
         a.value = 8
         m.update_node(a)
         assert m.get_node("A").value == 8
-        ConfigManager.set_time_settings({'hours_per_week': 20})
-        assert ConfigManager.get_time_settings()['hours_per_week'] == 20
+        settings.TIME_SETTINGS.set({'hours_per_week': 20})
+        assert settings.TIME_SETTINGS.get()['hours_per_week'] == 20
     with database.read_snapshot():
         assert m.get_node("A").value == 8
 
@@ -203,7 +203,7 @@ def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
     assert sum('SELECT key, value FROM Settings' in s for s in statements) == 1
     assert database.current_snapshot() is None
 
-    ConfigManager.set_time_settings({'hours_per_week': 1, 'hours_per_month': 4})
+    settings.TIME_SETTINGS.set({'hours_per_week': 1, 'hours_per_month': 4})
     opened.clear()
     statements.clear()
     second = to_json(analyze_callbacks._render_analyze_sections(
@@ -213,7 +213,7 @@ def test_analyze_render_bounds_reads_and_refreshes_settings(monkeypatch, count):
     assert first != second
     analyze_callbacks._render_analyze_sections(
         GraphManager(), 7, 8, 'month', None, None, 'type')
-    assert ConfigManager.get_analyze_limits()['bottlenecks'] == 7
+    assert settings.ANALYZE_LIMITS.get()['bottlenecks'] == 7
     assert database.current_snapshot() is None
 
 

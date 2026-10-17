@@ -43,11 +43,11 @@ from skilltree.features.settings.resources import (
 )
 from skilltree.store import database
 from skilltree.store.resources import get_sections, validate_sections
+from skilltree.store import settings
 from skilltree.store.settings import (
     DEFAULT_NODE_COLORS,
     DEFAULT_TITLECASE_LINTER,
     SUPPORTED_NODE_TYPES,
-    ConfigManager,
 )
 from skilltree.store.settings import DEFAULT_NODE_SHAPES
 from skilltree.features.settings.data import register_data_callbacks
@@ -227,31 +227,31 @@ def register_settings_callbacks(app, services):
             return (dash.no_update,) * len(load_outputs)
 
         contexts_state = editor_state(manager)
-        profile = ConfigManager.get_hp_profile()
+        profile = settings.HP_PROFILE.get()
         if profile not in PROFILES:
             profile = "Sage"
 
-        shapes = ConfigManager.get_node_shapes()
+        shapes = settings.NODE_SHAPES.get()
         display_types = _display_types()
         shape_rows = _build_shape_rows(display_types, shapes)
-        colors = ConfigManager.get_node_colors()
+        colors = settings.NODE_COLORS.get()
         status_color_rows = _build_status_color_rows(colors)
         type_color_rows = _build_type_color_rows(display_types, colors)
 
-        ts = ConfigManager.get_time_settings()
+        ts = settings.TIME_SETTINGS.get()
 
-        name_formatting = ConfigManager.get_name_formatting()
+        name_formatting = settings.NAME_FORMATTING.get()
         name_format_mode = name_formatting['mode']
         linter_exclusions_val = ', '.join(name_formatting.get('exclusions', []))
 
         # Length sorting remains readable for legacy/programmatic settings, but
         # is no longer a user-facing choice. Present legacy values as the
         # defined order so the two-option radio group always has a selection.
-        subcontext_sort_mode = ConfigManager.get_subcontext_sort_mode()
+        subcontext_sort_mode = settings.SUBCONTEXT_SORT_MODE.get()
         if subcontext_sort_mode not in (
                 SUBCONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL):
             subcontext_sort_mode = SUBCONTEXT_SORT_DEFINITION
-        context_sort_mode = ConfigManager.get_context_sort_mode()
+        context_sort_mode = settings.CONTEXT_SORT_MODE.get()
         if context_sort_mode not in (
                 CONTEXT_SORT_DEFINITION, CONTEXT_SORT_ALPHABETICAL):
             context_sort_mode = CONTEXT_SORT_DEFINITION
@@ -262,17 +262,17 @@ def register_settings_callbacks(app, services):
             shape_rows,
             status_color_rows,
             type_color_rows,
-            round(ConfigManager.get_hours_per_day(), 2),
+            round(settings.hours_per_day(), 2),
             ts['hours_per_week'],
             ts['hours_per_month'],
-            ConfigManager.get_hours_per_year(),
+            settings.hours_per_year(),
             name_format_mode,
             linter_exclusions_val,
-            ["enabled"] if ConfigManager.get_show_scoring_perf() else [],
+            ["enabled"] if settings.SHOW_SCORING_PERF.get() else [],
             subcontext_sort_mode,
             context_sort_mode,
-            ["enabled"] if ConfigManager.get_time_calibration_enabled() else [],
-            ConfigManager.get_now_node_cap(),
+            ["enabled"] if settings.TIME_CALIBRATION_ENABLED.get() else [],
+            settings.NOW_NODE_CAP.get(),
             ["enabled"] if ts['show_hour_equivalents'] else [],
             '',
         )
@@ -366,7 +366,7 @@ def register_settings_callbacks(app, services):
 
                 # Keep simulation policy values that are no longer exposed in the
                 # modal while updating the two user-supplied capacity values.
-                new_ts = dict(ConfigManager.get_time_settings())
+                new_ts = dict(settings.TIME_SETTINGS.get())
                 new_ts.update(capacity_hours(hpw, hpm, new_ts))
                 if show_hour_equivalents_val is not None:
                     new_ts['show_hour_equivalents'] = 'enabled' in show_hour_equivalents_val
@@ -380,8 +380,8 @@ def register_settings_callbacks(app, services):
                 # wipe every subcontext and priority.
                 if editor_store is None:
                     editor_store = {'rows': context_rules.taxonomy_to_rows(
-                        ConfigManager.get_contexts(), ConfigManager.get_subcontexts(),
-                        ConfigManager.get_context_weights())}
+                        settings.CONTEXTS.get(), settings.SUBCONTEXTS.get(),
+                        settings.CONTEXT_WEIGHTS.get())}
                 rows = context_rules.normalize_rows(live_rows(
                     editor_store, ctx_name_vals, ctx_name_ids, ctx_weight_vals,
                     ctx_weight_ids, ctx_sub_vals, ctx_sub_ids))
@@ -390,8 +390,8 @@ def register_settings_callbacks(app, services):
                     return result("Contexts need a fix — see the note under the rows. "
                                   "Nothing was saved.")
 
-                old_contexts = ConfigManager.get_contexts()
-                old_subcontexts = ConfigManager.get_subcontexts()
+                old_contexts = settings.CONTEXTS.get()
+                old_subcontexts = settings.SUBCONTEXTS.get()
                 plan = context_rules.plan_taxonomy_change(
                     rows, old_contexts, old_subcontexts)
                 new_contexts = plan['contexts']
@@ -447,10 +447,10 @@ def register_settings_callbacks(app, services):
                         'contexts': new_contexts,
                         'subcontexts': new_subcontexts,
                         'context_weights': new_ctx_weights,
-                        'shapes': {**ConfigManager.get_node_shapes(), **{
+                        'shapes': {**settings.NODE_SHAPES.get(), **{
                             sid['index']: value for sid, value in
                             zip(shape_ids or [], shape_values or []) if value}},
-                        'colors': {**ConfigManager.get_node_colors(), **{
+                        'colors': {**settings.NODE_COLORS.get(), **{
                             cid['index']: value for cid, value in
                             zip(color_ids or [], color_values or []) if value}},
                         'name_formatting': new_name_formatting,
@@ -460,14 +460,14 @@ def register_settings_callbacks(app, services):
                                                         'enabled' in time_calibration_val),
                         'now_node_cap': (max(1, min(50, int(now_node_cap_val)))
                                          if now_node_cap_val is not None
-                                         else ConfigManager.get_now_node_cap()),
+                                         else settings.NOW_NODE_CAP.get()),
                         'subcontext_sort_mode': (subcontext_sort_mode_val or
-                                                ConfigManager.get_subcontext_sort_mode()),
+                                                settings.SUBCONTEXT_SORT_MODE.get()),
                         'context_sort_mode': (context_sort_mode_val or
-                                             ConfigManager.get_context_sort_mode()),
+                                             settings.CONTEXT_SORT_MODE.get()),
                         'backup_extra_dir': (str(backup_extra_dir).strip()
                                              if backup_extra_dir is not None
-                                             else ConfigManager.get_backup_extra_dir()),
+                                             else settings.BACKUP_EXTRA_DIR.get()),
                         'orphans': orphans,
                         'new_values': {
                             'context': new_contexts,

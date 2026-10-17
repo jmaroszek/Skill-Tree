@@ -8,7 +8,8 @@ and describe itself the same way everywhere.
 from dataclasses import dataclass
 
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
-from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 
@@ -27,8 +28,8 @@ def canvas_node_styles(events):
     They travel as one bundle so no canvas can render without one of them.
     """
     return CanvasNodeStyles(
-        colors=ConfigManager.get_node_colors(),
-        shapes=ConfigManager.get_node_shapes(),
+        colors=settings.NODE_COLORS.get(),
+        shapes=settings.NODE_SHAPES.get(),
         trigger_names=frozenset(events.get_trigger_node_names()),
     )
 

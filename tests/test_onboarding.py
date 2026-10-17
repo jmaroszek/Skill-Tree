@@ -8,7 +8,8 @@ from dash._utils import AttributeDict
 from skilltree.store import database
 from skilltree.features.onboarding import steps as onboarding
 from skilltree.features.onboarding import callbacks as onboarding_callbacks
-from skilltree.store.settings import DEFAULT_CONTEXTS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_CONTEXTS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
@@ -74,7 +75,7 @@ def test_someone_with_a_graph_is_not_welcomed_even_the_first_time():
 
 
 def test_the_welcome_shows_once():
-    ConfigManager.set_welcome_done(True)
+    settings.WELCOME_DONE.set(True)
     assert onboarding.should_welcome() is False
     assert _find(build_app_layout(GraphManager(), env="sandbox"), "welcome-modal").is_open is False
 
@@ -88,12 +89,12 @@ def test_keeping_the_suggested_contexts(welcome):
     is_open, reload, settings_open, tab = _clicked(welcome, "btn-welcome-suggested", 1, None, None)
     assert is_open is False and reload is dash.no_update
     assert settings_open is dash.no_update
-    assert ConfigManager.get_contexts() == DEFAULT_CONTEXTS
+    assert settings.CONTEXTS.get() == DEFAULT_CONTEXTS
     # Stored, not read from the code's list, so changing the list later
     # leaves this user's contexts where they are.
     assert database.get_connection().execute(
         "SELECT 1 FROM Settings WHERE key IN ('CONTEXTS', 'SUBCONTEXTS')").fetchall() == [(1,), (1,)]
-    assert ConfigManager.get_welcome_done() is True
+    assert settings.WELCOME_DONE.get() is True
 
 
 def test_starting_plain_leaves_one_context_and_reloads(welcome):
@@ -101,16 +102,16 @@ def test_starting_plain_leaves_one_context_and_reloads(welcome):
     unable to save anything."""
     is_open, reload, _open, _tab = _clicked(welcome, "btn-welcome-empty", None, 1, None)
     assert is_open is False and reload
-    assert ConfigManager.get_contexts() == ["General"]
-    assert ConfigManager.get_subcontexts() == {"General": []}
-    assert ConfigManager.get_welcome_done() is True
+    assert settings.CONTEXTS.get() == ["General"]
+    assert settings.SUBCONTEXTS.get() == {"General": []}
+    assert settings.WELCOME_DONE.get() is True
 
 
 def test_importing_opens_settings_on_the_data_tab(welcome):
     is_open, reload, settings_open, tab = _clicked(welcome, "btn-welcome-import", None, None, 1)
     assert is_open is False and reload is dash.no_update
     assert settings_open is True and tab == "tab-data"
-    assert ConfigManager.get_welcome_done() is True
+    assert settings.WELCOME_DONE.get() is True
 
 
 # --- Getting Started ------------------------------------------------------------
@@ -164,7 +165,7 @@ def test_the_card_shows_until_every_step_is_done(card):
 def test_the_card_can_be_dismissed(card):
     assert card["dismiss_getting_started"]([None]) is dash.no_update   # rendered, not clicked
     card["dismiss_getting_started"]([1])
-    assert ConfigManager.get_getting_started_dismissed() is True
+    assert settings.GETTING_STARTED_DISMISSED.get() is True
     assert card["render_getting_started"](1) is None
 
 

@@ -1,6 +1,6 @@
 """Tests for scoring algorithm performance instrumentation.
 
-Covers: the ConfigManager on/off flag, the time_phases option on
+Covers: the SHOW_SCORING_PERF setting, the time_phases option on
 score_nodes, the gate in calculate_priority_scores, and the rolling
 perf.log writer.
 """
@@ -9,7 +9,7 @@ from datetime import datetime
 import pytest
 
 from skilltree.runtime import perf
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD
 from skilltree.domain.scoring import score_nodes
@@ -49,16 +49,16 @@ HYPERS = {
 
 
 # ---------------------------------------------------------------------------
-# ConfigManager round-trip
+# The setting's round-trip
 # ---------------------------------------------------------------------------
 
 def test_config_roundtrip():
     # Off by default: it's a developer's readout (P5.2).
-    assert ConfigManager.get_show_scoring_perf() is False
-    ConfigManager.set_show_scoring_perf(True)
-    assert ConfigManager.get_show_scoring_perf() is True
-    ConfigManager.set_show_scoring_perf(False)
-    assert ConfigManager.get_show_scoring_perf() is False
+    assert settings.SHOW_SCORING_PERF.get() is False
+    settings.SHOW_SCORING_PERF.set(True)
+    assert settings.SHOW_SCORING_PERF.get() is True
+    settings.SHOW_SCORING_PERF.set(False)
+    assert settings.SHOW_SCORING_PERF.get() is False
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ def _populate_manager_with_small_graph():
 
 
 def test_calculate_priority_scores_no_log_when_off():
-    ConfigManager.set_show_scoring_perf(False)
+    settings.SHOW_SCORING_PERF.set(False)
     m, nodes = _populate_manager_with_small_graph()
     result = m.calculate_priority_scores(nodes)
     assert isinstance(result, list)
@@ -125,7 +125,7 @@ def test_calculate_priority_scores_no_log_when_off():
 
 
 def test_calculate_priority_scores_logs_when_on():
-    ConfigManager.set_show_scoring_perf(True)
+    settings.SHOW_SCORING_PERF.set(True)
     m, nodes = _populate_manager_with_small_graph()
     result = m.calculate_priority_scores(nodes)
     assert isinstance(result, list)
@@ -147,7 +147,7 @@ def test_calculate_priority_scores_logs_when_on():
 
 
 def test_last_perf_timings_stashed():
-    ConfigManager.set_show_scoring_perf(True)
+    settings.SHOW_SCORING_PERF.set(True)
     m, nodes = _populate_manager_with_small_graph()
     m.calculate_priority_scores(nodes)
     t = m.last_perf_timings
@@ -160,7 +160,7 @@ def test_last_perf_timings_stashed():
 
 def test_zero_overhead_path_returns_list():
     """With setting off, calculate_priority_scores must return plain list."""
-    ConfigManager.set_show_scoring_perf(False)
+    settings.SHOW_SCORING_PERF.set(False)
     m, nodes = _populate_manager_with_small_graph()
     result = m.calculate_priority_scores(nodes)
     assert type(result) is list
@@ -168,7 +168,7 @@ def test_zero_overhead_path_returns_list():
 
 def test_only_startup_run_logs():
     """Setting on: first scoring run logs once, subsequent runs skip logging."""
-    ConfigManager.set_show_scoring_perf(True)
+    settings.SHOW_SCORING_PERF.set(True)
     m, nodes = _populate_manager_with_small_graph()
     m.calculate_priority_scores(nodes)
     assert perf._LOG_PATH.exists()
@@ -182,7 +182,7 @@ def test_only_startup_run_logs():
 
 
 def test_startup_flag_set_after_first_recorded_run():
-    ConfigManager.set_show_scoring_perf(True)
+    settings.SHOW_SCORING_PERF.set(True)
     m, nodes = _populate_manager_with_small_graph()
     assert m.startup_perf_recorded is False
     m.calculate_priority_scores(nodes)
@@ -191,7 +191,7 @@ def test_startup_flag_set_after_first_recorded_run():
 
 def test_subsequent_runs_return_plain_list():
     """After startup is recorded, even with setting on, return path is fast."""
-    ConfigManager.set_show_scoring_perf(True)
+    settings.SHOW_SCORING_PERF.set(True)
     m, nodes = _populate_manager_with_small_graph()
     m.calculate_priority_scores(nodes)  # startup
     result = m.calculate_priority_scores(nodes)

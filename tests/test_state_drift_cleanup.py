@@ -16,7 +16,7 @@ import pytest
 
 from skilltree.store import database
 from skilltree.domain.models import Node, Event, EDGE_NEEDS_HARD
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store import schema
 
 
@@ -94,7 +94,7 @@ class TestC1TriggerNodeCleanup:
 
         mgr.delete_node("X")
 
-        notes = ConfigManager.get_pending_event_notifications()
+        notes = settings.PENDING_EVENT_NOTIFICATIONS.get()
         td = [n for n in notes if n.get("kind") == "trigger_node_deleted"]
         assert len(td) == 1
         assert td[0]["deleted_node"] == "X"
@@ -103,7 +103,7 @@ class TestC1TriggerNodeCleanup:
     def test_no_notification_when_no_events_affected(self, mgr):
         mgr.add_node(_make_node("X"))
         mgr.delete_node("X")
-        notes = ConfigManager.get_pending_event_notifications()
+        notes = settings.PENDING_EVENT_NOTIFICATIONS.get()
         assert not any(n.get("kind") == "trigger_node_deleted" for n in notes)
 
     def test_already_triggered_event_unaffected(self, mgr, em):
@@ -113,7 +113,7 @@ class TestC1TriggerNodeCleanup:
 
         mgr.delete_node("X")
 
-        notes = ConfigManager.get_pending_event_notifications()
+        notes = settings.PENDING_EVENT_NOTIFICATIONS.get()
         assert not any(n.get("kind") == "trigger_node_deleted" for n in notes)
 
 
@@ -126,11 +126,11 @@ class TestC2PriorityGoalsCleanup:
         mgr.add_node(_make_node("G1", type="Goal"))
         mgr.add_node(_make_node("G2", type="Goal"))
         mgr.add_node(_make_node("G3", type="Goal"))
-        ConfigManager.set_priority_goals(["G1", "G2", "G3"])
+        settings.PRIORITY_GOALS.set(["G1", "G2", "G3"])
 
         mgr.delete_node("G1")
 
-        assert ConfigManager.get_priority_goals() == ["G2", "G3"]
+        assert settings.PRIORITY_GOALS.get() == ["G2", "G3"]
 
     def test_remaining_goals_shift_up_in_rank(self, mgr):
         # After G1 is deleted, G2 should now be the rank-1 goal — verify by
@@ -142,13 +142,13 @@ class TestC2PriorityGoalsCleanup:
         # An ordinary task gated by G2 so the goal-boost has somewhere to land.
         mgr.add_node(_make_node("Task"))
         mgr.add_edge("Task", "G2", EDGE_NEEDS_HARD)
-        ConfigManager.set_priority_goals(["G1", "G2"])
+        settings.PRIORITY_GOALS.set(["G1", "G2"])
 
         # Score before delete: Task is in G2's subtree, gets rank-2 multiplier.
         before = score_nodes(
             mgr.get_all_nodes(), mgr.get_all_nodes(), mgr.get_edges(),
-            ConfigManager.get_hyperparams(),
-            priority_goals=ConfigManager.get_priority_goals(),
+            settings.hyperparams(),
+            priority_goals=settings.PRIORITY_GOALS.get(),
         )
         before_score = next(n for n in before if n.name == "Task").priority_score
 
@@ -156,8 +156,8 @@ class TestC2PriorityGoalsCleanup:
 
         after = score_nodes(
             mgr.get_all_nodes(), mgr.get_all_nodes(), mgr.get_edges(),
-            ConfigManager.get_hyperparams(),
-            priority_goals=ConfigManager.get_priority_goals(),
+            settings.hyperparams(),
+            priority_goals=settings.PRIORITY_GOALS.get(),
         )
         after_score = next(n for n in after if n.name == "Task").priority_score
 
@@ -167,11 +167,11 @@ class TestC2PriorityGoalsCleanup:
     def test_delete_non_priority_node_leaves_list_alone(self, mgr):
         mgr.add_node(_make_node("G1", type="Goal"))
         mgr.add_node(_make_node("Other"))
-        ConfigManager.set_priority_goals(["G1"])
+        settings.PRIORITY_GOALS.set(["G1"])
 
         mgr.delete_node("Other")
 
-        assert ConfigManager.get_priority_goals() == ["G1"]
+        assert settings.PRIORITY_GOALS.get() == ["G1"]
 
 
 # ============================================================================
@@ -193,8 +193,8 @@ class TestRenameStillWorks:
         # the goal silently loses its rank and the slot wastes its boost.
         mgr.add_node(_make_node("OldGoal", type="Goal"))
         mgr.add_node(_make_node("OtherGoal", type="Goal"))
-        ConfigManager.set_priority_goals(["OldGoal", "OtherGoal"])
+        settings.PRIORITY_GOALS.set(["OldGoal", "OtherGoal"])
 
         mgr.rename_node("OldGoal", "NewGoal")
 
-        assert ConfigManager.get_priority_goals() == ["NewGoal", "OtherGoal"]
+        assert settings.PRIORITY_GOALS.get() == ["NewGoal", "OtherGoal"]

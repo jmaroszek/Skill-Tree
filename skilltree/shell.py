@@ -7,9 +7,7 @@ from skilltree.store import database
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import (
-    ConfigManager,
-)
+from skilltree.store import settings
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
     TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
@@ -476,7 +474,7 @@ def build_app_layout(graph, env="production"):
         # top:60px clears it with a touch of breathing room). zIndex above
         # context menus (10000–10002).
         dbc.Toast(
-            f"{ConfigManager.get_now_node_cap()} Now nodes is the cap. Clear one to make room.",
+            f"{settings.NOW_NODE_CAP.get()} Now nodes is the cap. Clear one to make room.",
             id="now-cap-toast",
             header="Now Cap Reached",
             is_open=False,

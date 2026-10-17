@@ -20,7 +20,7 @@ from dash._utils import AttributeDict
 from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store import events as event_manager_module
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node, STATUS_DONE
@@ -83,14 +83,14 @@ def test_the_trigger_button_on_a_fired_event_says_so_and_announces_nothing():
     events.add_event(Event(name="Spring"))
     events.create_dormant_node(_node("Garden"), "Spring")
     events.trigger_event_manually("Spring")
-    announced = len(ConfigManager.get_pending_event_notifications())
+    announced = len(settings.PENDING_EVENT_NOTIFICATIONS.get())
 
     result = _callbacks()["trigger_event"](1, "Spring", [])
 
     message, modal_open = result[6], result[7]
     assert "already been triggered" in message and modal_open is False
     assert result[2] == "Triggered"
-    assert len(ConfigManager.get_pending_event_notifications()) == announced
+    assert len(settings.PENDING_EVENT_NOTIFICATIONS.get()) == announced
 
 
 def test_a_node_that_wakes_done_stays_off_now():

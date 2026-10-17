@@ -22,7 +22,7 @@ from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import restore_button
 from skilltree.features.review.values import PROJECT_NOTES_PLACEHOLDER
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import unit_select
 from skilltree.ui.components.duration import work_time_tooltip
@@ -409,7 +409,7 @@ def build_reflection_ratings_popup():
                 ])),
                 html.Tbody(
                     id="reflection-ratings-popup-table-body",
-                    children=build_popup_table_rows(ConfigManager.get_reflection_ratings_definitions()),
+                    children=build_popup_table_rows(settings.REFLECTION_RATINGS_DEFINITIONS.get()),
                 ),
             ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),

@@ -86,7 +86,7 @@ try:
 except Exception:
     pass
 try:
-    ConfigManager.set_priority_goals(["Sleep"])
+    settings.PRIORITY_GOALS.set(["Sleep"])
 except Exception:
     pass
 try:

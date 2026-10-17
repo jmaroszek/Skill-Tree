@@ -1,7 +1,7 @@
 """Scoring performance log helper.
 
 Append-only log of every timed scoring run. Caller must have already
-checked ConfigManager.get_show_scoring_perf() before calling
+checked settings.SHOW_SCORING_PERF.get() before calling
 append_perf_log — this module does not re-check.
 
 Format: one pipe-delimited line per run

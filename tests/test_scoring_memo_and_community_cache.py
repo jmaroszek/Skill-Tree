@@ -277,16 +277,16 @@ def test_scoring_memo_invalidated_on_scoring_field_edit():
 def test_scoring_memo_invalidated_on_hyperparam_change(monkeypatch):
     """Changing hyperparameters must invalidate the scoring memo even when
     the graph is untouched."""
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
     mgr = GraphManager()
     mgr.add_node(_make_node("A"))
 
-    base = ConfigManager.get_hyperparams()
-    monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=1.0)))
+    base = settings.hyperparams()
+    monkeypatch.setattr(settings, "hyperparams", lambda: dict(base, w_v=1.0))
     mgr.calculate_priority_scores([mgr.get_node("A")])
     first_key = mgr.caches.scoring_key
 
-    monkeypatch.setattr(ConfigManager, "get_hyperparams", classmethod(lambda cls: dict(base, w_v=2.0)))
+    monkeypatch.setattr(settings, "hyperparams", lambda: dict(base, w_v=2.0))
     mgr.calculate_priority_scores([mgr.get_node("A")])
     assert mgr.caches.scoring_key != first_key, "cache key should advance on hyperparam change"
 
@@ -436,16 +436,14 @@ def test_scoring_memo_survives_a_now_reorder():
 
 
 def test_priority_normalizer_cache_invalidated_on_hyperparam_change(monkeypatch):
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
     mgr = GraphManager()
     mgr.add_node(_make_node("A"))
 
-    base = ConfigManager.get_hyperparams()
-    monkeypatch.setattr(ConfigManager, "get_hyperparams",
-                        classmethod(lambda cls: dict(base, w_e=2.5)))
+    base = settings.hyperparams()
+    monkeypatch.setattr(settings, "hyperparams", lambda: dict(base, w_e=2.5))
     first = mgr.get_priority_normalizer()
-    monkeypatch.setattr(ConfigManager, "get_hyperparams",
-                        classmethod(lambda cls: dict(base, w_e=10.0)))
+    monkeypatch.setattr(settings, "hyperparams", lambda: dict(base, w_e=10.0))
     assert mgr.get_priority_normalizer() < first
 
 

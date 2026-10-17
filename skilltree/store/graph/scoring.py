@@ -2,7 +2,7 @@
 from typing import List, Optional
 import json
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import score_nodes
 from skilltree.store.graph.state import revisions
@@ -21,8 +21,8 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
     context weights don't affect the
     cached structural maps, so they are excluded from the key.
     """
-    hypers = ConfigManager.get_hyperparams()
-    hypers['context_weights'] = ConfigManager.get_context_weights()
+    hypers = settings.hyperparams()
+    hypers['context_weights'] = settings.CONTEXT_WEIGHTS.get()
     TV_AFFECTING_KEYS = ('w_v', 'w_i', 'value_exponent', 'd_H', 'd_S',
                          'd_Syn_pair', 'd_Syn_mul', 'cross_context_mult',
                          'future_work_half_credit_hours', 'future_work_exponent')
@@ -36,7 +36,7 @@ def calculate_priority_scores(manager, now_nodes: List[Node], priority_goals: Op
     if database.in_transaction():
         memo = {}  # Never read/publish committed caches for pending writes.
 
-    if ConfigManager.get_show_scoring_perf() and not manager.startup_perf_recorded:
+    if settings.SHOW_SCORING_PERF.get() and not manager.startup_perf_recorded:
         scored, timings = score_nodes(
             now_nodes, manager.get_all_nodes(),
             manager.get_edges(), hypers,
@@ -77,9 +77,9 @@ def get_priority_normalizer(manager) -> float:
     this number alongside a ranking they already paid for, and a
     second full scoring pass per render is worth avoiding.
     """
-    hypers = ConfigManager.get_hyperparams()
-    hypers['context_weights'] = ConfigManager.get_context_weights()
-    priority_goals = ConfigManager.get_priority_goals()
+    hypers = settings.hyperparams()
+    hypers['context_weights'] = settings.CONTEXT_WEIGHTS.get()
+    priority_goals = settings.PRIORITY_GOALS.get()
     cache_key = (database.get_db_path(), revisions.scoring,
                  json.dumps(hypers, sort_keys=True, default=str),
                  tuple(priority_goals or ()))

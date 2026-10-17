@@ -9,7 +9,7 @@ import math
 
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.profiles import PROFILES
 from skilltree.domain.models import Node
 from skilltree.domain.scoring import build_adjacency, explain_score, focus_route_data, score_nodes, total_value
@@ -109,7 +109,7 @@ def test_goal_ranking_counts_only_the_work_left():
 def test_marking_a_dependent_done_rescores_through_the_cache():
     from skilltree.store.graph.manager import GraphManager
     manager = GraphManager()
-    ConfigManager.set_show_scoring_perf(False)
+    settings.SHOW_SCORING_PERF.set(False)
     for n in [node('A'), node('D', value=9)]:
         manager.add_node(n)
     manager.add_edge('A', 'D', 'Needs_Soft')

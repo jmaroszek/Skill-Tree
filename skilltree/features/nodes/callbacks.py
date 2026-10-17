@@ -4,7 +4,8 @@ import dash
 from dash import Input, Output, State, no_update
 
 from skilltree.features.nodes.layout import empty_canvas_detail
-from skilltree.store.settings import DEFAULT_GRAPH_LAYOUT, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_GRAPH_LAYOUT
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.filters import build_filters
 
@@ -137,7 +138,7 @@ def register_nodes_callbacks(app, services):
     def reset_graph_settings(n_clicks):
         if not n_clicks:
             return (dash.no_update,) * 5
-        gl = ConfigManager.get_graph_layout_defaults()
+        gl = settings.GRAPH_LAYOUT_DEFAULTS.get()
         return (
             True,
             gl.get('edge_length', DEFAULT_GRAPH_LAYOUT['edge_length']),

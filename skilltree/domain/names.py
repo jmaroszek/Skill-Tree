@@ -48,7 +48,7 @@ NAME_FORMAT_MODES = {
 def format_name(name, formatting):
     """`name` as the user's name formatting writes it: as typed, Sentence
     case, or Title Case leaving the exclusions lower case. `formatting` is
-    ConfigManager.get_name_formatting()."""
+    settings.NAME_FORMATTING.get()."""
     mode = formatting['mode']
     if mode == NAME_FORMAT_NONE:
         return name

@@ -508,9 +508,9 @@ class TestIsFormDirtyVsSnapshot:
         post-save snapshot refresh, a form holding the linted alias must not
         flag as dirty."""
         from skilltree.store.graph.manager import GraphManager
-        from skilltree.store.settings import ConfigManager
+        from skilltree.store import settings
         from skilltree.domain.names import NAME_FORMAT_TITLE
-        ConfigManager.set_name_formatting({'mode': NAME_FORMAT_TITLE})
+        settings.NAME_FORMATTING.set({'mode': NAME_FORMAT_TITLE})
         mgr = GraphManager()
         node = self._seed(mgr)
         # Save aliases through the manager — which applies the linter.

@@ -13,7 +13,7 @@ import pytest
 from skilltree.domain.models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
 from skilltree.store.graph.manager import GraphManager
 from skilltree.store.commands import handle_save, prior_node_for_completion
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.review.values import (
     calibration_prepop as calibration_prepop,
     calibration_review_queue as calibration_review_queue,
@@ -194,13 +194,13 @@ class TestHandleSavePreservesCalibration:
 
 class TestTimeCalibrationFlag:
     def test_defaults_enabled(self):
-        assert ConfigManager.get_time_calibration_enabled() is True
+        assert settings.TIME_CALIBRATION_ENABLED.get() is True
 
     def test_set_and_get(self):
-        ConfigManager.set_time_calibration_enabled(False)
-        assert ConfigManager.get_time_calibration_enabled() is False
-        ConfigManager.set_time_calibration_enabled(True)
-        assert ConfigManager.get_time_calibration_enabled() is True
+        settings.TIME_CALIBRATION_ENABLED.set(False)
+        assert settings.TIME_CALIBRATION_ENABLED.get() is False
+        settings.TIME_CALIBRATION_ENABLED.set(True)
+        assert settings.TIME_CALIBRATION_ENABLED.get() is True
 
 
 # ============================================================================
@@ -252,7 +252,7 @@ class TestCalibrationUnitFor:
 
     @staticmethod
     def _bands():
-        s = ConfigManager.get_time_settings()
+        s = settings.TIME_SETTINGS.get()
         hw = s.get('hours_per_week', 40)
         hm = s.get('hours_per_month', 160)
         hy = HOURS_PER_YEAR_MULT * hm
@@ -344,7 +344,7 @@ class TestCalibrationPrepopulation:
 
     def test_saved_actual_times_come_back_in_a_fitting_unit(self):
         # A node reopened and finished again keeps its first finish's times.
-        ConfigManager.set_time_settings({'hours_per_week': 20, 'hours_per_month': 80})
+        settings.TIME_SETTINGS.set({'hours_per_week': 20, 'hours_per_month': 80})
         node = _make_node("Again", status=STATUS_DONE, time_o=1, time_m=2, time_p=4,
                           actual_time_lower=40.0, actual_time_point=56.0)
 

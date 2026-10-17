@@ -1,7 +1,7 @@
 """Graph traversal and view queries, called through GraphManager."""
 from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_BLOCKED, STATUS_DONE
 from skilltree.store.graph.state import revisions
 from skilltree.domain import communities as community_labels
@@ -36,7 +36,7 @@ def get_unblocking_steps(manager, target_names, limit: int = 3,
         return []
 
     if priority_goals is None:
-        priority_goals = ConfigManager.get_priority_goals()
+        priority_goals = settings.PRIORITY_GOALS.get()
     # One pass over the whole graph rather than one per target: scoring is
     # graph-wide anyway (see calculate_priority_scores) and the subtree
     # lookups below are already cached against the graph version.
@@ -546,7 +546,7 @@ def list_communities(manager, method: str = "louvain",
     by_name = {n.name: n for n in nodes}
     members = [by_name[x] for c in communities for x in c if x in by_name]
     scored = manager.calculate_priority_scores(
-        members, priority_goals=ConfigManager.get_priority_goals())
+        members, priority_goals=settings.PRIORITY_GOALS.get())
     priority = {n.name: n.priority_score for n in scored}
     return community_labels.build_listing(
         communities, labels, priority, skip_small=method != "orphans")

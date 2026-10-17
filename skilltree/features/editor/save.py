@@ -21,7 +21,7 @@ from skilltree.store.commands import (
     ReopensDoneNodes, apply_dormancy, done_names, finish_bridge, handle_save,
     prior_node_for_completion,
 )
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 
 class SavedForm(NamedTuple):
@@ -98,7 +98,7 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
         if reopening and not sleeping:
             status_done = [STATUS_DONE]
 
-        multiplier = ConfigManager.get_time_multiplier(time_unit)
+        multiplier = settings.time_multiplier(time_unit)
         t_o = float(time_o or 0) * multiplier
         t_m = float(time_m or 0) * multiplier
         t_p = float(time_p or 0) * multiplier

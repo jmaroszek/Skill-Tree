@@ -2,7 +2,7 @@
 import dash
 import dash_bootstrap_components as dbc
 from dash import html
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import tokens
 from skilltree.ui.components.ratings_table import (
     HEADER_CELL_STYLE,
@@ -159,7 +159,7 @@ def build_ratings_popup():
                 ])),
                 html.Tbody(
                     id="ratings-popup-table-body",
-                    children=build_popup_table_rows(ConfigManager.get_ratings_definitions()),
+                    children=build_popup_table_rows(settings.RATINGS_DEFINITIONS.get()),
                 ),
             ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
@@ -278,8 +278,8 @@ _EDITOR_HINTS = {
 
 # --- Node Editor sidebar (left) ---
 def build_node_editor_content():
-    CONTEXTS = sort_contexts(ConfigManager.get_contexts(),
-                             ConfigManager.get_context_sort_mode())
+    CONTEXTS = sort_contexts(settings.CONTEXTS.get(),
+                             settings.CONTEXT_SORT_MODE.get())
     return html.Div(
         [
             html.Div([
@@ -584,7 +584,7 @@ def build_node_editor_content():
                             ]) for field, label in (("o", "Lower"), ("m", "Expected"),
                                                    ("p", "Upper"))
                         ], id="node-time-bracket-row"),
-                        dcc.Store(id="editor-time-settings", data=ConfigManager.get_time_settings()),
+                        dcc.Store(id="editor-time-settings", data=settings.TIME_SETTINGS.get()),
                         html.Div(id="time-validation-error", children="",
                                  style=tokens.ERROR_TEXT_HIDDEN,
                                  className="mt-1"),

@@ -4,7 +4,7 @@ import logging
 
 from dash import Input, State
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +111,7 @@ def build_filters(f_context, f_subcontext, f_done, f_value=None, f_interest=None
     low, high = time_range(f_time_min, f_time)
     if low is not None or high is not None:
         try:
-            multiplier = ConfigManager.get_time_multiplier(f_time_unit or "hours")
+            multiplier = settings.time_multiplier(f_time_unit or "hours")
             # Rounded as Node.time is, so a node sitting on a bound in another
             # unit stays in.
             if low is not None:

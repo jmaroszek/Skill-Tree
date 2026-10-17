@@ -12,7 +12,7 @@ from skilltree.features.settings import data as data_callbacks
 from skilltree.store import transfer as data_transfer
 from skilltree.store import database
 from skilltree.features.settings import callbacks as settings_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import Node
@@ -77,7 +77,7 @@ def test_back_up_now_makes_a_copy_and_lists_it(data):
 
 
 def test_opening_the_tab_loads_backups_and_the_extra_folder(data, tmp_path):
-    ConfigManager.set_backup_extra_dir(str(tmp_path))
+    settings.BACKUP_EXTRA_DIR.set(str(tmp_path))
     backup.create_backup("manual")
 
     options, extra, auto = data["load_data_tab"]("tab-data")
@@ -88,9 +88,9 @@ def test_opening_the_tab_loads_backups_and_the_extra_folder(data, tmp_path):
 
 def test_the_automatic_backup_switch_is_saved_at_once(data):
     data["save_auto_backup"](False)
-    assert ConfigManager.get_auto_backup() is False
+    assert settings.AUTO_BACKUP.get() is False
     data["save_auto_backup"](True)
-    assert ConfigManager.get_auto_backup() is True
+    assert settings.AUTO_BACKUP.get() is True
 
 
 def test_exports_download_as_files(data):
@@ -164,4 +164,4 @@ def test_settings_save_keeps_the_extra_backup_folder(tmp_path):
         None, None, None, None, None, None, None,
         backup_extra_dir=f"  {tmp_path}  ")
     assert status.startswith("Settings saved")
-    assert ConfigManager.get_backup_extra_dir() == str(tmp_path)
+    assert settings.BACKUP_EXTRA_DIR.get() == str(tmp_path)

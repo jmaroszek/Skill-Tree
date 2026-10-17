@@ -10,7 +10,7 @@ from skilltree.domain.contexts import sort_subcontexts
 from skilltree.features.settings.contexts import editor_state
 from skilltree.features.settings.draft import apply_settings
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.dash_tools import get_trigger_id
 
 logger = logging.getLogger(__name__)
@@ -119,7 +119,7 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     ctx_options += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
 
     def _sub_options_for(ctx_val):
-        mode = ConfigManager.get_subcontext_sort_mode()
+        mode = settings.SUBCONTEXT_SORT_MODE.get()
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
             subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         else:
@@ -421,7 +421,7 @@ def register_migration_callbacks(app, services):
         return (dash.no_update,) * 8
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
-        mode = ConfigManager.get_subcontext_sort_mode()
+        mode = settings.SUBCONTEXT_SORT_MODE.get()
         if ctx_val and ctx_val not in ('__keep__', '__clear__'):
             subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         else:

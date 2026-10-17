@@ -15,7 +15,7 @@ from dash import Input, Output, State, dcc, html, no_update
 
 from skilltree.store import backup
 from skilltree.store import transfer as data_transfer
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.runtime.opener import open_path
 
 logger = logging.getLogger(__name__)
@@ -59,15 +59,15 @@ def register_data_callbacks(app, services):
     def load_data_tab(active_tab):
         if active_tab != "tab-data":
             return no_update, no_update, no_update
-        return (backup_options(), ConfigManager.get_backup_extra_dir(),
-                ConfigManager.get_auto_backup())
+        return (backup_options(), settings.BACKUP_EXTRA_DIR.get(),
+                settings.AUTO_BACKUP.get())
 
     @app.callback(
         Input("setting-auto-backup", "value"),
         prevent_initial_call=True,
     )
     def save_auto_backup(enabled):
-        ConfigManager.set_auto_backup(bool(enabled))
+        settings.AUTO_BACKUP.set(bool(enabled))
 
     @app.callback(
         Output("data-status", "children", allow_duplicate=True),

@@ -6,7 +6,7 @@ from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
 from skilltree.features.goals import callbacks as sidebars_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.services import AppServices
@@ -27,24 +27,24 @@ def _add_goals(*names):
 
 def test_rename_carries_the_goal_through_the_manual_order_and_priorities():
     manager = _add_goals("Alpha", "Beta", "Gamma")
-    ConfigManager.set_goal_order(["Gamma", "Alpha", "Beta"])
-    ConfigManager.set_priority_goals(["Alpha"])
+    settings.GOAL_ORDER.set(["Gamma", "Alpha", "Beta"])
+    settings.PRIORITY_GOALS.set(["Alpha"])
 
     manager.rename_node("Alpha", "Aleph")
 
-    assert ConfigManager.get_goal_order() == ["Gamma", "Aleph", "Beta"]
-    assert ConfigManager.get_priority_goals() == ["Aleph"]
+    assert settings.GOAL_ORDER.get() == ["Gamma", "Aleph", "Beta"]
+    assert settings.PRIORITY_GOALS.get() == ["Aleph"]
 
 
 def test_delete_drops_the_goal_from_the_manual_order_and_priorities():
     manager = _add_goals("Alpha", "Beta", "Gamma")
-    ConfigManager.set_goal_order(["Gamma", "Alpha", "Beta"])
-    ConfigManager.set_priority_goals(["Alpha", "Beta"])
+    settings.GOAL_ORDER.set(["Gamma", "Alpha", "Beta"])
+    settings.PRIORITY_GOALS.set(["Alpha", "Beta"])
 
     manager.delete_node("Alpha")
 
-    assert ConfigManager.get_goal_order() == ["Gamma", "Beta"]
-    assert ConfigManager.get_priority_goals() == ["Beta"]
+    assert settings.GOAL_ORDER.get() == ["Gamma", "Beta"]
+    assert settings.PRIORITY_GOALS.get() == ["Beta"]
 
 
 def _render_goal_names(stale_store_order):
@@ -70,9 +70,9 @@ def _render_goal_names(stale_store_order):
 
 def test_goals_sidebar_orders_a_renamed_goal_where_it_was(monkeypatch):
     manager = _add_goals("Alpha", "Beta", "Gamma")
-    ConfigManager.set_goal_order(["Gamma", "Alpha", "Beta"])
+    settings.GOAL_ORDER.set(["Gamma", "Alpha", "Beta"])
     # The page loaded the order before the rename; the store never hears of it.
-    stale = ConfigManager.get_goal_order()
+    stale = settings.GOAL_ORDER.get()
 
     manager.rename_node("Alpha", "Aleph")
 

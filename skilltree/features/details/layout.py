@@ -19,7 +19,7 @@ from skilltree.ui.kit import (
 from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.styles import badge_style, BADGE_PALETTE
 from skilltree.ui.styles import stylesheet
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
@@ -205,7 +205,7 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  DEPENDENCY GRAPH  (teal area: full height, starts at tab bar)      #
     # ------------------------------------------------------------------ #
-    gl = ConfigManager.get_details_graph_layout_defaults()
+    gl = settings.DETAILS_GRAPH_LAYOUT_DEFAULTS.get()
     dep_graph = html.Div([
         html.Div([
             cyto.Cytoscape(
@@ -240,7 +240,7 @@ def build_details_tab_content():
             freeze_indicator("details-freeze-indicator"),
             build_graph_settings_panel(
                 "details-graph-settings",
-                defaults_getter=ConfigManager.get_details_graph_layout_defaults,
+                defaults_getter=settings.DETAILS_GRAPH_LAYOUT_DEFAULTS.get,
                 max_depth_id="details-max-depth",
             ),
             dbc.Button(html.I(className="bi bi-search"),
@@ -531,7 +531,7 @@ def build_details_tab_content():
         # clears the list — but NOT an input to core_engine, so opening
         # doesn't wait on a graph regen.
         dcc.Store(id='goals-ui-refresh-trigger', data=0),
-        dcc.Store(id='details-goal-order-store', data=ConfigManager.get_goal_order() or None),
+        dcc.Store(id='details-goal-order-store', data=settings.GOAL_ORDER.get() or None),
         dcc.Store(id='details-nav-history', data=[]),
         dcc.Store(id='details-nav-index', data=-1),
         dcc.Input(id='details-goal-drag-order-input', type='text', value='',
@@ -835,7 +835,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         # With the priority Goals, as Home and Explain score: without them a
         # task under a priority Goal read lower here than there.
         scored = graph_manager.calculate_priority_scores(
-            subtask_nodes, priority_goals=ConfigManager.get_priority_goals())
+            subtask_nodes, priority_goals=settings.PRIORITY_GOALS.get())
         # Normalized against the whole graph, not against these few rows: a
         # child's priority has to read the same here as on the Home tab and
         # in the Explain modal. A local maximum would print 100 next to the

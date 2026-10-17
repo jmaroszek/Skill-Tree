@@ -19,7 +19,7 @@ from skilltree.features.events.layout import (
     build_triggered_divider,
     trigger_confirmation_body,
 )
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.list_toolbar import merge_manual_order
@@ -135,7 +135,7 @@ def register_events_callbacks(app, services):
             # Manual: the saved drag order. It comes from the database, not
             # the store: the store is loaded with the page, while renames and
             # deletes keep the saved order current.
-            stored_order = ConfigManager.get_event_order()
+            stored_order = settings.EVENT_ORDER.get()
             if stored_order:
                 event_map = {e.name: e for e in events}
                 ordered = [event_map[n] for n in stored_order if n in event_map]
@@ -278,8 +278,8 @@ def register_events_callbacks(app, services):
             return no_update
         # The drag reorders the cards it shows (a search, or hidden finished
         # events, leave some out) within the saved order.
-        order = merge_manual_order(ConfigManager.get_event_order(), shown)
-        ConfigManager.set_event_order(order)
+        order = merge_manual_order(settings.EVENT_ORDER.get(), shown)
+        settings.EVENT_ORDER.set(order)
         return order
 
     # --- Populate trigger node dropdown when Events data changes/arrives ---

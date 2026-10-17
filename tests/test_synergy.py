@@ -6,7 +6,7 @@ import random
 import pytest
 
 from skilltree.features.details.explain import _contributor_hover
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.profiles import HYPERPARAMS_SCHEMA_VERSION, PROFILES
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
@@ -161,8 +161,8 @@ def test_random_fixed_base_completion_added_partners_and_order(profile):
 
 
 def test_cache_refreshes_after_completion_reopening_work_context_and_edge_changes():
-    ConfigManager.set_hp_profile('Creator')
-    ConfigManager.set_show_scoring_perf(False)
+    settings.HP_PROFILE.set('Creator')
+    settings.SHOW_SCORING_PERF.set(False)
     manager = GraphManager()
     for n in [node('A'), node('B', context='Body'), node('C', 200, status='Done')]:
         manager.add_node(n)
@@ -196,34 +196,34 @@ def test_cache_refreshes_after_completion_reopening_work_context_and_edge_change
 def test_v5_custom_settings_migrate_without_writing_or_losing_other_preferences(pair, strength):
     raw = json.dumps(dict(_schema=5, d_Syn_pair=pair, d_Syn_mul=strength,
                          w_t=8.7, future_work_half_credit_hours=777))
-    ConfigManager._set_db_value('HYPERPARAMS', raw)
-    hp = ConfigManager.get_hyperparams()
+    settings.write_stored('HYPERPARAMS', raw)
+    hp = settings.hyperparams()
     assert hp['d_Syn_pair'] == pair
     assert hp['d_Syn_mul'] == max(pair, strength)
     assert hp['w_t'] == 8.7
     assert hp['future_work_half_credit_hours'] == 777
-    assert ConfigManager._get_db_value('HYPERPARAMS') == raw
-    ConfigManager.set_hyperparams(hp)
-    stored = json.loads(ConfigManager._get_db_value('HYPERPARAMS'))
+    assert settings.read_stored('HYPERPARAMS') == raw
+    settings.set_hyperparams(hp)
+    stored = json.loads(settings.read_stored('HYPERPARAMS'))
     assert stored['_schema'] == HYPERPARAMS_SCHEMA_VERSION == 6
-    assert ConfigManager.get_hyperparams() == hp
+    assert settings.hyperparams() == hp
 
 
 def test_partial_override_uses_the_selected_profile_when_normalizing():
-    ConfigManager.set_hp_profile('Creator')
-    ConfigManager.set_hyperparams({'d_Syn_pair': .9})
-    assert ConfigManager.get_hyperparams()['d_Syn_mul'] == 1.3
-    ConfigManager.set_hyperparams({'d_Syn_pair': 2})
-    assert ConfigManager.get_hyperparams()['d_Syn_mul'] == 2
+    settings.HP_PROFILE.set('Creator')
+    settings.set_hyperparams({'d_Syn_pair': .9})
+    assert settings.hyperparams()['d_Syn_mul'] == 1.3
+    settings.set_hyperparams({'d_Syn_pair': 2})
+    assert settings.hyperparams()['d_Syn_mul'] == 2
 
 
 @pytest.mark.parametrize('key', ['d_Syn_pair', 'd_Syn_mul', 'cross_context_mult'])
 @pytest.mark.parametrize('bad', [-1, float('nan'), float('inf'), 'broken', None])
 def test_invalid_synergy_override_is_rejected_before_writing(key, bad):
-    before = ConfigManager._get_db_value('HYPERPARAMS')
+    before = settings.read_stored('HYPERPARAMS')
     with pytest.raises(ValueError, match='finite nonnegative'):
-        ConfigManager.set_hyperparams({key: bad})
-    assert ConfigManager._get_db_value('HYPERPARAMS') == before
+        settings.set_hyperparams({key: bad})
+    assert settings.read_stored('HYPERPARAMS') == before
 
 
 def test_exposure_boundary_and_numerical_stability():

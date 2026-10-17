@@ -17,7 +17,8 @@ from skilltree.ui.canvas.elements import (
 from skilltree.ui.canvas.elements import generate_elements
 from skilltree.ui.canvas import callbacks as canvas_callbacks
 from skilltree.ui.canvas.registry import CANVASES
-from skilltree.store.settings import DEFAULT_NODE_COLORS, ConfigManager
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.features.details.callbacks import _build_graph_elements
 from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.store.events import EventManager
@@ -113,7 +114,7 @@ def test_every_canvas_renders_the_shared_nodes(canvases):
 
 
 def test_fill_follows_one_rule_on_every_canvas(canvases):
-    colors = ConfigManager.get_node_colors()
+    colors = settings.NODE_COLORS.get()
     expected = {
         'Root': colors['Blocked'],              # dormant, and still red on Events
         'Blocked Prereq': colors['Blocked'],

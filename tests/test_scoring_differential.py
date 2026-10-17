@@ -31,7 +31,7 @@ import pytest
 from skilltree.store import backup
 from skilltree.store import database
 from skilltree.runtime.paths import get_data_dir
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import (
     Node,
@@ -446,8 +446,8 @@ def _run_real_db_differential(monkeypatch, tmp_path, db_name: str):
     edges = mgr.get_edges()
     active = list(all_nodes)
 
-    hypers = ConfigManager.get_hyperparams()
-    priority_goals = ConfigManager.get_priority_goals() or None
+    hypers = settings.hyperparams()
+    priority_goals = settings.PRIORITY_GOALS.get() or None
 
     nodes_all_a = copy.deepcopy(all_nodes)
     active_a = [n for n in nodes_all_a if n.name in {x.name for x in active}]
@@ -502,7 +502,7 @@ def _seed_mgr(n=5):
 def test_mutation_add_node():
     mgr = _seed_mgr()
     mgr.add_edge("N0", "N1", EDGE_NEEDS_HARD)
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     mgr.add_node(Node(name="NEW", type="Action", description="", value=7,
                       time_o=2, time_m=3, time_p=6, interest=8, difficulty=4,
@@ -512,7 +512,7 @@ def test_mutation_add_node():
 
 def test_mutation_add_edge():
     mgr = _seed_mgr()
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     mgr.add_edge("N0", "N1", EDGE_HELPS)
     assert _score_current(mgr, hypers) == _score_baseline(mgr, hypers)
@@ -522,7 +522,7 @@ def test_mutation_remove_edge():
     mgr = _seed_mgr(n=4)
     mgr.add_edge("N0", "N1", EDGE_HELPS)
     mgr.add_edge("N1", "N2", EDGE_HELPS)
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     mgr.remove_edge("N0", "N1", EDGE_HELPS)
     assert _score_current(mgr, hypers) == _score_baseline(mgr, hypers)
@@ -530,7 +530,7 @@ def test_mutation_remove_edge():
 
 def test_mutation_update_node():
     mgr = _seed_mgr(n=4)
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     updated = mgr.get_node("N0")
     updated.value = 9
@@ -542,7 +542,7 @@ def test_mutation_update_node():
 def test_mutation_delete_node():
     mgr = _seed_mgr(n=4)
     mgr.add_edge("N0", "N1", EDGE_HELPS)
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     mgr.delete_node("N0")
     assert _score_current(mgr, hypers) == _score_baseline(mgr, hypers)
@@ -551,7 +551,7 @@ def test_mutation_delete_node():
 def test_mutation_rename_node():
     mgr = _seed_mgr(n=4)
     mgr.add_edge("N0", "N1", EDGE_HELPS)
-    hypers = ConfigManager.get_hyperparams()
+    hypers = settings.hyperparams()
     _ = _score_current(mgr, hypers)
     mgr.rename_node("N0", "N0_RENAMED")
     assert _score_current(mgr, hypers) == _score_baseline(mgr, hypers)

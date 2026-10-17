@@ -11,7 +11,7 @@ import pytest
 from skilltree.store import database
 
 from skilltree.features.home.table import format_suggestions_table
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 
@@ -293,8 +293,8 @@ def test_reorder_only_touches_nodes_already_on_the_list(mgr):
 
 def test_the_step_count_is_configurable(mgr):
     _chain(mgr, "Target", "One", "Two", "Three")
-    assert ConfigManager.get_unblocking_steps_per_now() == 3
-    ConfigManager.set_unblocking_steps_per_now(1)
-    assert ConfigManager.get_unblocking_steps_per_now() == 1
+    assert settings.UNBLOCKING_STEPS_PER_NOW.get() == 3
+    settings.UNBLOCKING_STEPS_PER_NOW.set(1)
+    assert settings.UNBLOCKING_STEPS_PER_NOW.get() == 1
     assert len(mgr.get_unblocking_steps(
-        ["Target"], limit=ConfigManager.get_unblocking_steps_per_now())) == 1
+        ["Target"], limit=settings.UNBLOCKING_STEPS_PER_NOW.get())) == 1

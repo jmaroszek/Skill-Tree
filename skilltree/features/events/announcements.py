@@ -2,7 +2,7 @@
 shown, on whichever tab is open."""
 from dash import Input, Output, State, html, no_update
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 
 def register_announcement_callbacks(app, services):
@@ -22,7 +22,7 @@ def register_announcement_callbacks(app, services):
         prevent_initial_call=True,
     )
     def show_event_announcements(_loaded, _refresh, _version, shown):
-        entries = ConfigManager.get_pending_event_notifications()
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
         if not entries or entries == shown:
             return no_update, no_update, no_update
         return True, render_announcements(entries), entries
@@ -47,7 +47,7 @@ def register_announcement_callbacks(app, services):
     def forget_shown_announcements(is_open, shown):
         if is_open or not shown:
             return no_update
-        ConfigManager.remove_pending_event_notifications(shown)
+        settings.remove_event_notifications(shown)
         return None
 
 

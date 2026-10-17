@@ -3,16 +3,16 @@
 import json
 
 from skilltree.domain.names import format_name, normalize_name_for_comparison
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 
 def _formatted(name):
     """`name` as the saved name formatting writes it."""
-    return format_name(name, ConfigManager.get_name_formatting())
+    return format_name(name, settings.NAME_FORMATTING.get())
 
 
 def test_default_name_formatting_keeps_names_as_entered():
-    formatting = ConfigManager.get_name_formatting()
+    formatting = settings.NAME_FORMATTING.get()
 
     assert formatting["mode"] == "none"
     assert formatting["enabled"] is False
@@ -20,12 +20,12 @@ def test_default_name_formatting_keeps_names_as_entered():
 
 
 def test_legacy_enabled_switch_migrates_when_read():
-    ConfigManager._set_db_value("TITLECASE_LINTER", json.dumps({
+    settings.write_stored("TITLECASE_LINTER", json.dumps({
         "enabled": False,
         "exclusions": ["the"],
     }))
 
-    formatting = ConfigManager.get_name_formatting()
+    formatting = settings.NAME_FORMATTING.get()
 
     assert formatting == {
         "mode": "none",
@@ -35,20 +35,20 @@ def test_legacy_enabled_switch_migrates_when_read():
 
 
 def test_keep_as_entered_does_not_change_capitalization():
-    ConfigManager.set_name_formatting({"mode": "none", "exclusions": ["the"]})
+    settings.NAME_FORMATTING.set({"mode": "none", "exclusions": ["the"]})
 
     assert _formatted("learn the Python API") == "learn the Python API"
 
 
 def test_sentence_case_preserves_intentional_internal_capitals():
-    ConfigManager.set_name_formatting({"mode": "sentence", "exclusions": []})
+    settings.NAME_FORMATTING.set({"mode": "sentence", "exclusions": []})
 
     assert _formatted("learn the Python API") == "Learn the Python API"
     assert _formatted("'learn the API") == "'Learn the API"
 
 
 def test_title_case_exceptions_do_not_change_duplicate_detection():
-    ConfigManager.set_name_formatting({
+    settings.NAME_FORMATTING.set({
         "mode": "title",
         "exclusions": ["quantum"],
     })
@@ -58,7 +58,7 @@ def test_title_case_exceptions_do_not_change_duplicate_detection():
 
 
 def test_the_legacy_enabled_switch_still_saves_as_title_case():
-    ConfigManager.set_name_formatting({"enabled": True, "exclusions": ["of"]})
+    settings.NAME_FORMATTING.set({"enabled": True, "exclusions": ["of"]})
 
-    assert ConfigManager.get_name_formatting()["mode"] == "title"
+    assert settings.NAME_FORMATTING.get()["mode"] == "title"
     assert _formatted("history of science") == "History of Science"

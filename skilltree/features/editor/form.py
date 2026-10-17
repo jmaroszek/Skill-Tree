@@ -17,7 +17,7 @@ from skilltree.domain.time import (
 )
 from skilltree.features.editor.values import friendly_time_estimates
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.components.duration import (
     NEW_NODE_TIME_UNIT,
     days_to_duration,
@@ -200,7 +200,7 @@ def build_editor_snapshot(manager, events, node_name):
 
     relationships = stored_relationships(manager.get_edges(), node_name)
 
-    priority_goals = ConfigManager.get_priority_goals()
+    priority_goals = settings.PRIORITY_GOALS.get()
     if node.type == 'Goal' and node.name in priority_goals:
         priority_rank = str(priority_goals.index(node.name) + 1)
     else:

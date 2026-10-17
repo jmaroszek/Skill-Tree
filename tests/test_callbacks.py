@@ -16,7 +16,8 @@ from skilltree.ui.filters import build_filters, is_filters_active
 from skilltree.store.commands import (
     handle_save, handle_delete, handle_toggle_done, handle_group_delete,
 )
-from skilltree.store.settings import ConfigManager, DEFAULT_NODE_COLORS
+from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.store import schema
 from skilltree.store.graph.manager import GraphManager
 
@@ -121,7 +122,7 @@ class TestBuildFilters:
     def test_time_band_converts_both_ends_with_the_unit(self):
         result = build_filters("All", "All", ["show_done"], f_time_min=1, f_time=2,
                                f_time_unit="days")
-        hours_per_day = ConfigManager.get_time_multiplier("days")
+        hours_per_day = settings.time_multiplier("days")
         # Rounded as Node.time is, so a node sitting on a bound stays in.
         assert result == {"min_time": round(hours_per_day, 2),
                           "max_time": round(2 * hours_per_day, 2)}
@@ -168,7 +169,7 @@ class TestBuildFilters:
     def test_composite_subcontext_multi_context_multi_sub(self):
         # Regression: each composite "ctx::sub" value must be routed to its own
         # context. Previously bare "Rational" values forced a reverse-lookup via
-        # ConfigManager which could silently drop an entry and fall back to
+        # the stored subcontexts, which could silently drop an entry and fall back to
         # "show all nodes of that context" for Mind.
         result = build_filters(
             ["Mind", "STEM"],

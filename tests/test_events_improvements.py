@@ -13,7 +13,7 @@ import pytest
 from skilltree.store import database
 from skilltree.domain.models import Node, Event
 from skilltree.store.events import EventManager
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store import schema
 
 
@@ -51,21 +51,21 @@ def _node(name: str, **overrides: Any) -> Node:
 
 class TestPendingNotifications:
     def test_crud_roundtrip(self):
-        assert ConfigManager.get_pending_event_notifications() == []
-        ConfigManager.add_pending_event_notification({
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
+        settings.add_event_notification({
             "kind": "date_triggered", "event": "E1", "when": "2026-04-17",
         })
-        entries = ConfigManager.get_pending_event_notifications()
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
         assert len(entries) == 1
         assert entries[0]["event"] == "E1"
 
-        ConfigManager.add_pending_event_notification({
+        settings.add_event_notification({
             "kind": "node_triggered", "event": "E2", "when": "2026-04-17",
         })
-        assert len(ConfigManager.get_pending_event_notifications()) == 2
+        assert len(settings.PENDING_EVENT_NOTIFICATIONS.get()) == 2
 
-        ConfigManager.clear_pending_event_notifications()
-        assert ConfigManager.get_pending_event_notifications() == []
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
 
 
 # ---------------------------------------------------------------------------
@@ -82,10 +82,10 @@ class TestNotificationHooks:
         ))
         em.add_node_to_event("DateEvent", "D1", delay_days=0)
 
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
         triggered = em.check_scheduled_triggers()
         assert "DateEvent" in triggered
-        entries = ConfigManager.get_pending_event_notifications()
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
         date_entries = [e for e in entries if e["kind"] == "date_triggered"]
         assert len(date_entries) == 1
         assert date_entries[0]["event"] == "DateEvent"
@@ -105,10 +105,10 @@ class TestNotificationHooks:
             )
             conn.commit()
 
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
         activated = em.check_pending_activations()
         assert "Delayed" in activated
-        entries = ConfigManager.get_pending_event_notifications()
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
         delayed_entries = [e for e in entries if e["kind"] == "delayed_activated"]
         assert len(delayed_entries) == 1
         assert delayed_entries[0]["event"] == "DelayEvent"
@@ -129,14 +129,14 @@ class TestNodeCompletionAutoTrigger:
         with database.get_connection() as conn:
             conn.execute("UPDATE Nodes SET status='Done' WHERE name='Key'")
 
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
         triggered = em.auto_trigger_by_node_completion("Key")
         assert "OnKey" in triggered
 
         reward = mgr.get_node("Reward")
         assert reward.dormant == 0
 
-        entries = ConfigManager.get_pending_event_notifications()
+        entries = settings.PENDING_EVENT_NOTIFICATIONS.get()
         node_entries = [e for e in entries if e["kind"] == "node_triggered"]
         assert len(node_entries) == 1
         assert node_entries[0]["event"] == "OnKey"
@@ -145,10 +145,10 @@ class TestNodeCompletionAutoTrigger:
 
     def test_auto_trigger_does_nothing_when_no_matching_event(self, em, mgr):
         mgr.add_node(_node("Lonely"))
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
         triggered = em.auto_trigger_by_node_completion("Lonely")
         assert triggered == []
-        assert ConfigManager.get_pending_event_notifications() == []
+        assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ class TestNowOnTrigger:
 
     def test_the_now_cap_wins_and_the_skip_is_reported(self, em, mgr):
         """An event must not be able to blow past the limit set by hand."""
-        ConfigManager.set_now_node_cap(1)
+        settings.NOW_NODE_CAP.set(1)
         mgr.add_node(_node("Already", now=1))
         em.add_event(Event(name="E"))
         em.create_dormant_node(_node("Wants In"), "E", now_on_trigger=True)
@@ -200,9 +200,9 @@ class TestNowOnTrigger:
         mgr.update_node(_node("Gate", status="Done"))
 
         assert [n.name for n in mgr.get_now_nodes()] == ["Waiting"]
-        kinds = [e["kind"] for e in ConfigManager.get_pending_event_notifications()]
+        kinds = [e["kind"] for e in settings.PENDING_EVENT_NOTIFICATIONS.get()]
         assert kinds == ["node_triggered"]
-        entry = ConfigManager.get_pending_event_notifications()[0]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[0]
         assert entry["now_pinned"] == ["Waiting"]
         assert entry["now_skipped"] == []
 
@@ -238,12 +238,12 @@ class TestDelayedNowIntent:
         em.add_event(Event(name="E"))
         em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
         em.trigger_event_manually("E")
-        ConfigManager.clear_pending_event_notifications()
+        settings.PENDING_EVENT_NOTIFICATIONS.set([])
 
         assert _sweep_on(em, date.today() + timedelta(days=7)) == ["Later"]
 
         assert [n.name for n in mgr.get_now_nodes()] == ["Later"]
-        entry = ConfigManager.get_pending_event_notifications()[0]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[0]
         assert entry["kind"] == "delayed_activated"
         assert entry["now_pinned"] == ["Later"]
         assert entry["now_skipped"] == []
@@ -258,7 +258,7 @@ class TestDelayedNowIntent:
         assert mgr.get_now_nodes() == []
 
     def test_the_now_cap_still_wins_at_a_delayed_wake(self, em, mgr):
-        ConfigManager.set_now_node_cap(1)
+        settings.NOW_NODE_CAP.set(1)
         mgr.add_node(_node("Already", now=1))
         em.add_event(Event(name="E"))
         em.create_dormant_node(_node("Later"), "E", delay_days=7, now_on_trigger=True)
@@ -267,7 +267,7 @@ class TestDelayedNowIntent:
         _sweep_on(em, date.today() + timedelta(days=7))
 
         assert [n.name for n in mgr.get_now_nodes()] == ["Already"]
-        entry = ConfigManager.get_pending_event_notifications()[-1]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[-1]
         assert entry["now_skipped"] == ["Later"]
         # Skipped means un-pinned, not un-woken.
         assert mgr.get_node("Later").dormant == 0
@@ -285,7 +285,7 @@ class TestManualTriggerAnnouncement:
 
         em.trigger_event_manually("E")
 
-        entry = ConfigManager.get_pending_event_notifications()[-1]
+        entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[-1]
         assert entry["kind"] == "manual_triggered"
         assert entry["event"] == "E"
         assert entry["activated"] == ["Wakes"]

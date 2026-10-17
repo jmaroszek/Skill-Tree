@@ -9,7 +9,7 @@ popover's click trigger bind reliably.
 
 from dash import html
 import dash_bootstrap_components as dbc
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui import tokens
 
@@ -79,7 +79,7 @@ def _analyze_sections():
     so it is complete from day one. History reads Done nodes and their
     reflections, so it fills in over time. Every pane renders together; a
     subtab switch only shows and hides them."""
-    al = ConfigManager.get_analyze_limits()
+    al = settings.ANALYZE_LIMITS.get()
     return html.Div([
         html.Div(id="analyze-overview-content"),
         dbc.Tabs(

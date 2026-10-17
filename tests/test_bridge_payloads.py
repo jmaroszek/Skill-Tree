@@ -15,7 +15,7 @@ from skilltree.engine import callbacks
 from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.goals import callbacks as sidebars_callbacks
 from skilltree.engine.callbacks import resolve_active_node_id
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN
 from skilltree.store.commands import handle_group_delete
@@ -84,14 +84,14 @@ def _callback(register, name):
 
 
 def test_set_priority_on_a_goal_whose_name_has_a_pipe(manager):
-    ConfigManager.set_priority_goals(["A"])
+    settings.PRIORITY_GOALS.set(["A"])
     handle = _callback(sidebars_callbacks.register_goals_callbacks,
                        "handle_goal_priority_change")
 
     handle(f"A|B|1|{STAMP}")
 
     # It used to read goal "A" with rank "B", and un-prioritize "A".
-    assert ConfigManager.get_priority_goals() == ["A|B", "A"]
+    assert settings.PRIORITY_GOALS.get() == ["A|B", "A"]
 
 
 def test_group_delete_removes_only_the_named_node(manager):

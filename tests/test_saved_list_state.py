@@ -12,7 +12,7 @@ from dash._utils import AttributeDict
 
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.ui.components import list_toolbar
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, GOALS_SORT, build_list_toolbar
 from skilltree.domain.models import Event
@@ -62,21 +62,21 @@ def test_event_order_is_saved_and_follows_renames_and_deletes():
     reorder = _callbacks(event_callbacks.register_events_callbacks)["reorder_event"][0]
 
     reorder('["Launch", "Trip", "Move"]')
-    assert ConfigManager.get_event_order() == ["Launch", "Trip", "Move"]
+    assert settings.EVENT_ORDER.get() == ["Launch", "Trip", "Move"]
 
     existing = events.get_event("Trip")
     events.update_event("Trip", Event(name="Voyage", trigger_mode=existing.trigger_mode))
-    assert ConfigManager.get_event_order() == ["Launch", "Voyage", "Move"]
+    assert settings.EVENT_ORDER.get() == ["Launch", "Voyage", "Move"]
 
     events.delete_event("Move")
-    assert ConfigManager.get_event_order() == ["Launch", "Voyage"]
+    assert settings.EVENT_ORDER.get() == ["Launch", "Voyage"]
 
 
 def test_manual_event_list_uses_the_saved_order():
     events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch"):
         events.add_event(Event(name=name))
-    ConfigManager.set_event_order(["Move", "Launch", "Trip"])
+    settings.EVENT_ORDER.set(["Move", "Launch", "Trip"])
     render = _callbacks(event_callbacks.register_events_callbacks)["render_events_list"][0]
 
     def run():
@@ -113,13 +113,13 @@ def test_an_event_drag_under_a_search_keeps_the_other_events_in_place():
     events = EventManager(GraphManager())
     for name in ("Trip", "Move", "Launch", "Party"):
         events.add_event(Event(name=name))
-    ConfigManager.set_event_order(["Trip", "Move", "Launch", "Party"])
+    settings.EVENT_ORDER.set(["Trip", "Move", "Launch", "Party"])
     reorder = _callbacks(event_callbacks.register_events_callbacks)["reorder_event"][0]
 
     # A search for "a" shows Launch and Party; Party is dragged above Launch.
     reorder('["Party", "Launch"]')
 
-    assert ConfigManager.get_event_order() == ["Trip", "Move", "Party", "Launch"]
+    assert settings.EVENT_ORDER.get() == ["Trip", "Move", "Party", "Launch"]
 
 
 def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
@@ -130,8 +130,8 @@ def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
     saved = ["Video", "Training", "Values", "Writing", "Stress", "Running"]
     for name in saved:
         manager.add_node(node(name, type="Goal", time_mode="inherited"))
-    ConfigManager.set_goal_order(saved)
-    ConfigManager.set_priority_goals(["Writing"])
+    settings.GOAL_ORDER.set(saved)
+    settings.PRIORITY_GOALS.set(["Writing"])
     reorder = _callbacks(sidebars_callbacks.register_goals_callbacks)["reorder_goals"][0]
 
     # A search for "ing" shows the pinned Writing first, then Training and
@@ -140,5 +140,5 @@ def test_a_goal_drag_under_a_search_keeps_the_other_goals_and_pins_in_place():
 
     # Running and Training swap slots. Writing leads the list because it is
     # pinned, not because of the drag, so its own slot stays.
-    assert ConfigManager.get_goal_order() == [
+    assert settings.GOAL_ORDER.get() == [
         "Video", "Running", "Values", "Writing", "Stress", "Training"]

@@ -1,7 +1,7 @@
 """The Graph Layout panel every canvas has, and its freeze indicator."""
 from dash import dcc
 from dash import html
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import tokens
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import panel_close_button
@@ -37,16 +37,16 @@ def build_graph_settings_panel(
     prefix: str,
     *,
     include_animate: bool = True,
-    defaults_getter=ConfigManager.get_graph_layout_defaults,
+    defaults_getter=settings.GRAPH_LAYOUT_DEFAULTS.get,
     max_depth_id: str = None,
     outside_nodes_id: str = None,
 ):
     """Build a graph-layout panel. Single source of truth for all three canvases
     (Nodes / Details / Events).
 
-    Callers pass the slider `defaults_getter` explicitly to select between
-    `get_graph_layout_defaults` (main canvas) and
-    `get_details_graph_layout_defaults` (details/events). Pass
+    Callers pass the slider `defaults_getter` explicitly: the `get` of
+    `settings.GRAPH_LAYOUT_DEFAULTS` (main canvas),
+    `DETAILS_GRAPH_LAYOUT_DEFAULTS` or `EVENTS_GRAPH_LAYOUT_DEFAULTS`. Pass
     ``include_animate=False`` to render only Freeze in the behavior row.
 
     ``max_depth_id`` opts a canvas into a Max Depth slider at the top of the

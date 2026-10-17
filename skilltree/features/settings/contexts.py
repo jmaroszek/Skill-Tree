@@ -8,7 +8,7 @@ import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, ctx, html
 
 from skilltree.domain import contexts as context_rules
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 
 # A chip input sized to its text; below this it reads as an empty box.
 _MIN_CHIP_CHARS = 5
@@ -189,12 +189,12 @@ def editor_state(manager, rows=None):
     validation run on every keystroke without touching the database. Saving
     re-reads the config rather than trusting this snapshot.
     """
-    contexts = ConfigManager.get_contexts()
-    subcontexts = ConfigManager.get_subcontexts()
+    contexts = settings.CONTEXTS.get()
+    subcontexts = settings.SUBCONTEXTS.get()
     ctx_counts, pair_counts = manager.count_nodes_by_context()
     if rows is None:
         rows = context_rules.taxonomy_to_rows(
-            contexts, subcontexts, ConfigManager.get_context_weights())
+            contexts, subcontexts, settings.CONTEXT_WEIGHTS.get())
     return {
         'rows': rows,
         'old': {'contexts': contexts, 'subcontexts': subcontexts},

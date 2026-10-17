@@ -14,7 +14,7 @@ from typing import Any, Iterable
 from dash import Input, Output, ctx, dcc, html, no_update
 import dash_bootstrap_components as dbc
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.contexts import sort_contexts, sort_subcontexts
 
 
@@ -32,9 +32,9 @@ _PICKERS = (
 
 def build_context_taxonomy() -> list[dict[str, Any]]:
     """Return the configured hierarchy in the user's dropdown sort order."""
-    subcontexts = ConfigManager.get_subcontexts()
-    context_sort_mode = ConfigManager.get_context_sort_mode()
-    subcontext_sort_mode = ConfigManager.get_subcontext_sort_mode()
+    subcontexts = settings.SUBCONTEXTS.get()
+    context_sort_mode = settings.CONTEXT_SORT_MODE.get()
+    subcontext_sort_mode = settings.SUBCONTEXT_SORT_MODE.get()
     return [
         {
             "context": context,
@@ -43,7 +43,7 @@ def build_context_taxonomy() -> list[dict[str, Any]]:
             ),
         }
         for context in sort_contexts(
-            ConfigManager.get_contexts(), context_sort_mode
+            settings.CONTEXTS.get(), context_sort_mode
         )
     ]
 

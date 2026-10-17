@@ -4,7 +4,7 @@ import time
 
 from dash import Input, Output, State, no_update
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.canvas.elements import (
     build_edge_element,
     build_node_element,
@@ -181,7 +181,7 @@ def register_event_graph_callbacks(app, services):
     def reset_events_graph_settings(n_clicks):
         if not n_clicks:
             return no_update, no_update, no_update, no_update, no_update
-        gl = ConfigManager.get_events_graph_layout_defaults()
+        gl = settings.EVENTS_GRAPH_LAYOUT_DEFAULTS.get()
         return (
             True,
             gl.get('edge_length', 50),

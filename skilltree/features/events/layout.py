@@ -9,7 +9,7 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
 from datetime import date, timedelta
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.styles import badge_style
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
@@ -347,7 +347,7 @@ def build_events_tab_content():
     })
 
     # --- Right column: event graph visualization. Fills all remaining space. ---
-    gl = ConfigManager.get_events_graph_layout_defaults()
+    gl = settings.EVENTS_GRAPH_LAYOUT_DEFAULTS.get()
     event_graph_panel = html.Div([
         html.Div([
             cyto.Cytoscape(
@@ -382,7 +382,7 @@ def build_events_tab_content():
             freeze_indicator("events-freeze-indicator"),
             build_graph_settings_panel(
                 "events-graph-settings",
-                defaults_getter=ConfigManager.get_events_graph_layout_defaults,
+                defaults_getter=settings.EVENTS_GRAPH_LAYOUT_DEFAULTS.get,
                 outside_nodes_id="events-outside-nodes",
             ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
@@ -418,7 +418,7 @@ def build_events_tab_content():
         dcc.Store(id='events-ui-refresh-trigger', data=0),
         # The manual order lives in Settings, not the browser, so it survives
         # a new port or a cleared profile. A drag writes it there first.
-        dcc.Store(id='event-order-store', data=ConfigManager.get_event_order()),
+        dcc.Store(id='event-order-store', data=settings.EVENT_ORDER.get()),
         dcc.Interval(id='event-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
         # Fires event_callbacks.run_event_clock while the app sits open.
         dcc.Interval(id='event-clock', interval=EVENT_CLOCK_INTERVAL_MS, n_intervals=0),

@@ -10,7 +10,7 @@ import pytest
 
 from skilltree.store import database
 from skilltree.features.goals import callbacks as sidebars_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from test_atomic_saves import node
@@ -24,7 +24,7 @@ def manager():
         manager.add_node(node(name, type="Goal", time_mode="inherited"))
     manager.add_node(node("Essay"))
     manager.add_edge("Essay", "Literature", "Needs_Hard")
-    ConfigManager.set_priority_goals(["Neuroscience", "Literature", "Video"])
+    settings.PRIORITY_GOALS.set(["Neuroscience", "Literature", "Video"])
     return manager
 
 
@@ -38,17 +38,17 @@ def test_a_goal_turned_into_another_type_loses_its_rank(manager):
     _convert(manager, "Literature")
 
     # The ranks after it move up, and the third slot is free again.
-    assert ConfigManager.get_priority_goals() == ["Neuroscience", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Video"]
 
 
 def test_its_old_subtree_is_no_longer_boosted(manager):
     def essay_score():
         nodes = manager.get_all_nodes()
         scored = manager.calculate_priority_scores(
-            nodes, priority_goals=ConfigManager.get_priority_goals())
+            nodes, priority_goals=settings.PRIORITY_GOALS.get())
         return next(n.priority_score for n in scored if n.name == "Essay")
 
-    ConfigManager.set_hyperparams({**ConfigManager.get_hyperparams(), "goal_boost": 1.5})
+    settings.set_hyperparams({**settings.hyperparams(), "goal_boost": 1.5})
     boosted = essay_score()
     _convert(manager, "Literature")
 
@@ -64,18 +64,18 @@ def _set_status(manager, name, status):
 def test_a_finished_goal_frees_its_slot(manager):
     _set_status(manager, "Neuroscience", STATUS_DONE)
 
-    assert ConfigManager.get_priority_goals() == ["Literature", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Literature", "Video"]
 
     # Reopening it doesn't take a slot back.
     _set_status(manager, "Neuroscience", STATUS_OPEN)
-    assert ConfigManager.get_priority_goals() == ["Literature", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Literature", "Video"]
 
 
 def test_a_finished_goal_cannot_take_a_rank(manager):
     _set_status(manager, "Video", STATUS_DONE)
 
     assert _set_priority()("Video|1|1700000000000") is dash.no_update
-    assert ConfigManager.get_priority_goals() == ["Neuroscience", "Literature"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature"]
 
 
 def test_other_edits_keep_the_rank(manager):
@@ -83,7 +83,7 @@ def test_other_edits_keep_the_rank(manager):
     item.description = "Reading and writing"
     manager.update_node(item)
 
-    assert ConfigManager.get_priority_goals() == ["Neuroscience", "Literature", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature", "Video"]
 
 
 def test_a_rolled_back_save_keeps_the_rank(manager):
@@ -92,7 +92,7 @@ def test_a_rolled_back_save_keeps_the_rank(manager):
             _convert(manager, "Literature")
             raise RuntimeError("the save was refused")
 
-    assert ConfigManager.get_priority_goals() == ["Neuroscience", "Literature", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Literature", "Video"]
     assert manager.get_node("Literature").type == "Goal"
 
 
@@ -102,10 +102,10 @@ def test_the_launch_repair_clears_ranks_held_by_non_goals(manager):
     item = manager.get_node("Video")
     item.type, item.time_mode = "Action", "manual"
     manager.update_node(item)
-    ConfigManager.set_priority_goals(["Video", "Neuroscience", "Ghost"])
+    settings.PRIORITY_GOALS.set(["Video", "Neuroscience", "Ghost"])
 
     assert manager.prune_priority_goals() == ["Video", "Ghost"]
-    assert ConfigManager.get_priority_goals() == ["Neuroscience"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience"]
     assert manager.prune_priority_goals() == []
 
 
@@ -115,7 +115,7 @@ def test_the_launch_repair_clears_ranks_held_by_finished_goals(manager):
         conn.execute("UPDATE Nodes SET status='Done' WHERE name='Literature'")
 
     assert manager.prune_priority_goals() == ["Literature"]
-    assert ConfigManager.get_priority_goals() == ["Neuroscience", "Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Neuroscience", "Video"]
 
 
 def _set_priority():
@@ -132,19 +132,19 @@ def _set_priority():
 
 
 def test_only_a_goal_takes_a_rank(manager):
-    ConfigManager.set_priority_goals([])
+    settings.PRIORITY_GOALS.set([])
     handle = _set_priority()
 
     assert handle("Essay|1|1700000000000") is dash.no_update
-    assert ConfigManager.get_priority_goals() == []
+    assert settings.PRIORITY_GOALS.get() == []
 
     handle("Video|1|1700000000000")
-    assert ConfigManager.get_priority_goals() == ["Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Video"]
 
 
 def test_clearing_a_rank_works_whatever_holds_it(manager):
-    ConfigManager.set_priority_goals(["Essay", "Video"])
+    settings.PRIORITY_GOALS.set(["Essay", "Video"])
 
     _set_priority()("Essay|clear|1700000000000")
 
-    assert ConfigManager.get_priority_goals() == ["Video"]
+    assert settings.PRIORITY_GOALS.get() == ["Video"]

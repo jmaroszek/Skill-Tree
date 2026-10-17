@@ -1,7 +1,7 @@
 """The Home tab's layout."""
 from dash import dcc
 from dash import html
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import tokens
 from skilltree.ui.kit import filter_chip
 from skilltree.ui.kit import step_button
@@ -19,12 +19,12 @@ NEXT_TABLE_BASIS = 780
 
 def build_next_view():
     return html.Div([
-        dcc.Store(id='suggestion-count-store', data=ConfigManager.get_next_table_rows()),
+        dcc.Store(id='suggestion-count-store', data=settings.NEXT_TABLE_ROWS.get()),
     
         # A new user's checklist (onboarding_callbacks.py); empty once done.
         html.Div(id="getting-started"),
 
-        # "Now" section — currently-Now nodes (cap = ConfigManager.get_now_node_cap()).
+        # "Now" section — currently-Now nodes (cap = settings.NOW_NODE_CAP.get()).
         # Heading + rows are emitted together by populate_now_section. The
         # section collapses to zero height when there are no Now nodes, so
         # the Next heading floats to the top of the tab.
@@ -34,7 +34,7 @@ def build_next_view():
             html.H6("Next", className="text-muted mb-0", style=tokens.SECTION_TITLE_STYLE),
             dbc.ButtonGroup([
                 step_button("btn-sugg-minus", "dash-lg", "Show fewer suggestions"),
-                html.Span(id="suggestion-count-display", children=str(ConfigManager.get_next_table_rows()),
+                html.Span(id="suggestion-count-display", children=str(settings.NEXT_TABLE_ROWS.get()),
                            className="align-self-center mx-1",
                            style={"fontSize": tokens.FS_LG, "fontWeight": "bold", "minWidth": "18px",
                                   "textAlign": "center"}),

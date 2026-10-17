@@ -21,7 +21,7 @@ from datetime import date
 from dash import html, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.analyze.charts import (
     render_bottleneck_chart as _render_bottleneck_chart,
     render_context_accuracy_boxplot as _render_context_accuracy_boxplot,
@@ -52,7 +52,7 @@ _PROCESS_EPOCH = uuid.uuid4().hex
 
 def _get_limits():
     """Read analyze limits from user settings, with defaults."""
-    return ConfigManager.get_analyze_limits()
+    return settings.ANALYZE_LIMITS.get()
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +222,7 @@ def _analyze_signature():
     ratings rubric because the tooltips quote it, and the date because the
     charts are dated."""
     return [_PROCESS_EPOCH, revisions.graph,
-            ConfigManager.get_contexts(), ConfigManager.get_ratings_definitions(),
+            settings.CONTEXTS.get(), settings.RATINGS_DEFINITIONS.get(),
             date.today().isoformat()]
 
 
@@ -233,7 +233,7 @@ def _render_analyze_sections(graph, bottlenecks, goals, thru_gran, thru_start,
     Accuracy, Rating Accuracy and Throughput (History); then Bottlenecks,
     which sits beside Goals on Plan."""
     # Persist any limit changes made via the gear popovers before rendering.
-    al = ConfigManager.get_analyze_limits()
+    al = settings.ANALYZE_LIMITS.get()
     if bottlenecks is not None:
         al['bottlenecks'] = int(bottlenecks)
     if goals is not None:
@@ -245,7 +245,7 @@ def _render_analyze_sections(graph, bottlenecks, goals, thru_gran, thru_start,
     # Empty-string date inputs persist as None (auto-extent).
     al['throughput_start'] = thru_start or None
     al['throughput_end'] = thru_end or None
-    ConfigManager.set_analyze_limits(al)
+    settings.ANALYZE_LIMITS.set(al)
 
     return _build_analyze_sections(graph, al)
 

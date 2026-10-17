@@ -3,7 +3,8 @@ from typing import NamedTuple
 
 import dash
 from skilltree.ui import payloads as bridge_payloads
-from skilltree.store.settings import ConfigManager, SUPPORTED_NODE_TYPES
+from skilltree.store import settings
+from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.domain.contexts import sort_contexts
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.styles import stylesheet as base_stylesheet
@@ -144,8 +145,8 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
             search_options.append({'label': f"{alias} \u2192 {node_name}", 'value': f"alias:{alias}"})
 
         # Populate dynamic contexts datalists from DB + Config, sorted per user setting.
-        base_ctx = sort_contexts(ConfigManager.get_contexts(),
-                                 ConfigManager.get_context_sort_mode())
+        base_ctx = sort_contexts(settings.CONTEXTS.get(),
+                                 settings.CONTEXT_SORT_MODE.get())
 
         ctx_list = [{"label": c, "value": c} for c in base_ctx]
         f_ctx_list = [{"label": c, "value": c} for c in base_ctx]

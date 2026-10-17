@@ -6,7 +6,7 @@ from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 import json
 from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui.styles import badge_style
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
 from skilltree.features.details.layout import (build_suggestion_row, build_details_suggestions)
@@ -229,7 +229,7 @@ def register_details_callbacks(app, services):
         # Goal type tile is suppressed when a Priority N tile is shown
         # (the Priority tile already implies "this is a Goal").
         badges = []
-        priority_goals = ConfigManager.get_priority_goals()
+        priority_goals = settings.PRIORITY_GOALS.get()
         is_priority_goal = node_name in priority_goals
 
         # 1. Status (always)
@@ -582,7 +582,7 @@ def register_details_callbacks(app, services):
         # active global filters.
         all_nodes = graph_manager.get_all_nodes()
         edges = graph_manager.get_edges()
-        priority_goals = ConfigManager.get_priority_goals()
+        priority_goals = settings.PRIORITY_GOALS.get()
         nodes_by_name = {node.name: node for node in all_nodes}
         priority_names = []
         goal_rows = []
@@ -612,8 +612,8 @@ def register_details_callbacks(app, services):
         # number keeps its app-wide base when filters narrow the list.
         ranked = rank_goals(
             [node for node in all_nodes if node.type == "Goal"], all_nodes,
-            edges, priority_goals, ConfigManager.get_hyperparams(),
-            context_weights=ConfigManager.get_context_weights(),
+            edges, priority_goals, settings.hyperparams(),
+            context_weights=settings.CONTEXT_WEIGHTS.get(),
             with_scores=True)
         priorities = normalize_goal_scores(ranked, all_nodes, edges)
         explore = select_explore_goals(
@@ -679,7 +679,7 @@ def register_details_callbacks(app, services):
     def reset_details_graph_settings(n_clicks):
         if not n_clicks:
             return (no_update,) * 5
-        gl = ConfigManager.get_details_graph_layout_defaults()
+        gl = settings.DETAILS_GRAPH_LAYOUT_DEFAULTS.get()
         return (
             True,
             gl.get('edge_length', 50),

@@ -14,7 +14,7 @@ from skilltree.domain.simulation import SimulationCancelled
 from skilltree.features.details.layout import normalize_max_depth
 from skilltree.features.details.simulation_service import simulation_service
 from skilltree.store import database
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.duration import simulation_figure
 from skilltree.ui.filters import build_filters
@@ -156,8 +156,8 @@ def _run_simulation(graph, node_name, include_soft_val, include_synergies_val,
             and edge['source'] in allowed and edge['target'] in allowed
         ]
 
-        requested_trials = ConfigManager.get_monte_carlo_trials()
-        time_settings = ConfigManager.get_time_settings()
+        requested_trials = settings.monte_carlo_trials()
+        time_settings = settings.TIME_SETTINGS.get()
 
     # A Done node is finished, whatever is still open before it.
     if nodes_dict[node_name].status == STATUS_DONE:

@@ -18,7 +18,7 @@ import pytest
 
 from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node, STATUS_DONE
@@ -51,7 +51,7 @@ def graph(services):
     events.create_dormant_node(_node("Publish"), "Ready")
     _finish(manager, "Draft")
     assert events.get_event("Ready").status == "Pending"
-    ConfigManager.clear_pending_event_notifications()
+    settings.PENDING_EVENT_NOTIFICATIONS.set([])
     return manager, events
 
 
@@ -66,7 +66,7 @@ def test_deleting_the_unfinished_trigger_node_fires_the_event(graph):
     manager.delete_node("Edit")
 
     assert _fired(manager, events)
-    kinds = [e["kind"] for e in ConfigManager.get_pending_event_notifications()]
+    kinds = [e["kind"] for e in settings.PENDING_EVENT_NOTIFICATIONS.get()]
     assert kinds == ["trigger_node_deleted", "node_triggered"]
 
 
@@ -77,7 +77,7 @@ def test_an_edit_that_drops_the_unfinished_node_fires_the_event(graph):
                                        trigger_mode="all"))
 
     assert _fired(manager, events)
-    entry = ConfigManager.get_pending_event_notifications()[-1]
+    entry = settings.PENDING_EVENT_NOTIFICATIONS.get()[-1]
     assert entry["kind"] == "node_triggered" and entry["already_met"] is True
     assert entry["trigger_node"] == "Draft"
     assert entry["activated"] == ["Publish"]
@@ -100,7 +100,7 @@ def test_an_edit_that_leaves_it_waiting_changes_nothing(graph):
                                        trigger_mode="all"))
 
     assert not _fired(manager, events)
-    assert ConfigManager.get_pending_event_notifications() == []
+    assert settings.PENDING_EVENT_NOTIFICATIONS.get() == []
 
 
 def test_a_rolled_back_edit_fires_nothing(graph):

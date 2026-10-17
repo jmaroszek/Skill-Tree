@@ -18,7 +18,7 @@ from dash._utils import AttributeDict
 from skilltree.domain import contexts as cr
 from skilltree.features.settings import callbacks as settings_callbacks
 from skilltree.features.settings.contexts import build_context_editor_rows
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.settings import draft as settings_draft
@@ -403,9 +403,9 @@ def _live(rows):
 
 @pytest.fixture
 def seeded():
-    ConfigManager.set_contexts(CONTEXTS)
-    ConfigManager.set_subcontexts(SUBCONTEXTS)
-    ConfigManager.set_context_weights({"People": 1.4})
+    settings.CONTEXTS.set(CONTEXTS)
+    settings.SUBCONTEXTS.set(SUBCONTEXTS)
+    settings.CONTEXT_WEIGHTS.set({"People": 1.4})
     mgr = GraphManager()
     mgr.add_node(_node("Kant", "Wisdom", "Ethics"))
     mgr.add_node(_node("Stoa", "Wisdom"))
@@ -435,8 +435,8 @@ class TestSave:
         assert pending is dash.no_update, "a rename must not open the migration dialog"
         # Two renames, not two plus the subcontexts that followed them.
         assert status == "Settings saved — 2 renames"
-        assert ConfigManager.get_contexts() == ["Health", "Relationships", "Philosophy"]
-        assert ConfigManager.get_context_weights()["Relationships"] == 1.4
+        assert settings.CONTEXTS.get() == ["Health", "Relationships", "Philosophy"]
+        assert settings.CONTEXT_WEIGHTS.get()["Relationships"] == 1.4
         nodes = {n.name: n for n in seeded.get_all_nodes(include_dormant=True)}
         assert (nodes["Kant"].context, nodes["Kant"].subcontext) == ("Philosophy", "Ethics")
         assert nodes["Stoa"].context == "Philosophy"
@@ -457,7 +457,7 @@ class TestSave:
         assert list(pending["orphans"]["context"]) == ["Wisdom"]
         assert pending["ctx_renames"] == {"Health": "Body"}
         # Nothing is written until the dialog is answered.
-        assert ConfigManager.get_contexts() == CONTEXTS
+        assert settings.CONTEXTS.get() == CONTEXTS
         assert seeded.get_node("Kant").context == "Wisdom"
 
     def test_saving_before_the_editor_loads_leaves_the_taxonomy_alone(self, seeded):
@@ -475,9 +475,9 @@ class TestSave:
         )
         assert status == "Settings saved"
         assert pending is dash.no_update
-        assert ConfigManager.get_contexts() == CONTEXTS
-        assert ConfigManager.get_subcontexts() == SUBCONTEXTS
-        assert ConfigManager.get_context_weights()["People"] == 1.4
+        assert settings.CONTEXTS.get() == CONTEXTS
+        assert settings.SUBCONTEXTS.get() == SUBCONTEXTS
+        assert settings.CONTEXT_WEIGHTS.get()["People"] == 1.4
 
     def test_an_invalid_taxonomy_is_not_saved(self, seeded):
         fns = _callbacks()
@@ -488,7 +488,7 @@ class TestSave:
 
         assert "fix" in status.lower()
         assert pending is dash.no_update and editor is dash.no_update
-        assert ConfigManager.get_contexts() == CONTEXTS
+        assert settings.CONTEXTS.get() == CONTEXTS
 
     def test_a_failed_save_changes_nothing(self, seeded, monkeypatch):
         """Settings used to be written one at a time, so a failure part-way
@@ -498,17 +498,17 @@ class TestSave:
         rows = _rows()
         _row(rows, "Wisdom")["name"] = "Philosophy"
         # The save turns the switch off before it fails; it must stay on.
-        ConfigManager.set_show_scoring_perf(True)
+        settings.SHOW_SCORING_PERF.set(True)
 
         def broken(_params):
             raise RuntimeError("disk full")
-        monkeypatch.setattr(ConfigManager, "set_time_calibration_enabled", broken)
+        monkeypatch.setattr(settings.TIME_CALIBRATION_ENABLED, "set", broken)
         status, pending, _disabled, _interval, editor, settings_open, _ack = _save(fns, rows)
 
         assert status.startswith("Couldn't save settings")
         assert pending is dash.no_update and editor is dash.no_update
-        assert ConfigManager.get_show_scoring_perf() is True
-        assert ConfigManager.get_contexts() == CONTEXTS
+        assert settings.SHOW_SCORING_PERF.get() is True
+        assert settings.CONTEXTS.get() == CONTEXTS
         assert seeded.get_node("Kant").context == "Wisdom"
 
 
@@ -535,7 +535,7 @@ class TestMigrationDialog:
 
         assert is_open is False and error == ""
         assert settings_open is False and cleared is None and status == "Settings saved"
-        assert ConfigManager.get_contexts() == ["Body", "People"]
+        assert settings.CONTEXTS.get() == ["Body", "People"]
         assert seeded.get_node("Run").context == "Body"
         assert seeded.get_node("Kant").context == "Wisdom"  # left for the user
         assert [r["name"] for r in editor["rows"]] == ["Body", "People"]
@@ -547,7 +547,7 @@ class TestMigrationDialog:
         is_open, _body, _map, editor, error, cleared, status, settings_open = self._answer(fns, "btn-migration-cancel", pending)
 
         assert is_open is False and error == ""
-        assert ConfigManager.get_contexts() == CONTEXTS
+        assert settings.CONTEXTS.get() == CONTEXTS
         assert seeded.get_node("Kant").context == "Wisdom"
         assert editor is dash.no_update
         assert cleared is None and settings_open is dash.no_update
@@ -571,7 +571,7 @@ class TestMigrationDialog:
 
         assert "nothing was saved" in error
         assert (is_open, body, mapping, editor) == (dash.no_update,) * 4
-        assert ConfigManager.get_contexts() == CONTEXTS
+        assert settings.CONTEXTS.get() == CONTEXTS
         assert seeded.get_node("Run").context == "Health"  # rename rolled back
 
 

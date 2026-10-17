@@ -1,6 +1,6 @@
 """The Nodes tab's layout."""
 from dash import html
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_GRAPH_LAYOUT
 from skilltree.ui import tokens
 from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
@@ -33,7 +33,7 @@ def create_graph_view():
     """Create the Cytoscape graph canvas with fullscreen toggle button.
 
     It starts empty. The canvas gets its elements on its first visit."""
-    gl = ConfigManager.get_graph_layout_defaults()
+    gl = settings.GRAPH_LAYOUT_DEFAULTS.get()
     return html.Div([
         html.Div([
             cyto.Cytoscape(
@@ -70,7 +70,7 @@ def create_graph_view():
             freeze_indicator("freeze-indicator"),
             build_graph_settings_panel(
                 "graph-settings",
-                defaults_getter=ConfigManager.get_graph_layout_defaults,
+                defaults_getter=settings.GRAPH_LAYOUT_DEFAULTS.get,
             ),
             dbc.Button(html.I(className="bi bi-arrows-fullscreen"),
                        id="btn-fullscreen",

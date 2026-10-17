@@ -6,7 +6,7 @@ import threading
 
 import numpy as np
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.domain.models import STATUS_DONE
 from skilltree.domain.simulation import simulate_task_chain, SimulationCancelled
 
@@ -51,7 +51,7 @@ class SimulationService:
         if cancelled():
             raise SimulationCancelled()
         trials = effective_trials(requested_trials, nodes)
-        correlation = ConfigManager.get_estimate_correlation()
+        correlation = settings.estimate_correlation()
         # Cosmetic edits and unrelated graph changes do not change this key.
         key = (target, include_soft, include_helps, trials, correlation,
                tuple((name, n.status, n.time_mode, n.time_o, n.time_m, n.time_p)

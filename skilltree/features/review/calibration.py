@@ -10,7 +10,7 @@ from dash import html, Input, Output, State, no_update
 from skilltree.ui import tokens
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.domain.time import actual_bracket_hours
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.features.review.values import (
     PROJECT_NOTES_PLACEHOLDER, calibration_modal_text,
     calibration_prepop,
@@ -107,7 +107,7 @@ def register_calibration_callbacks(app, services):
                 (node.actual_time_lower, node.actual_time_point,
                  node.actual_time_upper) = actual_bracket_hours(
                     (lower, point, upper),
-                    ConfigManager.get_time_multiplier(unit or 'hours'), stored)
+                    settings.time_multiplier(unit or 'hours'), stored)
                 node.actual_time_unit = unit or 'hours'
                 node.reflect_value = int(val) if val is not None else None
                 node.reflect_interest = int(interest) if interest is not None else None
@@ -352,7 +352,7 @@ def register_calibration_callbacks(app, services):
     )
     @prerendered
     def _calibration_review_button_visibility(_active_tab):
-        if ConfigManager.get_time_calibration_enabled():
+        if settings.TIME_CALIBRATION_ENABLED.get():
             return {"display": "inline-block"}
         return {"display": "none"}
 

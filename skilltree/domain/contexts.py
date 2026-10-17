@@ -385,7 +385,7 @@ DEFAULT_CONTEXT_SORT_MODE = CONTEXT_SORT_DEFINITION
 
 def sort_subcontexts(subs, mode):
     """Subcontexts in a sort mode (the user's is
-    ConfigManager.get_subcontext_sort_mode).
+    settings.SUBCONTEXT_SORT_MODE.get).
 
     `'definition'` preserves the input order. `'length'` is stable so equal
     lengths keep their definition order.
@@ -400,7 +400,7 @@ def sort_subcontexts(subs, mode):
 
 def sort_contexts(ctxs, mode):
     """Contexts in a sort mode (the user's is
-    ConfigManager.get_context_sort_mode). Mirrors `sort_subcontexts`."""
+    settings.CONTEXT_SORT_MODE.get). Mirrors `sort_subcontexts`."""
     items = list(ctxs)
     if mode == CONTEXT_SORT_LENGTH:
         # "Self" renders visibly narrower than other 4-char contexts (STEM, etc.)

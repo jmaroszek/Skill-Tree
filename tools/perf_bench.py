@@ -75,7 +75,7 @@ def server_timings(db_path, repeats=5):
     from skilltree.features.home import view as next_view
     from skilltree.store import commands as node_commands
     from skilltree.features.home.table import format_suggestions_table
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
     from skilltree.ui.canvas.elements import generate_elements
     from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, STATUS_DONE
     from skilltree.features.details.simulation_service import simulation_service
@@ -158,7 +158,7 @@ def server_timings(db_path, repeats=5):
     fresh = {name: manager.get_node(name) for name in tree}
     sim_edges = [e for e in manager.get_edges()
                  if e["type"] == EDGE_NEEDS_HARD and e["source"] in tree and e["target"] in tree]
-    trials = ConfigManager.get_monte_carlo_trials()
+    trials = settings.monte_carlo_trials()
     start = time.perf_counter()
     simulation_service.summarize(goal.name, fresh, sim_edges, False, False, trials)
     results["Time simulation, largest goal"] = time.perf_counter() - start

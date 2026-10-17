@@ -204,27 +204,27 @@ def test_memo_survives_alpha_change(temp_database):
     changes to alpha/weights/cost params don't cause needless recomputation.
     """
     from skilltree.store.graph.manager import GraphManager
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
 
     mgr = GraphManager()
     mgr.add_node(_node("A", context="Mind"))
     mgr.add_node(_node("B", context="Life"))
 
     # First scoring call populates the memo under current hyperparams.
-    ConfigManager.set_hyperparams({**BASE_HYPERS, 'alpha': 0.0})
+    settings.set_hyperparams({**BASE_HYPERS, 'alpha': 0.0})
     mgr.calculate_priority_scores(mgr.get_all_nodes())
     memo_id_before = id(mgr.caches.scoring_memo)
     key_before = mgr.caches.scoring_key
 
     # Change alpha — must NOT flush the memo (alpha is post-score).
-    ConfigManager.set_hyperparams({**BASE_HYPERS, 'alpha': 0.5})
+    settings.set_hyperparams({**BASE_HYPERS, 'alpha': 0.5})
     mgr.calculate_priority_scores(mgr.get_all_nodes())
     assert id(mgr.caches.scoring_memo) == memo_id_before, \
         "Memo was replaced when alpha changed — invalidation key is too broad"
     assert mgr.caches.scoring_key == key_before
 
     # Sanity: a TV-affecting change (d_H) DOES flush the memo.
-    ConfigManager.set_hyperparams({**BASE_HYPERS, 'd_H': 0.3})
+    settings.set_hyperparams({**BASE_HYPERS, 'd_H': 0.3})
     mgr.calculate_priority_scores(mgr.get_all_nodes())
     assert mgr.caches.scoring_key != key_before, \
         "Memo stayed valid after d_H change — should have invalidated"
@@ -233,17 +233,17 @@ def test_memo_survives_alpha_change(temp_database):
 def test_memo_survives_context_weights_change(temp_database):
     """Same invariant for context_weights changes."""
     from skilltree.store.graph.manager import GraphManager
-    from skilltree.store.settings import ConfigManager
+    from skilltree.store import settings
 
     mgr = GraphManager()
     mgr.add_node(_node("A", context="Mind"))
 
-    ConfigManager.set_hyperparams(BASE_HYPERS)
-    ConfigManager.set_context_weights({})
+    settings.set_hyperparams(BASE_HYPERS)
+    settings.CONTEXT_WEIGHTS.set({})
     mgr.calculate_priority_scores(mgr.get_all_nodes())
     key_before = mgr.caches.scoring_key
 
-    ConfigManager.set_context_weights({"Mind": 2.0})
+    settings.CONTEXT_WEIGHTS.set({"Mind": 2.0})
     mgr.calculate_priority_scores(mgr.get_all_nodes())
     assert mgr.caches.scoring_key == key_before, \
         "Memo was invalidated by context_weights change"

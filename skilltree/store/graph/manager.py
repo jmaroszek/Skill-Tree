@@ -24,7 +24,7 @@ from skilltree.store.graph.state import (
     SCORING_RELEVANT_FIELDS, GraphCaches, revisions,
 )
 from skilltree.domain.models import Node, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
 from skilltree.domain.names import format_name
 
@@ -264,7 +264,7 @@ class GraphManager:
         if prior is not None and prior.type == "Goal" and (
                 node.type != "Goal"
                 or (node.status == STATUS_DONE and prior.status != STATUS_DONE)):
-            ConfigManager.drop_priority_goal(node.name)
+            settings.PRIORITY_GOALS.drop(node.name)
         # The node's own Blocked or Open follows its prerequisites, whatever
         # the form said: a Goal turned into an Action kept Open with
         # unfinished prerequisites until the next launch repaired it.
@@ -399,9 +399,8 @@ class GraphManager:
             any more, so it demotes to manual-trigger. Both outcomes are
             queued as a one-shot announcement, since a silently narrowed
             AND condition is exactly the kind of change a user needs told.
-          - Config-side references (priority_goals) — delegated to
-            ConfigManager.delete_node_references, mirroring how
-            rename_node delegates to rename_node_references.
+          - The settings that store node names (settings.NODE_NAME_SETTINGS)
+            drop it, as rename_node renames it in them.
         """
         from datetime import date
         with self.get_connection() as conn:
@@ -435,7 +434,7 @@ class GraphManager:
         for dept in dependents:
             self.update_node_state(dept)
         if affected_events:
-            ConfigManager.add_pending_event_notification({
+            settings.add_event_notification({
                 "kind": "trigger_node_deleted",
                 "events": affected_events,
                 "demoted": demoted,
@@ -446,7 +445,8 @@ class GraphManager:
         # The nodes left in a narrowed set may all be Done already.
         for ev in narrowed:
             self.on_trigger_set_narrowed(ev)
-        ConfigManager.delete_node_references(node_name)
+        for setting in settings.NODE_NAME_SETTINGS:
+            setting.drop(node_name)
         self._bump_version()
 
     @database.atomic
@@ -482,10 +482,10 @@ class GraphManager:
         import or a script."""
         goals = {n.name for n in self.get_all_nodes(include_dormant=True)
                  if n.type == "Goal" and n.status != STATUS_DONE}
-        stale = [name for name in ConfigManager.get_priority_goals()
+        stale = [name for name in settings.PRIORITY_GOALS.get()
                  if name not in goals]
         for name in stale:
-            ConfigManager.drop_priority_goal(name)
+            settings.PRIORITY_GOALS.drop(name)
         return stale
 
     @database.atomic
@@ -498,7 +498,8 @@ class GraphManager:
         if taken:
             raise ValueError(f"A node named '{taken}' already exists.")
         self._repository.rename_node(old_name, new_name)
-        ConfigManager.rename_node_references(old_name, new_name)
+        for setting in settings.NODE_NAME_SETTINGS:
+            setting.rename(old_name, new_name)
         self._bump_version()
 
     def get_node(self, name: str) -> Optional[Node]:
@@ -530,7 +531,7 @@ class GraphManager:
             try:
                 scored = self.calculate_priority_scores(
                     [n for n in self.get_all_nodes() if not n.now],
-                    priority_goals=ConfigManager.get_priority_goals())
+                    priority_goals=settings.PRIORITY_GOALS.get())
             except Exception:
                 logger.exception("Couldn't rank %s as it entered Now", node_name)
                 return None, None
@@ -576,7 +577,7 @@ class GraphManager:
             cursor.execute("DELETE FROM Aliases WHERE node_name=?", (node_name,))
             for alias in aliases:
                 if alias and alias.strip():
-                    clean = format_name(alias.strip(), ConfigManager.get_name_formatting())
+                    clean = format_name(alias.strip(), settings.NAME_FORMATTING.get())
                     problem = graph_rules.name_problem(clean, "Alias")
                     if problem:
                         raise ValueError(problem)

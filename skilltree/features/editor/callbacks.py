@@ -33,7 +33,7 @@ from skilltree.features.editor.layout import (
 )
 from skilltree.store import database
 from skilltree.store.commands import bridge_form, plan_bridge
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.canvas.view import node_options
@@ -671,7 +671,7 @@ def register_editor_callbacks(app, services):
     def refresh_work_time_tooltips(habit_mode_val, _settings_open):
         habit = bool(habit_mode_val and 'habit' in habit_mode_val)
         return (work_time_tooltip("habit" if habit else "estimate"),
-                work_time_tooltip("actual"), ConfigManager.get_time_settings())
+                work_time_tooltip("actual"), settings.TIME_SETTINGS.get())
 
     # Display conversions locally while typing; the store uses saved Settings.
     app.clientside_callback(
@@ -811,8 +811,8 @@ def register_editor_callbacks(app, services):
         no_change = dash.no_update, dash.no_update, dash.no_update, new_unit
         if not new_unit or new_unit == old_unit:
             return no_change
-        old_mult = ConfigManager.get_time_multiplier(old_unit)
-        new_mult = ConfigManager.get_time_multiplier(new_unit)
+        old_mult = settings.time_multiplier(old_unit)
+        new_mult = settings.time_multiplier(new_unit)
         if new_mult == 0:
             return no_change
         def _reexpress(v):
@@ -1035,8 +1035,8 @@ def register_editor_callbacks(app, services):
         base = [{"label": "None", "value": ""}]
         if not ctx:
             return base
-        subs = sort_subcontexts(ConfigManager.get_subcontexts().get(ctx, []),
-                                ConfigManager.get_subcontext_sort_mode())
+        subs = sort_subcontexts(settings.SUBCONTEXTS.get().get(ctx, []),
+                                settings.SUBCONTEXT_SORT_MODE.get())
         return base + [{"label": s, "value": s} for s in subs]
 
     # Clear node-subcontext value when the new context doesn't include it.
@@ -1102,7 +1102,7 @@ def register_editor_callbacks(app, services):
     )
     def toggle_ratings_editor(edit_clicks, cancel_clicks):
         if ctx.triggered_id == "btn-ratings-edit":
-            defs = ConfigManager.get_ratings_definitions()
+            defs = settings.RATINGS_DEFINITIONS.get()
             return True, build_editor_table(defs)
         return False, no_update
 
@@ -1116,7 +1116,7 @@ def register_editor_callbacks(app, services):
         prevent_initial_call=True,
     )
     def save_ratings_definitions(n_clicks, values, interests, efforts):
-        defs = ConfigManager.get_ratings_definitions()
+        defs = settings.RATINGS_DEFINITIONS.get()
         new_defs = []
         for i, d in enumerate(defs):
             new_defs.append({
@@ -1125,7 +1125,7 @@ def register_editor_callbacks(app, services):
                 "interest": interests[i] if i < len(interests) else d["interest"],
                 "effort": efforts[i] if i < len(efforts) else d["effort"],
             })
-        ConfigManager.set_ratings_definitions(new_defs)
+        settings.RATINGS_DEFINITIONS.set(new_defs)
         return build_popup_table_rows(new_defs), False
 
     # --- Editor Now Toggle: populate switch from DB on node change ---
@@ -1183,7 +1183,7 @@ def register_editor_callbacks(app, services):
         if wants_now and not is_now:
             now_nodes = manager.get_now_nodes()
             current_count = len(now_nodes)
-            if current_count >= ConfigManager.get_now_node_cap():
+            if current_count >= settings.NOW_NODE_CAP.get():
                 ts = int(time.time() * 1000)
                 return f"refused|{ts}", f"refused|{ts}"
             max_now = max([n.now for n in now_nodes]) if now_nodes else 0

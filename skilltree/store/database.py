@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # bypasses this cache entirely.
 _db_path_cache: Optional[str] = None
 
-# One write operation may cross GraphManager, EventManager and ConfigManager.
+# One write operation may cross GraphManager, EventManager and the settings.
 # The lease keeps their nested context managers/commit calls from committing
 # part of that operation. ContextVar isolates concurrent Dash request threads.
 _session = ContextVar("skilltree_db_session", default=None)

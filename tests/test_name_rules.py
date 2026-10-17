@@ -6,7 +6,7 @@ into the name field, made a node that no list could show properly.
 """
 import pytest
 
-from skilltree.store.settings import ConfigManager
+from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.rules import NAME_MAX_LENGTH, name_problem
@@ -61,7 +61,7 @@ def test_graph_manager_refuses_a_bad_rename():
 def test_aliases_follow_the_same_rule():
     # Title case re-joins words with single spaces, which already removes a
     # tab. With formatting off, the rule is what stops it.
-    ConfigManager.set_name_formatting({"mode": "none"})
+    settings.NAME_FORMATTING.set({"mode": "none"})
     manager = GraphManager()
     manager.add_node(_node("Sleep"))
     with pytest.raises(ValueError, match="Alias must be a single line"):
