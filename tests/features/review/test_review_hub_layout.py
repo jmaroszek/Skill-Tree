@@ -304,13 +304,11 @@ def test_the_pager_stops_counting_past_a_hundred():
     assert _pager(100, 165, 'nodes')[0] == 'Showing 100 of many'
 
 
-def test_notes_preview_is_capped_at_a_word_boundary_and_points_to_edit():
+def test_notes_preview_is_capped_at_a_word_boundary():
     from skilltree.features.review.callbacks import NOTES_PREVIEW_CHARS, _notes_preview
 
     assert _notes_preview("Short\nnote") == "Short note"
     long = "word " * 100
     preview = _notes_preview(long)
-    shown, hint = preview.children
-    assert shown.children.endswith("…") and len(shown.children) <= NOTES_PREVIEW_CHARS + 1
-    assert shown.children[:-1].split(" ")[-1] == "word"
-    assert hint.children == "Edit to read all"
+    assert preview.endswith("…") and len(preview) <= NOTES_PREVIEW_CHARS + 1
+    assert preview[:-1].split(" ")[-1] == "word"

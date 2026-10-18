@@ -258,17 +258,14 @@ NOTES_PREVIEW_CHARS = 140
 
 def _notes_preview(notes):
     """A short teaser of a reflection's notes for the row's hover hint: newlines
-    collapsed, cut at a word boundary, and pointing at the pencil when cut."""
+    collapsed and cut at a word boundary."""
     text = " ".join(notes.split())
     if len(text) <= NOTES_PREVIEW_CHARS:
         return text
     cut = text[:NOTES_PREVIEW_CHARS]
     if text[NOTES_PREVIEW_CHARS] != " " and " " in cut:
         cut = cut.rsplit(" ", 1)[0]
-    return html.Div([
-        html.Div(cut.rstrip(" .,;:—-") + "…"),
-        html.Div("Edit to read all", className="review-notes-tooltip-more"),
-    ])
+    return cut.rstrip(" .,;:—-") + "…"
 
 
 def _build_history_table(nodes, sort=None, empty_message="No matching reflections."):
