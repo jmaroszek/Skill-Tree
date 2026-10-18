@@ -215,6 +215,12 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
     display: none;
 }
 
+/* Keep heading tooltip targets on the text while preserving block layout. */
+:is(h1, h2, h3, h4, h5, h6).hover-hint {
+    width: fit-content;
+    max-width: 100%;
+}
+
 /* A label or heading whose hover tooltip explains it: pointer with a question mark. */
 /* The descendants are included because a form control inside sets its own cursor,
    which would otherwise win over the wrapper's. */

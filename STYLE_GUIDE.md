@@ -337,7 +337,9 @@ builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
 targeting it, in a `display: contents` wrapper so it lays out as its two parts. Every such label gets the
 `.hover-hint` class, which shows the help cursor (a pointer with a question
 mark), so it reads as explainable before it is hovered. Give each label a unique
-id. The node editor's hover copy lives in `_EDITOR_HINTS` in
+id. Headings with `.hover-hint` fit their text width, so their tooltip and help
+cursor appear over the text rather than the empty remainder of the row. They
+keep their block layout and section spacing. The node editor's hover copy lives in `_EDITOR_HINTS` in
 `skilltree/features/editor/layout.py`, the Filters sidebar's in `_FILTER_HINTS` in
 `skilltree/features/filters/layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
 tooltip enumerates is a bullet list (`kit.bullet_hint(intro, *items)`), not
