@@ -1920,11 +1920,35 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     overflow: hidden;
 }
 
+.review-history-name-line {
+    display: flex;
+    align-items: center;
+}
+
 .review-history-name {
-    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.review-history-notes-icon {
+    flex: none;
+}
+
+.review-notes-tooltip .tooltip-inner,
+.tooltip-inner.review-notes-tooltip {
+    max-width: 320px;
+    max-height: 7.5em;
+    overflow: hidden;
+    text-align: left;
+}
+
+.review-notes-tooltip-more {
+    margin-top: 0.25rem;
+    opacity: 0.65;
+    font-size: 0.85em;
 }
 
 .review-history-sort-btn.btn-link {

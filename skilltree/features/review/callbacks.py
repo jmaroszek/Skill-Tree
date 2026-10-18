@@ -253,6 +253,24 @@ _CELL_PRIMARY = tokens.CELL_PRIMARY
 _CELL_MUTED = tokens.CELL_MUTED
 
 
+NOTES_PREVIEW_CHARS = 140
+
+
+def _notes_preview(notes):
+    """A short teaser of a reflection's notes for the row's hover hint: newlines
+    collapsed, cut at a word boundary, and pointing at the pencil when cut."""
+    text = " ".join(notes.split())
+    if len(text) <= NOTES_PREVIEW_CHARS:
+        return text
+    cut = text[:NOTES_PREVIEW_CHARS]
+    if text[NOTES_PREVIEW_CHARS] != " " and " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return html.Div([
+        html.Div(cut.rstrip(" .,;:—-") + "…"),
+        html.Div("Edit to read all", className="review-notes-tooltip-more"),
+    ])
+
+
 def _build_history_table(nodes, sort=None, empty_message="No matching reflections."):
     """Render the Review History as a `dbc.Table` matching the Details tab's
     Subtasks-table style. Edit buttons carry pattern-matched ids so the
@@ -277,11 +295,10 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
         edit_id = {'type': 'hub-history-edit', 'index': node.name}
         notes_id = {'type': 'hub-history-notes', 'index': node.name}
         notes_marker = ([
-            html.I(className="bi bi-card-text ms-2 text-muted hover-hint", id=notes_id,
-                   **{"aria-label": "Has reflection notes"}),
-            Tooltip(node.reflect_notes if len(node.reflect_notes) <= 300
-                    else node.reflect_notes[:300].rstrip() + "…",
-                    target=notes_id, placement="right"),
+            html.I(className="bi bi-card-text ms-2 text-muted hover-hint review-history-notes-icon",
+                   id=notes_id, **{"aria-label": "Has reflection notes"}),
+            Tooltip(_notes_preview(node.reflect_notes), target=notes_id,
+                    placement="right", className="review-notes-tooltip"),
         ] if node.reflect_notes else [])
         edit_action = html.Div([
             dbc.Button(
@@ -302,9 +319,11 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
         ], className="review-history-actions")
         rows.append(html.Tr([
             html.Td([
-                html.Span(node.name, id=name_id, className="review-history-name"),
+                html.Div([
+                    html.Span(node.name, id=name_id, className="review-history-name"),
+                    *notes_marker,
+                ], className="review-history-name-line"),
                 Tooltip(node.name, target=name_id),
-                *notes_marker,
             ], className="review-history-name-cell", style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
                     style=_CELL_MUTED),

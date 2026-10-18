@@ -174,7 +174,7 @@ def test_review_history_summary_keeps_full_names_and_rating_comparison_accessibl
             else heading.children.children[0] for heading in headings[:-1]] == [
         "Name", "Est Time", "Actual", "Δ Time", "Δ Ratings"]
     assert headings[4].to_plotly_json()["props"]["aria-sort"] == "descending"
-    assert cells[0].children[0].children == node.name
+    assert cells[0].children[0].children[0].children == node.name
     assert cells[0].children[1].children == node.name
     assert cells[4].children[0].children == "+1/+2/−1"
     assert "Estimated V/I/E: 5/5/5" in cells[4].children[1].children
@@ -302,3 +302,15 @@ def test_the_pager_stops_counting_past_a_hundred():
     assert _pager(20, 100, 'reflections')[0] == 'Showing 20 of 100 reflections'
     assert _pager(20, 101, 'reflections')[0] == 'Showing 20 of many'
     assert _pager(100, 165, 'nodes')[0] == 'Showing 100 of many'
+
+
+def test_notes_preview_is_capped_at_a_word_boundary_and_points_to_edit():
+    from skilltree.features.review.callbacks import NOTES_PREVIEW_CHARS, _notes_preview
+
+    assert _notes_preview("Short\nnote") == "Short note"
+    long = "word " * 100
+    preview = _notes_preview(long)
+    shown, hint = preview.children
+    assert shown.children.endswith("…") and len(shown.children) <= NOTES_PREVIEW_CHARS + 1
+    assert shown.children[:-1].split(" ")[-1] == "word"
+    assert hint.children == "Edit to read all"
