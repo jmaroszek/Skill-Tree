@@ -456,24 +456,19 @@ def build_details_tab_content():
                 ], className="d-flex align-items-center"),
             ], className="d-flex justify-content-between align-items-center"),
             dcc.Store(id="details-explain-contrib-store"),
-            # The score callback and chart callback complete in sequence.  Keep
-            # Plotly's unstyled first frame out of sight until both are done;
-            # for the usual sub-second wait, a quiet caption is less visually
-            # noisy than flashing a spinner.
+            # The node the modal's content was built for, so a selection the
+            # content already shows asks the server nothing.
             dcc.Store(id="details-explain-ready-node"),
             # The selection, as the modal sees it: written only while the modal
             # is open, so a selection made with it closed asks the server
             # nothing.
             dcc.Store(id="details-explain-node"),
             html.Div([
+                # Shown in place of the chart when nothing contributes.
                 html.Div(
-                    "Preparing explanation…",
                     id="details-explain-chart-placeholder",
-                    className=(
-                        "text-muted d-flex align-items-center "
-                        "justify-content-center"
-                    ),
-                    style={"minHeight": "260px", "fontSize": tokens.FS_BASE},
+                    className="text-muted",
+                    style={"display": "none"},
                     **{"role": "status", "aria-live": "polite"},
                 ),
                 dcc.Graph(
@@ -521,7 +516,9 @@ def build_details_tab_content():
                        color="secondary", className="ms-auto"),
         ], className="d-flex"),
     ], id="modal-details-explain", size="lg", is_open=False,
-       centered=True, scrollable=True)
+       # Top-anchored, so a taller chart for the next node extends the
+       # modal downward instead of moving the whole dialog to re-centre it.
+       scrollable=True)
 
     return html.Div([
         dcc.Store(id='details-selected-node-store', data=None),

@@ -229,11 +229,11 @@ def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch, services):
     spec = next(v for k, v in app.callback_map.items()
                 if 'details-explain-title.children' in k)
     callback = spec['callback'].__wrapped__
-    fire('modal-details-explain.is_open')
+    fire('btn-details-explain.n_clicks')
     opened, statements = _trace_connections(monkeypatch)
-    assert callback(False, None, 'A') == (dash.no_update,) * 6
+    assert callback('', 1, None, 10, None, False, None, None) == (dash.no_update,) * 12
     assert not opened
-    first = to_json(callback(True, None, 'A'))
+    first = to_json(callback('', 1, None, 10, 'A', False, None, None))
     assert len(opened) == 1
     assert sum('SELECT * FROM Nodes' in s for s in statements) == 1
     assert database.current_snapshot() is None
@@ -242,7 +242,7 @@ def test_explain_reuses_rows_but_refreshes_between_calls(monkeypatch, services):
     changed.value = 9
     manager.update_node(changed)
     opened.clear()
-    second = to_json(callback(True, None, 'A'))
+    second = to_json(callback('', 1, None, 10, 'A', False, None, None))
     assert len(opened) == 1
     assert first != second
     assert database.current_snapshot() is None

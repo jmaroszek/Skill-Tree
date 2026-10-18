@@ -348,25 +348,115 @@ def build_explain_chart(contributors, top_n: int = 10):
     return _explain_bar_chart(contributors or [], top_n)
 
 
+_PLACEHOLDER_SHOWN = {
+    "display": "flex",
+    "alignItems": "center",
+    "justifyContent": "center",
+    "minHeight": "260px",
+    "fontSize": tokens.FS_BASE,
+}
+
+
+def _chart_outputs(contributors, top_n):
+    """The chart's figure and style, and the placeholder's style and text.
+
+    The chart's box gets the figure's own height in the same update. Without
+    it, dcc.Graph draws one frame at Plotly's default 450px before the
+    layout's height applies, and the modal visibly grows and shrinks.
+    """
+    if not contributors:
+        return (no_update, {"display": "none"}, _PLACEHOLDER_SHOWN,
+                "No contributors to display.")
+    fig = build_explain_chart(contributors, top_n=top_n)
+    return (fig, {"height": f"{fig.layout.height}px"},
+            {"display": "none"}, "")
+
+
+def _top_n(count):
+    """The chart's row count from the count input: 10 when it is unusable."""
+    try:
+        return max(1, int(count)) if count else 10
+    except (TypeError, ValueError):
+        return 10
+
+
 def register_explain_callbacks(app, services):
     graph_manager = services.graph
 
-    # --- Context Menu "Explain" → select node + open modal (stay on current tab) ---
-    # The modal renders via React Portal (dbc.Modal uses createPortal), so it is
-    # visible from any tab even though it lives inside details-tab-content.
+    # --- Explain modal: open it, fill it and redraw its chart -------------
+    # The modal opens in the same response that fills it. It used to open
+    # first and fill in over two more round trips, so it appeared blank (or
+    # showing the last node), then grew as its header and chart arrived.
+    #
+    # Three things open or refill it: the context menu, which also selects
+    # the node in Details; the Details tab's Explain button; and a new
+    # selection while it is open. The context menu's selection echoes back
+    # as details-explain-node, which ready-node lets this skip. The count
+    # box only redraws the chart, from the contributors already stored. The
+    # count is both an Input and an Output: resetting it on open doesn't
+    # call this again.
+    #
+    # The modal renders via React Portal (dbc.Modal uses createPortal), so it
+    # is visible from any tab even though it lives inside details-tab-content.
     @app.callback(
         Output("details-node-select", "value", allow_duplicate=True),
         Output("modal-details-explain", "is_open", allow_duplicate=True),
+        Output("details-explain-title", "children"),
+        Output("details-explain-subtitle", "children"),
+        Output("details-explain-summary", "children"),
+        Output("details-explain-contrib-store", "data"),
+        Output("details-explain-count", "value"),
+        Output("details-explain-ready-node", "data"),
+        Output("details-explain-chart", "figure"),
+        Output("details-explain-chart", "style"),
+        Output("details-explain-chart-placeholder", "style"),
+        Output("details-explain-chart-placeholder", "children"),
         Input("details-explain-trigger-input", "value"),
+        Input("btn-details-explain", "n_clicks"),
+        Input("details-explain-node", "data"),
+        Input("details-explain-count", "value"),
+        State("details-node-select", "value"),
+        State("modal-details-explain", "is_open"),
+        State("details-explain-ready-node", "data"),
+        State("details-explain-contrib-store", "data"),
         prevent_initial_call=True,
     )
-    def context_menu_explain_open(trigger_val):
-        if not trigger_val:
-            return no_update, no_update
-        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
+    def show_explanation(trigger_val, _clicks, explain_node, count,
+                         selected, is_open, ready_node, contributors):
+        nothing = (no_update,) * 12
+        trigger = ctx.triggered_id
+        if trigger == "details-explain-count":
+            if not is_open or not ready_node:
+                return nothing
+            return (no_update,) * 8 + _chart_outputs(contributors, _top_n(count))
+        select_out = no_update
+        if trigger == "details-explain-trigger-input":
+            node_name = bridge_payloads.strip_stamp(trigger_val or "").strip()
+            select_out = node_name or no_update
+            opening = True
+        elif trigger == "btn-details-explain":
+            node_name, opening = selected, True
+        else:
+            node_name, opening = explain_node, False
+            if not is_open or node_name == ready_node:
+                return nothing
         if not node_name:
-            return no_update, no_update
-        return node_name, True
+            return nothing
+        # The count resets to the default only when the modal opens, not
+        # when the user selects a different node while it's already open.
+        top_n = 10 if opening else _top_n(count)
+        title, subtitle, summary, contributors = _build_explain_content(node_name)
+        return (select_out, True if opening else no_update,
+                title, subtitle, summary, contributors,
+                10 if opening else no_update, node_name,
+                *_chart_outputs(contributors, top_n))
+
+    app.clientside_callback(
+        "function(){ return false; }",
+        Output("modal-details-explain", "is_open"),
+        Input("btn-details-explain-close", "n_clicks"),
+        prevent_initial_call=True,
+    )
 
     # --- Explain modal: the arithmetic is a disclosure, closed by default ---
     @app.callback(
@@ -386,35 +476,6 @@ def register_explain_callbacks(app, services):
         Input("collapse-details-explain-summary", "is_open"),
     )
 
-    # --- Explain Score modal ---------------------------------------------
-    @app.callback(
-        Output("modal-details-explain", "is_open"),
-        [Input("btn-details-explain", "n_clicks"),
-         Input("btn-details-explain-close", "n_clicks")],
-        State("modal-details-explain", "is_open"),
-        prevent_initial_call=True,
-    )
-    def toggle_explain_modal(_open_clicks, _close_clicks, is_open):
-        return not is_open
-
-    @app.callback(
-        [Output("details-explain-title", "children"),
-         Output("details-explain-subtitle", "children"),
-         Output("details-explain-summary", "children"),
-         Output("details-explain-contrib-store", "data"),
-         Output("details-explain-count", "value"),
-         Output("details-explain-ready-node", "data")],
-        Input("modal-details-explain", "is_open"),
-        Input("details-explain-node", "data"),
-        State("details-node-select", "value"),
-        prevent_initial_call=True,
-    )
-    def populate_explain_modal(is_open, _explain_node, node_name):
-        if not is_open or not node_name:
-            return (no_update, no_update, no_update, no_update, no_update,
-                    no_update)
-        return _build_explain_content(node_name)
-
     @database.snapshot_read
     def _build_explain_content(node_name):
         # Explanation and both ranking pools reuse one set of normalized rows.
@@ -424,14 +485,13 @@ def register_explain_callbacks(app, services):
         hypers['context_weights'] = settings.CONTEXT_WEIGHTS.get()
         node = next((n for n in all_nodes if n.name == node_name), None)
         is_goal = node is not None and node.type == 'Goal'
-        count_out = 10 if ctx.triggered_id == "modal-details-explain" else no_update
         # A sleeping node can be selected in Details, but it isn't scored.
         if node is None and graph_manager.get_node(node_name) is not None:
             return (node_name, "Dormant: not ranked",
                     html.Div("This node is asleep. It is scored once its event "
                              "wakes it.", className="text-muted",
                              style={"padding": "16px"}),
-                    [], count_out, node_name)
+                    [])
 
         normalized = None
         if is_goal:
@@ -516,42 +576,8 @@ def register_explain_callbacks(app, services):
             contributor = nodes_by_name.get(c['name'])
             if contributor is not None:
                 c['value'], c['interest'] = contributor.value, contributor.interest
-        # count_out resets to the default only when the modal opens, not when
-        # the user selects a different node while it's already open.
         return (title, subtitle, build_explain_summary(breakdown, normalized),
-                contributors, count_out, node_name)
-
-    @app.callback(
-        [Output("details-explain-chart", "figure"),
-         Output("details-explain-chart", "style"),
-         Output("details-explain-chart-placeholder", "style"),
-         Output("details-explain-chart-placeholder", "children")],
-        [Input("details-explain-count", "value"),
-         Input("details-explain-contrib-store", "data"),
-         Input("details-explain-ready-node", "data"),
-         Input("modal-details-explain", "is_open"),
-         Input("details-explain-node", "data")],
-        State("details-node-select", "value"),
-        prevent_initial_call=True,
-    )
-    def update_explain_chart(count, contributors, ready_node, is_open,
-                             _explain_node, selected_node):
-        placeholder_style = {
-            "minHeight": "260px",
-            "fontSize": tokens.FS_BASE,
-        }
-        if not is_open or not selected_node or ready_node != selected_node:
-            return (no_update, {"display": "none"}, placeholder_style,
-                    "Preparing explanation…")
-        if not contributors:
-            return (no_update, {"display": "none"}, placeholder_style,
-                    "No contributors to display.")
-        try:
-            n = max(1, int(count)) if count else 10
-        except (TypeError, ValueError):
-            n = 10
-        return (build_explain_chart(contributors, top_n=n), {},
-                {"display": "none"}, "")
+                contributors)
 
     @app.callback(
         [Output("details-explain-focus-feedback", "children"),

@@ -560,7 +560,7 @@ def test_details_layout_declares_settled_trigger():
         build_details_tab_content())
 
 
-def test_explain_chart_starts_hidden_behind_a_quiet_placeholder():
+def test_explain_modal_is_top_anchored_and_starts_without_a_placeholder():
     from skilltree.features.details.layout import build_details_tab_content
 
     def by_id(component, component_id):
@@ -582,40 +582,103 @@ def test_explain_chart_starts_hidden_behind_a_quiet_placeholder():
     content = build_details_tab_content()
     chart = by_id(content, "details-explain-chart")
     placeholder = by_id(content, "details-explain-chart-placeholder")
+    modal = by_id(content, "modal-details-explain")
 
     assert chart.style == {"display": "none"}
-    assert placeholder.children == "Preparing explanation…"
+    # The modal opens with its content, so there is no wait to caption. A
+    # Bootstrap display class would beat the style's display: none.
+    assert placeholder.style == {"display": "none"}
+    assert "d-flex" not in (placeholder.className or "")
     assert placeholder.role == "status"
-    assert getattr(placeholder, "aria-live") == "polite"
+    # Centring would move the whole dialog whenever its height changes.
+    assert not getattr(modal, "centered", False)
 
 
-def test_explain_chart_waits_for_the_selected_nodes_contributors():
+_CONTRIBUTOR = {
+    "name": "Current",
+    "contribution": 4.0,
+    "via": "Self",
+    "pct_of_tv": 100.0,
+    "depth": 0,
+    "weight": 1.0,
+    "iv": 4.0,
+}
+
+
+def _explain_callback():
+    manager = GraphManager()
+    manager.add_node(Node(
+        name="Current", type="Learn", description="", value=5,
+        time_o=1, time_m=2, time_p=3, interest=5, difficulty=5,
+        status="Open", context="Mind"))
     app = _app_with(register_details_callbacks)
     spec = _spec_for_output(app, "details-explain-chart.figure")
-    callback = _raw_callback(spec)
-    contributor = {
-        "name": "Current",
-        "contribution": 4.0,
-        "via": "Self",
-        "pct_of_tv": 100.0,
-        "depth": 0,
-        "weight": 1.0,
-        "iv": 4.0,
-    }
+    return app, _raw_callback(spec)
 
-    waiting = callback(10, [contributor], None, True, "Current", "Current")
-    assert waiting[0] is dash.no_update
-    assert waiting[1] == {"display": "none"}
-    assert waiting[3] == "Preparing explanation…"
 
-    stale = callback(10, [contributor], "Previous", True, "Current", "Current")
-    assert stale[1] == {"display": "none"}
+def test_explain_opens_in_the_response_that_fills_it():
+    _, callback = _explain_callback()
 
-    ready = callback(10, [contributor], "Current", True, "Current", "Current")
-    assert len(ready[0].data) == 1
-    assert ready[1] == {}
-    assert ready[2] == {"display": "none"}
-    assert ready[3] == ""
+    fire("details-explain-trigger-input.value")
+    out = callback("Current|123", None, None, 4, "Other", False, None, None)
+    selection, is_open, title = out[0], out[1], out[2]
+    count, ready, figure, chart_style, placeholder_style = out[6:11]
+    assert selection == "Current"
+    assert is_open is True
+    assert title == "Current"
+    assert count == 10
+    assert ready == "Current"
+    # The box gets the figure's height with it: no frame at Plotly's 450px.
+    assert chart_style == {"height": f"{figure.layout.height}px"}
+    assert placeholder_style == {"display": "none"}
+
+    # The Details button explains the current selection without changing it.
+    fire("btn-details-explain.n_clicks")
+    out = callback("", 1, None, 4, "Current", False, None, None)
+    assert out[0] is dash.no_update
+    assert out[1] is True
+    assert out[2] == "Current"
+
+
+def test_explain_skips_the_selection_it_already_shows():
+    _, callback = _explain_callback()
+
+    fire("details-explain-node.data")
+    echoed = callback("", None, "Current", 10, "Current", True, "Current", None)
+    assert echoed == (dash.no_update,) * 12
+    closed = callback("", None, "Current", 10, "Current", False, "Old", None)
+    assert closed == (dash.no_update,) * 12
+
+    moved = callback("", None, "Current", 4, "Current", True, "Old", None)
+    assert moved[1] is dash.no_update
+    assert moved[2] == "Current"
+    # A new selection keeps the count the reader chose.
+    assert moved[6] is dash.no_update
+
+
+def test_explain_count_redraws_only_the_chart():
+    _, callback = _explain_callback()
+
+    fire("details-explain-count.value")
+    out = callback("", None, None, 3, "Current", True, "Current", [_CONTRIBUTOR])
+    assert out[:8] == (dash.no_update,) * 8
+    assert len(out[8].data) == 1
+    assert out[9] == {"height": f"{out[8].layout.height}px"}
+
+    empty = callback("", None, None, 3, "Current", True, "Current", [])
+    assert empty[9] == {"display": "none"}
+    assert empty[11] == "No contributors to display."
+
+
+def test_explain_close_runs_in_the_browser():
+    app = _app_with(register_details_callbacks)
+    close = next(
+        c for c in app._callback_list
+        if c["output"] == "modal-details-explain.is_open")
+    assert [i["id"] for i in close["inputs"]] == ["btn-details-explain-close"]
+    name = close["clientside_function"]["function_name"]
+    source = next(s for s in app._inline_scripts if name in s)
+    assert "return false" in source
 
 
 def test_refresh_does_not_rewrite_an_unchanged_selection(monkeypatch):
