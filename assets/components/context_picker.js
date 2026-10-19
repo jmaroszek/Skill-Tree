@@ -473,7 +473,11 @@
 
     function restoreFilterFocus(instance, key) {
         var control = findFilterControl(instance, key);
-        if (control) control.focus();
+        if (!control) return;
+        control.focus({preventScroll: true});
+        // Only moves the panel when the control is out of view, so a click
+        // leaves it alone but ArrowLeft to an off-screen parent still shows it.
+        control.scrollIntoView({block: 'nearest'});
     }
 
     function moveFilterFocus(instance, currentControl, direction) {
@@ -549,6 +553,11 @@
         var query = instance.search.value.trim().toLocaleLowerCase();
         var selection = multiSelection(instance.state);
         var list = instance.contextList;
+        // The panel is the scroller. Emptying the list shrinks it to nothing,
+        // which clamps the scroll position to the top, so it is put back after
+        // the rebuild (a rebuild runs on every check, expand and collapse).
+        var scroller = instance.panel;
+        var savedScroll = scroller ? scroller.scrollTop : 0;
         list.replaceChildren();
         var visibleContexts = 0;
 
@@ -692,6 +701,7 @@
             list.appendChild(empty);
         }
         positionPanel(instance);
+        if (scroller) scroller.scrollTop = savedScroll;
     }
 
     function handleFilterKeydown(instance, event) {
