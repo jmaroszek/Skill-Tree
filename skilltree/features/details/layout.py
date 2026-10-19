@@ -14,7 +14,6 @@ from skilltree.ui.kit import (
     filter_chip,
     nav_button,
     panel_close_button,
-    progress_bar_color,
     split_handle)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
@@ -964,19 +963,14 @@ def build_milestone_tile(milestone_node, completion: dict):
 
     Layout (~280px wide, single horizontal scroll row in the strip):
       Name                     [Status]
-      ▰▰▰▰▰▱▱▱▱▱  47% · 18.2h
 
-    A Milestone with no estimated work beneath it (no Hard children, or only
-    other Milestones) skips the progress bar and hours and shows just name +
-    status pill — mirrors the canvas hover tooltip.
+    No progress bar or hours: finishing the work beneath a Milestone doesn't
+    mean the checkpoint was hit, so only the status pill speaks for it.
+    `completion` is accepted for call-site compatibility and is unused.
 
     The whole tile is keyed for the pattern-matched click callback in
     details_callbacks; clicking navigates Details to this Milestone.
     """
-    has_work = (completion or {}).get('has_work', False)
-    pct = (completion or {}).get('pct', 0)
-    remaining = (completion or {}).get('remaining_time', 0)
-
     # Header row: name (truncated) + status pill.
     header = html.Div([
         html.Span(
@@ -1000,28 +994,6 @@ def build_milestone_tile(milestone_node, completion: dict):
     ], className="d-flex align-items-center")
 
     children = [header]
-
-    if has_work:
-        bar_color = progress_bar_color(pct)
-        children += [
-            # Progress bar — same style as the canvas hover tooltip so the two
-            # surfaces read identically when hovering vs. browsing.
-            html.Div(
-                html.Div(style={
-                    "width": f"{pct}%", "height": "5px",
-                    "backgroundColor": bar_color, "borderRadius": "3px",
-                    "transition": "width 0.3s ease"
-                }),
-                style={"backgroundColor": tokens.BORDER_PANEL, "borderRadius": "3px",
-                       "marginTop": "10px", "marginBottom": "5px",
-                       "overflow": "hidden"},
-            ),
-            html.Div(
-                f"{pct}% · {format_time_friendly(remaining)}",
-                className="text-muted",
-                style={"fontSize": tokens.FS_XS},
-            ),
-        ]
 
     # Whole tile is clickable — pattern-matched id picked up by
     # navigate_to_milestone_tile in details_callbacks. Subtle gray border
