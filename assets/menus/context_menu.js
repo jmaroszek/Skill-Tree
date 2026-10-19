@@ -282,13 +282,32 @@
         // Shift held adds or removes one, after the `tap` handlers have run.
         // Toggling here as well undid its toggle, so a held click could never
         // drop a node.
+        //
+        // A node the app selected, such as the one a save or a search just
+        // showed, was never picked. A held click adds it rather than
+        // dropping it, so it can start a multi-selection.
         function trackSelectionOrder(cy) {
             var additive = false;
             var wasSelected = false;
+            var keep = false;
+            var pointer = false;
+            var appSelected = new Set();
+            cy.on('tapstart', function () { pointer = true; });
+            cy.on('tapend', function () {
+                setTimeout(function () { pointer = false; }, 0);
+            });
+            cy.on('select', 'node', function (evt) {
+                if (!pointer) appSelected.add(evt.target.id());
+            });
+            cy.on('unselect', 'node', function (evt) {
+                if (!keep) appSelected.delete(evt.target.id());
+            });
             cy.on('tapstart', 'node', function (evt) {
                 var oe = evt.originalEvent;
                 additive = !!(oe && (oe.ctrlKey || oe.metaKey || oe.shiftKey));
                 wasSelected = evt.target.selected();
+                keep = additive && wasSelected && appSelected.has(evt.target.id());
+                if (keep) wasSelected = false;
                 // A canvas that moves on a click (Details) leaves a held one
                 // alone, so it only changes the selection.
                 window.SkillTree.additiveTap = additive;
@@ -300,7 +319,10 @@
                     // it before tapping and never takes one away.
                     additive = !!window.SkillTree.additiveTap;
                     wasSelected = false;
+                    keep = false;
                 }
+                // A tapped node is the user's pick, however it got selected.
+                if (!keep) appSelected.delete(id);
                 if (!additive) {
                     cy.scratch(ORDER_KEY, [id]);
                     return;
@@ -308,6 +330,15 @@
                 var order = (cy.scratch(ORDER_KEY) || []).filter(function (other) { return other !== id; });
                 if (!wasSelected) order.push(id);
                 cy.scratch(ORDER_KEY, order);
+                if (keep) {
+                    // Cytoscape toggles the node off after this handler.
+                    var picked = evt.target;
+                    setTimeout(function () {
+                        keep = false;
+                        picked.select();
+                        appSelected.delete(id);
+                    }, 0);
+                }
             });
         }
 
