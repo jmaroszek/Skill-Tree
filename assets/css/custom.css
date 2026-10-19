@@ -45,10 +45,10 @@ input[type=number] {
     display: none;  /* Safari and Chrome */
 }
 
-/* Milestones roster (Details tab): single-row horizontal scroll with a
-   subtle gray scrollbar — opts back in to a visible scrollbar against the
-   global hide above so users can tell when there are more tiles than fit.
-   Width/height kept minimal so the bar is unobtrusive when not hovered. */
+/* Milestones roster (Details tab): single-row horizontal scroll. The
+   scrollbar is hidden (its thumb filled most of the track when only a few
+   tiles overflowed); the mouse wheel scrolls the strip sideways while the
+   pointer is over it (details_milestone_wheel.js). */
 .milestone-tiles-scroll {
     overflow-x: auto;
     overflow-y: hidden;
@@ -59,24 +59,7 @@ input[type=number] {
        overflow rather than producing a scrollbar here. */
     max-width: 100%;
     min-width: 0;
-    /* Gap between the bottom of the tiles and the scrollbar. */
-    padding-bottom: 10px;
-    scrollbar-width: thin;             /* Firefox */
-    scrollbar-color: var(--st-border-panel) transparent;  /* thumb / track — Firefox */
-}
-.milestone-tiles-scroll::-webkit-scrollbar {
-    display: block;                    /* override the global hide */
-    height: 6px;
-}
-.milestone-tiles-scroll::-webkit-scrollbar-track {
-    background: transparent;
-}
-.milestone-tiles-scroll::-webkit-scrollbar-thumb {
-    background: var(--st-border-panel);
-    border-radius: 3px;
-}
-.milestone-tiles-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--st-text-dim);
+    scrollbar-width: none;             /* Firefox */
 }
 
 /* Cytoscape box-selection rectangle */

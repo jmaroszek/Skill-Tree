@@ -1006,7 +1006,7 @@ def build_milestone_tile(milestone_node, completion: dict):
         role="button", tabIndex=0,
         style={
             "flex": "0 0 280px",
-            "padding": "10px 12px",
+            "padding": "15px 14px",
             "backgroundColor": tokens.BG_RAISED,
             "border": f"1px solid {tokens.BORDER_PANEL}",
             "borderRadius": "6px",
