@@ -277,6 +277,12 @@
                 clientX: rect.left + 16, clientY: rect.top + 16}));
             return;
         }
+        // Space is a checkbox's native key. Enter does nothing there, and
+        // switches look like buttons, so it toggles them too.
+        if (e.key === 'Enter' && !e.altKey && !e.ctrlKey && !e.metaKey &&
+                target.matches('input[type="checkbox"]')) {
+            e.preventDefault(); target.click(); return;
+        }
         if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey && target.matches(custom)) {
             e.preventDefault(); target.click(); return;
         }

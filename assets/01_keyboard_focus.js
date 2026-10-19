@@ -85,13 +85,27 @@
         });
     }
 
-    function current() {
+    // A `flow` layer is a reference panel read alongside a form. It never
+    // takes focus or holds it: in Tab order it sits right after its trigger,
+    // and leaving it continues through the form the trigger is in.
+    function current(skipFlow) {
         if (document.querySelector('dialog[open]')) return null;
         var active = document.activeElement;
         return activeLayers().reverse().find(function (layer) {
-            return layer.engaged || layer.root.contains(active) ||
+            if (layer.flow && skipFlow) return false;
+            return (layer.engaged && !layer.flow) || layer.root.contains(active) ||
                 (layer.opener === active && layer.triggerId === active.id);
         });
+    }
+
+    // The control after a flow layer's trigger, in whatever holds the trigger.
+    function afterTrigger(layer) {
+        var outer = current(true);
+        var root = (outer && outer.root.contains(layer.opener) && outer.root) ||
+            layer.opener.closest('.modal.show') || document.body;
+        var items = controls(root).filter(function (el) { return !layer.root.contains(el); });
+        var i = items.indexOf(layer.opener);
+        return i < 0 ? layer.opener : items[(i + 1) % items.length];
     }
 
     function entry(layer) {
@@ -145,7 +159,7 @@
                 !action.target.closest('.nav-tabs');
             layer.opener = document.activeElement;
             layer.engaged = Boolean(explicit && action.keyboard);
-            if (layer.engaged && activeLayers().includes(layer)) focus(entry(layer));
+            if (layer.engaged && !layer.flow && activeLayers().includes(layer)) focus(entry(layer));
         });
         if (pendingReturn && !document.querySelector('dialog[open]') &&
                 !Array.from(document.querySelectorAll('.modal')).some(visible)) {
@@ -169,7 +183,7 @@
             if (modalFocus.get(id) === suspended) return;
             modalFocus.set(id, suspended);
             window.dash_clientside.set_props(id, {enforceFocus: !suspended});
-            if (child) requestAnimationFrame(function () {
+            if (child && !child.flow) requestAnimationFrame(function () {
                 if (child.open && child.engaged && visible(child.root)) focus(entry(child));
             });
         });
@@ -178,6 +192,10 @@
     function tab(event) {
         if (event.defaultPrevented || document.querySelector('dialog[open]')) return;
         var layer = current();
+        // Shift+Tab from a flow layer's trigger goes back through the form.
+        if (layer && layer.flow && event.shiftKey && !layer.root.contains(document.activeElement)) {
+            layer = current(true);
+        }
         // Bootstrap enforces modal focus after it escapes, leaving browser
         // chrome/body and the dialog wrapper as extra stops. Own the actual
         // sequential boundary, including the topmost of stacked modals.
@@ -210,7 +228,8 @@
                 event.preventDefault(); event.stopPropagation();
                 layer.engaged = true;
                 tabbing = true;
-                try { focus(event.shiftKey ? items.at(-1) || layer.root : entry(layer)); }
+                var first = layer.flow ? items[0] || layer.root : entry(layer);
+                try { focus(event.shiftKey ? items.at(-1) || layer.root : first); }
                 finally { tabbing = false; }
                 return;
             }
@@ -220,8 +239,22 @@
         event.stopPropagation();
         if (!items.length) { focus(layer.root); return; }
         var i = items.indexOf(active);
+        if (layer.flow && i === (event.shiftKey ? 0 : items.length - 1)) {
+            tabbing = true;
+            try { focus(event.shiftKey ? layer.opener : afterTrigger(layer)); }
+            finally { tabbing = false; }
+            return;
+        }
         var next = i < 0 ? (event.shiftKey ? items.length - 1 : 0)
             : (i + (event.shiftKey ? -1 : 1) + items.length) % items.length;
+        // Shift+Tab onto a trigger whose reference is open enters the
+        // reference from its end, as if it sat between the two.
+        var reference = event.shiftKey && layers.find(function (l) {
+            return l.flow && l.open && l.opener === items[next] && visible(l.root);
+        });
+        if (reference && controls(reference.root).length) {
+            items = items.slice(); items[next] = controls(reference.root).at(-1);
+        }
         tabbing = true;
         try { focus(items[next]); }
         finally { tabbing = false; }
@@ -319,6 +352,19 @@
             if (cy && (cy.$('node:selected').length || cy.$('.keyboard-current').length)) return;
         }
         var layer = current();
+        // From the form beside it, Escape closes the reference first and
+        // leaves focus where it is.
+        var reference = activeLayers().reverse().find(function (l) {
+            return l.flow && l !== layer && (!layer || layer.root.contains(l.opener));
+        });
+        if (reference) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var closeRef = document.getElementById(reference.closeId);
+            if (closeRef) closeRef.click();
+            reference.closing = false;
+            return;
+        }
         if (!layer) return;
         e.preventDefault();
         e.stopImmediatePropagation();

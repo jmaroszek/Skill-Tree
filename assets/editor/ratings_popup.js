@@ -34,7 +34,7 @@
     POPUPS.forEach(function (cfg) {
         window.SkillTree.keyboardFocus.register({id: cfg.popupId,
             triggerId: cfg.triggerIds[0], closeId: cfg.closeId, initial: '#' + cfg.closeId,
-            modalId: cfg.modalId,
+            modalId: cfg.modalId, flow: true,
             hideWhenClosed: true, isOpen: function (el) { return el.style.display === 'flex'; }});
     });
 
