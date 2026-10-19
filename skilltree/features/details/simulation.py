@@ -173,8 +173,7 @@ def _run_simulation(graph, node_name, include_soft_val, include_synergies_val,
                for name, node in nodes_dict.items() if name != node_name):
             raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no "
                               "time left to estimate.")
-        raise NothingLeft(f"No work with a time estimate leads into '{node_name}' yet, "
-                          "so there is no time to estimate.")
+        raise NothingLeft(f"No work with a time estimate leads into '{node_name}' yet.")
 
     return (
         simulation_figure(result, time_settings, requested_trials),
