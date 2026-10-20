@@ -76,6 +76,16 @@ class TestDefensiveInputs:
 
     def test_a_non_numeric_value_does_not_raise(self):
         assert duration_to_days("soon", "weeks") == 0
+        assert duration_to_days(float("nan"), "weeks") == 0
+
+    def test_a_fraction_counts_to_the_nearest_day(self):
+        # The field takes decimals. Cutting the fraction off read half a month
+        # as no delay at all, and the unsaved-changes check, which compares
+        # delays in days, saw no change to save.
+        assert duration_to_days(0.5, "months") == 15
+        assert duration_to_days(1.2, "weeks") == 8
+        assert duration_to_days(0.25, "years") == 91
+        assert duration_to_days(2.4, "days") == 2
 
     def test_negatives_read_as_no_delay(self):
         assert days_to_duration(-3) == (0, "days")

@@ -1,5 +1,7 @@
 """Shared estimate guidance, the Time Simulation forecast chart, and worked hours
 in the user's units."""
+import math
+
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import html
@@ -148,15 +150,21 @@ _DURATION_UNIT_DAYS = (("years", 365), ("months", 30), ("weeks", 7), ("days", 1)
 
 
 def duration_to_days(value, unit) -> int:
-    """Convert a (value, unit) duration pair to whole days."""
+    """Convert a (value, unit) duration pair to whole days, to the nearest day.
+
+    The field takes decimals. Cutting the fraction off read half a month as
+    no delay at all.
+    """
     try:
-        count = int(value or 0)
+        count = float(value or 0)
     except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(count):
         return 0
     for name, size in _DURATION_UNIT_DAYS:
         if unit == name:
-            return count * size
-    return count
+            return round(count * size)
+    return round(count)
 
 
 def _largest_exact_unit(days: int) -> tuple[int, str]:
