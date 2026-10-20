@@ -74,7 +74,7 @@ $$ q(n,d)=\frac{1}{1+(R(n,d)/H)^\delta} $$
 
 `future_work_half_credit_hours` ($H$) is the required workload at which a benefit retains half its credit; zero disables the discount. `future_work_exponent` ($\delta$) shapes this curve independently of the immediate time-cost exponent beta. Neither is density alpha or a node count.
 
-Profiles start at H=1300 hours. Future exponents start at 0.60 for Sage, Explorer and Creator; 0.50 for Investor; 0.70 for Pragmatist; and 0.95 for Glider. Both controls appear in Scoring settings. These are calibration preferences, not predicted deadlines or probabilities.
+Profiles start at H=1300 hours. Future exponents start at 0.60 for Sage, Explorer and Creator; 0.50 for Investor; 0.70 for Pragmatist; and 0.95 for Glider. The profile sets both: Scoring settings has no control for either. These are calibration preferences, not predicted deadlines or probabilities.
 
 At Sage's starting settings, 40 remaining hours retains 89% of a benefit's credit; 400 retains 67%; 1300 retains 50%; and 4000 retains 34%. Today's own intrinsic value stays intact. Future difficulty ratings are not summed: future work uses hours only, while today's cost includes both time and difficulty.
 
