@@ -152,6 +152,53 @@ assert.deepEqual(
     assert result.returncode == 0, result.stderr
 
 
+def test_a_filter_on_a_context_settings_renamed_drops_out():
+    # The selection kept a context Settings had renamed or removed. The
+    # trigger, which reads the taxonomy, said "All contexts" and hid its clear
+    # button, while every canvas filtered by the old name and showed nothing.
+    node_binary = shutil.which("node")
+    if node_binary is None:
+        pytest.skip("Node.js is required for the picker state contract")
+
+    script = r'''
+const assert = require('node:assert/strict');
+global.window = {};
+require(process.argv[2]);  // 00_browser_bridge.js, passed in
+require(process.argv[1]);
+const picker = window.SkillTreeContextPicker;
+const taxonomy = [
+    {context: 'Body', subcontexts: ['Rest', 'Strength']},
+    {context: 'STEM', subcontexts: ['Math']},
+];
+
+// Health became Body; STEM's Computers was removed.
+assert.deepEqual(
+    picker.prunedMultiState({
+        context: ['Health', 'STEM'],
+        subcontext: ['Health\u001fSleep', 'STEM\u001fMath', 'STEM\u001fComputers'],
+    }, taxonomy),
+    {context: ['STEM'], subcontext: ['STEM\u001fMath']}
+);
+// A selection the taxonomy still holds is left alone.
+assert.equal(
+    picker.prunedMultiState({
+        context: ['STEM', 'Body'],
+        subcontext: ['Body\u001fRest', 'Body\u001f'],
+    }, taxonomy),
+    null
+);
+assert.equal(picker.prunedMultiState({context: [], subcontext: []}, taxonomy), null);
+'''
+    result = subprocess.run(
+        [node_binary, "-e", script, str(asset_file("context_picker.js")),
+         str(asset_file("00_browser_bridge.js"))],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_multi_picker_bridges_do_not_prune_values_against_options():
     # A dcc.Dropdown drops values missing from its current options, which
     # erased a subcontext picked in a context that was not selected yet.

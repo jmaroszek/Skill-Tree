@@ -100,6 +100,20 @@
         return {context: contextValue, subcontext: subcontextValue};
     }
 
+    // The selection without the contexts and subcontexts the taxonomy no
+    // longer has, after Settings renamed or removed them, or null when it
+    // has them all. The trigger reads the taxonomy, so it hid them while
+    // every canvas still filtered by them and showed nothing.
+    function prunedMultiState(state, taxonomy) {
+        var selection = multiSelection(state);
+        var kept = canonicalMultiState(taxonomy, selection.contexts, selection.partial);
+        var contexts = Array.isArray(state.context) ? state.context : [];
+        var subcontexts = Array.isArray(state.subcontext) ? state.subcontext : [];
+        if (kept.context.length === contexts.length
+                && kept.subcontext.length === subcontexts.length) return null;
+        return kept;
+    }
+
     win.SkillTreeContextPicker = {
         NO_SUBCONTEXT: NO_SUBCONTEXT,
         decodeSubcontextValue: decodeSubcontextValue,
@@ -107,6 +121,7 @@
         multiSelection: multiSelection,
         multiSummary: multiSummary,
         canonicalMultiState: canonicalMultiState,
+        prunedMultiState: prunedMultiState,
     };
 
     if (typeof document === 'undefined') return;
@@ -831,6 +846,10 @@
 
     function syncInstance(instance) {
         instance.state = parseState(instance);
+        if (instance.mode === 'multi' && instance.state.taxonomy.length) {
+            var pruned = prunedMultiState(instance.state, instance.state.taxonomy);
+            if (pruned) dispatchSelection(instance, pruned);
+        }
         updateTrigger(instance);
         if (activeInstance === instance) {
             if (instance.mode === 'multi') renderMulti(instance);
