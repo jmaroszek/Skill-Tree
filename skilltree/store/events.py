@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 # Columns hydrated onto Event. Listed explicitly rather than via SELECT * so a
-# legacy column left behind by a migration can't reach the dataclass.
+# column the dataclass lacks can't reach it.
 _EVENT_COLUMNS = ("name", "description", "status", "trigger_date", "trigger_mode")
 
 # The longest delay a node can wait after its event fires. A date past year

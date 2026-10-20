@@ -12,12 +12,6 @@ profile's name, so a retune here reaches every install."""
 HYPERPARAMS_SCHEMA_VERSION = 6
 
 
-# Old profile names, and the profile each became.
-PROFILE_ALIASES = {'Industrious': 'Pragmatist', 'Pragmatic': 'Pragmatist',
-                   'Default': 'Sage', 'Curious': 'Explorer', 'Sprinter': 'Glider',
-                   'Compounder': 'Investor'}
-
-
 DEFAULT_HYPERPARAMS = {
     'w_v': 1.00,
     'w_i': 1.00,

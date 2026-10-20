@@ -23,16 +23,18 @@ logger = logging.getLogger(__name__)
 _KIND_LABELS = {
     "daily": "daily",
     "manual": "manual",
-    "pre-migration": "before an upgrade",
     "before-restore": "before a restore",
     "before-import": "before an import",
 }
 
 
 def backup_options():
-    """The restore dropdown: newest first, labelled with time and kind."""
+    """The restore dropdown: newest first, labelled with time and kind. A
+    backup from another version can't be restored, so it isn't offered."""
     options = []
     for info in reversed(backup.list_backups()):
+        if not backup.current_schema(info["path"]):
+            continue
         when = info["when"].strftime("%b %d, %Y  %H:%M")
         kind = _KIND_LABELS.get(info["kind"], info["kind"])
         options.append({"label": f"{when}  ({kind})", "value": str(info["path"])})

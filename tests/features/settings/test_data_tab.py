@@ -1,6 +1,7 @@
 """Settings > Data: the buttons that back up, restore, export and import."""
 import base64
 import json
+import sqlite3
 
 import dash
 import pytest
@@ -144,6 +145,18 @@ def test_restore_asks_first_then_replaces_the_graph_and_reloads(data):
     status, closed, reload_trigger = data["restore"](1, saved)
     assert "Restored" in str(status) and closed is False and reload_trigger
     assert manager.get_node("Sleep") is not None
+
+
+def test_a_backup_from_an_older_version_is_not_offered():
+    GraphManager().add_node(_node("Sleep"))
+    kept = backup.create_backup("manual")
+    old = backup.create_backup("daily")
+    conn = sqlite3.connect(old)
+    conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION - 1}")
+    conn.commit()
+    conn.close()
+
+    assert [o["value"] for o in data_callbacks.backup_options()] == [str(kept)]
 
 
 def test_settings_save_keeps_the_extra_backup_folder(tmp_path):

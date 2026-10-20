@@ -18,7 +18,7 @@ from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
 from skilltree.domain.profiles import (
-    DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES, PROFILE_ALIASES,
+    DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES,
 )
 from skilltree.domain.names import (
     DEFAULT_TITLECASE_EXCLUSIONS, NAME_FORMAT_MODES, NAME_FORMAT_NONE, NAME_FORMAT_TITLE,
@@ -411,16 +411,7 @@ CONTEXT_WEIGHTS = Setting("CONTEXT_WEIGHTS", {}, refreshes_graph=True)
 
 # --- Appearance -----------------------------------------------------------------
 
-def _node_colors(text):
-    colors = json.loads(text)
-    # Legacy rename: 'Active' → 'Now'. Renamed as it is read, so a read
-    # never writes.
-    if 'Active' in colors and 'Now' not in colors:
-        colors['Now'] = colors.pop('Active')
-    return colors
-
-
-NODE_COLORS = Setting("NODE_COLORS", DEFAULT_NODE_COLORS, read=_node_colors,
+NODE_COLORS = Setting("NODE_COLORS", DEFAULT_NODE_COLORS,
                       merge_defaults=True, refreshes_graph=True)
 NODE_SHAPES = Setting("NODE_SHAPES", DEFAULT_NODE_SHAPES, refreshes_graph=True)
 GRAPH_LAYOUT_DEFAULTS = Setting("GRAPH_LAYOUT_DEFAULTS", DEFAULT_GRAPH_LAYOUT)
@@ -434,11 +425,7 @@ SHOW_SCORING_PERF = Setting("SHOW_SCORING_PERF", DEFAULT_SHOW_SCORING_PERF,
 
 # --- Scoring --------------------------------------------------------------------
 
-# Profiles have been renamed over time. A stored old name reads as the new
-# one (PROFILE_ALIASES), so the dropdown stays filled and the profile keeps
-# working.
-HP_PROFILE = Setting("HP_PROFILE", "Sage", read=lambda name: PROFILE_ALIASES.get(name, name),
-                     write=str, refreshes_graph=True)
+HP_PROFILE = Setting("HP_PROFILE", "Sage", read=str, write=str, refreshes_graph=True)
 # Scoring settings that override the profile's: see hyperparams().
 HYPERPARAMS = Setting("HYPERPARAMS", None, read=_dict, refreshes_graph=True)
 # The Goals ranked by priority, at most three.

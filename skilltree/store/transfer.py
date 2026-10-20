@@ -356,9 +356,9 @@ def _user_version(path) -> int:
 def restore_backup(graph, events, path) -> None:
     """Replace the live database with a backup's contents, in place.
 
-    The backup must open, pass SQLite's integrity check, and not come from a
-    newer version. The current database is backed up before it is replaced,
-    and a backup from an older version is upgraded afterwards.
+    The backup must open, pass SQLite's integrity check, and be at this
+    version's schema: one from an older version can't be upgraded. The current
+    database is backed up before it is replaced.
     """
     path = Path(path)
     if not path.is_file():
@@ -373,6 +373,9 @@ def restore_backup(graph, events, path) -> None:
         raise _refused_backup(path, exc) from exc
     if version > schema.SCHEMA_VERSION:
         raise TransferRefused("That backup was made by a newer version of Skill Tree.")
+    if version < schema.SCHEMA_VERSION:
+        raise TransferRefused("That backup was made by an older version of Skill Tree, "
+                              "which this version can't open. Nothing was changed.")
     try:
         # Nothing is restored unless the current graph was backed up first.
         # The oldest before-restore copy, if it's the one chosen, must outlive
@@ -380,7 +383,6 @@ def restore_backup(graph, events, path) -> None:
         backup.create_backup("before-restore", keep=(path,))
         with database.state_lock:
             _copy_into_live_database(path)
-            # The restored copy may predate the current schema.
             schema.init_db(recheck=True)
     except sqlite3.Error as exc:
         refusal = database.refusal_for(exc)
@@ -389,11 +391,11 @@ def restore_backup(graph, events, path) -> None:
         logger.warning("Couldn't restore %s: %s", path, exc)
         raise TransferRefused(str(refusal)) from exc
     except database.DatabaseError as exc:
-        # The copy is in place; only its upgrade was refused. Startup retries it.
-        logger.error("Restored %s, but couldn't upgrade it: %s", path, exc)
+        # The copy is in place; only the check after it was refused.
+        logger.error("Restored %s, but couldn't open it: %s", path, exc)
         raise TransferRefused(f"The backup was restored, but it couldn't be "
-                              f"prepared for this version: {exc} Restart "
-                              "Skill Tree to finish.") from exc
+                              f"opened: {exc} Restart Skill Tree to try "
+                              "again.") from exc
     _after_replacing_the_graph(graph, events)
     logger.info("Restored the database from %s", path)
 

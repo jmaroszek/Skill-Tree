@@ -48,16 +48,6 @@ class TestNodeModel:
         node = Node.from_dict(d)
         assert node.time != 999
 
-    def test_from_dict_legacy_effort(self):
-        d = dict(
-            name="Legacy", type="Skill", description="",
-            value=5, time_o=1.0, time_m=2.0, time_p=3.0,
-            interest=5, effort=7, status="Open"
-        )
-        node = Node.from_dict(d)
-        assert node.difficulty == 7
-
-
 # ============================================================================
 # Expected Time Estimation
 # ============================================================================

@@ -185,14 +185,3 @@ def test_the_named_profile_decides_without_writing(profile):
     assert 'alpha' not in hp
     assert hp == PROFILES.get(profile, PROFILES['Sage'])
     assert settings.read_stored('HYPERPARAMS') == raw
-
-
-@pytest.mark.parametrize('old,new', [('Curious','Explorer'), ('Sprinter','Glider'), ('Industrious','Pragmatist'),
-                                     ('Compounder','Investor')])
-def test_legacy_profile_alias_migrates_without_write(old, new):
-    settings.write_stored('HP_PROFILE', old)
-    settings.write_stored('HYPERPARAMS', json.dumps({'_schema': 3}))
-    hp = settings.hyperparams()
-    assert hp['suggestion_context_premium'] == PROFILES[new]['suggestion_context_premium']
-    assert hp['suggestion_subcontext_premium'] == PROFILES[new]['suggestion_subcontext_premium']
-    assert settings.read_stored('HP_PROFILE') == old

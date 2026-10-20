@@ -1,4 +1,4 @@
-"""Copies of the database: daily, before migrations and restores, and on demand.
+"""Copies of the database: daily, before restores and imports, and on demand.
 
 Backups sit beside the database, in its Backups folder, one file per copy,
 named ``<database>_<YYYYmmdd-HHMMSS>_<kind>.db`` so that names sort by time and
@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from skilltree.store import database
+from skilltree.store import schema
 from skilltree.runtime.paths import get_log_dir
 from skilltree.store import settings
 
@@ -31,7 +32,6 @@ logger = logging.getLogger(__name__)
 KEEP = {
     "daily": 30,
     "manual": 10,
-    "pre-migration": 10,
     "before-restore": 10,
     "before-import": 10,
 }
@@ -103,10 +103,33 @@ def opens_cleanly(path) -> bool:
         conn.close()
 
 
+def user_version(path) -> Optional[int]:
+    """The schema version stamped on the database at ``path``, or None when
+    it can't be read. Read-only."""
+    try:
+        conn = sqlite3.connect(read_only_uri(path), uri=True,
+                               timeout=database.BUSY_TIMEOUT_S)
+    except sqlite3.Error:
+        return None
+    try:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+    except sqlite3.DatabaseError:
+        return None
+    finally:
+        conn.close()
+
+
+def current_schema(path) -> bool:
+    """Whether the database at ``path`` is at this version's schema. The app
+    doesn't upgrade an older one, so only such a backup can be restored."""
+    return user_version(path) == schema.SCHEMA_VERSION
+
+
 def newest_good_backup() -> Optional[dict]:
-    """The newest of this database's backups that opens cleanly, or None."""
+    """The newest of this database's backups that can be restored: it is at
+    the current schema and opens cleanly. None when there is none."""
     for info in reversed(list_backups()):
-        if opens_cleanly(info["path"]):
+        if current_schema(info["path"]) and opens_cleanly(info["path"]):
             return info
     return None
 
@@ -115,8 +138,9 @@ def restore_over_damaged(name) -> Path:
     """Put the backup called ``name`` where the damaged database is. Returns
     where the damaged file was kept.
 
-    Refuses (ValueError) a name that isn't one of this database's backups, or
-    a backup that is damaged itself, and then changes nothing. The damaged
+    Refuses (ValueError) a name that isn't one of this database's backups, a
+    backup that is damaged itself, or one from another version, and then
+    changes nothing. The damaged
     file is kept, and any journal beside it is moved aside with it: SQLite
     would roll a hot journal from the damaged file into the restored copy.
     The database never goes missing on the way, since the backup is copied in
@@ -127,6 +151,8 @@ def restore_over_damaged(name) -> Path:
         raise ValueError(f"there's no backup called {name!r} in {backup_dir()}")
     if not opens_cleanly(chosen["path"]):
         raise ValueError(f"the backup {name} is damaged too")
+    if not current_schema(chosen["path"]):
+        raise ValueError(f"the backup {name} is from another version of Skill Tree")
     live = Path(database.get_db_path())
     stamp = datetime.now().strftime(_STAMP)
     staging = live.with_name(f"{live.name}.restoring")

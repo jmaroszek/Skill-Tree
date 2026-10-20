@@ -125,7 +125,7 @@ class TestBackups:
         assert backup.run_daily_backup() is not None
 
 
-# --- Migrations and integrity ----------------------------------------------
+# --- Versions and integrity ------------------------------------------------
 
 def _set_user_version(version):
     conn = sqlite3.connect(database.get_db_path())
@@ -152,35 +152,47 @@ class TestSafeStartup:
             schema.init_db(recheck=True)
         assert path.read_bytes() == b"not a database" * 100
 
-    def test_an_upgrade_is_backed_up_first(self):
+    def test_an_older_database_is_refused_and_left_alone(self):
         GraphManager().add_node(_node("Sleep"))
         _set_user_version(schema.SCHEMA_VERSION - 1)
 
-        schema.init_db(recheck=True)
-
-        (snapshot,) = backup.list_backups("pre-migration")
-        assert _user_version(snapshot["path"]) == schema.SCHEMA_VERSION - 1
-        assert _names_in(snapshot["path"]) == ["Sleep"]
-        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION
-
-    def test_a_failed_upgrade_changes_nothing(self, monkeypatch):
-        GraphManager().add_node(_node("Sleep"))
-        _set_user_version(schema.SCHEMA_VERSION - 1)
-
-        def failing_step(cursor, from_version):
-            cursor.execute("DELETE FROM Nodes")
-            raise RuntimeError("step failed")
-        monkeypatch.setattr(schema, "_migrate", failing_step)
-
-        with pytest.raises(RuntimeError, match="step failed"):
+        with pytest.raises(database.DatabaseError, match="older version"):
             schema.init_db(recheck=True)
 
         assert _names_in(database.get_db_path()) == ["Sleep"]
         assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION - 1
-        # A failed upgrade isn't recorded, so the next open tries again.
-        monkeypatch.setattr(schema, "_migrate", lambda cursor, from_version: None)
+        assert backup.list_backups() == []
+
+    def test_a_new_database_starts_at_the_current_schema(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(database, "get_db_path", lambda: str(tmp_path / "new.db"))
+        monkeypatch.setattr(schema, "_utc_now_ts", lambda: 123456)
+
         schema.init_db()
-        assert _user_version(database.get_db_path()) == schema.SCHEMA_VERSION
+
+        conn = sqlite3.connect(tmp_path / "new.db")
+        try:
+            assert conn.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
+            assert conn.execute("SELECT id, name FROM ResourceSections").fetchall() == [
+                ("links", "Links")]
+            assert dict(conn.execute(
+                "SELECT key, value FROM Settings WHERE key LIKE '%started_at'")) == {
+                "lifecycle_history_started_at": "123456",
+                "node_ledger_started_at": "123456"}
+            assert conn.execute(
+                "SELECT \"unique\" FROM pragma_index_list('EventNodes') "
+                "WHERE name='idx_event_nodes_node'").fetchone() == (1,)
+        finally:
+            conn.close()
+
+    def test_reopening_a_database_adds_nothing(self):
+        with database.get_connection() as conn:
+            conn.execute("DELETE FROM ResourceSections")
+            conn.commit()
+
+        schema.init_db(recheck=True)
+
+        with database.get_connection() as conn:
+            assert conn.execute("SELECT COUNT(*) FROM ResourceSections").fetchone() == (0,)
 
     def test_an_old_sqlite_is_refused_with_a_reason(self, monkeypatch):
         monkeypatch.setattr(sqlite3, "sqlite_version_info", (3, 31, 1))

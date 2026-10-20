@@ -624,34 +624,6 @@ class TestOneEventPerNode:
         assert em.get_event_for_node("N1") == "B"
         assert mgr.get_node("N1").dormant == 1
 
-    def test_the_v8_migration_keeps_one_row_per_node(self, mgr, em):
-        """An older database may hold a node in several events. It keeps the
-        row that woke it, or else the one added first."""
-        for name in ("Waiting", "Woken"):
-            mgr.add_node(make_node(name))
-        for name in ("A", "B", "C"):
-            em.add_event(Event(name=name))
-        with database.get_connection() as conn:
-            conn.execute("DROP INDEX idx_event_nodes_node")
-            conn.executemany(
-                "INSERT INTO EventNodes (event_name, node_name, activated) "
-                "VALUES (?, ?, ?)",
-                [("B", "Waiting", 0), ("A", "Waiting", 0),
-                 ("A", "Woken", 0), ("C", "Woken", 1)])
-            conn.execute("PRAGMA user_version = 7")
-            conn.commit()
-
-        schema.init_db(recheck=True)
-
-        assert em.get_event_for_node("Waiting") == "B"
-        assert em.get_event_for_node("Woken") == "C"
-        with database.get_connection() as conn:
-            unique = conn.execute(
-                "SELECT \"unique\" FROM pragma_index_list('EventNodes') "
-                "WHERE name='idx_event_nodes_node'").fetchone()
-        assert unique == (1,)
-
-
 # ============================================================================
 # Firing is all-or-nothing
 # ============================================================================

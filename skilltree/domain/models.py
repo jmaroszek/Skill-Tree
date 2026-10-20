@@ -326,10 +326,6 @@ class Node:
     @classmethod
     def from_dict(cls, data):
         data.pop('time', None)
-        # Historical rename: `effort` → `difficulty`. Some old DB rows or
-        # tests still use the legacy key.
-        if 'difficulty' not in data and 'effort' in data:
-            data['difficulty'] = data.pop('effort')
         return cls(**data)
 
 

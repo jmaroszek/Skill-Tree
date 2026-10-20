@@ -108,10 +108,6 @@ class TestStoredSettings:
         monkeypatch.setitem(PROFILES["Sage"], "d_H", 0.7)
         assert settings.hyperparams()["d_H"] == 0.7
 
-    def test_an_old_profile_name_reads_as_its_new_one(self):
-        settings.write_stored("HP_PROFILE", "Sprinter")
-        assert settings.hyperparams() == PROFILES["Glider"]
-
     def test_set_hyperparams_overrides_the_profile(self):
         settings.set_hyperparams({**DEFAULT_HYPERPARAMS, "w_t": 9.0})
         raw = json.loads(settings.read_stored("HYPERPARAMS"))

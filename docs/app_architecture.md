@@ -53,7 +53,7 @@ Some store modules carry most of the weight:
 - `store/events.py` is the same for the Events table. It owns the awake/dormant rule and the one-Event-per-node rule.
 - `store/settings.py` declares each stored setting once, as a `Setting`: its key in the Settings table, its default, how its text reads and writes, and whether writing it redraws the graph.
 - `store/commands.py` holds the mutations the editor and the menus run: save, delete, Done, links and bridges.
-- `store/database.py` and `store/schema.py` hold connections, snapshots, transactions and the refusal errors; and the tables with their migration ladder.
+- `store/database.py` and `store/schema.py` hold connections, snapshots, transactions and the refusal errors; and the tables at the one schema version the app opens.
 
 ## Composition
 
@@ -203,7 +203,7 @@ Reads:
 
 | Code | Refusal | The user's way out |
 |---|---|---|
-| 2 | `DatabaseError`: any other SQLite failure while opening | Report it with the log |
+| 2 | `DatabaseError`: saved by an older version, which this one doesn't upgrade, or any other SQLite failure while opening | Report it with the log |
 | 3 | `NewerDatabaseError`: saved by a newer version | Install the newer version |
 | 4 | `DatabaseCorruptError`: SQLite calls the file damaged | Restore a backup |
 | 5 | `SQLiteTooOldError` | A build with a newer SQLite |
@@ -211,7 +211,7 @@ Reads:
 | 7 | `DatabaseUnwritableError`: read-only, no permission, or disk full | Fix it and relaunch |
 | 8 | Another Skill Tree owns this database | It hands over to that one |
 
-Only code 4 may lead to a restore. `database.refusal_for` maps SQLite's error names, so a busy or read-only file is never called damaged. Before exiting 4, the server names the newest backup that passes `quick_check` on stdout. On the user's yes, the shell starts it again with `--restore-backup`. `backup.restore_over_damaged` restores only if the file is still damaged, keeps a copy of it, moves any journal aside, and swaps the backup in one step.
+Only code 4 may lead to a restore. `database.refusal_for` maps SQLite's error names, so a busy or read-only file is never called damaged. Before exiting 4, the server names the newest backup at the current schema that passes `quick_check` on stdout. On the user's yes, the shell starts it again with `--restore-backup`. `backup.restore_over_damaged` restores only if the file is still damaged, keeps a copy of it, moves any journal aside, and swaps the backup in one step.
 
 ### How the server runs
 

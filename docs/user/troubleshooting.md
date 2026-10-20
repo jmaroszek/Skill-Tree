@@ -47,7 +47,7 @@ Your graph is saved as you work, so nothing is lost.
 
 **I changed or deleted something by mistake.** Settings → App → **Restore…** puts
 back an earlier state. Skill Tree backs up once a day when it starts, and before
-every upgrade, restore and import; **Back up now** makes one on the spot. A restore
+every restore and import; **Back up now** makes one on the spot. A restore
 makes a backup of the current state first, so it can be undone the same way.
 
 **A node won't let me mark it Done.** It needs something first: a node is Done

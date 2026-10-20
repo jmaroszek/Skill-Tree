@@ -326,19 +326,20 @@ class TestRestore:
         assert _comparable(data_transfer.export_data()) == before
         assert copies[0].exists()
 
-    def test_an_older_backup_is_upgraded_after_restoring(self, services):
+    def test_a_backup_from_an_older_version_is_refused(self, services):
         _rich_graph()
+        before = _comparable(data_transfer.export_data())
         saved = backup.create_backup("manual")
         conn = sqlite3.connect(saved)
         conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION - 1}")
         conn.commit()
         conn.close()
 
-        data_transfer.restore_backup(services.graph, services.events, saved)
+        with pytest.raises(data_transfer.TransferRefused, match="older version"):
+            data_transfer.restore_backup(services.graph, services.events, saved)
 
-        conn = sqlite3.connect(database.get_db_path())
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == schema.SCHEMA_VERSION
-        conn.close()
+        assert _comparable(data_transfer.export_data()) == before
+        assert backup.list_backups("before-restore") == []
 
     def test_a_damaged_backup_is_refused_and_nothing_changes(self, tmp_path, services):
         _rich_graph()

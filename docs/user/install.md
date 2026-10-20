@@ -97,7 +97,7 @@ it up there too, in `Backups`, and keeps its logs beside it.
 
 **Backups.** Skill Tree copies the graph into `Data/Backups` once a day when it
 starts, if anything changed. It keeps the last 30 of those, and makes one more
-before every upgrade, restore or import. Settings → App has a **Back up
+before every restore or import. Settings → App has a **Back up
 automatically** switch that turns the daily copy off, and **Back up now**,
 **Restore…** from any of them, and exports you can keep anywhere.
 

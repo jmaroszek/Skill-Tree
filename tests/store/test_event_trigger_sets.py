@@ -9,14 +9,12 @@ Also covers the v5 schema migration that lifts the old single
 `Events.trigger_node` column into the EventTriggerNodes table.
 """
 
-import sqlite3
 from typing import Any
 import pytest
 
 from skilltree.store import database
 from skilltree.domain.models import Node, Event, TRIGGER_MODE_ALL, TRIGGER_MODE_ANY
 from skilltree.store.graph.manager import GraphManager
-from skilltree.store.events import EventManager
 from skilltree.store import settings
 from skilltree.store import schema
 
@@ -252,85 +250,3 @@ class TestDeleteNarrowsTriggerSet:
         # B is still outstanding, so the event stays asleep.
         assert em.get_event("E").status == "Pending"
         assert mgr.get_node("Reward").dormant == 1
-
-
-# ---------------------------------------------------------------------------
-# v5 migration
-# ---------------------------------------------------------------------------
-
-class TestV5Migration:
-    def _build_v4_db(self, path):
-        """Creates a v4-shaped DB with the old single trigger_node column."""
-        conn = sqlite3.connect(path)
-        cur = conn.cursor()
-        cur.execute('''CREATE TABLE Nodes (
-            name TEXT PRIMARY KEY, type TEXT NOT NULL, description TEXT NOT NULL,
-            value INTEGER NOT NULL, time_o REAL NOT NULL, time_m REAL NOT NULL,
-            time_p REAL NOT NULL, interest INTEGER NOT NULL, difficulty INTEGER NOT NULL,
-            context TEXT, subcontext TEXT, status TEXT NOT NULL, dormant INTEGER NOT NULL DEFAULT 0,
-            time_mode TEXT NOT NULL DEFAULT 'manual', value_mode TEXT NOT NULL DEFAULT 'manual',
-            habit_duration REAL NOT NULL DEFAULT 0, habit_duration_unit TEXT NOT NULL DEFAULT 'weeks',
-            habit_intensity_o REAL NOT NULL DEFAULT 0, habit_intensity_m REAL NOT NULL DEFAULT 0,
-            habit_intensity_p REAL NOT NULL DEFAULT 0,
-            habit_intensity_unit TEXT NOT NULL DEFAULT 'min_per_day',
-            habit_days TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
-            calibration_dismissed INTEGER NOT NULL DEFAULT 0, "now" INTEGER NOT NULL DEFAULT 0,
-            obsidian_path TEXT, google_drive_path TEXT, website TEXT,
-            actual_time_lower REAL, actual_time_upper REAL, actual_time_point REAL,
-            actual_time_unit TEXT, start_date TEXT, done_date TEXT,
-            reflect_value INTEGER, reflect_interest INTEGER, reflect_difficulty INTEGER)''')
-        cur.execute('''CREATE TABLE Events (
-            name TEXT PRIMARY KEY, description TEXT DEFAULT '',
-            status TEXT NOT NULL DEFAULT 'Pending', trigger_date TEXT, trigger_node TEXT)''')
-        cur.execute("INSERT INTO Nodes (name, type, description, value, time_o, time_m, "
-                    "time_p, interest, difficulty, context, status) "
-                    "VALUES ('Key','Learn','',5,1,2,4,5,5,'Mind','Open')")
-        cur.execute("INSERT INTO Events (name, status, trigger_node) VALUES ('Legacy','Pending','Key')")
-        # An event pointing at a node that no longer exists — must not break the
-        # migration, and must not violate the new foreign key.
-        cur.execute("INSERT INTO Events (name, status, trigger_node) VALUES ('Dangling','Pending','Ghost')")
-        cur.execute("PRAGMA user_version = 4")
-        conn.commit()
-        conn.close()
-
-    def test_legacy_trigger_node_is_lifted_into_the_new_table(self, monkeypatch, tmp_path):
-        db_path = str(tmp_path / "legacy.db")
-        self._build_v4_db(db_path)
-
-        monkeypatch.setattr(database, "get_db_path", lambda: db_path)
-        schema.init_db(recheck=True)
-
-        em = EventManager(GraphManager())
-        assert em.get_event("Legacy").trigger_nodes == ["Key"]
-        assert em.get_event("Legacy").trigger_mode == TRIGGER_MODE_ANY
-        # Dangling reference dropped rather than migrated.
-        assert em.get_event("Dangling").trigger_nodes == []
-
-        with database.get_connection() as conn:
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert version == schema.SCHEMA_VERSION
-
-    def test_migration_is_idempotent(self, monkeypatch, tmp_path):
-        db_path = str(tmp_path / "legacy2.db")
-        self._build_v4_db(db_path)
-        monkeypatch.setattr(database, "get_db_path", lambda: db_path)
-
-        for _ in range(3):
-            schema.init_db(recheck=True)
-
-        assert EventManager(GraphManager()).get_event("Legacy").trigger_nodes == ["Key"]
-
-    def test_migrated_event_still_fires(self, monkeypatch, tmp_path, services):
-        db_path = str(tmp_path / "legacy3.db")
-        self._build_v4_db(db_path)
-        monkeypatch.setattr(database, "get_db_path", lambda: db_path)
-        schema.init_db(recheck=True)
-
-        mgr, em = services.graph, services.events
-        mgr.add_node(_node("Reward"))
-        em.add_node_to_event("Legacy", "Reward", delay_days=0)
-
-        _complete(mgr, "Key")
-
-        assert em.get_event("Legacy").status == "Triggered"
-        assert mgr.get_node("Reward").dormant == 0

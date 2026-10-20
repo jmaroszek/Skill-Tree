@@ -1,4 +1,4 @@
-"""The v11 move to named sections only, and saving sections from Settings."""
+"""Resource sections, and saving them from Settings."""
 
 import inspect
 import subprocess
@@ -12,7 +12,6 @@ from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.settings.callbacks import register_settings_callbacks
 import pytest
-from skilltree.store import schema
 from skilltree.services import AppServices
 
 # Written around the Resource sections new databases used to start with.
@@ -47,44 +46,11 @@ def _columns(conn, table):
     return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
 
 
-def _reopen_at(version):
-    with database.get_connection() as conn:
-        conn.execute(f"PRAGMA user_version = {version}")
-        conn.commit()
-    schema.init_db(recheck=True)
-
-
 def test_a_fresh_database_starts_with_three_plain_sections():
     assert [s["id"] for s in resources.get_sections()] == ["obsidian", "drive", "website"]
     with database.get_connection() as conn:
         assert "obsidian_path" not in _columns(conn, "Nodes")
         assert "enabled" not in _columns(conn, "ResourceSections")
-
-
-def test_v11_keeps_every_link_and_drops_the_legacy_copies():
-    """A v10 database: legacy columns mirror the table, except one link the
-    table lacks. v11 keeps the table's links, copies the missing one, and
-    drops the columns, the on/off switch, and the old integration settings."""
-    GraphManager().add_node(_node("Reading", resource_links={"drive": ["Notes/a.gdoc"]}))
-    with database.get_connection() as conn:
-        for column in ("obsidian_path", "google_drive_path", "website"):
-            conn.execute(f"ALTER TABLE Nodes ADD COLUMN {column} TEXT")
-        conn.execute("ALTER TABLE ResourceSections ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
-        conn.execute("UPDATE ResourceSections SET enabled=0 WHERE id='website'")
-        conn.execute("UPDATE Nodes SET google_drive_path=?, website=? WHERE name='Reading'",
-                     ('["G:/My Drive/Notes/a.gdoc"]', '["https://example.com"]'))
-        conn.execute("INSERT OR REPLACE INTO Settings(key, value) VALUES ('GDRIVE_ENABLED', '1')")
-        conn.commit()
-
-    _reopen_at(10)
-
-    assert GraphManager().get_node("Reading").resource_links == {
-        "drive": ["Notes/a.gdoc"], "website": ["https://example.com"]}
-    assert [s["id"] for s in resources.get_sections()] == ["obsidian", "drive", "website"]
-    with database.get_connection() as conn:
-        assert not {"obsidian_path", "google_drive_path", "website"} & _columns(conn, "Nodes")
-        assert "enabled" not in _columns(conn, "ResourceSections")
-        assert conn.execute("SELECT 1 FROM Settings WHERE key='GDRIVE_ENABLED'").fetchone() is None
 
 
 def _settings_callbacks():

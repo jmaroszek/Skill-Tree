@@ -62,10 +62,6 @@ def test_a_busy_database_is_in_use_not_damaged(fast_busy_timeout, held_by_anothe
 def test_a_database_that_cant_be_written_is_named_as_such(monkeypatch):
     GraphManager().add_node(_node("Sleep"))
     _read_only(monkeypatch)
-    # Force the upgrade path, which has to write.
-    monkeypatch.setattr(schema, "SCHEMA_VERSION", schema.SCHEMA_VERSION + 1)
-    monkeypatch.setattr(schema, "_migrate", lambda cursor, version: None)
-    monkeypatch.setattr("skilltree.store.backup.create_backup", lambda kind: None)
 
     with pytest.raises(database.DatabaseError) as refused:
         schema.init_db(recheck=True)

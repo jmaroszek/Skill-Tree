@@ -2,7 +2,6 @@
 import pytest
 from skilltree.store import database
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
-from skilltree.store import schema
 from support.graphs import make_node
 
 
@@ -173,39 +172,6 @@ class TestLifecycleEvents:
 
         mgr.delete_node("New")
         assert mgr.get_node_lifecycle_events("New") == []
-
-    def test_v6_migration_marks_coverage_and_current_now_as_partial(
-            self, mgr, monkeypatch):
-        mgr.add_node(make_node("Already Active"))
-        with database.get_connection() as conn:
-            conn.execute('UPDATE Nodes SET "now"=1 WHERE name=?', ("Already Active",))
-            conn.execute("DROP TABLE NodeLifecycleEvents")
-            conn.execute(
-                "DELETE FROM Settings WHERE key='lifecycle_history_started_at'"
-            )
-            conn.execute("PRAGMA user_version = 6")
-            conn.commit()
-
-        monkeypatch.setattr(schema, "_utc_now_ts", lambda: 123456)
-        schema.init_db(recheck=True)
-
-        with database.get_connection() as conn:
-            marker = conn.execute(
-                "SELECT value FROM Settings "
-                "WHERE key='lifecycle_history_started_at'"
-            ).fetchone()[0]
-            version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert marker == "123456"
-        assert version == schema.SCHEMA_VERSION
-        assert mgr.get_node_lifecycle_events("Already Active") == [{
-            "id": 1,
-            "node_name": "Already Active",
-            "event_type": "now_started",
-            "occurred_at": 123456,
-            "source": "migration_snapshot",
-            "rank": None,
-            "ranked_of": None,
-        }]
 
     def test_entering_now_records_the_node_s_place_in_the_ranking(self, mgr):
         mgr.add_node(make_node("Top", value=10, interest=10))

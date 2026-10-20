@@ -65,6 +65,6 @@ def legacy_resource_sections(temp_database):
         conn.executemany(
             "INSERT INTO ResourceSections (id, name, kind, root_path, position) "
             "VALUES (?, ?, ?, '', ?)",
-            [(section_id, name, kind, position) for position, (section_id, name, kind, *_)
-             in enumerate(schema.LEGACY_RESOURCE_SECTIONS)])
+            [("obsidian", "Obsidian", "obsidian", 0), ("drive", "Google Drive", "mixed", 1),
+             ("website", "Website", "mixed", 2)])
     return temp_database

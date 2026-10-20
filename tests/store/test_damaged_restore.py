@@ -83,6 +83,33 @@ def test_a_damaged_database_names_the_newest_good_backup(launch, backups, capsys
                      f"when={backup.describe(newer)['when'].isoformat()}"]
 
 
+def _from_an_older_version(path):
+    conn = sqlite3.connect(path)
+    conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION - 1}")
+    conn.commit()
+    conn.close()
+
+
+def test_a_backup_from_an_older_version_is_never_offered(backups):
+    older, newer, _broken = backups
+    _from_an_older_version(newer)
+
+    assert backup.newest_good_backup()["path"] == older
+
+
+def test_a_backup_from_an_older_version_is_never_restored(backups):
+    _older, newer, _broken = backups
+    _from_an_older_version(newer)
+    live = Path(database.get_db_path())
+    _damage(live)
+    before = live.read_bytes()
+
+    with pytest.raises(ValueError, match="another version"):
+        backup.restore_over_damaged(newer.name)
+
+    assert live.read_bytes() == before
+
+
 def test_no_good_backup_means_no_offer(launch, capsys):
     _damage(database.get_db_path())
 
