@@ -3,6 +3,18 @@ from skilltree.store import settings
 from skilltree.ui.components.duration import hours_to_friendly_unit
 
 
+def estimate_in_unit(time_o, time_m, time_p, unit):
+    """Stored hour values as the editor shows them in ``unit``, at today's
+    rates: rounded to two decimals, and whole numbers without them."""
+    multiplier = settings.time_multiplier(unit)
+    def _convert(h):
+        v = round((h or 0) / multiplier, 2)
+        if v == int(v):
+            v = int(v)
+        return v
+    return _convert(time_o), _convert(time_m), _convert(time_p)
+
+
 def friendly_time_estimates(time_o, time_m, time_p):
     """Convert stored hour values for display in the node editor.
 
@@ -15,10 +27,4 @@ def friendly_time_estimates(time_o, time_m, time_p):
     # Cap at weeks: months/years are too coarse for direct editing
     if unit in ('months', 'years'):
         unit = 'weeks'
-    multiplier = settings.time_multiplier(unit)
-    def _convert(h):
-        v = round((h or 0) / multiplier, 2)
-        if v == int(v):
-            v = int(v)
-        return v
-    return _convert(time_o), _convert(time_m), _convert(time_p), unit
+    return (*estimate_in_unit(time_o, time_m, time_p, unit), unit)

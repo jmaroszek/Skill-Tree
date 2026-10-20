@@ -15,7 +15,7 @@ from skilltree.domain.time import (
     habit_to_hours,
     parse_habit_days,
 )
-from skilltree.features.editor.values import friendly_time_estimates
+from skilltree.features.editor.values import estimate_in_unit, friendly_time_estimates
 from skilltree.store import database
 from skilltree.store import settings
 from skilltree.ui.components.duration import (
@@ -306,6 +306,30 @@ def resolve_context_intent(node, context, subctx, snapshot):
 _ESTIMATE_FIELDS = ('time_o', 'time_m', 'time_p')
 
 
+def _rounded_estimate(values):
+    """(o, m, p) from ``values``, rounded as the dirty check compares them,
+    or None when one isn't a number."""
+    try:
+        return tuple(round(float(values.get(key) or 0), 2) for key in _ESTIMATE_FIELDS)
+    except (TypeError, ValueError):
+        return None
+
+
+def _loaded_estimate(node, snapshot):
+    """The rounded (o, m, p) the editor loaded for ``node``, or None when the
+    snapshot is another node's or holds no estimate."""
+    if (node is None or not isinstance(snapshot, dict)
+            or snapshot.get('name') != node.name
+            or any(key not in snapshot for key in _ESTIMATE_FIELDS + ('time_unit',))):
+        return None
+    return _rounded_estimate(snapshot)
+
+
+def _estimate_as_loaded(form, snapshot, loaded):
+    return ((form.get('time_unit') or '') == (snapshot.get('time_unit') or '')
+            and _rounded_estimate(form) == loaded)
+
+
 def resolve_time_intent(node, form, snapshot):
     """The stored hours, (o, m, p), when the form's estimate is the one it loaded.
 
@@ -315,19 +339,31 @@ def resolve_time_intent(node, form, snapshot):
     it. None when the user changed the estimate or its unit, so the form is
     read at today's rates, or when there is nothing to judge by.
     """
-    if (node is None or not isinstance(snapshot, dict)
-            or snapshot.get('name') != node.name
-            or any(key not in snapshot for key in _ESTIMATE_FIELDS + ('time_unit',))):
-        return None
-    if (form.get('time_unit') or '') != (snapshot.get('time_unit') or ''):
-        return None
-    try:
-        if any(round(float(form.get(key) or 0), 2) != round(float(snapshot.get(key) or 0), 2)
-               for key in _ESTIMATE_FIELDS):
-            return None
-    except (TypeError, ValueError):
+    loaded = _loaded_estimate(node, snapshot)
+    if loaded is None or not _estimate_as_loaded(form, snapshot, loaded):
         return None
     return node.time_o or 0, node.time_m or 0, node.time_p or 0
+
+
+def follow_estimate(node, form, snapshot):
+    """(fields, stored) for an editor whose estimate may read differently now.
+
+    The form shows the node's hours in its unit at the rates Settings held
+    when it loaded. After Settings changes the hours per week, the same
+    numbers mean other hours, and editing one of them would convert all three
+    at the new rate. ``stored`` is the node's hours in the snapshot's unit at
+    today's rates, or None when the snapshot already shows them or there is
+    nothing to judge by. ``fields`` is the same while the form still shows
+    what was loaded, and None when the user has changed the estimate.
+    """
+    loaded = _loaded_estimate(node, snapshot)
+    if loaded is None:
+        return None, None
+    stored = estimate_in_unit(node.time_o, node.time_m, node.time_p,
+                              snapshot.get('time_unit') or 'hours')
+    if _rounded_estimate(dict(zip(_ESTIMATE_FIELDS, stored))) == loaded:
+        return None, None
+    return (stored if _estimate_as_loaded(form, snapshot, loaded) else None), stored
 
 
 def follow_context(node, context, subctx, snapshot):

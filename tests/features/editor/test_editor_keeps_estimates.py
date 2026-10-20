@@ -7,6 +7,7 @@ the description rescaled the estimate after the hours per week changed (two
 weeks of a 10-hour week became two weeks of a 20-hour one), and re-rounded it
 at a rate that doesn't divide it evenly.
 """
+import dash
 import pytest
 
 from skilltree.domain.models import Node, STATUS_OPEN
@@ -94,3 +95,69 @@ def test_an_estimate_the_user_changed_is_read_at_todays_rate(handlers):
     _save(handlers, form, snapshot, time_m=3)
 
     assert _hours(manager) == (20, 60, 80)
+
+
+ESTIMATE = ("time_o", "time_m", "time_p", "time_unit")
+
+
+def _follow(handlers, form, snapshot, status="Settings saved"):
+    return handlers["follow_editor_estimate"](
+        status, "Essay", snapshot, {key: form[key] for key in ESTIMATE})
+
+
+def _patched(snapshot, patch):
+    patched = {**snapshot}
+    for operation in patch.to_plotly_json()["operations"]:
+        patched[operation["location"][0]] = operation["params"]["value"]
+    return patched
+
+
+def test_the_open_editor_shows_the_estimate_at_the_new_rate(handlers):
+    manager = GraphManager()
+    _rate(10)
+    _add(manager, 10, 20, 40)
+    form, snapshot = _loaded(manager)
+
+    _rate(20)
+    o, m, p, patch = _follow(handlers, form, snapshot)
+
+    assert (o, m, p) == (0.5, 1, 2)
+    snapshot = _patched(snapshot, patch)
+    assert (snapshot["time_o"], snapshot["time_m"], snapshot["time_p"]) == (0.5, 1, 2)
+    # Editing one value afterwards leaves the other two as they were.
+    _save(handlers, {**form, "time_o": o, "time_m": m, "time_p": p}, snapshot, time_m=1.5)
+    assert _hours(manager) == (10, 30, 40)
+
+
+def test_an_estimate_being_edited_stays_while_the_baseline_follows(handlers):
+    manager = GraphManager()
+    _rate(10)
+    _add(manager, 10, 20, 40)
+    form, snapshot = _loaded(manager)
+
+    _rate(20)
+    o, m, p, patch = _follow(handlers, {**form, "time_m": 3}, snapshot)
+
+    assert (o, m, p) == (dash.no_update,) * 3
+    assert _patched(snapshot, patch)["time_m"] == 1
+
+
+def test_the_estimate_stays_when_the_rate_does(handlers):
+    manager = GraphManager()
+    _rate(15)
+    _add(manager, 8, 16, 32)
+    form, snapshot = _loaded(manager)
+
+    assert _follow(handlers, form, snapshot) == (dash.no_update,) * 4
+
+
+def test_only_a_settings_save_moves_the_estimate(handlers):
+    manager = GraphManager()
+    _rate(10)
+    _add(manager, 10, 20, 40)
+    form, snapshot = _loaded(manager)
+
+    _rate(20)
+    assert _follow(handlers, form, snapshot, status="") == (dash.no_update,) * 4
+    assert _follow(handlers, form, {**snapshot, "name": "Another"}) == (
+        dash.no_update,) * 4

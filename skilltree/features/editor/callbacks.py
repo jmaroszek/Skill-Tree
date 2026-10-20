@@ -21,6 +21,7 @@ from skilltree.features.editor.form import (
     editor_form_values_from,
     follow_context,
     follow_done_status,
+    follow_estimate,
     follow_relationships,
     habit_preview_text,
     is_form_dirty_vs_snapshot,
@@ -241,6 +242,36 @@ def register_editor_callbacks(app, services):
         patch = dash.Patch()
         patch['context'], patch['subctx'] = stored
         return (*(fields or (no_update, no_update)), patch)
+
+    # --- Editor follows a new hours per week ---
+    # The estimate shows in days or weeks at the hours per week Settings held
+    # when the node loaded. After Settings changes that, the same numbers mean
+    # other hours, and editing one of them converted all three at the new
+    # rate, rescaling the two left alone. The fields show the stored hours at
+    # the new rate while they still show what was loaded; an estimate being
+    # edited stays. The snapshot takes them either way. Settings is a modal,
+    # so no other node can load while this is in flight.
+    @app.callback(
+        Output('node-time-o', 'value', allow_duplicate=True),
+        Output('node-time-m', 'value', allow_duplicate=True),
+        Output('node-time-p', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+        Input('settings-save-status', 'children'),
+        [State('node-original-name', 'data'),
+         State('editor-pristine-snapshot', 'data'),
+         {key: EDITOR_FORM[key] for key in ('time_o', 'time_m', 'time_p', 'time_unit')}],
+        prevent_initial_call=True,
+    )
+    def follow_editor_estimate(status, name, snapshot, form):
+        if not str(status or '').startswith('Settings saved'):
+            return (no_update,) * 4
+        node = manager.get_node(name) if name else None
+        fields, stored = follow_estimate(node, form, snapshot)
+        if stored is None:
+            return (no_update,) * 4
+        patch = dash.Patch()
+        patch['time_o'], patch['time_m'], patch['time_p'] = stored
+        return (*(fields or (no_update,) * 3), patch)
 
     # --- Scroll editor to top on New Node / Add ---
     app.clientside_callback(
