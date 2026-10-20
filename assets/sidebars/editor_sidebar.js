@@ -92,8 +92,10 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
         }
         // A pending hover timer can fire after the sidebar has moved away.
         // The tooltip's native mouseout handler cancels that timer; resetting
-        // is_open then closes a tooltip that was already showing.
-        ["btn-revert", "btn-save", "btn-delete"]
+        // is_open then closes a tooltip that was already showing. Save's
+        // tooltip hangs on its wrapper, which still gets mouse events while
+        // Save is disabled.
+        ["btn-revert", "btn-save-wrap", "btn-delete"]
             .forEach(function (id) {
                 var button = document.getElementById(id);
                 if (button) {

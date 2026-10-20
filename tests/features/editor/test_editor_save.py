@@ -46,6 +46,18 @@ def test_a_refused_estimate_saves_nothing(services):
     assert services.graph.get_node('Backwards') is None
 
 
+def test_a_habit_with_no_days_saves_nothing(services):
+    habit = dict(time_habit_mode=['habit'], habit_duration=4,
+                 habit_duration_unit='weeks', habit_intensity_m=30,
+                 habit_intensity_unit='min_per_session')
+    with pytest.raises(ValueError, match="Pick the days"):
+        _save(services, 'Stretch', _form(**habit, habit_days=[]))
+    assert services.graph.get_node('Stretch') is None
+
+    _save(services, 'Stretch', _form(**habit, habit_days=[0, 2]))
+    assert services.graph.get_node('Stretch').habit_days == '0,2'
+
+
 def test_only_a_new_completion_is_reported(services):
     saved = _save(services, 'Finished', _form(status_done=[STATUS_DONE]))
     assert saved.completed == 'Finished'

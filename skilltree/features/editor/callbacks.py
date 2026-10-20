@@ -12,7 +12,11 @@ from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_up
 from skilltree.domain.contexts import sort_subcontexts
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.names import normalize_name_for_comparison
-from skilltree.domain.time import time_estimate_problem
+from skilltree.domain.time import (
+    HABIT_NO_DAYS,
+    habit_estimate_problem,
+    time_estimate_problem,
+)
 from skilltree.features.editor.form import (
     EDITOR_FORM,
     NEW_NODE_SNAPSHOT,
@@ -29,6 +33,7 @@ from skilltree.features.editor.form import (
     stored_relationships,
 )
 from skilltree.features.editor.layout import (
+    SAVE_HINT,
     alias_rows_label,
     render_alias_rows,
     update_alias_rows,
@@ -690,14 +695,15 @@ def register_editor_callbacks(app, services):
         Output('node-habit-total-preview', 'children'),
         Input('node-habit-duration', 'value'),
         Input('node-habit-duration-unit', 'value'),
+        Input('node-habit-intensity-o', 'value'),
         Input('node-habit-intensity-m', 'value'),
-        Input('node-habit-intensity-unit', 'value'),
+        Input('node-habit-intensity-p', 'value'),
         Input('node-habit-days', 'value'),
         prevent_initial_call=True,
     )
     @prerendered
-    def update_habit_total_preview(duration, dur_unit, intensity_m, int_unit, days):
-        return habit_preview_text(duration, dur_unit, intensity_m, int_unit, days)
+    def update_habit_total_preview(duration, dur_unit, int_o, int_m, int_p, days):
+        return habit_preview_text(duration, dur_unit, int_o, int_m, int_p, days)
 
     # --- Toggle Value/Interest sliders based on value_mode ---
     app.clientside_callback(
@@ -796,39 +802,55 @@ def register_editor_callbacks(app, services):
     @app.callback(
         Output('time-validation-error', 'children'),
         Output('time-validation-error', 'style'),
+        Output('habit-validation-error', 'children'),
+        Output('habit-validation-error', 'style'),
         Output('btn-save', 'disabled'),
         # The time fields sit below the fold; hovering Save says why it's off.
-        Output('btn-save', 'title'),
+        Output('editor-save-tooltip', 'children'),
         Input('node-time-o', 'value'),
         Input('node-time-m', 'value'),
         Input('node-time-p', 'value'),
         Input('node-time-mode', 'value'),
         Input('node-time-habit-mode', 'value'),
+        Input('node-habit-duration', 'value'),
+        Input('node-habit-intensity-o', 'value'),
+        Input('node-habit-intensity-m', 'value'),
+        Input('node-habit-intensity-p', 'value'),
+        Input('node-habit-days', 'value'),
         prevent_initial_call=True,
     )
-    def validate_time_estimates(time_o, time_m, time_p, time_mode_val, habit_mode_val):
-        """Enforce one of the supported (l, m, u) input patterns and the
-        Lower <= Expected <= Upper ordering; disable Save on violation.
+    def validate_time_estimates(time_o, time_m, time_p, time_mode_val, habit_mode_val,
+                                habit_duration, habit_o, habit_m, habit_p, habit_days):
+        """Disable Save while the time estimate can't be saved, and say why.
 
-        Valid patterns (mirroring `expected_time_estimate` in models.py):
+        A bracket takes one of the supported (l, m, u) patterns, in order
+        (mirroring `expected_time_estimate` in models.py):
           - Expected only          {m}
           - Lower + Upper          {o, p}
           - All three              {o, m, p}
 
-        Validation is skipped when the node uses inherited time (container
-        draws from children) or habit mode (separate input section).
+        Inherited time has nothing to check. Habit mode checks its own fields:
+        the duration, the minutes bracket and the days. A habit with no days
+        yet is prompted by the preview line, so its warning stays empty.
         """
         hidden = tokens.ERROR_TEXT_HIDDEN
         visible = tokens.ERROR_TEXT_VISIBLE
+        ok = ("", hidden, "", hidden, False, SAVE_HINT)
 
-        if (time_mode_val and 'inherited' in time_mode_val) or \
-           (habit_mode_val and 'habit' in habit_mode_val):
-            return "", hidden, False, ""
+        if time_mode_val and 'inherited' in time_mode_val:
+            return ok
+        if habit_mode_val and 'habit' in habit_mode_val:
+            msg = habit_estimate_problem(habit_duration, habit_o, habit_m, habit_p,
+                                         habit_days)
+            if not msg:
+                return ok
+            shown = "" if msg == HABIT_NO_DAYS else msg
+            return "", hidden, shown, visible if shown else hidden, True, msg
 
         msg = time_estimate_problem(time_o, time_m, time_p)
         if msg:
-            return msg, visible, True, msg
-        return "", hidden, False, ""
+            return msg, visible, "", hidden, True, msg
+        return ok
 
     # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
     @app.callback(

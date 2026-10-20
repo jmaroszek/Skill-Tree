@@ -433,7 +433,7 @@ def test_a_refused_now_change_says_why(handlers, via):
 @pytest.mark.parametrize('state, fragment', [
     (dict(time_o=5, time_m=2, time_p=4), 'Lower must be ≤ Expected'),
     (dict(time_o=1, time_m=0, time_p=0), 'Lower alone is not enough'),
-    (dict(time_habit_mode=['habit'], habit_duration=0), 'habit duration'),
+    (dict(time_habit_mode=['habit'], habit_duration=0), 'how long the habit runs'),
 ])
 def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger,
                                                   state, fragment):

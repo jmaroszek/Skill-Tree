@@ -8,8 +8,8 @@ from typing import NamedTuple, Optional
 
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.time import (
-    compute_habit_time_omp, resolve_time_mode, resolve_value_mode,
-    time_estimate_problem,
+    compute_habit_time_omp, habit_estimate_problem, parse_habit_days,
+    resolve_time_mode, resolve_value_mode, time_estimate_problem,
 )
 from skilltree.features.editor.form import (
     NEW_NODE_DORMANCY, RELATIONSHIP_FIELDS, dormancy_for_save, resolve_context_intent,
@@ -129,6 +129,11 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
         # Save is disabled while the estimate is invalid, but the
         # unsaved-changes dialog's Save, and habit mode, went
         # around the button. A refusal rolls the save back.
+        if time_mode == 'habit':
+            problem = habit_estimate_problem(habit_duration, habit_int_o, habit_int_m,
+                                             habit_int_p, parse_habit_days(habit_days))
+            if problem:
+                raise ValueError(problem)
         if time_mode == 'habit' and not (t_o or t_m or t_p):
             raise ValueError("Enter a habit duration and the minutes "
                              "per session, so it comes to some hours.")

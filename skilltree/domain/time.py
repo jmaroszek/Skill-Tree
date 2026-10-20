@@ -177,6 +177,27 @@ def time_estimate_problem(time_o, time_m, time_p):
     return "; ".join(errors) or None
 
 
+HABIT_NO_DURATION = "Enter how long the habit runs."
+HABIT_NO_DAYS = "Pick the days this habit happens on."
+
+
+def habit_estimate_problem(duration, int_o, int_m, int_p, days):
+    """Why a habit estimate can't be saved, or None.
+
+    Checked top to bottom, as the editor lays the fields out: the calendar
+    duration, the minutes-per-session bracket (the same patterns and ordering
+    as any bracket), then the days.
+    """
+    if not float(duration or 0) > 0:
+        return HABIT_NO_DURATION
+    problem = time_estimate_problem(int_o, int_m, int_p)
+    if problem:
+        return problem
+    if not habit_day_count(days):
+        return HABIT_NO_DAYS
+    return None
+
+
 def compute_habit_time_omp(duration, duration_unit,
                            int_o, int_m, int_p, intensity_unit, days=None):
     """Convert a lower/expected/upper intensity bracket into the same bracket

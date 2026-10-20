@@ -1615,8 +1615,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* --- Type-adaptive editor section transitions --- */
 
 #section-done-time,
-#section-time-estimates,
-#section-habit {
+#section-time-estimates {
     transition: opacity 0.25s ease, max-height 0.3s ease;
     overflow: hidden;
 }

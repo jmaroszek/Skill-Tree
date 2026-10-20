@@ -114,7 +114,7 @@ const dismiss = window.dash_clientside.editor.dismiss_tooltips;
 assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(3).fill('NO'));
 assert.deepEqual(events, []);
 assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(3).fill(false));
-assert.deepEqual(events, ['btn-revert', 'btn-save', 'btn-delete']
+assert.deepEqual(events, ['btn-revert', 'btn-save-wrap', 'btn-delete']
     .map(id => [id, 'mouseout']));
 '''
     result = subprocess.run([node, '-e', script, str(asset)], capture_output=True,

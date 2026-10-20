@@ -13,7 +13,9 @@ from skilltree.store.settings import DEFAULT_CONTEXTS
 from skilltree.store.graph.manager import GraphManager
 from skilltree.shell import build_app_layout
 from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE, Node
+from skilltree.domain.time import HABIT_NO_DAYS
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.editor.layout import SAVE_HINT
 from support.callbacks import registered
 from support.layout import find
 
@@ -166,7 +168,23 @@ def test_an_empty_graph_says_how_to_begin():
 
 def test_a_disabled_save_says_why():
     validate = _callbacks(register_editor_callbacks)["validate_time_estimates"]
-    message, _style, disabled, title = validate(None, None, None, [], [])
-    assert disabled is True and "Expected" in title
-    _message, _style, disabled, title = validate(None, 2, None, [], [])
-    assert disabled is False and title == ""
+    no_habit = (None, None, None, None, [])
+    *_shown, disabled, tip = validate(None, None, None, [], [], *no_habit)
+    assert disabled is True and "Expected" in tip
+    *_shown, disabled, tip = validate(None, 2, None, [], [], *no_habit)
+    assert disabled is False and tip == SAVE_HINT
+
+
+def test_a_habit_save_says_what_is_missing():
+    validate = _callbacks(register_editor_callbacks)["validate_time_estimates"]
+
+    def habit(*fields):
+        _t, _ts, warning, _ws, disabled, tip = validate(None, None, None, [], ['habit'],
+                                                        *fields)
+        return warning, disabled, tip
+
+    # No days yet is where a habit starts: the preview prompts, not a warning.
+    assert habit(4, 0, 10, 0, []) == ("", True, HABIT_NO_DAYS)
+    warning, disabled, tip = habit(4, 5, 50, 15, [0])
+    assert disabled is True and warning == tip and "Expected must be ≤ Upper" in tip
+    assert habit(4, 5, 10, 15, [0]) == ("", False, SAVE_HINT)

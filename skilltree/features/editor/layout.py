@@ -227,6 +227,10 @@ def wake_switches(delay_switch, fields, now_switch):
 # Weekday toggle-pill options for the habit per-session scheduler. Values are
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
 # Apple-style day picker. Single-letter labels.
+# Save's tooltip while it is on. While it is off, the tooltip says why.
+SAVE_HINT = "Save changes"
+
+
 WEEKDAY_OPTIONS = [
     {"label": "S", "value": 6}, {"label": "M", "value": 0},
     {"label": "T", "value": 1}, {"label": "W", "value": 2},
@@ -270,7 +274,7 @@ _EDITOR_HINTS = {
     "resources": "External material that helps with this project. Add more types in Settings.",
     "ratings_inherit": "Take value and interest from the nodes inside this one.",
     "time_inherit": "Take time from the nodes inside this one.",
-    "habit": "A routine spread over weeks. Enter a duration and minutes per session.",
+    "habit": "A routine spread over weeks. Enter how long it runs, the minutes per session and the days.",
 }
 
 
@@ -587,18 +591,17 @@ def build_node_editor_content():
                                  className="mt-1"),
                     ]),
                     html.Div(id="section-time-habit", style={"display": "none"}, children=[
-                        dbc.Row([
-                            dbc.Col([
-                                dbc.Label("Calendar duration", className="mb-0"),
-                                dbc.Input(id="node-habit-duration", type="number", min=0),
-                            ], width=7),
-                            dbc.Col([
-                                dbc.Label(" ", className="mb-0"),
-                                unit_select("node-habit-duration-unit",
-                                            units=DURATION_UNITS, value="weeks"),
-                            ], width=5),
-                        ], className="mb-2"),
-                        dbc.Label("Minutes per Session", className="mb-0 mt-2"),
+                        dbc.Label("Calendar duration", className="mb-0"),
+                        # A two- or three-digit count, so the field is sized
+                        # for one, with its unit beside it.
+                        html.Div([
+                            dbc.Input(id="node-habit-duration", type="number", min=0,
+                                      className="habit-duration-input"),
+                            unit_select("node-habit-duration-unit",
+                                        units=DURATION_UNITS, value="weeks",
+                                        className="habit-duration-unit"),
+                        ], className="d-flex gap-2 mb-2"),
+                        dbc.Label("Minutes per session", className="mb-0 mt-2"),
                         dbc.Row([
                             dbc.Col([*bracket_label("Lower", "node-habit-intensity-o-label"),
                                      dbc.Input(id="node-habit-intensity-o", type="number", min=0)]),
@@ -616,7 +619,8 @@ def build_node_editor_content():
                         dbc.Checklist(
                             id="node-habit-days",
                             options=WEEKDAY_OPTIONS,
-                            value=[0, 1, 2, 3, 4, 5, 6],
+                            # No days until the user picks them.
+                            value=[],
                             className="habit-days-picker",
                             inputClassName="btn-check",
                             labelClassName="btn btn-outline-light btn-sm",
@@ -624,6 +628,9 @@ def build_node_editor_content():
                         ),
                         html.Div(id="node-habit-total-preview",
                                  className="mt-2 small text-muted"),
+                        html.Div(id="habit-validation-error", children="",
+                                 style=tokens.ERROR_TEXT_HIDDEN,
+                                 className="mt-1"),
                     ]),
                 ]),
 
@@ -674,7 +681,11 @@ def build_node_editor_content():
                         danger_action("Delete", "btn-delete"),
                         html.Div(className="flex-grow-1"),
                         cancel_action("Revert", "btn-revert", className="me-2"),
-                        primary_action("Save", "btn-save"),
+                        # Bootstrap turns off pointer events on a disabled
+                        # button, so the tooltip hangs on this wrapper: it
+                        # can still say why Save is off.
+                        html.Span(primary_action("Save", "btn-save"),
+                                  id="btn-save-wrap", className="d-inline-block"),
                     ], className="form-actions form-actions-lg d-flex align-items-center mt-3"),
                     # Kept inside the bar so a save confirmation is visible from
                     # wherever the user was scrolled when they pressed Save.
@@ -688,7 +699,7 @@ def build_node_editor_content():
                     "paddingBottom": "10px",
                 }),
                 Tooltip("Discard unsaved changes and revert this node to its last saved state", id="editor-revert-tooltip", target="btn-revert", placement="top"),
-                Tooltip("Save changes", id="editor-save-tooltip", target="btn-save", placement="top"),
+                Tooltip(SAVE_HINT, id="editor-save-tooltip", target="btn-save-wrap", placement="top"),
                 Tooltip("Delete this node", id="editor-delete-tooltip", target="btn-delete", placement="top"),
                 dcc.Store(id='node-time-unit-prev', data='weeks'),
                 dcc.Store(id='node-original-name', data=None)

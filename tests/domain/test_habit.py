@@ -12,6 +12,7 @@ can switch back to habit mode without re-typing.
 
 from skilltree.features.editor.form import habit_editor_view, habit_preview_text
 from skilltree.domain.time import (
+    HABIT_NO_DAYS, HABIT_NO_DURATION, habit_estimate_problem,
     habit_to_hours, compute_habit_time_omp, parse_habit_days,
 )
 from skilltree.store.commands import handle_save
@@ -165,12 +166,32 @@ class TestHabitEditorView:
 
 class TestHabitPreviewText:
     def test_per_session_preview(self):
-        txt = habit_preview_text(6, 'weeks', 15, 'min_per_session', [0, 3, 4])
-        assert '4.5 h' in txt
-        assert '3 days/wk' in txt
+        txt = habit_preview_text(6, 'weeks', 0, 15, 0, [0, 3, 4])
+        assert txt == "≈ 4.5 h total — 15 min × 3 days/wk × 6 weeks"
 
-    def test_zero_returns_empty(self):
-        assert habit_preview_text(0, 'weeks', 15, 'min_per_session', [0]) == ""
+    def test_lower_and_upper_preview_a_range(self):
+        txt = habit_preview_text(1, 'weeks', 10, None, 20, [0, 1, 2])
+        assert txt == "≈ 0.5–1 h total — 10–20 min × 3 days/wk × 1 week"
+
+    def test_a_problem_leaves_the_line_to_its_warning(self):
+        assert habit_preview_text(0, 'weeks', 0, 15, 0, [0]) == ""
+        assert habit_preview_text(4, 'weeks', 5, 50, 15, [0]) == ""
+
+    def test_no_days_asks_for_them(self):
+        assert "Pick the days" in habit_preview_text(6, 'weeks', 0, 15, 0, [])
+
+
+class TestHabitEstimateProblem:
+    def test_fields_are_checked_top_to_bottom(self):
+        assert habit_estimate_problem(None, 5, 50, 15, []) == HABIT_NO_DURATION
+        assert "Expected must be ≤ Upper" in habit_estimate_problem(4, 5, 50, 15, [])
+        assert habit_estimate_problem(4, 5, 10, 15, []) == HABIT_NO_DAYS
+        assert habit_estimate_problem(4, 5, 10, 15, '0,2') is None
+
+    def test_minutes_take_the_same_patterns_as_any_bracket(self):
+        assert habit_estimate_problem(4, 0, 0, 0, [0])
+        assert habit_estimate_problem(4, 5, 0, 0, [0])
+        assert habit_estimate_problem(4, 5, 0, 15, [0]) is None
 
 
 # ============================================================================

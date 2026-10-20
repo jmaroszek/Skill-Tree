@@ -1,4 +1,5 @@
 /* Keep partial brackets quiet until the user leaves the time section. */
-#section-time-estimates[data-validation-ready="false"] #time-validation-error {
+#section-time-estimates[data-validation-ready="false"] #time-validation-error,
+#section-time-estimates[data-validation-ready="false"] #habit-validation-error {
     display: none !important;
 }

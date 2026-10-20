@@ -11,7 +11,9 @@ from skilltree.domain.models import (
 )
 from skilltree.domain.time import (
     ALL_WEEKDAYS,
+    HABIT_NO_DAYS,
     habit_day_count,
+    habit_estimate_problem,
     habit_to_hours,
     parse_habit_days,
 )
@@ -48,21 +50,31 @@ def habit_editor_view(intensity_unit, int_o, int_m, int_p, habit_days):
     return 'min_per_session', o, m, p, list(ALL_WEEKDAYS)
 
 
-def habit_preview_text(duration, dur_unit, intensity_m, int_unit, days=None):
-    """Human-readable live preview of the habit estimate's total hours."""
-    int_unit = int_unit or 'min_per_session'
-    total = habit_to_hours(duration or 0, dur_unit or 'weeks',
-                           intensity_m or 0, int_unit, days)
-    if total <= 0:
+def habit_preview_text(duration, dur_unit, int_o, int_m, int_p, days):
+    """The live line under the habit fields: its total hours, or what's missing.
+
+    No days picked is where a new habit starts, so it gets a plain prompt.
+    Any other problem has its own warning, so the line stays empty for it.
+    """
+    if not habit_day_count(days):
+        return HABIT_NO_DAYS
+    if habit_estimate_problem(duration, int_o, int_m, int_p, days):
         return ""
-    if int_unit.endswith('_per_session'):
-        n = habit_day_count(days)
-        mag = 'min' if int_unit.startswith('min') else 'hr'
-        day_str = f"{n} day{'' if n == 1 else 's'}/wk"
-        dur_str = f"{(duration or 0):g} {dur_unit or 'weeks'}"
-        return (f"≈ {round(total, 1)} h total — "
-                f"{(intensity_m or 0):g} {mag} × {day_str} × {dur_str}")
-    return f"Computes to ~{round(total, 1)} h total"
+    n = habit_day_count(days)
+    unit = dur_unit or 'weeks'
+    if float(duration) == 1:
+        unit = unit[:-1]
+    cadence = f"{n} day{'' if n == 1 else 's'}/wk × {float(duration):g} {unit}"
+
+    def hours(minutes):
+        total = habit_to_hours(duration, dur_unit or 'weeks', minutes,
+                               'min_per_session', days)
+        return f"{round(total, 1):g}"
+
+    if int_m:
+        return f"≈ {hours(int_m)} h total — {float(int_m):g} min × {cadence}"
+    return (f"≈ {hours(int_o)}–{hours(int_p)} h total — "
+            f"{float(int_o):g}–{float(int_p):g} min × {cadence}")
 
 
 def _norm_str(s):
@@ -176,7 +188,7 @@ NEW_NODE_SNAPSHOT = {
     'habit_duration_unit': 'weeks',
     'habit_intensity_o': 0, 'habit_intensity_m': 0, 'habit_intensity_p': 0,
     'habit_intensity_unit': 'min_per_session',
-    'habit_days': list(ALL_WEEKDAYS),
+    'habit_days': [],
     'value_mode': [],
     'priority_rank': 'none',
     'aliases': [''],
@@ -235,7 +247,8 @@ def build_editor_snapshot(manager, events, node_name):
         **(lambda hu, ho, hm, hp, hd: {
             'habit_intensity_o': ho, 'habit_intensity_m': hm,
             'habit_intensity_p': hp, 'habit_intensity_unit': hu,
-            'habit_days': hd,
+            # A node that isn't a habit yet has no days picked.
+            'habit_days': hd if node.time_mode == 'habit' else [],
         })(*habit_editor_view(
             node.habit_intensity_unit, node.habit_intensity_o,
             node.habit_intensity_m, node.habit_intensity_p, node.habit_days)),
@@ -497,7 +510,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'habit_intensity_m': form_values.get('habit_intensity_m') or 0,
         'habit_intensity_p': form_values.get('habit_intensity_p') or 0,
         'habit_intensity_unit': form_values.get('habit_intensity_unit') or 'min_per_session',
-        'habit_days': form_values.get('habit_days') or list(ALL_WEEKDAYS),
+        'habit_days': form_values.get('habit_days') or [],
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'aliases': linted_aliases or [''],
@@ -555,7 +568,7 @@ def editor_form_values(
         'habit_intensity_m': habit_intensity_m,
         'habit_intensity_p': habit_intensity_p,
         'habit_intensity_unit': habit_intensity_unit,
-        'habit_days': habit_days if habit_days is not None else list(ALL_WEEKDAYS),
+        'habit_days': habit_days if habit_days is not None else [],
         'value_mode': value_mode,
         'priority_rank': priority_rank,
         'aliases': aliases,

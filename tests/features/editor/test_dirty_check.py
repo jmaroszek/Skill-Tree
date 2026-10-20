@@ -3,9 +3,6 @@ from skilltree.features.editor.form import (
     build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values,
 )
-from skilltree.domain.time import (
-    ALL_WEEKDAYS,
-)
 import pytest
 from skilltree.store.graph.manager import GraphManager
 
@@ -361,7 +358,7 @@ class TestEditorFormValues:
             habit_duration=0, habit_duration_unit='weeks',
             habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
             habit_intensity_unit='min_per_session',
-            habit_days=list(ALL_WEEKDAYS),
+            habit_days=[],
             dormancy=None,
         )
         base.update(overrides)

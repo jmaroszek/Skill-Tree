@@ -331,6 +331,16 @@ inline warning stays hidden during editing. The whole Time Estimates section
 is one focus group: moving between its fields and unit selector stays quiet;
 leaving reveals any remaining error. Returning to edit or loading another
 form hides it again. Save paths always validate independently of this display.
+Habit mode checks its own fields the same way (`habit_estimate_problem`): the
+calendar duration, the minutes bracket, then the days. Its warning sits below
+the days. A habit with no days picked is where a new one starts, so the preview
+line prompts for them in muted text instead of a warning.
+
+Save's tooltip says why Save is off, and "Save changes" otherwise. Bootstrap
+turns off pointer events on a disabled button, so a tooltip targeting the
+button itself never opens while it is disabled. The tooltip targets the
+`btn-save-wrap` span around it instead. Do the same for any other button whose
+tooltip explains why it is disabled.
 
 `kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
 builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
@@ -890,13 +900,18 @@ N equal-width pills across the row so none overflow the 350px sidebar.
 dbc.Checklist(
     id="node-habit-days",
     options=[{"label": "S", "value": 6}, {"label": "M", "value": 0}, ...],
-    value=[0, 1, 2, 3, 4, 5, 6],
+    value=[],
     className="habit-days-picker",
     inputClassName="btn-check",
     labelClassName="btn btn-outline-light btn-sm",
     labelCheckedClassName="active",
 )
 ```
+
+A chosen pill fills with `--st-accent`, and an unchosen one stays an outline.
+Bootstrap's `btn-outline-light` would fill chosen pills pale gray, which reads
+as off, so `.habit-days-picker .btn` overrides its active colours. The picker
+starts empty: the user picks the days, rather than unpicking from all seven.
 
 The selected `value` list holds the chosen options directly, so selection
 state needs no extra callback. Compare these lists as sets in dirty-checks

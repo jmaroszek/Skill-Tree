@@ -24,6 +24,24 @@
     width: 100%;
     padding: 0.375rem 0;
     border-radius: 0.25rem;
+    /* A chosen day fills with the accent blue, so "on" reads as on. The
+       outline-light default fills chosen days pale gray, which reads as
+       disabled. Hover only washes an unchosen day. */
+    --bs-btn-hover-bg: var(--st-accent-wash);
+    --bs-btn-hover-border-color: var(--bs-light);
+    --bs-btn-hover-color: var(--bs-light);
+    --bs-btn-active-bg: var(--st-accent);
+    --bs-btn-active-border-color: var(--st-accent);
+    --bs-btn-active-color: #fff;
+}
+
+/* Habit calendar duration: a short count with its unit beside it, not a
+   field stretched across the sidebar. */
+.habit-duration-input {
+    width: 6rem;
+}
+.habit-duration-unit {
+    width: 8rem;
 }
 
 /* Remove spinner arrows from number inputs */
