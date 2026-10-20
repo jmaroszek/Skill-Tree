@@ -121,6 +121,13 @@ def test_a_file_that_opening_would_run_asks_first(opened, link):
     ("/home/me/Desktop/installer.desktop", "desktop"),
     ("/home/me/tools/deploy.sh", "sh"),
     ("/home/me/Downloads/Tool.AppImage", "appimage"),
+    # Each of these has run code or leaked the Windows sign-in.
+    ("C:\\Users\\me\\Downloads\\update.appinstaller", "appinstaller"),
+    ("C:\\Users\\me\\Downloads\\Shared.searchConnector-ms", "searchconnector-ms"),
+    ("C:\\Users\\me\\Downloads\\dark.theme", "theme"),
+    ("C:\\Users\\me\\Downloads\\dark.themepack", "themepack"),
+    ("C:\\Users\\me\\Downloads\\dark.deskthemepack", "deskthemepack"),
+    ("C:\\Users\\me\\Downloads\\launch.jnlp", "jnlp"),
     ("/home/me/notes/paper.pdf", None),
     ("/home/me/notes", None),
     ("C:\\notes\\archive.tar.gz", None),

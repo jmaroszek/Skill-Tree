@@ -35,21 +35,24 @@ _FILE_SUFFIXES = {"txt", "md", "pdf", "png", "jpg", "jpeg", "gif", "webp",
 
 
 # Files the system opens by running them: programs, scripts, installers, and
-# shortcuts that can point at either. A link to one asks first, like a link
-# that hands itself to another app. Opening a document or a folder doesn't ask.
+# shortcuts that can point at either. Windows themes and search connectors
+# are here too: opening one can fetch from another computer with the user's
+# sign-in. A link to one asks first, like a link that hands itself to another
+# app. Opening a document or a folder doesn't ask.
 RUNNABLE_SUFFIXES = frozenset({
     # Windows
     "exe", "com", "scr", "pif", "cpl", "msc", "msi", "msp", "mst", "msix",
-    "msixbundle", "appx", "appxbundle", "appref-ms", "application", "gadget",
-    "bat", "cmd", "ps1", "psm1", "psd1", "ps1xml", "psc1", "vb", "vbs", "vbe",
-    "js", "jse", "ws", "wsf", "wsc", "wsh", "hta", "reg", "inf", "scf", "lnk",
-    "url", "chm", "settingcontent-ms", "library-ms", "diagcab", "xll",
+    "msixbundle", "appx", "appxbundle", "appinstaller", "appref-ms",
+    "application", "gadget", "bat", "cmd", "ps1", "psm1", "psd1", "ps1xml",
+    "psc1", "vb", "vbs", "vbe", "js", "jse", "ws", "wsf", "wsc", "wsh", "hta",
+    "reg", "inf", "scf", "lnk", "url", "chm", "settingcontent-ms", "library-ms",
+    "searchconnector-ms", "theme", "themepack", "deskthemepack", "diagcab", "xll",
     # macOS
     "app", "command", "tool", "terminal", "workflow", "action", "pkg", "mpkg",
     # Linux
     "desktop", "sh", "bash", "zsh", "csh", "ksh", "run", "appimage", "deb", "rpm",
     # Any system with the interpreter installed
-    "py", "pyw", "pyz", "jar", "pl", "rb",
+    "py", "pyw", "pyz", "jar", "jnlp", "pl", "rb",
 })
 
 
