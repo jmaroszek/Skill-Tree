@@ -303,6 +303,33 @@ def resolve_context_intent(node, context, subctx, snapshot):
     return context, subctx
 
 
+_ESTIMATE_FIELDS = ('time_o', 'time_m', 'time_p')
+
+
+def resolve_time_intent(node, form, snapshot):
+    """The stored hours, (o, m, p), when the form's estimate is the one it loaded.
+
+    The editor shows hours in days or weeks, rounded, at the hours per week
+    Settings held when it loaded. Converting an untouched estimate back
+    re-rounded it, and after Settings changed the hours per week, rescaled
+    it. None when the user changed the estimate or its unit, so the form is
+    read at today's rates, or when there is nothing to judge by.
+    """
+    if (node is None or not isinstance(snapshot, dict)
+            or snapshot.get('name') != node.name
+            or any(key not in snapshot for key in _ESTIMATE_FIELDS + ('time_unit',))):
+        return None
+    if (form.get('time_unit') or '') != (snapshot.get('time_unit') or ''):
+        return None
+    try:
+        if any(round(float(form.get(key) or 0), 2) != round(float(snapshot.get(key) or 0), 2)
+               for key in _ESTIMATE_FIELDS):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return node.time_o or 0, node.time_m or 0, node.time_p or 0
+
+
 def follow_context(node, context, subctx, snapshot):
     """(fields, stored) for an editor whose node's context changed elsewhere.
 

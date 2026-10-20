@@ -13,8 +13,8 @@ from skilltree.domain.time import (
 )
 from skilltree.features.editor.form import (
     NEW_NODE_DORMANCY, RELATIONSHIP_FIELDS, dormancy_for_save, resolve_context_intent,
-    resolve_done_intent, resolve_relationship_intent, resource_link_values,
-    stored_relationships, woke_during_edit,
+    resolve_done_intent, resolve_relationship_intent, resolve_time_intent,
+    resource_link_values, stored_relationships, woke_during_edit,
 )
 from skilltree.store import database
 from skilltree.store.commands import (
@@ -104,6 +104,10 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
         t_o = float(time_o or 0) * multiplier
         t_m = float(time_m or 0) * multiplier
         t_p = float(time_p or 0) * multiplier
+        # An estimate the user left as it loaded keeps its stored hours.
+        kept_hours = resolve_time_intent(_prior_for_completion, form, pristine_snapshot)
+        if kept_hours is not None:
+            t_o, t_m, t_p = kept_hours
 
         # Intercept rename: if original name differs from current name, rename node atomically
         if (original_name and original_name.strip() and
