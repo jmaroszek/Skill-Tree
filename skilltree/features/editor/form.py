@@ -280,6 +280,46 @@ def follow_done_status(node, switch, snapshot):
     return new_switch, {**snapshot, 'status_done': stored}
 
 
+def _loaded_context(node, snapshot):
+    """The (context, subcontext) the editor loaded for ``node``, or None when
+    the snapshot is another node's or holds no context."""
+    if (node is None or not isinstance(snapshot, dict)
+            or snapshot.get('name') != node.name or 'context' not in snapshot):
+        return None
+    return _norm_str(snapshot.get('context')), _norm_str(snapshot.get('subctx'))
+
+
+def resolve_context_intent(node, context, subctx, snapshot):
+    """The context and subcontext a save writes.
+
+    A Settings save renames a context, or moves a subcontext, on every node
+    while the editor still shows the names it loaded. An untouched pair takes
+    what is stored now, so the save doesn't put the node back under names
+    Settings no longer has. A pair the user changed keeps their choice.
+    """
+    loaded = _loaded_context(node, snapshot)
+    if loaded is not None and (_norm_str(context), _norm_str(subctx)) == loaded:
+        return node.context or '', node.subcontext or ''
+    return context, subctx
+
+
+def follow_context(node, context, subctx, snapshot):
+    """(fields, stored) for an editor whose node's context changed elsewhere.
+
+    ``stored`` is the (context, subcontext) the snapshot should take, or None
+    when it already agrees with the database or there is nothing to judge
+    by. ``fields`` is what the editor's pickers should show: the stored pair
+    while they still show what was loaded, and None when the user has picked
+    another.
+    """
+    loaded = _loaded_context(node, snapshot)
+    stored = (node.context or '', node.subcontext or '') if node is not None else None
+    if loaded is None or stored == loaded:
+        return None, None
+    untouched = (_norm_str(context), _norm_str(subctx)) == loaded
+    return (stored if untouched else None), stored
+
+
 # The editor's relationship pickers, by their EDITOR_FORM and snapshot keys.
 RELATIONSHIP_FIELDS = ('e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps')
 

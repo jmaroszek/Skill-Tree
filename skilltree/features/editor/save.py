@@ -12,9 +12,9 @@ from skilltree.domain.time import (
     time_estimate_problem,
 )
 from skilltree.features.editor.form import (
-    NEW_NODE_DORMANCY, RELATIONSHIP_FIELDS, dormancy_for_save, resolve_done_intent,
-    resolve_relationship_intent, resource_link_values, stored_relationships,
-    woke_during_edit,
+    NEW_NODE_DORMANCY, RELATIONSHIP_FIELDS, dormancy_for_save, resolve_context_intent,
+    resolve_done_intent, resolve_relationship_intent, resource_link_values,
+    stored_relationships, woke_during_edit,
 )
 from skilltree.store import database
 from skilltree.store.commands import (
@@ -73,6 +73,8 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
             graph, name, original_name)
         status_done = resolve_done_intent(
             _prior_for_completion, status_done, pristine_snapshot)
+        context, subctx = resolve_context_intent(
+            _prior_for_completion, context, subctx, pristine_snapshot)
         woke_from = woke_during_edit(
             events, (original_name or name).strip(), dormancy,
             pristine_snapshot)

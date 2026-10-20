@@ -19,6 +19,7 @@ from skilltree.features.editor.form import (
     RELATIONSHIP_FIELDS,
     build_editor_snapshot,
     editor_form_values_from,
+    follow_context,
     follow_done_status,
     follow_relationships,
     habit_preview_text,
@@ -212,6 +213,34 @@ def register_editor_callbacks(app, services):
         State('edge-helps', 'value'),
         prevent_initial_call=True,
     )
+
+    # --- Editor follows a context renamed or moved in Settings ---
+    # A Settings save carries a renamed context, or a subcontext moved to
+    # another, onto every node, and the taxonomy store refreshes after it.
+    # The editor's pickers were filled when it loaded. They take the stored
+    # names while they still show the loaded ones; a context the user picked
+    # stays. The snapshot takes the stored names either way. Save resolves the
+    # same way (form.resolve_context_intent), so it never depends on this
+    # having run, and a changed snapshot checks again for that save's sake.
+    @app.callback(
+        Output('node-context', 'value', allow_duplicate=True),
+        Output('node-subcontext', 'value', allow_duplicate=True),
+        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+        Input('context-taxonomy-store', 'data'),
+        Input('editor-pristine-snapshot', 'data'),
+        State('node-original-name', 'data'),
+        State('node-context', 'value'),
+        State('node-subcontext', 'value'),
+        prevent_initial_call=True,
+    )
+    def follow_editor_taxonomy(_taxonomy, snapshot, name, context, subctx):
+        node = manager.get_node(name) if name else None
+        fields, stored = follow_context(node, context, subctx, snapshot)
+        if stored is None:
+            return (no_update,) * 3
+        patch = dash.Patch()
+        patch['context'], patch['subctx'] = stored
+        return (*(fields or (no_update, no_update)), patch)
 
     # --- Scroll editor to top on New Node / Add ---
     app.clientside_callback(
