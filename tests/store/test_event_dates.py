@@ -72,6 +72,23 @@ def test_a_blank_date_is_stored_as_none():
     assert events.get_event("Summer").trigger_date is None
 
 
+def test_a_date_with_a_time_after_it_fires_on_its_day():
+    # An import accepts a date with a time after it, as Analyze reads one.
+    # The sweep read the whole text as a date and raised, which rolled back
+    # every event due with it, so none of them ever fired.
+    events = EventManager(GraphManager())
+    events.add_event(Event(name="Spring", trigger_date="2026-04-01"))
+    events.add_event(Event(name="Summer", trigger_date="2026-06-01"))
+    events.create_dormant_node(_node("Garden"), "Summer")
+    with database.transaction() as conn:
+        conn.execute("UPDATE Events SET trigger_date = '2026-04-01T09:30:00' "
+                     "WHERE name = 'Spring'")
+
+    assert sorted(events.check_scheduled_triggers()) == ["Spring", "Summer"]
+    assert events.get_event("Spring").status == "Triggered"
+    assert GraphManager().get_node("Garden").dormant == 0
+
+
 def test_an_empty_date_saved_before_the_fix_never_fires():
     events = EventManager(GraphManager())
     events.add_event(Event(name="Spring"))

@@ -181,6 +181,19 @@ class EventManager:
         return value or None
 
     @staticmethod
+    def _stored_date(value) -> Optional[date]:
+        """A stored date as a date, or None when it holds none. Only its first
+        ten characters count, as an import checks them: one written with a
+        time after it is still that day, and must not stop the sweep that
+        fires every other event due with it."""
+        if not isinstance(value, str):
+            return None
+        try:
+            return date.fromisoformat(value.strip()[:10])
+        except ValueError:
+            return None
+
+    @staticmethod
     def _check_name(name):
         problem = graph_rules.name_problem(name, "Event name")
         if problem:
@@ -805,7 +818,8 @@ class EventManager:
                 (event_name,)).fetchone()
             if row is None or row[0] != 'Pending':
                 return result
-            occurrence = min(date.fromisoformat(row[1]), today) if row[1] else today
+            stored = self._stored_date(row[1])
+            occurrence = min(stored, today) if stored else today
 
             # Mark event as triggered
             cursor.execute(
