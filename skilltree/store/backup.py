@@ -7,9 +7,9 @@ copy that is byte-stable: an unchanged graph gives an identical file, so a
 daily copy identical to the newest backup is dropped rather than using up a
 retention slot.
 
-The app makes the daily backup at startup. Run as a script
-(``python backup.py``) it makes the same backup of the production database,
-for anyone who still schedules it.
+The app makes the daily backup at startup, and again on each new day it stays
+open (app.run_backup_timer). Run as a script (``python backup.py``) it makes
+the same backup of the production database, for anyone who still schedules it.
 """
 import hashlib
 import logging
@@ -183,13 +183,14 @@ def copy_database(destination) -> None:
             conn.close()
 
 
-def create_backup(kind="manual", *, dedupe=False, keep=()) -> Optional[Path]:
+def create_backup(kind="manual", *, dedupe=False, keep=(), now=None) -> Optional[Path]:
     """Copy the database into the Backups folder and return the new file.
 
     Returns None when there is no database yet or, with ``dedupe``, when the
     copy is identical to the newest backup, which already covers it. The
     paths in ``keep`` survive the pruning of old copies, as the backup about
-    to be restored must.
+    to be restored must. The file is named for ``now``, which a caller that
+    keeps its own clock passes in.
     """
     if kind not in KEEP:
         raise ValueError(f"Unknown backup kind {kind!r}")
@@ -197,7 +198,8 @@ def create_backup(kind="manual", *, dedupe=False, keep=()) -> Optional[Path]:
         return None
     directory = backup_dir()
     directory.mkdir(parents=True, exist_ok=True)
-    final = directory / f"{_stem()}_{datetime.now().strftime(_STAMP)}_{kind}.db"
+    stamp = (now or datetime.now()).strftime(_STAMP)
+    final = directory / f"{_stem()}_{stamp}_{kind}.db"
     tmp = final.with_name(final.name + ".tmp")
     copy_database(tmp)
     existing = list_backups()
@@ -250,14 +252,15 @@ def run_daily_backup(now=None) -> Optional[Path]:
     """The day's automatic backup: at most one per calendar day, skipped when
     nothing changed since the newest backup, and skipped entirely when the
     user has switched automatic backups off. Never raises; a failed backup is
-    logged and must not stop the app."""
+    logged and must not stop the app. ``now`` is the time to go by, both for
+    the day and for the new file's name."""
     try:
         if not settings.AUTO_BACKUP.get():
             return None
-        today = (now or datetime.now()).date()
-        if any(info["when"].date() == today for info in list_backups("daily")):
+        now = now or datetime.now()
+        if any(info["when"].date() == now.date() for info in list_backups("daily")):
             return None
-        path = create_backup("daily", dedupe=True)
+        path = create_backup("daily", dedupe=True, now=now)
         mirror(path)
         return path
     except Exception:

@@ -223,6 +223,15 @@ Only code 4 may lead to a restore. `database.refusal_for` maps SQLite's error na
 - When the desktop shell closes the server's stdin, the server finishes its requests and exits. SIGTERM and Ctrl+C do the same.
 - `--dev` swaps in Flask's debug server with hot reload. It is for developers only, and a frozen build ignores it.
 
+### Background work
+
+Once the app is built, `main` starts two daemon threads. `warm-networkx` imports NetworkX while the window opens. `daily-backup` (`app.start_backup_timer`) wakes every hour and calls `backup.run_daily_backup`, so a server left open for days still makes each new day's copy. `create_app` makes the first, at launch.
+
+- `run_daily_backup` does the deciding: one copy a day, none when nothing changed or the user has switched backups off. It reads the switch on every wake-up, so a change in Settings applies at once.
+- A check that fails is logged, and the timer carries on.
+- Only a process that serves starts it. That leaves out the dev reloader's parent (`LaunchOptions.hot_reload`), which only watches files, and every test that builds an app with `create_app`.
+- `main` sets the timer's stop event when the server stops, which ends the wait at once.
+
 ### Startup readiness
 
 The page opens behind a cover, in the page template, so it is in the first paint. `assets/startup_cover.js` keeps the app `inert` until two things hold: the core engine's first response has landed, and Dash has had nothing pending for 150 ms. A 20 s backstop lifts it regardless.

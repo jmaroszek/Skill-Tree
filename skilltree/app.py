@@ -9,6 +9,7 @@ import importlib
 import uuid
 import threading
 from dataclasses import dataclass
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 from skilltree.runtime.paths import get_log_dir, resource_path
@@ -138,7 +139,8 @@ def create_app(app_settings=None, services=None):
     # Diagnostics, and any future migration, can tell which build last opened
     # this data.
     settings.LAST_APP_VERSION.set(__version__)
-    # At most once a day, and never fatal: a failure is logged.
+    # At most once a day, and never fatal: a failure is logged. A server that
+    # stays open asks again each hour (run_backup_timer, started by main).
     from skilltree.store import backup
     backup.run_daily_backup()
     with database.get_connection() as conn:
@@ -268,6 +270,41 @@ def open_resource_route(graph):
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+# How often a server that stays open asks whether a new day's backup is due.
+# A check takes milliseconds, and a copy is kept at most once a day, so the new
+# day's copy lands within this long of midnight.
+BACKUP_CHECK_SECONDS = 60 * 60
+
+
+def run_backup_timer(stop, interval=BACKUP_CHECK_SECONDS, clock=datetime.now):
+    """Make the daily backup every ``interval`` seconds, until ``stop`` is set.
+
+    create_app makes the first backup at launch. A server left open for days
+    needs one on each new day after that. backup.run_daily_backup decides: it
+    does nothing when today's copy exists, when nothing has changed since the
+    newest one, or when the user has switched backups off. ``stop`` is a
+    threading.Event, which also does the waiting, so setting it ends the wait
+    at once. ``clock`` says what time it is, for tests.
+    """
+    from skilltree.store import backup
+    while not stop.wait(interval):
+        try:
+            backup.run_daily_backup(clock())
+        except Exception:
+            # run_daily_backup logs its own failures. This keeps the timer
+            # going if one ever gets out, so one bad check can't end the
+            # backups for as long as the app stays open.
+            _logger.exception("The daily backup check failed")
+
+
+def start_backup_timer(stop, interval=BACKUP_CHECK_SECONDS, clock=datetime.now):
+    """Run run_backup_timer on a daemon thread, which ends with the process."""
+    thread = threading.Thread(target=run_backup_timer, args=(stop, interval, clock),
+                              name="daily-backup", daemon=True)
+    thread.start()
+    return thread
+
+
 def main(argv=None):
     """Launch: own this database, build the app, then serve it (server_runtime)."""
     from skilltree.runtime import server as server_runtime
@@ -287,6 +324,7 @@ def main(argv=None):
                     database.DatabaseUnwritableError.exit_code)
         if not owned:
             sys.exit(server_runtime.hand_over(lock, options))
+    stop_backups = threading.Event()
     # However this launch ends, it lets go of the database. serve() and
     # run_dev() release the lock themselves when they stop, and release() is a
     # no-op then, or in a reloader child, which never took it. A refusal
@@ -315,11 +353,18 @@ def main(argv=None):
         threading.Thread(target=importlib.import_module, args=("networkx",),
                          name="warm-networkx", daemon=True).start()
 
+        # create_app made today's backup. A server that stays open makes each
+        # new day's too. The dev reloader's parent only watches files, so it
+        # leaves this to the child that serves.
+        if reloader_child or not options.hot_reload:
+            start_backup_timer(stop_backups)
+
         if options.dev:
             server_runtime.run_dev(app, options, lock, token, reloader_child)
         else:
             server_runtime.serve(app, options, lock, token)
     finally:
+        stop_backups.set()
         lock.release()
 
 

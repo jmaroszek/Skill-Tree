@@ -42,6 +42,19 @@ def test_a_frozen_build_ignores_dev(monkeypatch):
     assert parse_args(["--dev", "--sandbox"]).dev is False
 
 
+@pytest.mark.parametrize("argv, hot", [
+    ([], False),
+    (["--sandbox"], False),
+    (["--dev"], False),  # production's debug server never reloads
+    (["--dev", "--sandbox"], True),
+    (["--desktop", "--dev", "--sandbox"], False),
+])
+def test_only_dev_in_the_sandbox_hot_reloads(argv, hot):
+    """Werkzeug's reloader leaves a parent that only watches files, so the app
+    asks (main starts the backup timer in a process that serves)."""
+    assert parse_args(argv).hot_reload is hot
+
+
 # --- One server per database (P3.3) ----------------------------------------
 
 def _db(tmp_path, name="skilltree.db"):

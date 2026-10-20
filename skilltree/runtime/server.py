@@ -52,6 +52,13 @@ class LaunchOptions:
     # passes it once the user has accepted offer_restore()'s offer.
     restore_backup: Optional[str] = None
 
+    @property
+    def hot_reload(self) -> bool:
+        """Whether Werkzeug's reloader runs the app in a child process that it
+        restarts on every edit (--dev in the sandbox). The parent then only
+        watches files, and the child serves."""
+        return self.dev and self.environment == "sandbox"
+
 
 def parse_args(argv) -> LaunchOptions:
     environment = "sandbox" if "--sandbox" in argv else "production"
@@ -454,7 +461,7 @@ def run_dev(app, options: LaunchOptions, lock: InstanceLock, token: str,
     """
     port = options.port or DEFAULT_PORTS[options.environment]
     AccessGuard(token, port, options.environment).install(app.server)
-    hot = options.environment == "sandbox"
+    hot = options.hot_reload
     link = f"http://127.0.0.1:{port}/?token={token}"
     if not reloader_child:
         lock.publish(port, token)
