@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "skill-tree-website",
+  "main": "src/worker.js",
+  "account_id": "3908a868e4a7172c16d1ee4da0787cd6",
+  "compatibility_date": "2026-10-22",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "theskilltree.app", "custom_domain": true },
+    { "pattern": "www.theskilltree.app", "custom_domain": true }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  }
+}
