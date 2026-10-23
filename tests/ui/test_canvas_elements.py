@@ -30,6 +30,7 @@ from skilltree.services import AppServices
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 from support.paths import asset_file
 from support.callbacks import callbacks_of
+from skilltree.ui.components.duration import format_time_friendly
 
 # The nodes all three canvases render from the seeded graph.
 SHARED = {'Root', 'Open Prereq', 'Done Prereq', 'Blocked Prereq',
@@ -153,6 +154,49 @@ def test_hovering_a_node_shows_the_same_tooltip_on_every_canvas(canvases, monkey
 
 _STYLES = CanvasNodeStyles(colors=dict(DEFAULT_NODE_COLORS), shapes={},
                            trigger_names=frozenset())
+
+
+def _tooltip_rows(node):
+    """The tooltip's rows for `node` hovered on the Nodes canvas, as text."""
+    display_hover_data = _callback(_app(register_canvas_callbacks), 'display_hover_data')
+    fire(CANVASES[0].cytoscape_id)
+    data = build_node_element(node, _STYLES)['data']
+    lines = display_hover_data(data, *(None for _ in CANVASES[1:]))
+    rows = {}
+    for line in lines:
+        children = getattr(line, 'children', None)
+        if isinstance(children, list) and len(children) == 2:
+            rows[children[0].children] = children[1]
+    return rows
+
+
+# Estimates value 6, interest 7, effort 5; the bracket 2/4/8 h weights to 4.3 h.
+_REFLECTED = dict(reflect_value=8, reflect_interest=7, reflect_difficulty=3,
+                  actual_time_lower=10.0, actual_time_point=12.0, actual_time_upper=20.0)
+
+
+def test_a_reflected_done_node_shows_each_estimate_with_its_actual():
+    node = _node('Finished', status='Done', **_REFLECTED)
+    rows = _tooltip_rows(node)
+    assert rows['Value: '] == '6 → 8'
+    # Unchanged still gets its arrow: the estimate held.
+    assert rows['Interest: '] == '7 → 7'
+    assert rows['Effort: '] == '5 → 3'
+    assert rows['Time: '] == (f"{format_time_friendly(node.time)} → "
+                              f"{format_time_friendly(node.actual_time)}")
+
+
+def test_only_reflected_fields_get_an_arrow():
+    rows = _tooltip_rows(_node('Partly', status='Done', reflect_value=8))
+    assert rows['Value: '] == '6 → 8'
+    assert '→' not in rows['Interest: '] + rows['Effort: '] + rows['Time: ']
+
+
+def test_a_reopened_node_shows_its_estimates_alone():
+    """A reflection survives an un-Done, but an open node ranks on its
+    estimates, so those are what it shows."""
+    rows = _tooltip_rows(_node('Reopened', status='Open', **_REFLECTED))
+    assert not any('→' in str(text) for text in rows.values())
 
 
 def test_no_canvas_lets_a_link_be_selected(canvases):

@@ -5,6 +5,7 @@ from skilltree.ui.timing import LOCATE_TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.toast import register_toast_timer
 from dash import ClientsideFunction, Input, Output, State, ctx, html
 
+from skilltree.domain.models import STATUS_DONE
 from skilltree.ui import tokens
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.components.duration import format_time_friendly
@@ -91,28 +92,44 @@ def register_canvas_callbacks(app, services):
         else:
             ratings_inherited = data.get('value_mode') == 'inherited'
             time_inherited = data.get('time_mode') == 'inherited'
+            # A reflection survives an un-Done, but only a Done node's
+            # estimates are history. An open node's are what it ranks on.
+            done = data.get('status') == STATUS_DONE
+
+            def estimate_and_actual(estimate, actual, fmt=str):
+                # A reflected field always gets its arrow, even when the
+                # answer matches the estimate: "5 → 5" says the estimate held,
+                # where a bare 5 would read as never reflected.
+                if not done or actual is None:
+                    return fmt(estimate)
+                return f"{fmt(estimate)} → {fmt(actual)}"
 
             lines = [marker, header]
 
             if ratings_inherited and time_inherited:
                 lines.append(html.Div("Container", style={"color": tokens.TEXT_SOFT}))
             else:
+                effort = estimate_and_actual(data.get('difficulty', ''),
+                                             data.get('reflect_difficulty'))
                 if ratings_inherited:
                     # Effort stays the node's own while it has its own hours.
                     lines.append(html.Div([html.Strong("Ratings: "), "inherited"]))
                     if not time_inherited:
-                        lines.append(html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]))
+                        lines.append(html.Div([html.Strong("Effort: "), effort]))
                 else:
                     lines += [
-                        html.Div([html.Strong("Value: "), str(data.get('value', ''))]),
-                        html.Div([html.Strong("Interest: "), str(data.get('interest', ''))]),
-                        html.Div([html.Strong("Effort: "), str(data.get('difficulty', ''))]),
+                        html.Div([html.Strong("Value: "), estimate_and_actual(
+                            data.get('value', ''), data.get('reflect_value'))]),
+                        html.Div([html.Strong("Interest: "), estimate_and_actual(
+                            data.get('interest', ''), data.get('reflect_interest'))]),
+                        html.Div([html.Strong("Effort: "), effort]),
                     ]
 
                 if time_inherited:
                     lines.append(html.Div([html.Strong("Time: "), "inherited"]))
                 else:
-                    time_str = format_time_friendly(data.get('time', 0))
+                    time_str = estimate_and_actual(data.get('time', 0), data.get('actual_time'),
+                                                   format_time_friendly)
                     lines.append(html.Div([html.Strong("Time: "), time_str]))
 
             ctx_val = data.get('context', '')

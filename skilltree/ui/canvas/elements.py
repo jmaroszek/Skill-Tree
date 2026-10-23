@@ -55,7 +55,9 @@ def node_fill_color(node, colors):
 # field instead, about 45, most of which nothing read. The largest,
 # description, was about a seventh of the Nodes payload.
 #   - The hover tooltip (callbacks.display_hover_data): type, context,
-#     subcontext, value, interest, difficulty, time, time_mode, value_mode.
+#     subcontext, value, interest, difficulty, time, time_mode, value_mode,
+#     and for a Done node status and the reflection: reflect_value,
+#     reflect_interest, reflect_difficulty, actual_time.
 #   - The node context menu (assets/menus/context_menu.js): type, status, now,
 #     dormant, resource_links.
 #   - Tap handlers read only the id; the editor re-reads the node itself.
@@ -65,6 +67,7 @@ CANVAS_NODE_FIELDS = (
     'type', 'status', 'context', 'subcontext',
     'value', 'interest', 'difficulty',
     'time', 'time_mode', 'value_mode',
+    'reflect_value', 'reflect_interest', 'reflect_difficulty', 'actual_time',
     'now', 'dormant', 'resource_links',
 )
 

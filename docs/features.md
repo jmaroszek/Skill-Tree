@@ -503,7 +503,7 @@ All gestures below work on every tab with a network visualization (Nodes, Detail
 
 | Gesture | Effect |
 |---|---|
-| Hover | Tooltip with key stats; varies by node type. |
+| Hover | Tooltip with key stats; varies by node type. On a Done node you reflected on, an arrow leads from each estimate to what you recorded, such as "Effort: 5 → 8". |
 | Left-click | Select the node. A white halo appears around selected nodes. If the node editor is open, it loads with this node's data. |
 | Ctrl + left-click | Add the node to the selection, or take it out. Shift works too. On Details it doesn't move the view. Enables bulk move, delete, Done toggling and [bridges](#bridges). |
 | Drag | Reposition on the canvas. |
