@@ -357,6 +357,9 @@ def build_node_editor_content():
                 ),
                 dcc.Store(id='aliases-store', data=['']),
                 dcc.Store(id='editor-pristine-snapshot', data=None),
+                # The Nodes canvas taps the editor loads: held ones are left
+                # out (callbacks.py, relay_editor_tap).
+                dcc.Store(id='editor-tap-store', data=None),
                 # Relationship lists the open node's edges now call for, with
                 # the form they were worked out against (callbacks.py,
                 # follow_editor_relationships).

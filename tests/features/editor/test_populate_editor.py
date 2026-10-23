@@ -151,7 +151,7 @@ def test_populate_editor_loads_a_dormant_node_found_by_search(monkeypatch):
 
 def test_a_tap_on_a_node_deleted_meanwhile_leaves_the_form(monkeypatch):
     """The canvas can still show a node the database no longer has."""
-    result = _call_with_trigger(monkeypatch, "cytoscape-graph",
+    result = _call_with_trigger(monkeypatch, "editor-tap-store",
                                 tapped_node={"id": "Gone", "label": "Gone"})
     assert result["name"] is dash.no_update
 

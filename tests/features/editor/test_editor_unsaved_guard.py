@@ -63,7 +63,7 @@ def _asked(out, target):
 @pytest.mark.parametrize("trigger, values", [
     ("edit-trigger-input", {"edit_trigger_val": "B|1"}),
     ("details-edit-trigger-input", {"details_edit_trigger_val": "B|1"}),
-    ("cytoscape-graph", {"tapped_node": {"id": "B"}}),
+    ("editor-tap-store", {"tapped_node": {"id": "B"}}),
 ])
 def test_loading_another_node_asks_first(populate, trigger, values):
     assert _asked(populate(trigger, **values), "B")
@@ -92,7 +92,7 @@ def test_clearing_the_picker_asks_before_it_blanks_the_form(populate):
 @pytest.mark.parametrize("trigger, values", [
     ("edit-trigger-input", {"edit_trigger_val": "A|1"}),
     ("details-edit-trigger-input", {"details_edit_trigger_val": "A|1"}),
-    ("cytoscape-graph", {"tapped_node": {"id": "A"}}),
+    ("editor-tap-store", {"tapped_node": {"id": "A"}}),
     ("search-node", {"search_val": "A"}),
 ])
 def test_the_node_already_open_keeps_its_edits(populate, trigger, values):

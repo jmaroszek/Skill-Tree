@@ -291,11 +291,29 @@ def register_editor_callbacks(app, services):
         prevent_initial_call=True,
     )
 
+    # --- A Nodes canvas tap, for the editor ---
+    # A click with Ctrl, Cmd or Shift held picks nodes (context_menu.js).
+    # Loading the node named it in the node picker, and the core engine
+    # took that as a search and selected it alone, dropping the others.
+    # The stamp makes a second tap on the same node a fresh value.
+    app.clientside_callback(
+        """function(tapData) {
+            if (!tapData || tapData.id == null
+                    || (window.SkillTree && window.SkillTree.additiveTap)) {
+                return window.dash_clientside.no_update;
+            }
+            return Object.assign({}, tapData, {stamp: Date.now()});
+        }""",
+        Output('editor-tap-store', 'data'),
+        Input('cytoscape-graph', 'tapNodeData'),
+        prevent_initial_call=True,
+    )
+
     # --- Editor Form Population ---
     @app.callback(
         output=EDITOR_FILL,
         inputs=dict(
-            tapped_node=Input('cytoscape-graph', 'tapNodeData'),
+            tapped_node=Input('editor-tap-store', 'data'),
             add_clicks=Input('btn-add', 'n_clicks'),
             discard_clicks=Input('btn-unsaved-discard', 'n_clicks'),
             save_result=Input('editor-save-result-store', 'data'),
@@ -491,7 +509,7 @@ def register_editor_callbacks(app, services):
                 asked = _ask_before_leaving(node.name, picker=original_name)
                 if asked is not None:
                     return asked
-        elif trigger_id == 'cytoscape-graph' and tapped_node and tapped_node.get('id'):
+        elif trigger_id == 'editor-tap-store' and tapped_node and tapped_node.get('id'):
             # Read the node from the database: the canvas's copy may be stale.
             node = manager.get_node(tapped_node['id'])
             if node is not None:
