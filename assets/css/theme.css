@@ -1531,7 +1531,12 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 
 .ctx-menu-submenu-parent {
     position: relative;
-    justify-content: space-between;
+}
+
+/* The label takes the free width, so it stays beside the icon like every other
+   row and the caret sits at the right edge. */
+.ctx-menu-submenu-parent > .ctx-menu-label {
+    flex: 1;
 }
 
 .ctx-menu-caret {
