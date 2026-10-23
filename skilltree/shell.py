@@ -196,7 +196,7 @@ def build_app_layout(graph, env="production"):
         menu_item("Edit", "ctx-menu-edit", icon="pencil"),
         menu_divider(),
         menu_item("View Details", "ctx-menu-details", icon="diagram-3"),
-        menu_item("Explain Priority", "ctx-menu-explain", icon="lightbulb"),
+        menu_item("Explain Priority", "ctx-menu-explain", icon="bar-chart"),
         menu_divider("ctx-menu-links-divider"),
         # One slot per possible Resource section; context_menu.js names each
         # after its section and shows only those the node has a link in.
