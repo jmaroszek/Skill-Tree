@@ -518,3 +518,22 @@ def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monke
                       pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
     assert "already woke from 'Later'" in result.message
     assert manager.get_node('A').description != 'notes'
+
+
+@pytest.mark.parametrize('node_type, hidden', [('Milestone', True), ('Action', False)])
+def test_completion_opens_the_reflection_with_its_sections_set(handlers, monkeypatch,
+                                                              node_type, hidden):
+    """The response that opens the modal also shows or hides its ratings and
+    time sections. Setting them a round trip later flashed the full form
+    before a Milestone's notes-only one."""
+    manager = graph()
+    manager.add_node(make_node('A', type=node_type, time_mode=(
+        'inherited' if node_type == 'Milestone' else 'manual')))
+    settings.TIME_CALIBRATION_ENABLED.set(True)
+    result = run_core(handlers, monkeypatch, 'toggle-done-trigger-input',
+                      toggle_done_trigger_data='["A"]|1')
+    assert result.calibration_open is True
+    none = {'display': 'none'}
+    assert (result.calibration_ratings_style == none) is hidden
+    assert (result.calibration_time_style == none) is hidden
+    assert result.calibration_notes_placeholder is not dash.no_update

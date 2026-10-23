@@ -436,17 +436,25 @@ class TestMilestoneReflection:
         assert not reflects_in_notes_only(make_node("A", type="Action"))
         assert not reflects_in_notes_only(None)
 
-    def test_modal_hides_ratings_and_time_for_a_milestone(self, mgr, calibration_handlers):
-        mgr.add_node(make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
-        mgr.add_node(make_node("A", type="Action", status=STATUS_DONE))
-        show = calibration_handlers['show_estimated_ratings']
+    def test_modal_hides_ratings_and_time_for_a_milestone(self, mgr):
+        from skilltree.features.review.values import calibration_sections
         hidden = {"display": "none"}
-        ratings, time_section, placeholder = show({'mode': 'single', 'node': 'M'})
+        ratings, time_section, placeholder = calibration_sections(
+            make_node("M", type="Milestone", time_mode='inherited'))
         assert (ratings, time_section) == (hidden, hidden)
         assert "project" not in placeholder
-        ratings, time_section, placeholder = show({'mode': 'single', 'node': 'A'})
+        ratings, time_section, placeholder = calibration_sections(make_node("A", type="Action"))
         assert ratings != hidden and time_section == {}
         assert "project" in placeholder
+
+    def test_review_advance_sets_the_next_nodes_sections(self, mgr, calibration_handlers):
+        mgr.add_node(make_node("A", type="Action", status=STATUS_DONE))
+        mgr.add_node(make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
+        fire('btn-time-calibration-skip')
+        result = calibration_handlers['handle_time_calibration'](
+            0, 1, 0, None, None, None, 'hours', 5, 5, 5, '',
+            {'mode': 'review', 'queue': ['A', 'M'], 'index': 0})
+        assert result[-3:-1] == ({"display": "none"}, {"display": "none"})
 
     def test_submit_saves_only_the_notes(self, mgr, calibration_handlers, monkeypatch):
         mgr.add_node(make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))

@@ -4,6 +4,7 @@ Callback definitions for the Skill Tree Dash application.
 
 from skilltree.features.review.values import (
     calibration_modal_text,
+    calibration_sections,
     calibration_unit_for,
 )
 
@@ -352,6 +353,7 @@ def register_engine_callbacks(app, services):
         tc_pending = None
         tc_unit = no_update  # only set the dropdown when the modal opens
         tc_title = no_update
+        tc_sections = (no_update,) * 3
         if outcome.completed and settings.TIME_CALIBRATION_ENABLED.get():
             _tc_node = manager.get_node(outcome.completed)
             if _tc_node is not None and _tc_node.status == STATUS_DONE and not _tc_node.dormant:
@@ -359,6 +361,7 @@ def register_engine_callbacks(app, services):
                 tc_title, tc_reference = calibration_modal_text(_tc_node)
                 tc_pending = {'mode': 'single', 'node': outcome.completed}
                 tc_unit = calibration_unit_for(_tc_node.time)
+                tc_sections = calibration_sections(_tc_node)
 
         if (isinstance(view.elements, list)
                 and not canvas_wanted(active_tab, canvas_stamp)):
@@ -416,6 +419,9 @@ def register_engine_callbacks(app, services):
             calibration_pending=tc_pending,
             calibration_unit=tc_unit,
             calibration_title=tc_title,
+            calibration_ratings_style=tc_sections[0],
+            calibration_time_style=tc_sections[1],
+            calibration_notes_placeholder=tc_sections[2],
             save_result=save_result,
             editor_done=editor_done,
             editor_snapshot=editor_snapshot,

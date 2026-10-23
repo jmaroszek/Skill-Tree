@@ -20,6 +20,29 @@ def reflects_in_notes_only(node):
     return node is not None and node.type == 'Milestone'
 
 
+def calibration_sections(node):
+    """Returns (ratings style, time style, notes placeholder) for `node`.
+
+    The ratings style carries the node's estimates as --est-value/-interest/
+    -difficulty, and theme.css draws each slider's "estimated" tick from them;
+    a rating the node doesn't carry (an inherited container) gets no tick. A
+    Milestone reflects in notes alone, so both sections hide for it and the
+    notes ask about the result rather than a project. Every callback that
+    opens the modal on a node sends these with it, so the form never shows
+    the wrong sections first.
+    """
+    if node is None:
+        return {}, {}, PROJECT_NOTES_PLACEHOLDER
+    if reflects_in_notes_only(node):
+        return ({"display": "none"}, {"display": "none"},
+                "What got you there? Anything worth remembering?")
+    return {f'--est-{name}': str(rating)
+            for name, rating in (('value', node.value),
+                                 ('interest', node.interest),
+                                 ('difficulty', node.difficulty))
+            if rating}, {}, PROJECT_NOTES_PLACEHOLDER
+
+
 def calibration_modal_text(node):
     """Returns (title, prompt) for the time-calibration modal: the node name
     goes in the modal title, the prompt recalls its original estimate so the

@@ -32,6 +32,11 @@ class CoreResponse(NamedTuple):
     calibration_pending: object = no_update
     calibration_unit: object = no_update
     calibration_title: object = no_update
+    # The modal's ratings and time sections and its notes prompt, sent with
+    # the modal so a Milestone never shows the full form first.
+    calibration_ratings_style: object = no_update
+    calibration_time_style: object = no_update
+    calibration_notes_placeholder: object = no_update
     # {"name", "via", "ts"} after a save commits, and only then. Callbacks
     # that act on a finished save listen here instead of to the Save buttons,
     # which fire whether or not the save goes through.
@@ -74,6 +79,9 @@ CORE_OUTPUTS = dict(
     calibration_pending=Output('time-calibration-pending-store', 'data'),
     calibration_unit=Output('time-calibration-unit', 'value', allow_duplicate=True),
     calibration_title=Output('time-calibration-title', 'children', allow_duplicate=True),
+    calibration_ratings_style=Output('calibration-vie-section', 'style', allow_duplicate=True),
+    calibration_time_style=Output('calibration-time-section', 'style', allow_duplicate=True),
+    calibration_notes_placeholder=Output('calibration-notes', 'placeholder', allow_duplicate=True),
     save_result=Output('editor-save-result-store', 'data'),
     editor_done=Output('node-status-done', 'value', allow_duplicate=True),
     editor_snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),

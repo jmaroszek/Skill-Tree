@@ -12,8 +12,7 @@ from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.domain.time import actual_bracket_hours
 from skilltree.store import settings
 from skilltree.features.review.values import (
-    PROJECT_NOTES_PLACEHOLDER, calibration_modal_text,
-    calibration_prepop,
+    calibration_modal_text, calibration_prepop, calibration_sections,
     calibration_review_queue,
     calibration_unit_for, reflects_in_notes_only,
 )
@@ -57,6 +56,9 @@ def register_calibration_callbacks(app, services):
         Output('time-calibration-title', 'children', allow_duplicate=True),
         Output('modal-review-hub', 'is_open', allow_duplicate=True),
         Output('review-hub-tabs', 'active_tab', allow_duplicate=True),
+        Output('calibration-vie-section', 'style', allow_duplicate=True),
+        Output('calibration-time-section', 'style', allow_duplicate=True),
+        Output('calibration-notes', 'placeholder', allow_duplicate=True),
         Input('btn-time-calibration-submit', 'n_clicks'),
         Input('btn-time-calibration-skip', 'n_clicks'),
         Input('btn-time-calibration-dismiss', 'n_clicks'),
@@ -75,6 +77,7 @@ def register_calibration_callbacks(app, services):
                                 unit, val, interest, diff, notes, pending):
         # cleared inputs for the next node: 4 time slots + 3 V/I/E sliders + notes
         reset = (None, None, None, 'hours', 5, 5, 5, '')
+        keep = (no_update,) * 3  # the section styles, set only on a new node
         trig = get_trigger_id()
         pending = pending if isinstance(pending, dict) else {}
         mode = pending.get('mode')
@@ -90,7 +93,7 @@ def register_calibration_callbacks(app, services):
             # Stale / no pending node — just close.
             return (False, None, no_update, *reset,
                     no_update, no_update, no_update, no_update, no_update,
-                    no_update, no_update)
+                    no_update, no_update, *keep)
 
         node = manager.get_node(node_name) if node_name else None
 
@@ -125,7 +128,7 @@ def register_calibration_callbacks(app, services):
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
-                    no_update, no_update)
+                    no_update, no_update, *keep)
 
         if mode == 'edit':
             # Submit or Cancel both close the modal and bounce the user back
@@ -136,7 +139,7 @@ def register_calibration_callbacks(app, services):
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
-                    True, 'tab-review-history')
+                    True, 'tab-review-history', *keep)
 
         # Review mode — advance to the next node, or finish.
         n = len(queue)
@@ -154,7 +157,7 @@ def register_calibration_callbacks(app, services):
             return (True, new_store, no_update,
                     None, None, None, next_unit, 5, 5, 5, '',
                     ref, pct, f"{human} / {n}", no_update, next_title,
-                    no_update, no_update)
+                    no_update, no_update, *calibration_sections(nxt))
         # Last node done — switch to the completion screen (stays open).
         complete_msg = html.Div([
             html.I(className="bi bi-check-circle text-success",
@@ -167,7 +170,7 @@ def register_calibration_callbacks(app, services):
         return (True, {'mode': 'complete'},
                 f"Reflection complete — {n} node(s).",
                 *reset, no_update, 100, f"{n} / {n}", complete_msg,
-                "Reflection complete", no_update, no_update)
+                "Reflection complete", no_update, no_update, *keep)
 
     # --- Calibration Review: launch the cycle ---
     # Fired by the "Start review" button inside the Review Hub modal.
@@ -187,6 +190,9 @@ def register_calibration_callbacks(app, services):
         Output('time-calibration-unit', 'value', allow_duplicate=True),
         Output('time-calibration-title', 'children', allow_duplicate=True),
         Output('modal-review-hub', 'is_open', allow_duplicate=True),
+        Output('calibration-vie-section', 'style', allow_duplicate=True),
+        Output('calibration-time-section', 'style', allow_duplicate=True),
+        Output('calibration-notes', 'placeholder', allow_duplicate=True),
         Input('btn-hub-pending-launch', 'n_clicks'),
         prevent_initial_call=True,
     )
@@ -197,14 +203,15 @@ def register_calibration_callbacks(app, services):
             # their place in the hub.
             return (no_update, no_update, no_update, no_update, no_update,
                     True, "All completed nodes are already reflected on or excluded.",
-                    no_update, no_update, no_update)
+                    no_update, no_update, no_update, no_update, no_update,
+                    no_update)
         first = manager.get_node(queue[0])
         title, ref = calibration_modal_text(first) if first else ("", "")
         store = {'mode': 'review', 'queue': queue, 'index': 0}
         n = len(queue)
         unit = calibration_unit_for(first.time) if first else 'hours'
         return (True, store, ref, round(1 / n * 100), f"1 / {n}", False,
-                no_update, unit, title, False)
+                no_update, unit, title, False, *calibration_sections(first))
 
     # --- Calibration Review: close the completion screen ---
     @app.callback(
@@ -302,43 +309,6 @@ def register_calibration_callbacks(app, services):
         if not node:
             return (no_update,) * 8
         return calibration_prepop(node)
-
-    # --- Estimated-rating ticks: tell theme.css where each slider's tick goes ---
-    # The ratings the node was given before the work. Each is written as a CSS
-    # variable on the sliders' section; a rating the node doesn't carry (an
-    # inherited container) leaves its variable off, and its slider shows no tick.
-    # A Milestone reflects in notes alone, so both sections hide for it and
-    # the notes ask about the result rather than a project.
-    @app.callback(
-        Output('calibration-vie-section', 'style'),
-        Output('calibration-time-section', 'style'),
-        Output('calibration-notes', 'placeholder'),
-        Input('time-calibration-pending-store', 'data'),
-        prevent_initial_call=True,
-    )
-    def show_estimated_ratings(pending):
-        if not isinstance(pending, dict):
-            return no_update, no_update, no_update
-        mode = pending.get('mode')
-        if mode in ('single', 'edit'):
-            node_name = pending.get('node')
-        elif mode == 'review':
-            queue = pending.get('queue', [])
-            idx = pending.get('index', 0)
-            node_name = queue[idx] if 0 <= idx < len(queue) else None
-        else:
-            return no_update, no_update, no_update
-        node = manager.get_node(node_name) if node_name else None
-        if node is None:
-            return {}, {}, PROJECT_NOTES_PLACEHOLDER
-        if reflects_in_notes_only(node):
-            return ({"display": "none"}, {"display": "none"},
-                    "What got you there? Anything worth remembering?")
-        return {f'--est-{name}': str(rating)
-                for name, rating in (('value', node.value),
-                                     ('interest', node.interest),
-                                     ('difficulty', node.difficulty))
-                if rating}, {}, PROJECT_NOTES_PLACEHOLDER
 
     # --- Calibration review button: hidden when the feature is off ---
     # Evaluated as the layout is built and on every tab switch — a tab switch

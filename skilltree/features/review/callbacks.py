@@ -24,7 +24,10 @@ from skilltree.features.review.layout import (
     history_sort_key_class,
 )
 from skilltree.ui.components.duration import format_time_friendly
-from skilltree.features.review.values import calibration_modal_text, calibration_prepop, calibration_review_queue
+from skilltree.features.review.values import (
+    calibration_modal_text, calibration_prepop, calibration_review_queue,
+    calibration_sections,
+)
 from skilltree.features.review.ratings import register_reflection_ratings_callbacks
 from skilltree.features.review.calibration import register_calibration_callbacks
 
@@ -569,17 +572,20 @@ def register_review_callbacks(app, services):
         Output('calibration-interest', 'value', allow_duplicate=True),
         Output('calibration-difficulty', 'value', allow_duplicate=True),
         Output('calibration-notes', 'value', allow_duplicate=True),
+        Output('calibration-vie-section', 'style', allow_duplicate=True),
+        Output('calibration-time-section', 'style', allow_duplicate=True),
+        Output('calibration-notes', 'placeholder', allow_duplicate=True),
         Input({'type': 'hub-history-edit', 'index': ALL}, 'n_clicks'),
         prevent_initial_call=True,
     )
     def open_calibration_from_history(clicks):
         trig = ctx.triggered_id
         if not trig or not any(c for c in clicks if c):
-            return (no_update,) * 13
+            return (no_update,) * 16
         node_name = trig.get('index') if isinstance(trig, dict) else None
         node = _manager.get_node(node_name) if node_name else None
         if not node:
-            return (no_update,) * 13
+            return (no_update,) * 16
 
         # The modal copy and the saved answers come from the same helpers
         # as the queue and single flows. Times show in the unit that suits
@@ -592,6 +598,7 @@ def register_review_callbacks(app, services):
         store = {'mode': 'edit', 'node': node_name}
         return (False, True, store, title, reference,
                 time_lower, time_point, time_upper, unit,
-                int(val), int(interest), int(diff), notes)
+                int(val), int(interest), int(diff), notes,
+                *calibration_sections(node))
     register_reflection_ratings_callbacks(app, services)
     register_calibration_callbacks(app, services)
