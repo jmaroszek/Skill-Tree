@@ -216,8 +216,8 @@ def build_app_layout(graph, env="production"):
         # Shown, with its divider, only when the menu acts on two nodes. The
         # node picked first leads to the other.
         menu_divider("ctx-menu-pair-divider"),
-        menu_item("Add Soft Link", "ctx-menu-link-soft", icon="arrow-right-circle"),
-        menu_item("Add Hard Link", "ctx-menu-link-hard", icon="arrow-right-circle-fill"),
+        menu_item("Add Soft Link", "ctx-menu-link-soft", icon="arrow-right-short"),
+        menu_item("Add Hard Link", "ctx-menu-link-hard", icon="arrow-right"),
         menu_item("Create Bridge…", "ctx-menu-bridge", icon="share"),
         menu_divider("ctx-menu-links-divider"),
         # One slot per possible Resource section; context_menu.js names each
