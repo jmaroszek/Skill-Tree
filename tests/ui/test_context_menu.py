@@ -95,21 +95,21 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-edit",
         "ctx-menu-details",
         "ctx-menu-explain",
-        "ctx-menu-priority-divider",
-        "ctx-menu-priority",
-        "ctx-menu-toggle-now",
-        "ctx-menu-add-to-event",
-        "ctx-menu-toggle-done",
-        "ctx-menu-pair-divider",
-        "ctx-menu-link-soft",
-        "ctx-menu-link-hard",
-        "ctx-menu-bridge",
         "ctx-menu-links-divider",
         "ctx-menu-resource-0",
         "ctx-menu-resource-1",
         "ctx-menu-resource-2",
         "ctx-menu-resource-3",
         "ctx-menu-resource-4",
+        "ctx-menu-priority-divider",
+        "ctx-menu-priority",
+        "ctx-menu-toggle-now",
+        "ctx-menu-toggle-done",
+        "ctx-menu-add-to-event",
+        "ctx-menu-pair-divider",
+        "ctx-menu-link-soft",
+        "ctx-menu-link-hard",
+        "ctx-menu-bridge",
         "ctx-menu-delete",
     ]
     assert _labels(find(menu, "ctx-menu-details")) == ["View Details"]
@@ -117,7 +117,7 @@ def test_shared_menu_groups_actions_by_intent():
     assert _labels(find(menu, "ctx-menu-delete")) == ["Delete…"]
     assert _labels(find(menu, "ctx-menu-link-soft")) == ["Add Soft Link"]
     assert _labels(find(menu, "ctx-menu-link-hard")) == ["Add Hard Link"]
-    assert "bi-file-text" in find(menu, "ctx-menu-details").children[0].className
+    assert "bi-diagram-3" in find(menu, "ctx-menu-details").children[0].className
     assert "bi-calendar-event" in find(menu, "ctx-menu-add-to-event").children[0].className
     assert "bi-trash3" in find(menu, "ctx-menu-delete").children[0].className
     assert "ctx-menu-item-danger" in find(menu, "ctx-menu-delete").className

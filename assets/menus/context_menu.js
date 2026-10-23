@@ -25,20 +25,6 @@
 
         // Menu items are clicked through menus.onItem; these are the ones
         // whose label or visibility depends on the node.
-        // The icon says where the first link will open: a globe for the
-        // browser and a plain arrow for a file. This mirrors
-        // resource_links.resolve_target closely enough for an icon; the
-        // server still decides on click.
-        function _resourceIcon(link) {
-            link = (link || '').trim();
-            if (/^(https?:\/\/|www\.)/i.test(link)) return 'globe';
-            var isPath = /^[a-z]:[\\/]|^[\\/]/i.test(link) || link.indexOf('\\') >= 0;
-            if (!isPath && /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/.*)?$/i.test(link) &&
-                    !/\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|png|jpe?g|gif|zip)$/i.test(link)) {
-                return 'globe';
-            }
-            return 'box-arrow-up-right';
-        }
 
         // One slot per possible Resource section (layout.py), in order.
         var resourceItems = Array.from(
@@ -195,13 +181,10 @@
                 var label = section.querySelector('label');
                 item.querySelector('.ctx-menu-label').textContent =
                     'Open ' + (label ? label.textContent : 'Resource');
-                item.querySelector('.ctx-menu-icon').className = 'bi bi-' +
-                    _resourceIcon(resourceLinks[id][0]) +
-                    ' ctx-menu-icon';
             });
 
-            // Collapse the upper divider when neither link is present, so the
-            // remaining (lower) Hr doesn't sit doubled-up against this one.
+            // Collapse the section's divider when no link is present, so it
+            // doesn't sit doubled-up against the divider after it.
             if (linksDivider) {
                 linksDivider.style.display = hasResources ? '' : 'none';
             }

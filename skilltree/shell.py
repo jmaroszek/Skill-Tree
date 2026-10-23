@@ -184,17 +184,24 @@ def build_app_layout(graph, env="production"):
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
 
     # --- Node context menu: every canvas, Next rows, Now cards, goal cards ---
-    # Grouped by intent: Edit; inspection; Set Priority; workflow state;
-    # joining two nodes; external links; Delete on its own. context_menu.js
-    # relabels the toggles for the node and hides the sections that don't
-    # apply: links that aren't set, Set Priority for anything but a single
-    # Goal, and the joining section for anything but two nodes. So a Goal's menu is
-    # every other node's menu plus one section.
+    # Grouped by intent: Edit; inspection; external links; Set Priority;
+    # workflow state; joining two nodes; Delete on its own. Everything down
+    # to Set Priority acts on the node right-clicked, and everything after it
+    # on the whole selection. context_menu.js relabels the toggles for the
+    # node and hides the sections that don't apply: links that aren't set,
+    # Set Priority for anything but a single Goal, and the joining section
+    # for anything but two nodes. So a Goal's menu is every other node's
+    # menu plus one section.
     context_menu = floating_menu("node-context-menu", [
         menu_item("Edit", "ctx-menu-edit", icon="pencil"),
         menu_divider(),
-        menu_item("View Details", "ctx-menu-details", icon="file-text"),
+        menu_item("View Details", "ctx-menu-details", icon="diagram-3"),
         menu_item("Explain Priority", "ctx-menu-explain", icon="lightbulb"),
+        menu_divider("ctx-menu-links-divider"),
+        # One slot per possible Resource section; context_menu.js names each
+        # after its section and shows only those the node has a link in.
+        *[menu_item("Open Resource", f"ctx-menu-resource-{i}", icon="box-arrow-up-right")
+          for i in range(MAX_SECTIONS)],
         menu_divider("ctx-menu-priority-divider"),
         html.Div(
             [
@@ -211,19 +218,14 @@ def build_app_layout(graph, env="production"):
         ),
         menu_divider(),
         menu_item("Add to Now", "ctx-menu-toggle-now", icon="play-circle"),
-        menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
         menu_item("Mark Done", "ctx-menu-toggle-done", icon="check-circle"),
+        menu_item("Add to Event…", "ctx-menu-add-to-event", icon="calendar-event"),
         # Shown, with its divider, only when the menu acts on two nodes. The
         # node picked first leads to the other.
         menu_divider("ctx-menu-pair-divider"),
         menu_item("Add Soft Link", "ctx-menu-link-soft", icon="arrow-right-short"),
         menu_item("Add Hard Link", "ctx-menu-link-hard", icon="arrow-right"),
         menu_item("Create Bridge…", "ctx-menu-bridge", icon="share"),
-        menu_divider("ctx-menu-links-divider"),
-        # One slot per possible Resource section; context_menu.js names each
-        # after its section and shows only those the node has a link in.
-        *[menu_item("Open Resource", f"ctx-menu-resource-{i}", icon="box-arrow-up-right")
-          for i in range(MAX_SECTIONS)],
         menu_divider(),
         menu_item("Delete…", "ctx-menu-delete", danger=True, icon="trash3"),
     ])

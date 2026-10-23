@@ -357,13 +357,13 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Edit | Opens the node editor. |
 | View Details | Jumps to the Details tab pre-loaded with this node. |
 | Explain Priority | Opens the priority-score breakdown. |
+| Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Set Priority | Goals only. Makes the goal Priority 1, 2 or 3, or clears its priority. |
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. Done and dormant nodes can't join it, so the item is hidden for them. |
-| Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. A dormant node has to wake first, so the item is hidden for it. |
+| Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Add Soft Link / Add Hard Link | Only with exactly two nodes selected. Links them at once, with the node you picked first leading to the other. See [linking two nodes](#linking-two-nodes). |
 | Create Bridge… | Only with exactly two nodes selected. Opens the [bridge](#bridges) dialog. |
-| Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Delete… | Deletes the node (with confirmation). |
 
 </td>

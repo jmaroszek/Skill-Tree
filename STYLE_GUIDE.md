@@ -942,9 +942,9 @@ starts with, and any of them can be renamed or removed.
 - **Editor rows.** The node editor renders every section the same way, with
   the `add_button` `+` beside its name and browse / open / remove icons in each
   row. The node context menu has one slot per section and shows the first
-  saved link of each, under the section's current name. Its icon says where
-  that link opens: `globe` for a web page, `journal-text` for Obsidian, and
-  `box-arrow-up-right` for the default app.
+  saved link of each, under the section's current name. Every slot uses
+  `box-arrow-up-right`: the name already says where the link goes, and the
+  icon says only that it leaves the app.
 
 ### Row editor (Settings ▸ Contexts)
 
