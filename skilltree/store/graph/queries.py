@@ -1,4 +1,5 @@
 """Graph traversal and view queries, called through GraphManager."""
+import re
 from typing import TYPE_CHECKING, List, Dict, Optional, Set, Tuple
 from skilltree.store import database
 from skilltree.store import settings
@@ -454,9 +455,9 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
     if 'hide_blocked' in filters and filters['hide_blocked']:
         result = [n for n in result if n.status != STATUS_BLOCKED]
 
-    terms = (filters.get('search') or '').lower().split()
-    if terms:
-        result = _matching_terms(manager, result, terms,
+    query = _search_query(filters.get('search') or '')
+    if query:
+        result = _matching_terms(manager, result, query,
                                  bool(filters.get('search_descriptions')))
 
     return result
@@ -483,9 +484,48 @@ def hidden_by_status(manager, nodes: List[Node], filters: Dict) -> Dict[str, int
     }
 
 
-def _matching_terms(manager, nodes: List[Node], terms: List[str],
+# A term, with an optional leading minus: a quoted phrase or a bare word.
+_SEARCH_TOKEN = re.compile(r'(-?)(?:"([^"]*)"|(\S+))')
+
+
+def _search_query(query: str) -> List[List[Tuple["re.Pattern", bool]]]:
+    """A Search query as its alternatives: each a list of (pattern, excluded).
+
+    A node matches when it satisfies every term of any one alternative. OR,
+    in any case, separates the alternatives, so "skin care or hygiene" means
+    (skin and care) or hygiene. "or" is no use as a term, and a forgotten
+    capital would otherwise ask for all three words and find nothing. A term with a leading minus excludes: the
+    node must not match it.
+
+    A bare term must begin a word, so "skin" finds "skincare" but not
+    "asking": anywhere in a word, short terms turn up inside unrelated prose.
+    A quoted term must be whole words, and a quoted phrase those words in
+    order, whatever spacing or punctuation sits between them: "skin care"
+    finds "skin-care". A quote left open is only a stray character.
+    """
+    groups: List[List[Tuple["re.Pattern", bool]]] = [[]]
+    for minus, quoted, bare in (m.groups() for m in _SEARCH_TOKEN.finditer(query)):
+        if bare is not None and bare.lower() == 'or' and not minus:
+            groups.append([])
+            continue
+        if quoted is not None:
+            words = quoted.lower().split()
+            if not words:
+                continue
+            pattern = r'(?<!\w)' + r'\W+'.join(map(re.escape, words)) + r'(?!\w)'
+        else:
+            term = bare.replace('"', '').lower()
+            if not term.strip('-'):
+                continue
+            pattern = r'(?<!\w)' + re.escape(term)
+        groups[-1].append((re.compile(pattern), bool(minus)))
+    return [group for group in groups if group]
+
+
+def _matching_terms(manager, nodes: List[Node],
+                    query: List[List[Tuple["re.Pattern", bool]]],
                     with_descriptions: bool) -> List[Node]:
-    """Nodes whose text holds every term, case-insensitively.
+    """Nodes whose text satisfies `query`, as `_search_query` builds it.
 
     The text is the name and the aliases (a node is known by both), plus the
     description when `with_descriptions` is set.
@@ -500,7 +540,12 @@ def _matching_terms(manager, nodes: List[Node], terms: List[str],
             parts.append(node.description or '')
         return '\n'.join(parts).lower()
 
-    return [n for n in nodes if all(term in text(n) for term in terms)]
+    def matches(node: Node) -> bool:
+        t = text(node)
+        return any(all(bool(p.search(t)) != excluded for p, excluded in group)
+                   for group in query)
+
+    return [n for n in nodes if matches(n)]
 
 
 def build_nx_graph(manager, allowed_names: Optional[Set[str]] = None,

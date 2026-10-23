@@ -1,7 +1,8 @@
 /**
  * Suggestions under the filters sidebar's Search field.
  *
- * As you type, the node names that hold every word you typed open in a panel
+ * As you type, the node names that hold every word you typed, each at the start
+ * of a word, open in a panel
  * under the field, like the node editor's Search list. Unlike that list, the
  * field keeps free text: Enter filters by what you typed, and a suggestion only
  * fills the field with its name and applies it.
@@ -25,17 +26,33 @@
     function field() { return document.getElementById(FIELD_ID); }
 
     function terms(text) {
-        return String(text || '').toLowerCase().split(/\s+/).filter(Boolean);
+        return String(text || '').split(/\s+/).filter(Boolean);
+    }
+
+    // A query with quotes, OR or a minus is a search, not a name being typed,
+    // and choosing a name would throw the operators away.
+    function usesOperators(words) {
+        return words.some(function (word) {
+            return word.toLowerCase() === 'or' || word.indexOf('"') !== -1
+                || (word.charAt(0) === '-' && word.length > 1);
+        });
+    }
+
+    // Each word must begin a word of the name, as the filter itself requires.
+    function startsAWord(word) {
+        var escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return new RegExp('(?<![\\p{L}\\p{N}_])' + escaped, 'iu');
     }
 
     // Names holding every typed word. Ones that start with the first word come
     // first, since that is usually what is being typed.
     function matches(text) {
-        var words = terms(text);
-        if (!words.length) return [];
+        var raw = terms(text);
+        if (!raw.length || usesOperators(raw)) return [];
+        var words = raw.map(function (word) { return word.toLowerCase(); });
+        var patterns = words.map(startsAWord);
         var hits = names.filter(function (name) {
-            var lower = name.toLowerCase();
-            return words.every(function (word) { return lower.indexOf(word) !== -1; });
+            return patterns.every(function (pattern) { return pattern.test(name); });
         });
         var head = words[0];
         hits.sort(function (a, b) {

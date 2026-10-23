@@ -133,6 +133,99 @@ class TestFiltering:
             nodes, {"search": "skill tree", "search_descriptions": True})
         assert [n.name for n in by_text] == ["A", "Skill Tree UI"]
 
+    def test_search_terms_match_at_the_start_of_a_word(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Skincare"),
+                 make_node("Self-Skin Check"),
+                 make_node("Unit Economics", description="asking whether it works"),
+                 make_node("Attention", description="the costs of multitasking")]
+        result = mgr.filter_nodes(
+            nodes, {"search": "skin", "search_descriptions": True})
+        assert [n.name for n in result] == [
+            "Skin Health", "Skincare", "Self-Skin Check"]
+
+    def test_a_quoted_term_must_be_a_whole_word(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Skincare"),
+                 make_node("Behavioral Psychology", description="Skinner")]
+        result = mgr.filter_nodes(
+            nodes, {"search": '"skin"', "search_descriptions": True})
+        assert [n.name for n in result] == ["Skin Health"]
+
+    def test_a_quoted_phrase_needs_its_words_in_order(self, mgr):
+        nodes = [make_node("Skin Care"), make_node("Skin-care Routine"),
+                 make_node("Care for Skin"), make_node("Skin Health Care")]
+        result = mgr.filter_nodes(nodes, {"search": '"skin care"'})
+        assert [n.name for n in result] == ["Skin Care", "Skin-care Routine"]
+
+    def test_quoted_and_bare_terms_mix(self, mgr):
+        nodes = [make_node("Skin Routine"), make_node("Skincare Routine"),
+                 make_node("Skin Health")]
+        result = mgr.filter_nodes(nodes, {"search": '"skin" rout'})
+        assert [n.name for n in result] == ["Skin Routine"]
+
+    def test_an_unclosed_quote_is_ignored(self, mgr):
+        nodes = [make_node("Skincare"), make_node("Asking")]
+        result = mgr.filter_nodes(nodes, {"search": '"skin'})
+        assert [n.name for n in result] == ["Skincare"]
+
+    def test_empty_quotes_filter_nothing(self, mgr):
+        nodes = [make_node("A"), make_node("B")]
+        assert mgr.filter_nodes(nodes, {"search": '"  "'}) == nodes
+
+    def test_or_matches_either_side(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Hygiene"),
+                 make_node("Sleep")]
+        result = mgr.filter_nodes(nodes, {"search": "skin OR hygiene"})
+        assert [n.name for n in result] == ["Skin Health", "Hygiene"]
+
+    def test_terms_side_by_side_bind_tighter_than_or(self, mgr):
+        nodes = [make_node("Skin Care"), make_node("Skin Health"),
+                 make_node("Hygiene")]
+        result = mgr.filter_nodes(nodes, {"search": "skin care OR hygiene"})
+        assert [n.name for n in result] == ["Skin Care", "Hygiene"]
+
+    def test_or_works_in_any_case(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Hygiene"),
+                 make_node("Sleep")]
+        for query in ("skin or hygiene", "skin Or hygiene"):
+            result = mgr.filter_nodes(nodes, {"search": query})
+            assert [n.name for n in result] == ["Skin Health", "Hygiene"]
+
+    def test_a_quoted_or_is_text(self, mgr):
+        nodes = [make_node("Fight or Flight"), make_node("Fight Club")]
+        result = mgr.filter_nodes(nodes, {"search": '"fight or flight"'})
+        assert [n.name for n in result] == ["Fight or Flight"]
+
+    def test_a_stray_or_is_ignored(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Hygiene")]
+        assert mgr.filter_nodes(nodes, {"search": "OR skin OR"}) == nodes[:1]
+        assert mgr.filter_nodes(nodes, {"search": "OR"}) == nodes
+
+    def test_a_minus_excludes_a_term(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Skin Care Routine"),
+                 make_node("Hygiene")]
+        result = mgr.filter_nodes(nodes, {"search": "skin -routine"})
+        assert [n.name for n in result] == ["Skin Health"]
+
+    def test_a_minus_excludes_a_quoted_phrase(self, mgr):
+        nodes = [make_node("Skin Care"), make_node("Skin Health"),
+                 make_node("Care for Skin")]
+        result = mgr.filter_nodes(nodes, {"search": 'skin -"skin care"'})
+        assert [n.name for n in result] == ["Skin Health", "Care for Skin"]
+
+    def test_a_minus_on_its_own_excludes_everywhere(self, mgr):
+        nodes = [make_node("Skin Health"), make_node("Hygiene")]
+        result = mgr.filter_nodes(nodes, {"search": "-skin"})
+        assert [n.name for n in result] == ["Hygiene"]
+
+    def test_a_hyphen_inside_a_word_is_not_a_minus(self, mgr):
+        nodes = [make_node("Self-Control"), make_node("Control Theory")]
+        result = mgr.filter_nodes(nodes, {"search": "self-control"})
+        assert [n.name for n in result] == ["Self-Control"]
+
+    def test_a_bare_minus_filters_nothing(self, mgr):
+        nodes = [make_node("A"), make_node("B")]
+        assert mgr.filter_nodes(nodes, {"search": "- --"}) == nodes
+
     def test_search_matches_aliases(self, mgr):
         mgr.add_node(make_node("Cardio"))
         mgr.add_node(make_node("Strength"))

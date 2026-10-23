@@ -29,6 +29,16 @@ assert.deepEqual(suggest.matches('PSYCHOLOGY social'), ['Social Psychology']);
 assert.deepEqual(suggest.matches(''), []);
 assert.deepEqual(suggest.matches('   '), []);
 assert.deepEqual(suggest.matches('zzz'), []);
+// A word must begin a word of the name, as the filter requires.
+assert.deepEqual(suggest.matches('ology'), []);
+// A query with operators is a search: choosing a name would drop them.
+assert.deepEqual(suggest.matches('psych OR money'), []);
+assert.deepEqual(suggest.matches('psych -social'), []);
+assert.deepEqual(suggest.matches('"psychology"'), []);
+assert.deepEqual(suggest.matches('psych or money'), []);
+// A hyphen inside a word is only text.
+suggest.setNames(['Self-Control', 'Control Theory']);
+assert.deepEqual(suggest.matches('self-control'), ['Self-Control']);
 
 // The list is capped.
 suggest.setNames(Array.from({length: 20}, (_, i) => 'Node ' + i));
