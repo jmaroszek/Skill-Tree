@@ -100,7 +100,9 @@ def test_shared_menu_groups_actions_by_intent():
         "ctx-menu-toggle-now",
         "ctx-menu-add-to-event",
         "ctx-menu-toggle-done",
-        "ctx-menu-bridge-divider",
+        "ctx-menu-pair-divider",
+        "ctx-menu-link-soft",
+        "ctx-menu-link-hard",
         "ctx-menu-bridge",
         "ctx-menu-links-divider",
         "ctx-menu-resource-0",
@@ -113,6 +115,8 @@ def test_shared_menu_groups_actions_by_intent():
     assert _labels(find(menu, "ctx-menu-details")) == ["View Details"]
     assert _labels(find(menu, "ctx-menu-explain")) == ["Explain Priority"]
     assert _labels(find(menu, "ctx-menu-delete")) == ["Delete…"]
+    assert _labels(find(menu, "ctx-menu-link-soft")) == ["Add Soft Link"]
+    assert _labels(find(menu, "ctx-menu-link-hard")) == ["Add Hard Link"]
     assert "bi-file-text" in find(menu, "ctx-menu-details").children[0].className
     assert "bi-calendar-event" in find(menu, "ctx-menu-add-to-event").children[0].className
     assert "bi-trash3" in find(menu, "ctx-menu-delete").children[0].className

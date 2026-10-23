@@ -4,6 +4,10 @@ context_menu.js writes ``link-action-input`` with the action and the link as a
 JSON list (``[action, source, target, type]``). Insert Node Here is not an
 action here: it opens the bridge dialog (bridge_callbacks).
 
+The node menu's Add Soft Link and Add Hard Link write the same input, as
+``['pair', first, second, type]`` for two selected nodes. link_pair turns that
+into the change it makes, so it asks before reopening Done nodes the same way.
+
 A Done node stays Done only while all of its Hard prerequisites are, so a
 change can reopen Done nodes (making a link Hard, or reversing one). That
 change waits for the user to confirm it, as un-marking a Done node does.
@@ -15,7 +19,7 @@ from dash import Input, Output, State, no_update
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
-from skilltree.store.commands import change_link, link_change_reopens
+from skilltree.store.commands import change_link, link_change_reopens, link_pair
 
 
 def register_link_menu_callbacks(app, services):
@@ -46,8 +50,12 @@ def register_link_menu_callbacks(app, services):
         parts = bridge_payloads.names(request)
         if len(parts) != 4:
             return (no_update,) * 5
-        action, source, target, edge_type = parts
         try:
+            if parts[0] == 'pair':
+                parts = link_pair(graph_manager, *parts[1:])
+                if parts is None:
+                    return (no_update,) * 5
+            action, source, target, edge_type = parts
             reopened = link_change_reopens(graph_manager, source, target, edge_type, action)
         except ValueError as e:
             return no_update, f"Error: {e}", no_update, no_update, no_update

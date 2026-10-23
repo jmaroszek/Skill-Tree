@@ -50,8 +50,10 @@
         var toggleDoneItem = document.getElementById('ctx-menu-toggle-done');
         var addToEventItem = document.getElementById('ctx-menu-add-to-event');
         var deleteItem = document.getElementById('ctx-menu-delete');
-        var bridgeItem = document.getElementById('ctx-menu-bridge');
-        var bridgeDivider = document.getElementById('ctx-menu-bridge-divider');
+        var pairItems = ['ctx-menu-pair-divider', 'ctx-menu-link-soft',
+            'ctx-menu-link-hard', 'ctx-menu-bridge'].map(function (id) {
+            return document.getElementById(id);
+        });
         var edgeMenu = document.getElementById('edge-context-menu');
         // Keep the leading Bootstrap icons in place when a contextual action
         // changes its label (including multi-select forms).
@@ -161,11 +163,13 @@
             // A priority is one unfinished Goal's rank, so it has no bulk
             // form, and a Done Goal has none to set. The section goes with
             // its divider, leaving every other node's menu exactly as it is.
-            // A bridge goes between exactly two nodes, so it is offered only
-            // when the menu acts on two. A row or card is always one node.
-            var showBridge = !!_menuCy && targets.length === 2;
-            if (bridgeItem) bridgeItem.style.display = showBridge ? '' : 'none';
-            if (bridgeDivider) bridgeDivider.style.display = showBridge ? '' : 'none';
+            // A link or a bridge goes between exactly two nodes, so they are
+            // offered only when the menu acts on two. A row or card is always
+            // one node.
+            var showPair = !!_menuCy && targets.length === 2;
+            pairItems.forEach(function (el) {
+                if (el) el.style.display = showPair ? '' : 'none';
+            });
             var showPriority = targetCount === 1 && nodeData.type === 'Goal'
                 && nodeData.status !== 'Done';
             priorityItem.style.display = showPriority ? '' : 'none';
@@ -503,6 +507,18 @@
             if (ids.length !== 2) return;
             _setHiddenInput('bridge-open-input', JSON.stringify(ids));
         });
+
+        // --- Link two nodes ---
+        // The node picked first leads to the other, as a bridge's Start does.
+        // The server keeps a link already between them in its own order.
+        function sendPairLink(edgeType) {
+            if (!_menuCy) return;
+            var ids = _pickedInOrder(_menuCy);
+            if (ids.length !== 2) return;
+            _setHiddenInput('link-action-input', JSON.stringify(['pair'].concat(ids, [edgeType])));
+        }
+        menus.onItem('ctx-menu-link-soft', function () { sendPairLink('Needs_Soft'); });
+        menus.onItem('ctx-menu-link-hard', function () { sendPairLink('Needs_Hard'); });
 
         // --- Link menu ---
         // A link offers to take a node in the middle of it, to change its

@@ -7,7 +7,7 @@ from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.links import menu as link_menu_callbacks
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, Node
-from skilltree.store.commands import change_link, link_change_reopens
+from skilltree.store.commands import change_link, link_change_reopens, link_pair
 from skilltree.services import AppServices
 from support.callbacks import registered
 from support.triggers import fire
@@ -213,6 +213,69 @@ def test_a_change_that_reopens_done_nodes_waits_for_confirmation(done_chain, mon
     assert refresh.startswith("link-") and is_open is False and cleared is None
     assert ("P", "A", EDGE_NEEDS_HARD) in _edges(done_chain)
     assert [_status(done_chain, n) for n in "AB"] == ["Blocked", "Blocked"]
+
+
+# --- Linking two selected nodes ---------------------------------------------------
+# The node menu's Add Soft Link and Add Hard Link, with two nodes selected.
+
+def test_two_unlinked_nodes_are_linked_in_the_order_they_were_picked(manager):
+    for edge_type in (EDGE_NEEDS_SOFT, EDGE_NEEDS_HARD):
+        assert link_pair(manager, "B", "A", edge_type) == ["add", "B", "A", edge_type]
+
+    refresh, message, is_open, _body, pending = _apply_link_action()(
+        '["pair","B","A","Needs_Hard"]|1')
+
+    assert refresh.startswith("link-")
+    assert (message, is_open, pending) == (dash.no_update, dash.no_update, None)
+    assert _edges(manager) == {("B", "A", EDGE_NEEDS_HARD)}
+    assert _status(manager, "A") == "Blocked"
+
+
+def test_a_link_already_between_them_keeps_its_order_and_takes_the_new_strength(manager):
+    manager.add_edge("A", "B", EDGE_NEEDS_SOFT)
+
+    # Picked B first, but the pair already runs A to B.
+    assert link_pair(manager, "B", "A", EDGE_NEEDS_HARD) == [
+        "hard", "A", "B", EDGE_NEEDS_SOFT]
+    assert link_pair(manager, "B", "A", EDGE_NEEDS_SOFT) is None
+
+    _apply_link_action()('["pair","B","A","Needs_Hard"]|1')
+    assert _edges(manager) == {("A", "B", EDGE_NEEDS_HARD)}
+    assert _apply_link_action()('["pair","A","B","Needs_Hard"]|2') == (dash.no_update,) * 5
+
+
+def test_a_synergy_between_them_stays_beside_the_new_link(manager):
+    manager.add_edge("A", "B", EDGE_HELPS)
+
+    _apply_link_action()('["pair","A","B","Needs_Soft"]|1')
+
+    assert _edges(manager) == {("A", "B", EDGE_HELPS), ("A", "B", EDGE_NEEDS_SOFT)}
+
+
+def test_a_link_that_would_close_a_circle_says_which_way_works(manager):
+    manager.add_edge("A", "C", EDGE_NEEDS_SOFT)
+    manager.add_edge("C", "B", EDGE_NEEDS_HARD)
+
+    with pytest.raises(ValueError, match="pick 'A' first"):
+        link_pair(manager, "B", "A", EDGE_NEEDS_SOFT)
+    refresh, message, *_rest = _apply_link_action()('["pair","B","A","Needs_Soft"]|1')
+
+    assert refresh is dash.no_update
+    assert message.startswith("Error: ") and "circular dependency" in message
+    assert ("B", "A", EDGE_NEEDS_SOFT) not in _edges(manager)
+
+
+def test_a_hard_link_into_a_done_node_asks_first(done_chain):
+    done_chain.add_node(_node("Q"))
+
+    refresh, _message, is_open, body, pending = _apply_link_action()(
+        '["pair","Q","A","Needs_Hard"]|1')
+
+    # The pending change is the concrete one, so the confirmation makes it.
+    assert (refresh, is_open) == (dash.no_update, True)
+    assert "reopens 2 Done nodes" in str(body)
+    assert pending == ["add", "Q", "A", EDGE_NEEDS_HARD]
+    assert _status(done_chain, "A") == "Done"
 
 
 # --- Linking an existing node on Details ----------------------------------------

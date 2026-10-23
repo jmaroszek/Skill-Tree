@@ -165,31 +165,40 @@ def plan_bridge(manager, start, end, kind):
     if kind == 'synergy':
         return {'problem': None, 'replaces': None}
 
-    leads_to = {}
+    edges = manager.get_edges()
     direct = None
-    for edge in manager.get_edges():
-        if edge['type'] not in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
-            continue
-        leads_to.setdefault(edge['source'], []).append(edge['target'])
-        if edge['source'] == start and edge['target'] == end:
+    for edge in edges:
+        if (edge['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+                and edge['source'] == start and edge['target'] == end):
             direct = [start, end, edge['type']]
 
     # The bridge would put start before end. If end already leads to start,
     # by any route, that closes a circle.
-    seen, queue = set(), [end]
+    if _leads_to(edges, end, start):
+        return {'problem': (f"'{end}' already leads to '{start}', so this order "
+                            "would create a circular dependency: each would wait "
+                            "on the other, and neither could ever be completed. "
+                            "Swap Start and End."),
+                'replaces': None}
+    return {'problem': None, 'replaces': direct}
+
+
+def _leads_to(edges, start, end):
+    """Whether prerequisite links run from ``start`` to ``end``, by any route."""
+    leads_to = {}
+    for edge in edges:
+        if edge['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+            leads_to.setdefault(edge['source'], []).append(edge['target'])
+    seen, queue = set(), [start]
     while queue:
         current = queue.pop()
-        if current == start:
-            return {'problem': (f"'{end}' already leads to '{start}', so this order "
-                                "would create a circular dependency: each would wait "
-                                "on the other, and neither could ever be completed. "
-                                "Swap Start and End."),
-                    'replaces': None}
+        if current == end:
+            return True
         if current in seen:
             continue
         seen.add(current)
         queue.extend(leads_to.get(current, ()))
-    return {'problem': None, 'replaces': direct}
+    return False
 
 
 def bridge_form(start, end, kind):
@@ -297,6 +306,37 @@ def change_link(manager, source, target, edge_type, action):
     manager.add_edge(source, target, new_type)
     word = 'Hard' if new_type == EDGE_NEEDS_HARD else 'Soft'
     return f"Made the link from '{source}' to '{target}' {word}"
+
+
+def link_pair(manager, first, second, edge_type):
+    """The change_link change that links two picked nodes with ``edge_type``.
+
+    The node menu's Add Soft Link and Add Hard Link send the two selected
+    nodes in the order they were picked. ``first`` leads to ``second``, as a
+    bridge's Start leads to its End. A pair carries one prerequisite link, so
+    a link already between the two keeps its own order and takes the new
+    strength. Returns ``[action, source, target, type]``, or None when that
+    link is already there. Raises ValueError when the link would close a
+    circle.
+    """
+    if edge_type not in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT):
+        raise ValueError(f"Unknown link type '{edge_type}'.")
+    if first == second:
+        raise ValueError("A link needs two different nodes.")
+    edges = manager.get_edges()
+    for edge in edges:
+        if (edge['type'] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
+                and {edge['source'], edge['target']} == {first, second}):
+            if edge['type'] == edge_type:
+                return None
+            action = 'hard' if edge_type == EDGE_NEEDS_HARD else 'soft'
+            return [action, edge['source'], edge['target'], edge['type']]
+    if _leads_to(edges, second, first):
+        raise ValueError(
+            f"'{second}' already leads to '{first}', so this link would create a "
+            "circular dependency: each would wait on the other, and neither could "
+            f"ever be completed. To link them the other way, pick '{second}' first.")
+    return ['add', first, second, edge_type]
 
 
 class _DryRun(Exception):

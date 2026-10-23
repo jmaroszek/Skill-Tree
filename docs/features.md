@@ -361,6 +361,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. Done and dormant nodes can't join it, so the item is hidden for them. |
 | Add to Event… | Puts the node, or every selected node, to sleep under an event. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. A dormant node has to wake first, so the item is hidden for it. |
+| Add Soft Link / Add Hard Link | Only with exactly two nodes selected. Links them at once, with the node you picked first leading to the other. See [linking two nodes](#linking-two-nodes). |
 | Create Bridge… | Only with exactly two nodes selected. Opens the [bridge](#bridges) dialog. |
 | Open *resource* | Opens the node's first link of that kind, such as Open Google Drive. There is one item for each kind the node has a link in. |
 | Delete… | Deletes the node (with confirmation). |
@@ -368,6 +369,15 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 </td>
   </tr>
 </table>
+
+### Linking Two Nodes
+Select two nodes (Ctrl-click the second), right-click one of them and choose **Add Soft Link** or **Add Hard Link**. There is no dialog. The node you picked first leads to the other, so it becomes the prerequisite.
+
+A pair holds only one Hard or Soft link. If one already runs between the two, it keeps its direction and takes the strength you chose. A Synergy between them stays as it is.
+
+If the second node already leads to the first, the link would create a circular dependency, so it isn't made. Pick the nodes the other way round instead. A Hard link into a Done node reopens it, so the app asks first.
+
+To flip a link you made the wrong way, right-click it and choose **Reverse Direction**.
 
 ### Bridges
 A bridge puts a new node between two nodes you already have. It is the quick way to add a missing step.
