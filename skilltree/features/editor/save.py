@@ -18,7 +18,7 @@ from skilltree.features.editor.form import (
 )
 from skilltree.store import database
 from skilltree.store.commands import (
-    ReopensDoneNodes, apply_dormancy, done_names, finish_bridge, handle_save,
+    ReopensDoneNodes, add_to_now, apply_dormancy, done_names, finish_bridge, handle_save,
     prior_node_for_completion,
 )
 from skilltree.store import settings
@@ -40,11 +40,12 @@ class SavedForm(NamedTuple):
 
 
 def save_editor_form(graph, events, form, name, *, original_name, pristine_snapshot,
-                     bridge_pending, reopen_confirmed, via):
+                     bridge_pending, reopen_confirmed, via, now=False):
     """Save the editor's form as the node `name`, in one transaction.
 
     `name` is formatted and checked already. `via` is the Save button the
-    save came from. Raises ReopensDoneNodes when the save would reopen Done
+    save came from. `now` is the Now switch: on, the save adds the node to
+    Now if the switch couldn't, as when it was still Done. Raises ReopensDoneNodes when the save would reopen Done
     nodes the user hasn't agreed to reopen, and ValueError or TypeError when
     the form can't be saved. Either rolls the whole save back.
     """
@@ -209,6 +210,12 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
             else:
                 _saved.status = STATUS_OPEN
                 graph.update_node(_saved)
+
+        # The Now switch writes as it flips, but not on a node that is still
+        # Done: un-marking Done waits for Save. The save that reopens it, or
+        # creates it, adds it to Now. A full list doesn't refuse the save.
+        if now and not add_to_now(graph, name):
+            msg += ". Now is at its cap, so it wasn't added to Now"
 
         # A new Hard prerequisite that isn't Done reopens the
         # Done node it leads to, and the Done nodes after it. The

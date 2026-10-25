@@ -12,9 +12,9 @@ OPEN_EDITOR = {'transform': 'translateX(0px)'}
 def _request(services, trigger, **fields):
     values = dict(graph=services.graph, events=services.events, trigger=trigger,
                   form=editor_form(), original_name=None, pristine_snapshot=None,
-                  bridge_pending=None, reopen_confirmed=False, tapped_node=None,
-                  toggle_done_trigger_data=None, pending_undo_done=None,
-                  group_delete_data=None,
+                  bridge_pending=None, reopen_confirmed=False, now_switch=False,
+                  tapped_node=None, toggle_done_trigger_data=None,
+                  pending_undo_done=None, group_delete_data=None,
                   sidebars=(dict(OPEN_EDITOR), {'display': 'none'}, {'display': 'none'}))
     values.update(fields)
     return Request(**values)
@@ -86,6 +86,20 @@ def test_reopening_a_node_with_done_dependents_asks_first(services):
     assert confirmed.message == "Un-marked 'First' (Done → Open)"
     assert graph.get_node("First").status == STATUS_OPEN
     assert graph.get_node("Second").status != STATUS_DONE
+    assert graph.get_node("First").now == 0  # nothing asked for Now
+
+
+def test_an_editor_save_that_asked_first_adds_its_node_to_now(services):
+    graph = services.graph
+    graph.add_node(_node("First", status=STATUS_DONE))
+    graph.add_node(_node("Second", status=STATUS_DONE))
+    graph.add_edge("First", "Second", "Needs_Hard")
+
+    handle(_request(services, 'btn-undo-done-confirm', pending_undo_done=["First"],
+                    original_name="First", now_switch=True))
+
+    assert graph.get_node("First").status == STATUS_OPEN
+    assert graph.get_node("First").now > 0
 
 
 def test_marking_one_node_done_reports_it_for_calibration(services):

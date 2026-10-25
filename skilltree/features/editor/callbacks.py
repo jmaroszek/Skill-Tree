@@ -167,7 +167,14 @@ def register_editor_callbacks(app, services):
             snapshot_out = dash.Patch()
             snapshot_out['status_done'] = followed['status_done']
         now = ["now"] if node.now else []
-        return done, snapshot_out, (now if now != (now_switch or []) else no_update)
+        shown = switch if done is no_update else done
+        if node.status == STATUS_DONE and STATUS_DONE not in (shown or []):
+            # Done un-marked and not saved: a Now switch turned on waits for
+            # the Save (dispatch_now_toggle), so it isn't the database's yet.
+            now = no_update
+        elif now == (now_switch or []):
+            now = no_update
+        return done, snapshot_out, now
 
     # --- Editor follows relationships changed elsewhere ---
     # The link menu, the Details tab and a bridge change the open node's links
@@ -1156,15 +1163,21 @@ def register_editor_callbacks(app, services):
         Output("now-cap-refused-trigger", "value", allow_duplicate=True),
         Input("node-now", "value"),
         State("node-original-name", "data"),
+        State("node-status-done", "value"),
         prevent_initial_call=True,
     )
     @database.serialized  # the cap check and the write, as one step
-    def dispatch_now_toggle(toggle_val, node_name):
+    def dispatch_now_toggle(toggle_val, node_name, done_switch):
         import time
         if not node_name:
             return no_update, no_update
         node = manager.get_node(node_name)
         if not node:
+            return no_update, no_update
+        if (toggle_val and node.status == STATUS_DONE and not node.dormant
+                and STATUS_DONE not in (done_switch or [])):
+            # Done is un-marked but not saved yet. The switch stays on, and
+            # the Save that reopens the node adds it to Now.
             return no_update, no_update
         if toggle_val and (node.dormant or node.status == STATUS_DONE):
             return f"ineligible|{int(time.time() * 1000)}", no_update

@@ -95,6 +95,19 @@ def test_editor_keeps_a_deliberate_unsaved_flip_but_follows_now(handlers):
     assert switch is dash.no_update
 
 
+def test_now_waits_for_the_save_that_reopens_a_done_node(handlers):
+    manager = graph('A')
+    complete(manager, 'A')
+    # Done is switched off but not saved: Now stays on and writes nothing.
+    assert handlers['dispatch_now_toggle'](['now'], 'A', []) == (
+        dash.no_update, dash.no_update)
+    assert manager.get_node('A').now == 0
+    # Another change elsewhere doesn't turn the held switch back off.
+    _, _, now = handlers['sync_editor_status'](
+        1, 'A', [], {'name': 'A', 'status_done': ['Done']}, ['now'])
+    assert now is dash.no_update
+
+
 def test_save_preserves_completion_even_before_editor_refresh(handlers, monkeypatch):
     manager = graph('Child')
     manager.add_node(make_node('Goal', type='Goal'))
@@ -206,7 +219,7 @@ def test_ineligible_nodes_cannot_enter_now(handlers, via, state):
     if via == 'menu':
         handlers['handle_now_trigger']('["A"]|1')
     elif via == 'editor':
-        handlers['dispatch_now_toggle'](['now'], 'A')
+        handlers['dispatch_now_toggle'](['now'], 'A', ['Done'] if state == 'Done' else [])
     else:
         item = manager.get_node('A')
         item.now = 1
@@ -420,7 +433,7 @@ def test_a_refused_now_change_says_why(handlers, via):
         _, toast = handlers['handle_now_trigger']('["A", "B"]|1')
         assert manager.get_node('B').now > 0  # the other still changed
     else:
-        _, toast = handlers['dispatch_now_toggle'](['now'], 'A')
+        _, toast = handlers['dispatch_now_toggle'](['now'], 'A', [])
 
     assert manager.get_node('A').now == 0
     assert toast.startswith('error|') and 'must have a context' in toast
@@ -449,7 +462,7 @@ def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger
 
 @pytest.mark.parametrize('name, args', [
     ('handle_now_trigger', lambda node: (f'["{node}"]|1',)),
-    ('dispatch_now_toggle', lambda node: (['now'], node)),
+    ('dispatch_now_toggle', lambda node: (['now'], node, [])),
 ])
 def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, services):
     """The cap check and the write hold one lock, so a second request waits

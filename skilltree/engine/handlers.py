@@ -18,7 +18,7 @@ from skilltree.engine.response import CoreResponse
 from skilltree.features.editor.save import save_editor_form
 from skilltree.store import database
 from skilltree.store.commands import (
-    ReopensDoneNodes, conflicting_node_name, handle_delete, handle_group_delete,
+    ReopensDoneNodes, add_to_now, conflicting_node_name, handle_delete, handle_group_delete,
     handle_toggle_done,
 )
 from skilltree.store import settings
@@ -45,6 +45,8 @@ class Request:
     bridge_pending: object
     # The user agreed to a save that reopens Done nodes.
     reopen_confirmed: bool
+    # The editor's Now switch is on.
+    now_switch: bool
     tapped_node: object
     toggle_done_trigger_data: object
     pending_undo_done: object
@@ -162,7 +164,8 @@ def save(request):
             original_name=request.original_name,
             pristine_snapshot=request.pristine_snapshot,
             bridge_pending=request.bridge_pending,
-            reopen_confirmed=request.reopen_confirmed, via=request.trigger)
+            reopen_confirmed=request.reopen_confirmed, via=request.trigger,
+            now=request.now_switch)
     except ReopensDoneNodes as e:
         _, goal_style, events_style = request.sidebars
         return Outcome(response=CoreResponse(
@@ -304,6 +307,11 @@ def confirm_undo_done(request):
                     node.status = STATUS_OPEN
                     request.graph.update_node(node)
                     flipped += 1
+            # An editor save that un-marked its node asked here first. The
+            # Now switch it held waits for the node to reopen.
+            editing = (request.original_name or '').strip()
+            if request.now_switch and targets == [editing]:
+                add_to_now(request.graph, editing)
         if flipped == 1:
             return Outcome(message=f"Un-marked '{targets[0]}' (Done → Open)")
         return Outcome(message=f"Un-marked {flipped} node(s) (Done → Open)")

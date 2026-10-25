@@ -89,6 +89,23 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
     return msg
 
 
+def add_to_now(manager, name):
+    """Put `name` at the end of the Now list, if it can go there.
+
+    Returns False when the list is at its cap. A node that is Done, asleep or
+    on the list already is left alone.
+    """
+    node = manager.get_node(name)
+    if node is None or node.now or node.dormant or node.status == STATUS_DONE:
+        return True
+    now_nodes = manager.get_now_nodes()
+    if len(now_nodes) >= settings.NOW_NODE_CAP.get():
+        return False
+    node.now = max((n.now for n in now_nodes), default=0) + 1
+    manager.update_node(node)
+    return True
+
+
 @database.atomic
 def apply_dormancy(manager, events, name, dormancy, was_dormant):
     """Write the editor's Dormant switch and Event section for a saved node.

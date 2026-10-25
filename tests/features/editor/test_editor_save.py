@@ -5,7 +5,7 @@ from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.features.editor.form import EDITOR_FORM, build_editor_snapshot
 from skilltree.features.editor.save import save_editor_form
-from skilltree.store.commands import ReopensDoneNodes
+from skilltree.store.commands import ReopensDoneNodes, add_to_now
 
 
 def _form(**fields):
@@ -17,11 +17,12 @@ def _form(**fields):
 
 
 def _save(services, name, form=None, *, original_name=None, pristine_snapshot=None,
-          reopen_confirmed=False):
+          reopen_confirmed=False, now=False):
     return save_editor_form(
         services.graph, services.events, form or _form(), name,
         original_name=original_name, pristine_snapshot=pristine_snapshot,
-        bridge_pending=None, reopen_confirmed=reopen_confirmed, via='btn-save')
+        bridge_pending=None, reopen_confirmed=reopen_confirmed, via='btn-save',
+        now=now)
 
 
 def _edges(graph):
@@ -83,6 +84,38 @@ def test_unmarking_a_node_whose_dependents_are_done_waits_for_the_user(services)
     assert services.graph.get_node('First').status == STATUS_DONE
     assert saved.undo_pending == ['First']
     assert saved.undo_downstream == ['Second']
+
+
+def _reopen(services, name, **kwargs):
+    """Save `name` as the editor loaded it, with the Done switch turned off."""
+    snapshot = build_editor_snapshot(services.graph, services.events, name)
+    loaded = {key: value for key, value in snapshot.items() if key in EDITOR_FORM}
+    return _save(services, name, _form(**{**loaded, 'status_done': []}),
+                 original_name=name, pristine_snapshot=snapshot, **kwargs)
+
+
+def test_reopening_and_adding_to_now_is_one_save(services):
+    _save(services, 'Revisit', _form(status_done=[STATUS_DONE]))
+
+    _reopen(services, 'Revisit', now=True)
+
+    node = services.graph.get_node('Revisit')
+    assert node.status == STATUS_OPEN
+    assert node.now > 0
+
+
+def test_a_full_now_list_still_reopens_the_node(services):
+    from skilltree.store import settings
+    settings.NOW_NODE_CAP.set(1)
+    _save(services, 'Busy')
+    assert add_to_now(services.graph, 'Busy')
+    _save(services, 'Revisit', _form(status_done=[STATUS_DONE]))
+
+    saved = _reopen(services, 'Revisit', now=True)
+
+    assert services.graph.get_node('Revisit').status == STATUS_OPEN
+    assert services.graph.get_node('Revisit').now == 0
+    assert 'cap' in saved.message
 
 
 def test_a_save_that_would_reopen_done_nodes_asks_first(services):

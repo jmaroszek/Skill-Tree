@@ -149,6 +149,7 @@ CORE_STATE = dict(
     bridge_pending=State('bridge-pending-store', 'data'),
     editor_reopen_pending=State('editor-reopen-pending-store', 'data'),
     community_memory=State('community-memory-store', 'data'),
+    now_switch=State('node-now', 'value'),
     form=EDITOR_FORM,
 )
 
@@ -214,7 +215,7 @@ def register_engine_callbacks(app, services):
                      f_search, btn_editor_reopen_confirm,
                      ed_style, original_name, goal_sidebar_style, events_sidebar_style,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
-                     bridge_pending, editor_reopen_pending, community_memory, form):
+                     bridge_pending, editor_reopen_pending, community_memory, now_switch, form):
         """Route one action, then render the canvas and the views around it.
 
         Gates come first: a tab switch or an editor open needs no render.
@@ -320,6 +321,7 @@ def register_engine_callbacks(app, services):
             graph=manager, events=event_manager, trigger=trigger_id, form=form,
             original_name=original_name, pristine_snapshot=pristine_snapshot,
             bridge_pending=bridge_pending, reopen_confirmed=reopen_confirmed,
+            now_switch='now' in (now_switch or []),
             tapped_node=tapped_node, toggle_done_trigger_data=toggle_done_trigger_data,
             pending_undo_done=pending_undo_done, group_delete_data=group_delete_data,
             sidebars=(next_ed_style, next_goal_style, next_events_sidebar_style)))
