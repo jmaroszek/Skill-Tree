@@ -517,7 +517,7 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
             },  # type: ignore[reportArgumentType]
         ))
 
-    cards_row = html.Div(cards, id="now-cards-container", style={
+    cards_row = html.Div(cards, id="now-cards-container", className="wheel-scroll-strip", style={
         "display": "flex",
         "gap": "1rem",
         "marginBottom": "32px",

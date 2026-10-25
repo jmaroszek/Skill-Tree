@@ -63,15 +63,15 @@ input[type=number] {
     display: none;  /* Safari and Chrome */
 }
 
-/* Milestones roster (Details tab): single-row horizontal scroll. The
-   scrollbar is hidden (its thumb filled most of the track when only a few
-   tiles overflowed); the mouse wheel scrolls the strip sideways while the
-   pointer is over it (details_milestone_wheel.js). */
-.milestone-tiles-scroll {
+/* A single row of cards that scrolls sideways: the Home Now cards and the
+   Details Milestones roster. The scrollbar is hidden (its thumb filled most
+   of the track when only a few cards overflowed); the mouse wheel scrolls the
+   strip sideways while the pointer is over it (wheel_scroll_strip.js). */
+.wheel-scroll-strip {
     overflow-x: auto;
     overflow-y: hidden;
     /* max-width:100% + min-width:0 force the container to respect its
-       parent's width instead of expanding to fit all 280px tiles, which
+       parent's width instead of expanding to fit all its fixed-width cards, which
        is what actually triggers overflow-x:auto. Without these, the flex
        row grows past the parent and is clipped silently by an ancestor's
        overflow rather than producing a scrollbar here. */

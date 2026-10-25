@@ -339,7 +339,7 @@ def build_details_tab_content():
                 _build_toggles(suffix="-top"),
             ], className="d-flex align-items-center justify-content-between mb-3"),
             html.Div(id="details-milestones-tiles",
-                     className="d-flex flex-nowrap gap-2 mb-4 milestone-tiles-scroll"),
+                     className="d-flex flex-nowrap gap-2 mb-4 wheel-scroll-strip"),
         ]),
         # Subtasks header — same row as the canonical filter toggles. The
         # toggle wrapper has its own id so its visibility can be flipped
