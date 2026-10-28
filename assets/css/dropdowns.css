@@ -121,6 +121,15 @@ select::picker(select) {
     min-height: 0 !important;
 }
 
+/* A trigger near the bottom of the window leaves a few pixels below it. The
+   cap above shrinks the menu to fit them, so Radix sees no overflow and never
+   flips it above the trigger: it opens one row tall, until typing re-measures
+   it. While the search is empty the menu is never shorter than a few rows, so
+   it overflows there and flips to the side with room. */
+.dash-dropdown-content:has(.dash-dropdown-search:placeholder-shown) {
+    min-height: 190px;
+}
+
 /* Radix sets `min-width: max-content` on the popper wrapper, which stretches
    the menu to the longest option. Pin it to the trigger using Radix's own
    anchor-width variable. */

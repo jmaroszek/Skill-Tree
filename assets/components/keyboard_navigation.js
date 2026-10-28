@@ -278,9 +278,11 @@
             return;
         }
         // Space is a checkbox's native key. Enter does nothing there, and
-        // switches look like buttons, so it toggles them too.
+        // switches look like buttons, so it toggles them too. A dropdown's
+        // option toggles itself on Enter's keyup, so a second toggle here
+        // would undo it.
         if (e.key === 'Enter' && !e.altKey && !e.ctrlKey && !e.metaKey &&
-                target.matches('input[type="checkbox"]')) {
+                target.matches('input[type="checkbox"]:not(.dash-options-list-option-checkbox)')) {
             e.preventDefault(); target.click(); return;
         }
         if ((e.key === 'Enter' || e.key === ' ') && !e.altKey && !e.ctrlKey && !e.metaKey && target.matches(custom)) {
