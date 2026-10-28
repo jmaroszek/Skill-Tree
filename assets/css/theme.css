@@ -1623,6 +1623,11 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 #section-time-estimates {
     transition: opacity 0.25s ease, max-height 0.3s ease;
     overflow: hidden;
+    /* The overflow clip would cut the fields' focus ring at the edges. Padding
+       gives the ring room inside the clip; the negative margin cancels it, so
+       the layout does not move. */
+    padding: 0.3rem;
+    margin: -0.3rem;
 }
 
 /* --- Calibration "Don't ask again": styled like Skip, subtly red on hover
