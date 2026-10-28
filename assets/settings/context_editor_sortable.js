@@ -127,16 +127,57 @@ function _initCtxSortable() {
     });
 }
 
-/* ---------- Enter finishes a field without losing the keyboard position ---------- */
+/* ---------- Chips hug their text ---------- */
+// The server sets a first guess in `ch` (the width of a "0", wider than most
+// letters). Here each input is measured in its own font, and re-measured as
+// the user types, so the pill never runs long or clips.
+var _ctxMeasure = null;
+
+function _ctxFitChip(input) {
+    if (!_ctxMeasure) _ctxMeasure = document.createElement('canvas').getContext('2d');
+    var cs = getComputedStyle(input);
+    _ctxMeasure.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    var text = input.value || input.placeholder || '';
+    var px = Math.ceil(_ctxMeasure.measureText(text).width) + 3;  // room for the caret
+    var want = Math.max(px, 24) + 'px';
+    if (input.style.width !== want) input.style.width = want;
+}
+
+function _ctxFitAllChips() {
+    document.querySelectorAll('.ctx-chip-input').forEach(_ctxFitChip);
+}
+
+// A re-render mounts chips at the server's rough width. Fitting them in the
+// debounced bind below would paint that width first, so chips wrap onto the
+// wrong rows and the modal jumps before snapping back. Mutation observers run
+// before the next paint, so this one fits new chips ahead of it.
+new MutationObserver(function (records) {
+    for (var i = 0; i < records.length; i++) {
+        if (records[i].addedNodes.length) { _ctxFitAllChips(); return; }
+    }
+}).observe(document.body, { childList: true, subtree: true });
+
+document.addEventListener('input', function (e) {
+    if (e.target && e.target.matches && e.target.matches('.ctx-chip-input')) {
+        _ctxFitChip(e.target);
+    }
+});
+
+/* ---------- Enter finishes a field ---------- */
 // Delegated from document because the rows remount on every structural edit.
+// Values already reach Dash on each keystroke, so leaving the field is enough.
+// A chip hands focus to its row's "+ add", so the next Tab or Enter continues
+// from where the user was instead of restarting at the modal header.
 document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || e.isComposing) return;
     var field = e.target;
     if (!field || !field.matches ||
         !field.matches('.ctx-row-name, .ctx-chip-input, .ctx-row-weight')) return;
     e.preventDefault();
-    // Values already reach Dash on each keystroke. Retaining focus keeps the
-    // next Tab beside the field instead of restarting at the modal header.
+    var add = field.matches('.ctx-chip-input')
+        ? field.closest('.ctx-row') && field.closest('.ctx-row').querySelector('.ctx-chip-add')
+        : null;
+    if (add) add.focus(); else field.blur();
 });
 
 /* ---------- Re-bind after every render ---------- */
