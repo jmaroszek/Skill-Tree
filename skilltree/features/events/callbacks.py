@@ -293,7 +293,10 @@ def register_events_callbacks(app, services):
     )
     @prerendered
     def populate_trigger_node_dropdown(_refresh, _arrived):
-        nodes = graph_manager.get_all_nodes()
+        # Dormant nodes too: one waking as Done fires the events watching it,
+        # so an event can wait on another event's node. Without them a saved
+        # trigger on a dormant node showed as a blank dropdown.
+        nodes = graph_manager.get_all_nodes(include_dormant=True)
         return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
 
     # --- Trigger mode hint text ---
