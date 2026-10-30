@@ -11,6 +11,11 @@
  * - Warm handoff: once a tooltip has shown, `tooltips-warm` lets the next
  *   one show at once, until WARM_MS pass with none on screen. Moving the
  *   pointer doesn't extend it: only a tooltip on screen does.
+ * - The title bar: in the desktop window the toolbar is the title bar, and
+ *   the OS takes the pointer over its drag strip and window buttons without
+ *   telling the page it left. While a tooltip is up, the shell is asked where
+ *   the cursor really is; once it is off what the page last saw it over, the
+ *   page is told it left, and the tooltip closes.
  * - The shared tip: an element with `data-hint` shows that text, and one with
  *   the `overflow-hint` class shows its own text only while it is cut off
  *   with an ellipsis. Rows can carry these by the hundred without a Dash
@@ -23,6 +28,8 @@
     var body = null;
     var pressed = null;
     var warmPoll = null, lastShowing = 0;
+    var ESCAPE_POLL_MS = 150;
+    var lastOver = null, escapePoll = null, asking = false;
     var tip = null, tipInner = null, tipArrow = null, tipTarget = null;
 
     function cls(name, on) { if (body) body.classList.toggle(name, on); }
@@ -110,6 +117,36 @@
         }, WARM_POLL_MS);
     }
 
+    // Desktop only: watch for the pointer escaping into the title bar while a
+    // tooltip is up. The check stops when no tooltip is.
+    function watchEscape() {
+        var desktop = window.skillTreeDesktop;
+        if (escapePoll || !desktop || !desktop.cursorPoint) return;
+        escapePoll = setInterval(function () {
+            if (!document.querySelector('.tooltip.show') || !lastOver || !lastOver.isConnected) {
+                clearInterval(escapePoll);
+                escapePoll = null;
+                return;
+            }
+            if (asking) return;
+            asking = true;
+            desktop.cursorPoint().then(function (p) {
+                asking = false;
+                if (!p || !lastOver || !lastOver.isConnected) return;
+                var r = lastOver.getBoundingClientRect();
+                var slack = 2;
+                if (p.x >= r.left - slack && p.x <= r.right + slack &&
+                    p.y >= r.top - slack && p.y <= r.bottom + slack) return;
+                // The page never heard the pointer leave: say so. dbc tooltips
+                // close on their button's mouseout.
+                var left = lastOver;
+                lastOver = null;
+                left.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+                hideTip();
+            }, function () { asking = false; });
+        }, ESCAPE_POLL_MS);
+    }
+
     function init() {
         body = document.body;
         if (!body || !readDelay()) { setTimeout(init, 200); return; }
@@ -129,6 +166,8 @@
         }, true);
 
         document.addEventListener('pointerover', function (e) {
+            lastOver = e.target;
+            watchEscape();
             var el = e.target.closest && e.target.closest('[data-hint], .overflow-hint');
             if (el === tipTarget) return;
             hideTip();

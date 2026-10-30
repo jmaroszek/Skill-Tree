@@ -50,6 +50,12 @@ function dimHex(hex, level) {
     .join('');
 }
 
+// Where the cursor is in the page's own coordinates (CSS pixels from the
+// top-left of the content area). `point` and `bounds` are the screen's DIPs.
+function cursorInPage(point, bounds, zoom) {
+  return { x: (point.x - bounds.x) / zoom, y: (point.y - bounds.y) / zoom };
+}
+
 function titleBarOverlay(level) {
   return {
     ...OVERLAY,
@@ -129,4 +135,4 @@ function macMenuTemplate(appName) {
   ];
 }
 
-module.exports = { isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome, BACKDROP_FADE_MS };
+module.exports = { isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome, BACKDROP_FADE_MS, cursorInPage };
