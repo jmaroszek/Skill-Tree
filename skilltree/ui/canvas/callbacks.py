@@ -1,5 +1,7 @@
 """Behavior every canvas shares: the hover tooltip, Locate, freezing positions
 and layout requests. Each loops over CANVASES rather than naming a canvas."""
+import time
+
 import dash
 from skilltree.ui.timing import LOCATE_TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.toast import register_toast_timer
@@ -16,6 +18,7 @@ from skilltree.ui.prerender import prerendered
 
 def register_canvas_callbacks(app, services):
     manager = services.graph
+    events = services.events
 
     # --- Tooltip Formatting ---
     @app.callback(
@@ -189,65 +192,108 @@ def register_canvas_callbacks(app, services):
         prevent_initial_call=True,
     )
 
+    def _missing_dialog(name, view):
+        """The not-found dialog for ``name``: its title, body, the store that
+        tells the primary button where to go, and that button's label and
+        style. A dormant node is on no canvas but its event's, so it routes
+        there; Details would leave it out too. Any other node is most likely
+        filtered out of this view, and Details shows it whatever the filters."""
+        view_labels = {
+            'main': 'Nodes',
+            'details': 'Details',
+            'events': 'Events',
+            'canvas': 'current',
+        }
+        title = f'“{name}” is not in the {view_labels.get(view, "current")} view'
+        node = manager.get_node(name)
+        if node is None or not node.dormant:
+            return (title, "Filters may be hiding it. Details shows it either way.",
+                    {'name': name}, "View Details", {})
+        membership = events.get_node_membership(name)
+        if membership is None:
+            return (f'“{name}” is dormant',
+                    "It isn't waiting on any event, so no view shows it.",
+                    {'name': name}, "View Details", {'display': 'none'})
+        event = membership['event']
+        if membership['event_status'] == 'Triggered' and membership['activation_date']:
+            body = f"Its event, {event}, has fired. It wakes on {membership['activation_date']}."
+        else:
+            body = f"It's waiting on its event, {event}."
+        return (f'“{name}” is dormant', body,
+                {'name': name, 'event': event}, "Open Event", {})
+
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
         Output('locate-animate-trigger', 'data'),
         Output('modal-locate-missing', 'is_open'),
         Output('locate-missing-title', 'children'),
+        Output('locate-missing-body', 'children'),
         Output('locate-missing-node-store', 'data'),
+        Output('btn-locate-go', 'children'),
+        Output('btn-locate-go', 'style'),
         Output('details-node-select', 'value', allow_duplicate=True),
+        # The Events sidebar's context-menu bridge: "<event>|edit|<ms>"
+        # selects the event and switches to its tab.
+        Output('event-ctx-action-input', 'value', allow_duplicate=True),
         Input('locate-result-store', 'data'),
         Input('btn-locate-dismiss', 'n_clicks'),
-        Input('btn-locate-view-details', 'n_clicks'),
+        Input('btn-locate-go', 'n_clicks'),
         State('locate-missing-node-store', 'data'),
         State('main-tabs', 'active_tab'),
         prevent_initial_call=True,
     )
-    def handle_locate_result(result, _dismiss_clicks, view_details_clicks,
+    def handle_locate_result(result, _dismiss_clicks, go_clicks,
                              missing_node, current_tab):
         triggered = ctx.triggered_id
-        unchanged = (dash.no_update,) * 6
+        no = dash.no_update
+        unchanged = (no,) * 10
+        closed = (no, no, False, no, no, None, no, no, no, no)
 
         if triggered == 'btn-locate-dismiss':
-            return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
+            return closed
 
-        if triggered == 'btn-locate-view-details':
-            name = (missing_node or {}).get('name')
+        if triggered == 'btn-locate-go':
+            missing_node = missing_node or {}
+            name = missing_node.get('name')
             if not name or not manager.get_node(name):
-                return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
-            next_tab = dash.no_update if current_tab == 'tab-details' else 'tab-details'
+                return closed
+            event = missing_node.get('event')
+            if event:
+                if not events.get_event(event):
+                    return closed
+                animate = {
+                    'name': name,
+                    'canvasId': 'events-detail-graph',
+                    'request': go_clicks,
+                }
+                return (no, animate, False, no, no, None, no, no, no,
+                        f"{event}|edit|{int(time.time() * 1000)}")
+            next_tab = no if current_tab == 'tab-details' else 'tab-details'
             animate = {
                 'name': name,
                 'canvasId': 'details-mini-graph',
-                'request': view_details_clicks,
+                'request': go_clicks,
             }
-            return next_tab, animate, False, dash.no_update, None, name
+            return next_tab, animate, False, no, no, None, no, no, name, no
 
         if triggered != 'locate-result-store' or not result:
             return unchanged
 
         status = result.get('status')
         if status == 'located':
-            return dash.no_update, dash.no_update, False, dash.no_update, None, dash.no_update
+            return closed
         if status == 'navigate':
             animate = {
                 'name': result.get('name'),
                 'canvasId': result.get('canvasId'),
                 'request': result.get('request'),
             }
-            return result.get('targetTab'), animate, False, dash.no_update, None, dash.no_update
+            return (result.get('targetTab'), animate, False, no, no, None,
+                    no, no, no, no)
         if status == 'missing':
-            view_labels = {
-                'main': 'Nodes',
-                'details': 'Details',
-                'events': 'Events',
-                'canvas': 'current',
-            }
-            name = result.get('name')
-            label = view_labels.get(result.get('view'), 'current')
-            title = f'“{name}” is not in the {label} view'
-            return (dash.no_update, dash.no_update, True, title,
-                    {'name': name}, dash.no_update)
+            title, body, store, label, style = _missing_dialog(
+                result.get('name'), result.get('view'))
+            return no, no, True, title, body, store, label, style, no, no
         return unchanged
 
     # Run the pulse after a tab switch or Details re-root. The fcose layout may

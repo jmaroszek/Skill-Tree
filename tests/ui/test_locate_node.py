@@ -10,6 +10,7 @@ from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
 from skilltree.services import AppServices
+from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
 from support.paths import asset_file
@@ -91,7 +92,7 @@ def test_deleted_node_reports_in_editor(monkeypatch):
     assert request is dash.no_update
 
 
-def test_missing_node_opens_view_specific_fallback():
+def test_missing_node_opens_view_specific_fallback(locate_node):
     fn = _locate_result_callback()
     result = _call_with_trigger(
         fn, "locate-result-store.data",
@@ -100,7 +101,67 @@ def test_missing_node_opens_view_specific_fallback():
     )
     assert result[2] is True
     assert result[3] == '“Target” is not in the Events view'
-    assert result[4] == {"name": "Target"}
+    assert result[5] == {"name": "Target"}
+    assert result[6] == "View Details"
+
+
+def _dormant(monkeypatch, membership):
+    class _Dormant:
+        dormant = True
+
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Dormant())
+    monkeypatch.setattr(EventManager, "get_node_membership",
+                        lambda self, name: membership)
+
+
+def test_missing_dormant_node_offers_its_event(monkeypatch):
+    """Details leaves a dormant node out too, so the dialog sends it to
+    the one canvas that shows it: its event's."""
+    _dormant(monkeypatch, {"event": "Job Hunt", "event_status": "Pending",
+                           "activation_date": None})
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "locate-result-store.data",
+        {"status": "missing", "name": "Interview Process", "view": "main"},
+        None, None, None, "tab-canvas",
+    )
+    assert result[2] is True
+    assert result[3] == '“Interview Process” is dormant'
+    assert "Job Hunt" in result[4]
+    assert result[5] == {"name": "Interview Process", "event": "Job Hunt"}
+    assert result[6] == "Open Event"
+    assert result[7] == {}
+
+
+def test_dormant_node_without_an_event_offers_nothing(monkeypatch):
+    _dormant(monkeypatch, None)
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "locate-result-store.data",
+        {"status": "missing", "name": "Stray", "view": "main"},
+        None, None, None, "tab-canvas",
+    )
+    assert result[2] is True
+    assert result[7] == {"display": "none"}
+
+
+def test_open_event_selects_the_event_and_pulses_the_node(monkeypatch):
+    _dormant(monkeypatch, None)
+    monkeypatch.setattr(EventManager, "get_event", lambda self, name: object())
+    fn = _locate_result_callback()
+    result = _call_with_trigger(
+        fn, "btn-locate-go.n_clicks",
+        None, None, 3, {"name": "Interview Process", "event": "Job Hunt"},
+        "tab-canvas",
+    )
+    assert result[1] == {
+        "name": "Interview Process", "canvasId": "events-detail-graph",
+        "request": 3,
+    }
+    assert result[2] is False
+    assert result[8] is dash.no_update
+    event, action, _stamp = result[9].split("|")
+    assert (event, action) == ("Job Hunt", "edit")
 
 
 def test_no_canvas_tab_navigates_to_nodes_before_pulsing():
@@ -120,7 +181,7 @@ def test_no_canvas_tab_navigates_to_nodes_before_pulsing():
 def test_view_details_reroots_details_and_retries_pulse(locate_node):
     fn = _locate_result_callback()
     result = _call_with_trigger(
-        fn, "btn-locate-view-details.n_clicks",
+        fn, "btn-locate-go.n_clicks",
         None, None, 4, {"name": "Target"}, "tab-events",
     )
     assert result[0] == "tab-details"
@@ -128,7 +189,8 @@ def test_view_details_reroots_details_and_retries_pulse(locate_node):
         "name": "Target", "canvasId": "details-mini-graph", "request": 4,
     }
     assert result[2] is False
-    assert result[5] == "Target"
+    assert result[8] == "Target"
+    assert result[9] is dash.no_update
 
 
 def test_pulse_survives_a_forced_stop_and_runs_concurrently():

@@ -328,12 +328,15 @@ def build_node_editor_content():
                 dbc.Modal([
                     dbc.ModalHeader(dbc.ModalTitle(id='locate-missing-title'),
                                     close_button=False),
-                    dbc.ModalBody("What would you like to do?"),
+                    # Body and primary button depend on why the node is
+                    # missing: a dormant node lives on its event, any other
+                    # is likely filtered out and opens in Details.
+                    dbc.ModalBody(id='locate-missing-body'),
                     dbc.ModalFooter([
                         # The only modal footer with no spacing class at all.
                         cancel_action("Dismiss", 'btn-locate-dismiss',
                                       className="me-2"),
-                        primary_action("View Details", 'btn-locate-view-details'),
+                        primary_action("View Details", 'btn-locate-go'),
                     ]),
                 ], id='modal-locate-missing', size="sm", is_open=False,
                    centered=True),
