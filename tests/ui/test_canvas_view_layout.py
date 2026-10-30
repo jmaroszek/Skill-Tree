@@ -295,8 +295,8 @@ def test_direction_sits_above_max_depth_in_the_details_panel():
     direction = _by_id(content, "details-direction")
 
     assert direction.value == "needs"
-    assert [o["value"] for o in direction.options] == ["needs", "unlocks"]
-    assert [o["label"] for o in direction.options] == ["Needs", "Unlocks"]
+    assert [o["value"] for o in direction.options] == ["needs", "supports"]
+    assert [o["label"] for o in direction.options] == ["Needs", "Supports"]
     assert ids.count("details-direction") == 1
     assert ids.index("details-direction") < ids.index("details-max-depth")
     # Only Details looks out from one node, so the other panels have none.

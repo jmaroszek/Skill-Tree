@@ -28,7 +28,7 @@ from skilltree.ui.canvas.settings_panel import (
 )
 from skilltree.ui.kit import goal_corner_badge
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
-from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_UNLOCKS
+from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_SUPPORTS
 
 
 def build_details_tab_content():
@@ -349,7 +349,7 @@ def build_details_tab_content():
         # (toggles live up there instead), visible otherwise.
         html.Div([
             html.Div([
-                # Unlocks retitles the table and hides the +, which adds
+                # Supports retitles the table and hides the +, which adds
                 # prerequisites only.
                 html.H5("Subtasks", id="details-subtasks-heading", className="mb-0"),
                 html.Span(add_button("btn-details-add-node", None,
@@ -781,12 +781,12 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         milestones_only: True when the node's only related nodes are the
             Milestones shown in the strip above, so the empty table says that.
         direction: ``"needs"`` for the prerequisites leading into
-            ``parent_name``, ``"unlocks"`` for the nodes it leads to. It
+            ``parent_name``, ``"supports"`` for the nodes it leads to. It
             decides which way the Relationship column looks.
     """
-    unlocks = direction == DIRECTION_UNLOCKS
+    supports = direction == DIRECTION_SUPPORTS
     if not subtask_nodes:
-        if unlocks:
+        if supports:
             message = ("This node leads only to the Milestones above." if milestones_only
                        else "Nothing depends on this node yet.")
         else:
@@ -804,12 +804,12 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         def reach(*edge_types):
             # Everything the given edge types reach from the parent, at any
             # depth and unfiltered. Needs reads the cached subtree.
-            if not unlocks:
+            if not supports:
                 return graph_manager.get_goal_subtree(parent_name, edge_types=edge_types)
             view = graph_manager.get_dependency_view(
                 parent_name, include_soft=EDGE_NEEDS_SOFT in edge_types,
                 include_synergies=EDGE_HELPS in edge_types,
-                direction=DIRECTION_UNLOCKS)
+                direction=DIRECTION_SUPPORTS)
             return set(view["node_names"]) - {parent_name}
 
         hard_subtree = reach(EDGE_NEEDS_HARD)
@@ -839,7 +839,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
 
     if not subtask_nodes:
         return html.Div(
-            html.P("Nothing depends on this node through a Hard need." if unlocks
+            html.P("Nothing depends on this node through a Hard need." if supports
                    else "No hard-need subtasks for this node.", className="text-muted"),
             className="text-center py-3"
         )
@@ -1046,4 +1046,4 @@ def normalize_max_depth(value):
 
 def normalize_direction(value):
     """The Direction radio's value, with anything unknown read as Needs."""
-    return DIRECTION_UNLOCKS if value == DIRECTION_UNLOCKS else DIRECTION_NEEDS
+    return DIRECTION_SUPPORTS if value == DIRECTION_SUPPORTS else DIRECTION_NEEDS

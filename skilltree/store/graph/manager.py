@@ -1220,7 +1220,7 @@ class GraphManager:
         """Resolve the deterministic, filter-aware local view for ``root_name``.
 
         ``direction`` is ``"needs"`` (the prerequisites leading into the
-        root) or ``"unlocks"`` (the nodes the root leads to). Hard edges are
+        root) or ``"supports"`` (the nodes the root leads to). Hard edges are
         always traversed. Soft edges are optional. Synergy partners are
         seeded only from the root; Helps edges never chain. The walk
         continues from a direct synergy partner along the enabled Needs edge

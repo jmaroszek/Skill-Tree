@@ -33,7 +33,7 @@ from skilltree.features.details.layout import (
     normalize_direction,
     normalize_max_depth,
 )
-from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_UNLOCKS
+from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_SUPPORTS
 
 
 # The node panel's style while a node is selected. The browser applies it as
@@ -636,15 +636,15 @@ def register_details_callbacks(app, services):
 
     # --- Direction: the table's title, and the + that adds prerequisites ---
     # The + only ever adds a node that leads into this one, so it has no
-    # place under Unlocks.
+    # place under Supports.
     app.clientside_callback(
         """
         function(direction) {
-            var unlocks = direction === '__UNLOCKS__';
-            return [unlocks ? 'Unlocks' : 'Subtasks',
-                    {display: unlocks ? 'none' : 'flex'}];
+            var supports = direction === '__SUPPORTS__';
+            return [supports ? 'Supports' : 'Subtasks',
+                    {display: supports ? 'none' : 'flex'}];
         }
-        """.replace("__UNLOCKS__", DIRECTION_UNLOCKS),
+        """.replace("__SUPPORTS__", DIRECTION_SUPPORTS),
         Output("details-subtasks-heading", "children"),
         Output("details-add-node-wrap", "style"),
         Input("details-direction", "value"),

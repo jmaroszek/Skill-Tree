@@ -1022,7 +1022,7 @@ Max Depth is the one control in a graph-settings panel that is not about
 layout: it also limits the subtasks table, milestones strip and Time
 Simulation. It is opt-in via `build_graph_settings_panel(..., max_depth_id=…)`
 so only the Details canvas gets it, and it sits above a divider ahead of the
-physics sliders to mark it as a different kind of control. Direction (`direction_id=…`, an inline Needs / Unlocks radio) is
+physics sliders to mark it as a different kind of control. Direction (`direction_id=…`, an inline Needs / Supports radio) is
 its companion and sits directly above it, in the same block. Their wider reach is
 documented in `docs/features.md` rather than captioned in the panel — this is
 a single-user app, so in-UI explanation of the author's own model is noise.

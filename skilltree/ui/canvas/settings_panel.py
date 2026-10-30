@@ -61,7 +61,7 @@ def build_graph_settings_panel(
 
     ``direction_id`` adds a Direction choice just above Max Depth, for the
     same tab and the same reason: Needs walks to what leads into the node,
-    Unlocks to what it leads to.
+    Supports to what it leads to.
 
     ``outside_nodes_id`` is the Events canvas's counterpart: a switch that
     shows or hides nodes outside the event that link to its nodes. It is
@@ -128,12 +128,12 @@ def build_graph_settings_panel(
             dbc.RadioItems(
                 id=direction_id,
                 options=[{"label": "Needs", "value": "needs"},
-                         {"label": "Unlocks", "value": "unlocks"}],
+                         {"label": "Supports", "value": "supports"}],
                 value="needs",
                 inline=True,
                 style={"fontSize": tokens.FS_BASE},
             ),
-            Tooltip("Needs shows what leads into this node. Unlocks shows "
+            Tooltip("Needs shows what leads into this node. Supports shows "
                     "what it leads to.", target=direction_id, placement="left"),
         ]
 

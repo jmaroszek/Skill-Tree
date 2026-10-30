@@ -535,7 +535,7 @@ The gear icon in the bottom right corner of each canvas opens the **Graph Layout
 | Gravity | How strongly nodes are pulled toward the center. |
 | Repulsion | How hard nodes push away from each other. |
 | Settle | Re-run the layout physics to untangle the graph. A filter change that swaps out more than half the nodes on screen gets a fresh layout on its own. |
-| Direction | *Details tab only.* **Needs** shows what leads into the selected node. **Unlocks** shows what it leads to. Like Max Depth, it also changes the Subtasks table and Milestones. |
+| Direction | *Details tab only.* **Needs** shows what leads into the selected node. **Supports** shows what it leads to. Like Max Depth, it also changes the Subtasks table and Milestones. |
 | Max Depth | *Details tab only.* How many relationship steps out the local view reaches. Unlike the controls above it, this one is not just about layout — it also limits the Subtasks table, Milestones and time simulation. |
 | Nodes outside event | *Events tab only.* Shows nodes outside the event that link to its nodes. Turn it off to see only the event's own nodes and the links between them. The app remembers your choice. |
 
@@ -711,7 +711,7 @@ The controls in the top-right let you dial the local view from a compact list of
 
 | Control | Where | What it does | Default |
 |---|---|---|:---:|
-| Direction | Graph settings | **Needs** walks back to the prerequisites that lead into the node. **Unlocks** walks forward to what the node leads to. | Needs |
+| Direction | Graph settings | **Needs** walks back to the prerequisites that lead into the node. **Supports** walks forward to what the node leads to. | Needs |
 | Max Depth | Graph settings | Stop after 1–5 relationship steps, or choose **All** for the complete dependency view. | All |
 | Soft Needs | Top-right | Include or exclude soft prerequisites. | On |
 | Synergies | Top-right | Include or exclude synergy partners. | Off |
@@ -727,7 +727,7 @@ The controls in the top-right let you dial the local view from a compact list of
 
 For a sprawling Goal with hundreds of descendants, Max Depth is the difference between an unreadable wall of rows and a clean list of actionable items. A depth of 1 is the old "direct children only" view; **All** preserves the complete subtree. Goal progress follows the same depth limit but remains deliberately Hard-only, because soft prerequisites and synergies do not define whether a Goal is complete.
 
-**Unlocks** turns the view around. Instead of what a node needs, it shows what finishing it leads to. That is also where its value comes from, since value flows forward along the arrows. The table is retitled Unlocks, and its Relationship column says whether each node is reached by Hard needs, Soft ones or a synergy. The Milestones strip shows the Milestones the node leads to. The **+** is hidden, because it only adds prerequisites. Time Simulation and Goal progress still look back at what the node needs: they ask how long the node will take and how far along it is, which only its prerequisites answer.
+**Supports** turns the view around. Instead of what a node needs, it shows what finishing it leads to. That is also where its value comes from, since value flows forward along the arrows. The table is retitled Supports, and its Relationship column says whether each node is reached by Hard needs, Soft ones or a synergy. The Milestones strip shows the Milestones the node leads to. The **+** is hidden, because it only adds prerequisites. Time Simulation and Goal progress still look back at what the node needs: they ask how long the node will take and how far along it is, which only its prerequisites answer.
 
 ## Time Simulation Panel
 Because most nodes carry three time estimates — optimistic, expected, and pessimistic — the app can simulate how long an entire project will take using **Monte Carlo Simulation.** Every time you swap nodes or adjust a filter, the app targets 10,000 simulations of you completing every subtask, keeping in mind your uncertainty about each one. Large dependency views automatically use fewer runs to stay responsive.

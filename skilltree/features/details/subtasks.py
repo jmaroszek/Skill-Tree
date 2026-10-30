@@ -314,7 +314,7 @@ def collect_details_subtasks(graph, node_name, include_soft, include_synergies,
     """Return the filtered, sorted dependency rows shared by Details views.
 
     ``direction`` is the Direction setting: the nodes leading into
-    ``node_name`` (Needs) or the ones it leads to (Unlocks).
+    ``node_name`` (Needs) or the ones it leads to (Supports).
     """
     view = graph.get_dependency_view(
         node_name, include_soft=include_soft,

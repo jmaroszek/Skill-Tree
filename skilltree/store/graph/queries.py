@@ -126,7 +126,7 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
 
 
 DIRECTION_NEEDS = "needs"
-DIRECTION_UNLOCKS = "unlocks"
+DIRECTION_SUPPORTS = "supports"
 
 
 def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
@@ -137,7 +137,7 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
     """Resolve the deterministic, filter-aware local view for ``root_name``.
 
     ``direction`` picks which way the walk runs. ``"needs"`` follows edges
-    backward, to the prerequisites that lead into the root. ``"unlocks"``
+    backward, to the prerequisites that lead into the root. ``"supports"``
     follows them forward, to the nodes the root leads to.
 
     Hard edges are always traversed. Soft edges are optional. Synergy
@@ -150,7 +150,7 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
     tuples. Discovery edges form the stable spanning tree used when the
     Details graph hides cross-links.
     """
-    if direction not in (DIRECTION_NEEDS, DIRECTION_UNLOCKS):
+    if direction not in (DIRECTION_NEEDS, DIRECTION_SUPPORTS):
         raise ValueError(f"Unknown direction: {direction!r}")
     # The end of an edge the walk stands on, and the end it steps to.
     here, there = (('target', 'source') if direction == DIRECTION_NEEDS
