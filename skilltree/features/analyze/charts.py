@@ -269,7 +269,7 @@ def render_bottleneck_chart(data):
                     if h > 0]
         label = _bottleneck_label(d['names'])
         body.append(html.Div([
-            html.Div(html.Span(label, className="gp-name-text", title=" + ".join(d['names'])),
+            html.Div(html.Span(label, className="gp-name-text", **ui_kit.hint(" + ".join(d['names']))),
                      className="gp-name"),
             html.Div(html.Div(segments, className="gp-track"), className="gp-bar",
                      **{'data-tip': tip}),
@@ -323,10 +323,10 @@ def render_goal_progress(rows):
                        f"across {n} node{'s' if n != 1 else ''}"
                        if r['recent_time'] else
                        f"Nothing finished in the last {months} months")
-        name = [html.Span(r['name'], className="gp-name-text", title=r['name'])]
+        name = [html.Span(r['name'], className="gp-name-text overflow-hint")]
         if r['priority_rank']:
             name.append(html.Span(str(r['priority_rank']), className="badge gp-rank",
-                                  title=f"Priority {r['priority_rank']}",
+                                  **ui_kit.hint(f"Priority {r['priority_rank']}"),
                                   style=badge_style("PriorityRank", font_size=tokens.FS_XS)))
         body.append(html.Div([
             html.Div(name, className="gp-name"),
@@ -400,7 +400,6 @@ def render_estimation_accuracy(rows):
         html.Span([html.I(className="gp-swatch dot",
                           style={'backgroundColor': colors.get(t, '#0d6efd')}), t],
                   className="gp-legend-item", role="button", tabIndex=0,
-                  title=f"Show or hide {t}",
                   **{'data-trace': t, 'aria-pressed': 'true'})
         for t in sorted(by_type)], className="gp-legend")
     return _card([_graph(fig, zoom=True), legend], fill=True)
@@ -603,7 +602,7 @@ def render_reflection_drift_chart(rows):
                      className="gp-row dr-row dr-head")]
     for r in rows:
         body.append(html.Div([
-            html.Div([html.Span(r['context'], className="gp-name-text", title=r['context']),
+            html.Div([html.Span(r['context'], className="gp-name-text overflow-hint"),
                       html.Span(f"({r['count']})", className="dr-n")],
                      className="gp-name"),
             *[_cell(r, attr, label) for attr, label in metric_keys],
@@ -838,7 +837,7 @@ def _rating_dist_row(row, label, kind, defs, chevron=False, element=html.Div,
     total = row['count']
     head = [html.Span(className="editor-chevron on-dark")] if chevron else []
     children = [html.Div(head + [
-        html.Span(label, className="rd-name", title=label),
+        html.Span(label, className="rd-name overflow-hint"),
         html.Span(str(row['count']), className="rd-count"),
     ], className="rd-label")]
     nodes_word = 'node' if total == 1 else 'nodes'

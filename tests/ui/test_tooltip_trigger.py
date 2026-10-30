@@ -84,10 +84,7 @@ def test_no_module_builds_a_raw_dbc_tooltip():
 def test_editor_action_tooltips_dismiss_when_sidebar_closes(services):
     tips = {tip.id: tip for tip in _tooltips(build_node_editor_content())
             if getattr(tip, 'id', None) and tip.id.startswith('editor-')}
-    expected = {
-        'editor-revert-tooltip', 'editor-save-tooltip',
-        'editor-delete-tooltip',
-    }
+    expected = {'editor-revert-tooltip', 'editor-save-tooltip'}
     assert set(tips) == expected
     assert all(tip.trigger == 'hover' for tip in tips.values())
 
@@ -111,12 +108,35 @@ global.document = {getElementById: id => ({
 })};
 require(process.argv[1]);
 const dismiss = window.dash_clientside.editor.dismiss_tooltips;
-assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(3).fill('NO'));
+assert.deepEqual(dismiss({transform: 'translateX(0px)'}), Array(2).fill('NO'));
 assert.deepEqual(events, []);
-assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(3).fill(false));
-assert.deepEqual(events, ['btn-revert', 'btn-save-wrap', 'btn-delete']
+assert.deepEqual(dismiss({transform: 'translateX(-350px)'}), Array(2).fill(false));
+assert.deepEqual(events, ['btn-revert', 'btn-save-wrap']
     .map(id => [id, 'mouseout']));
 '''
     result = subprocess.run([node, '-e', script, str(asset)], capture_output=True,
                             text=True, timeout=10)
     assert result.returncode == 0, result.stderr
+
+
+def test_no_component_carries_a_native_title_tooltip():
+    """A ``title`` tooltip keeps Chromium's own delay and look and shows again
+    after a click. Use ``ui_kit.hint`` or the ``overflow-hint`` class instead.
+    Plotly axis titles are not tooltips."""
+    import re
+    pattern = re.compile(r"(?<![_\w])title=")
+    offenders = [
+        f"{path.relative_to(ROOT).as_posix()}:{number}"
+        for path in sorted((ROOT / "skilltree").rglob("*.py"))
+        for number, line in enumerate(path.read_text(encoding="utf8").splitlines(), 1)
+        if pattern.search(line) and "dict(" not in line
+    ]
+    assert offenders == []
+
+
+def test_no_script_sets_a_native_title_tooltip():
+    from support.paths import app_asset_files
+    offenders = [path.name for path in app_asset_files(".js")
+                 if ".title =" in path.read_text(encoding="utf8")
+                 or "'title'" in path.read_text(encoding="utf8")]
+    assert offenders == []

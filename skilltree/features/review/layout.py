@@ -18,6 +18,7 @@ them needs the component present from the first paint.
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
+from skilltree.ui.kit import hint
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import node_type_color
@@ -171,7 +172,7 @@ def _build_reflect_tab():
 
 
 def _type_dot(node_type):
-    return html.Span(className="reflect-type-dot", title=node_type,
+    return html.Span(className="reflect-type-dot", **hint(node_type),
                      style={"backgroundColor": node_type_color(node_type)})
 
 

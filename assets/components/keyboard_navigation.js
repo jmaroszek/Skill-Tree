@@ -52,7 +52,7 @@
             handle.tabIndex = 0;
             handle.setAttribute('role', 'button');
             handle.setAttribute('aria-label', 'Reorder with Alt + arrow keys');
-            handle.title = 'Alt + arrow keys to reorder';
+            handle.setAttribute('data-hint', 'Alt + arrow keys to reorder');
         });
         var groups = new Set();
         document.querySelectorAll(listItems).forEach(function (row) { groups.add(row.parentElement); });

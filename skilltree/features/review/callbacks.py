@@ -320,10 +320,10 @@ def _build_history_table(nodes, sort=None, empty_message="No matching reflection
         rows.append(html.Tr([
             html.Td([
                 html.Div([
-                    html.Span(node.name, id=name_id, className="review-history-name"),
+                    html.Span(node.name, id=name_id,
+                              className="review-history-name overflow-hint"),
                     *notes_marker,
                 ], className="review-history-name-line"),
-                Tooltip(node.name, target=name_id),
             ], className="review-history-name-cell", style=_CELL_PRIMARY),
             html.Td(_fmt_hours(est_hours) if est_hours > 0 else _DASH,
                     style=_CELL_MUTED),

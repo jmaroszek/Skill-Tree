@@ -174,8 +174,9 @@ def test_home_dots_use_named_section_labels():
     node = manager.get_node("Reading")
     node.priority_score = 10
     rendered = format_suggestions_table([node], manager)
-    titles = [c.title for c in _flatten(rendered) if getattr(c, 'title', None)]
-    assert 'Articles' in titles
+    hints = [getattr(c, 'data-hint') for c in _flatten(rendered)
+             if getattr(c, 'data-hint', None)]
+    assert 'Articles link set' in hints
 
 
 def test_editor_renders_every_section_with_its_links():

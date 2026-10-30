@@ -11,6 +11,7 @@ import logging
 import dash
 from dash import Input, Output, State, ALL, ctx
 
+from skilltree.ui.kit import hint
 from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
 from skilltree.ui.prerender import prerendered
@@ -185,16 +186,17 @@ def render_resource_sections(links):
             key = f"{section_id}:{index}"
             children = [dbc.Input(id={'type': 'resource-link', 'index': key},
                                   value=value, type='text', placeholder='Enter path or URL...'),
-                        dbc.Button(html.I(className='bi bi-folder2-open'),
+                        html.Button(html.I(className='bi bi-folder2-open'),
                                    id={'type': 'resource-browse', 'index': key},
-                                   title='Browse', className='editor-icon-btn'),
-                        dbc.Button(html.I(className='bi bi-box-arrow-up-right'),
+                                   type='button', className='btn btn-primary editor-icon-btn', **hint('Browse', label=True)),
+                        html.Button(html.I(className='bi bi-box-arrow-up-right'),
                                    id={'type': 'resource-open', 'index': key},
-                                   title='Open', className='editor-icon-btn')]
+                                   type='button', className='btn btn-primary editor-icon-btn', **hint('Open', label=True))]
             if len(values) > 1:
-                children.append(dbc.Button(html.I(className='bi bi-x-lg'),
+                children.append(html.Button(html.I(className='bi bi-x-lg'),
                            id={'type': 'resource-remove', 'index': key},
-                           title='Remove', className='editor-icon-btn editor-icon-btn-danger'))
+                           type='button', className='btn btn-primary editor-icon-btn editor-icon-btn-danger',
+                           **hint('Remove link', label=True)))
             rows.append(html.Div(children, className='d-flex editor-field-group mb-1'))
         blocks.append(html.Div([
             html.Div([dbc.Label(section['name'], className='mb-0'),

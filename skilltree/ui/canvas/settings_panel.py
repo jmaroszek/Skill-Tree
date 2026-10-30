@@ -102,7 +102,7 @@ def build_graph_settings_panel(
         # 1rem, the same gap Bootstrap leaves between inline radios, so this
         # row and Direction below it are spaced alike.
         ], className="d-flex gap-3"),
-        Tooltip("Pause graph updates on save. Use Settle to refresh manually.",
+        Tooltip("Keep the layout still when you save. Settle redraws it.",
                     target=f"{p}-freeze-rerender", placement="left"),
         html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
     ]

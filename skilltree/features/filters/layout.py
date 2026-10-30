@@ -1,6 +1,7 @@
 """The Filters sidebar's layout."""
 from dash import dcc
 from dash import html
+from skilltree.ui.kit import hint
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.ui import tokens
 from skilltree.ui.components.context_picker import build_multi_context_picker
@@ -51,7 +52,7 @@ def build_filters_content():
                       placeholder="Filter by names and aliases...", autoComplete="off",
                       className="filter-search-input"),
             html.I(className="bi bi-arrow-return-left filter-search-enter",
-                   title="Press Enter to apply"),
+                   **hint("Press Enter to apply")),
             html.Button(html.I(className="bi bi-x-lg"), id="btn-clear-filter-text",
                         type="button", className="filter-search-clear",
                         **{"aria-label": "Clear search"}),

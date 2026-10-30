@@ -153,7 +153,7 @@ def test_queue_preview_names_the_first_few_with_their_type():
     assert len(rows) == 9
     dot, name = rows[0].children
     assert dot.className == "reflect-type-dot"
-    assert dot.title == "Action"
+    assert getattr(dot, "data-hint") == "Action"
     assert dot.style["backgroundColor"].startswith("#")
     assert name.children == "Node 0"
     assert rows[-1].children == "+2 more"
@@ -174,8 +174,9 @@ def test_review_history_summary_keeps_full_names_and_rating_comparison_accessibl
             else heading.children.children[0] for heading in headings[:-1]] == [
         "Name", "Est Time", "Actual", "Δ Time", "Δ Ratings"]
     assert headings[4].to_plotly_json()["props"]["aria-sort"] == "descending"
-    assert cells[0].children[0].children[0].children == node.name
-    assert cells[0].children[1].children == node.name
+    name = cells[0].children[0].children[0]
+    assert name.children == node.name
+    assert name.className == "review-history-name overflow-hint"
     assert cells[4].children[0].children == "+1/+2/−1"
     assert "Estimated V/I/E: 5/5/5" in cells[4].children[1].children
     assert "Actual V/I/E: 6/7/4" in cells[4].children[1].children

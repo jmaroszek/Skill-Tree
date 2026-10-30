@@ -2,6 +2,7 @@
 Layout definitions for the Events tab.
 """
 
+from skilltree.ui.kit import hint
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import DURATION_UNITS, unit_select, format_duration_days
 from dash import html, dcc
@@ -232,11 +233,9 @@ def build_events_tab_content():
                         id="event-delete-wrapper",
                     ),
                 ], className="form-actions d-flex align-items-center mb-2"),
-                Tooltip("Delete this event and its dormant nodes",
+                Tooltip("Delete this event and all its dormant nodes",
                         target="btn-event-delete", placement="bottom"),
-                Tooltip("Save changes to this event",
-                        target="btn-event-save", placement="bottom"),
-                Tooltip("Trigger this event and activate its dormant nodes",
+                Tooltip("Fire this event now and wake its dormant nodes",
                         target="btn-trigger-event", placement="bottom"),
 
                 html.Hr(className="my-3"),
@@ -388,7 +387,7 @@ def build_events_tab_content():
                        id="btn-events-graph-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            Tooltip("Toggle fullscreen", target="btn-events-graph-fullscreen", placement="left"),
+            Tooltip("Full screen", target="btn-events-graph-fullscreen", placement="left"),
             html.Div(id="events-canvas-node-count", className="canvas-stats-overlay"),
             filter_chip("events-filter-chip", "filter-chip-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
@@ -604,7 +603,7 @@ def _format_wake_date(iso_date: str) -> str:
     """An ISO date as `Oct 1`, or `Oct 1, 2027` when it is not this year.
 
     The year is the part that only sometimes carries information, so it only
-    sometimes appears. The full ISO string stays in the cell's title.
+    sometimes appears.
     """
     try:
         when = date.fromisoformat(iso_date)
@@ -655,8 +654,7 @@ def _wakes_cell(en, event):
                                            font_size=tokens.FS_XS))
 
     if activation_date:
-        when = html.Span(_format_wake_date(activation_date),
-                         title=activation_date)
+        when = html.Span(_format_wake_date(activation_date))
     else:
         when = html.Span(_projected_wake(event, en['delay_days']),
                          className="text-muted")
@@ -666,8 +664,7 @@ def _wakes_cell(en, event):
     # and the badge above reports what actually happened.
     return [when, html.I(
         className="bi bi-play-circle ms-2 dormant-now-marker",
-        title="Will be added to Now when it wakes",
-        role="img", **{"aria-label": "Will be added to Now when it wakes"})]
+        role="img", **hint("Will be added to Now when it wakes", label=True))]
 
 
 def _dormant_row_actions(node_name: str):
@@ -686,12 +683,12 @@ def _dormant_row_actions(node_name: str):
     }
     specs = [
         ("edit", "bi bi-pencil", f"Edit dormant node {node_name}",
-         "Edit dormant node", ""),
+         "Edit node", ""),
         ("move", "bi bi-box-arrow-right",
          f"Move dormant node {node_name} to another event",
          "Move to another event", ""),
         ("delete", "bi bi-trash3", f"Delete dormant node {node_name}",
-         "Delete node", " dormant-node-action-btn-danger"),
+         "Delete node permanently", " dormant-node-action-btn-danger"),
     ]
     children = []
     for action, icon, label, tip, extra_class in specs:
@@ -823,8 +820,8 @@ def build_dormant_nodes_table(event_nodes, event=None):
                       if delay_days == 0 else html.Span(delay_display))
 
         rows.append(html.Tr([
-            # title= keeps the full name reachable once the cell ellipsizes it.
-            html.Td(node.name, className="dormant-node-name-cell", title=node.name,
+            # overflow-hint shows the full name only once the cell cuts it short.
+            html.Td(node.name, className="dormant-node-name-cell overflow-hint",
                     style=tokens.CELL_PRIMARY),
             html.Td(node.type, style=tokens.CELL_MUTED),
             html.Td(delay_cell, style=tokens.CELL_PRIMARY),

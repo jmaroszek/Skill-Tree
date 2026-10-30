@@ -96,7 +96,7 @@ def test_dormant_node_table_uses_progressively_disclosed_direct_actions():
     assert delete_button.children[1].children == "Delete dormant node Audio Engineering"
     assert delete_button.id == {"type": "btn-delete-dormant-node",
                                 "index": "Audio Engineering"}
-    assert _delete_tip.children == "Delete node"
+    assert _delete_tip.children == "Delete node permanently"
     assert not hasattr(edit_button, "title")
     assert not hasattr(delete_button, "title")
 
@@ -171,8 +171,9 @@ def test_dormant_node_name_cell_truncates_but_keeps_the_full_name():
     table = build_dormant_nodes_table([_row(long_name)])
 
     name_cell = table.children[1].children[0].children[0]
-    assert name_cell.className == "dormant-node-name-cell"
-    assert name_cell.title == long_name
+    # The full name shows on hover only while the cell cuts it short.
+    assert name_cell.className == "dormant-node-name-cell overflow-hint"
+    assert not hasattr(name_cell, "title")
     assert name_cell.children == long_name
 
 
@@ -203,7 +204,6 @@ def test_a_projected_wake_date_is_muted_and_a_committed_one_is_not():
     assert projected_cell.className == "text-muted"
     assert committed_cell.children == "Oct 1, 2027"
     assert getattr(committed_cell, "className", None) is None
-    assert committed_cell.title == "2027-10-01", "the full date stays reachable"
 
 
 def test_a_wake_date_carries_its_year_after_a_comma():

@@ -9,6 +9,7 @@ live under `.settings-body` in theme.css.
 
 from dash import dcc, html
 import dash_bootstrap_components as dbc
+from skilltree.ui.kit import hint
 from skilltree.store.settings import DEFAULT_TITLECASE_LINTER
 from skilltree.domain.contexts import (
     SUBCONTEXT_SORT_DEFINITION, SUBCONTEXT_SORT_ALPHABETICAL, CONTEXT_SORT_DEFINITION,
@@ -433,9 +434,9 @@ def _resource_root_field(section_id, root_path):
     return html.Div([
         dbc.Input(id={"type": "resource-section-root", "index": section_id},
                   value=root_path, type="text", placeholder="Choose a folder..."),
-        dbc.Button(html.I(className="bi bi-folder2-open"),
+        html.Button(html.I(className="bi bi-folder2-open"),
                    id={"type": "resource-section-root-browse", "index": section_id},
-                   title="Browse", className="editor-icon-btn"),
+                   type="button", className="btn btn-primary editor-icon-btn", **hint("Browse", label=True)),
     ], className="d-flex editor-field-group")
 
 
@@ -446,9 +447,9 @@ def _removed_resource_card(section, link_count):
     return html.Div([
         html.Span(section["name"], className="resource-card-name-removed"),
         html.Span(note, className="resource-card-note"),
-        dbc.Button(html.I(className="bi bi-arrow-counterclockwise"),
+        html.Button(html.I(className="bi bi-arrow-counterclockwise"),
                    id={"type": "resource-section-undelete", "index": section["id"]},
-                   title="Keep this resource", className="ctx-row-btn"),
+                   type="button", className="btn btn-primary ctx-row-btn", **hint("Keep this resource", label=True)),
     ], className="resource-row resource-card-removed")
 
 
@@ -484,9 +485,10 @@ def build_resource_setting_rows(sections, link_counts=None):
                     id={"type": "resource-section-root-options", "index": section_id},
                     is_open=use_root),
             ], className="resource-root-cell"),
-            dbc.Button(html.I(className="bi bi-x-lg"),
+            html.Button(html.I(className="bi bi-x-lg"),
                        id={"type": "resource-section-remove", "index": section_id},
-                       title="Remove resource", className="ctx-row-btn ctx-row-btn-danger"),
+                       type="button", className="btn btn-primary ctx-row-btn ctx-row-btn-danger",
+                       **hint("Remove resource", label=True)),
         ], className="resource-row"))
     return cards
 

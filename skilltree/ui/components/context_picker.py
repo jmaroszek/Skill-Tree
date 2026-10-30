@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from dash import Input, Output, ctx, dcc, html, no_update
 import dash_bootstrap_components as dbc
 
+from skilltree.ui.kit import hint
 from skilltree.store import settings
 from skilltree.domain.contexts import sort_contexts, sort_subcontexts
 
@@ -114,8 +115,7 @@ def _picker_shell(
             type="button",
             className="context-picker-clear",
             hidden=not bool(context_value),
-            title="Clear context filters",
-            **{"aria-label": "Clear context filters"},
+            **hint("Clear context filters", label=True),
         ))
 
     return html.Div([

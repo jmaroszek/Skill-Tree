@@ -194,8 +194,8 @@
             'aria-label',
             summary.count ? 'Context filters: ' + summary.descriptions.join('; ') : instance.emptyLabel
         );
-        if (summary.descriptions.length) instance.trigger.title = summary.descriptions.join('; ');
-        else instance.trigger.removeAttribute('title');
+        if (summary.descriptions.length) instance.trigger.setAttribute('data-hint', summary.descriptions.join('; '));
+        else instance.trigger.removeAttribute('data-hint');
         if (instance.clearButton) instance.clearButton.hidden = summary.count === 0;
     }
 

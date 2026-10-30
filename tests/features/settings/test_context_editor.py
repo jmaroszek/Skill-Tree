@@ -707,7 +707,7 @@ class TestBuildContextEditorRows:
         rows = _rows()
         _row(rows, "Wisdom")["name"] = "Philosophy"
         tree = build_context_editor_rows(rows, {"Wisdom": 3})
-        counts = [getattr(c, "title", None) for c in _walk(tree)
+        counts = [getattr(c, "data-hint", None) for c in _walk(tree)
                   if getattr(c, "className", None) == "ctx-row-name-wrap"]
         assert counts == [None, None, "3 nodes"]
 

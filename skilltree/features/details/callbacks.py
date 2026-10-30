@@ -681,7 +681,7 @@ def register_details_callbacks(app, services):
     # see is_filters_active on why a reveal is not a filter.
     @app.callback(
         Output('details-filter-chip-text', 'children'),
-        Output('details-filter-chip', 'title'),
+        Output('details-filter-chip', 'data-hint'),
         Output('details-filter-chip', 'hidden'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
@@ -694,7 +694,7 @@ def register_details_callbacks(app, services):
         Input('filter-search-query', 'data'),
         Input('filter-time-unit', 'value'),
         State('details-filter-chip-text', 'children'),
-        State('details-filter-chip', 'title'),
+        State('details-filter-chip', 'data-hint'),
         State('details-filter-chip', 'hidden'),
         prevent_initial_call=True,
     )

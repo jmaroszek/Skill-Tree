@@ -281,7 +281,7 @@ class TestComputeGoalProgress:
         parts = list(_walk(_render_goal_progress(rows)))
         name = next(p for p in parts if getattr(p, 'className', None) == 'gp-name')
         assert [getattr(c, 'className', None) for c in name.children] == [
-            'gp-name-text', 'badge gp-rank']
+            'gp-name-text overflow-hint', 'badge gp-rank']
         pct = next(p for p in parts if getattr(p, 'className', None) == 'gp-pct')
         assert pct.children == "0.3%"   # started, so not 0%
         bar = next(p for p in parts if getattr(p, 'className', None) == 'gp-bar')

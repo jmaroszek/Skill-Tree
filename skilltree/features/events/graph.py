@@ -128,7 +128,7 @@ def register_event_graph_callbacks(app, services):
     # Community. They hide only the nodes outside the event.
     @app.callback(
         Output('events-filter-chip-text', 'children'),
-        Output('events-filter-chip', 'title'),
+        Output('events-filter-chip', 'data-hint'),
         Output('events-filter-chip', 'hidden'),
         Input('filter-node-type', 'value'),
         Input('filter-context', 'value'),
@@ -141,7 +141,7 @@ def register_event_graph_callbacks(app, services):
         Input('filter-search-query', 'data'),
         Input('filter-time-unit', 'value'),
         State('events-filter-chip-text', 'children'),
-        State('events-filter-chip', 'title'),
+        State('events-filter-chip', 'data-hint'),
         State('events-filter-chip', 'hidden'),
         prevent_initial_call=True,
     )

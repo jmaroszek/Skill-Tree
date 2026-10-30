@@ -7,6 +7,7 @@ import dash
 import dash_bootstrap_components as dbc
 from dash import ALL, Input, Output, State, ctx, html
 
+from skilltree.ui.kit import hint
 from skilltree.domain import contexts as context_rules
 from skilltree.store import settings
 
@@ -40,13 +41,13 @@ def _chip(sub, count=0, error=None):
             className="ctx-chip-input", style={"width": width},
             invalid=bool(error), autoFocus=_is_fresh(sub),
         ),
-        dbc.Button(html.I(className="bi bi-x"),
+        html.Button(html.I(className="bi bi-x"),
                    id={"type": "ctx-sub-remove", "index": sub["sid"]},
-                   title="Remove subcontext",
-                   className="ctx-chip-remove"),
+                   **hint("Remove subcontext", label=True),
+                   type="button", className="btn btn-primary ctx-chip-remove"),
     ], className="ctx-chip",
-        title=error or (_plural(count, "node") if count else None),
-        key=sub["sid"], **{"data-ctx-sub": sub["sid"]})
+        key=sub["sid"], **{"data-ctx-sub": sub["sid"]},
+        **({"data-hint": error or _plural(count, "node")} if error or count else {}))
 
 
 def _deleted_row(row, count):
@@ -59,10 +60,10 @@ def _deleted_row(row, count):
         html.Span(row.get("orig") or row.get("name") or "",
                   className="ctx-row-name-static ctx-row-removed"),
         html.Span(f"removed — {stranded}", className="ctx-row-note"),
-        dbc.Button(html.I(className="bi bi-arrow-counterclockwise"),
+        html.Button(html.I(className="bi bi-arrow-counterclockwise"),
                    id={"type": "ctx-row-undelete", "index": row["rid"]},
-                   title="Keep this context",
-                   className="ctx-row-btn"),
+                   **hint("Keep this context", label=True),
+                   type="button", className="btn btn-primary ctx-row-btn"),
     ], className="ctx-row ctx-row-deleted", key=row["rid"],
         **{"data-ctx-row": row["rid"]})
 
@@ -115,22 +116,22 @@ def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=No
                   errors.get(f"sub:{sub['sid']}"))
             for sub in row.get("subs", [])
         ]
-        chips.append(dbc.Button(
+        chips.append(html.Button(
             [html.I(className="bi bi-plus"), " add"],
             id={"type": "ctx-sub-add", "index": rid},
-            title="Add a subcontext", className="ctx-chip-add"))
+            type="button", className="btn btn-primary ctx-chip-add", **hint("Add a subcontext")))
 
         out.append(html.Div([
             html.Span(html.I(className="bi bi-list"),
                       className="ctx-drag-handle"),
-            # dbc.Input takes no title, so a wrapper carries the node count.
+            # The wrapper carries the node count: hover tips go on plain elements.
             html.Div(dbc.Input(
                 id={"type": "ctx-row-name", "index": rid},
                 type="text", value=row.get("name", ""), placeholder="Context",
                 className="ctx-row-name", invalid=bool(errors.get(f"row:{rid}")),
                 autoFocus=_is_fresh(row),
             ), className="ctx-row-name-wrap",
-                title=_plural(count, "node") if count else None),
+                **({"data-hint": _plural(count, "node")} if count else {})),
             html.Div(chips, className="ctx-chips", **{"data-ctx-subs": rid}),
             dbc.Input(
                 id={"type": "ctx-row-weight", "index": rid},
@@ -138,10 +139,10 @@ def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=No
                 value=float(row.get("weight", 1.0)),
                 className="ctx-row-weight",
             ),
-            dbc.Button(html.I(className="bi bi-x-lg"),
+            html.Button(html.I(className="bi bi-x-lg"),
                        id={"type": "ctx-row-delete", "index": rid},
-                       title="Remove context",
-                       className="ctx-row-btn ctx-row-btn-danger"),
+                       **hint("Remove context", label=True),
+                       type="button", className="btn btn-primary ctx-row-btn ctx-row-btn-danger"),
         ], className="ctx-row", key=rid, **{"data-ctx-row": rid}))
 
     # The "Add context" button is not here: a callback Input needs its

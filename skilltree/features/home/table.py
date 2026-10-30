@@ -3,6 +3,7 @@ import json
 
 from dash import html
 
+from skilltree.ui.kit import hint
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, STATUS_DONE
 from skilltree.domain.scoring import explain_score
 from skilltree.store import database
@@ -61,7 +62,7 @@ def _suggestion_micro_bar(val, label):
             "position": "absolute", "left": 0, "right": 0, "bottom": 0,
             "height": f"{pct}%", "background": tokens.TEXT_SOFT, "borderRadius": "1px",
         }),
-        title=f"{label}: {display_val}",
+        **hint(f"{label}: {display_val}"),
         style={
             "position": "relative", "width": "6px", "height": "22px",
             "background": "rgba(255,255,255,0.06)", "borderRadius": "1px",
@@ -144,7 +145,7 @@ def _suggestion_dot(on, label, fill_color):
     """One link-presence indicator dot (filled when a link is set, hollow otherwise)."""
     border_color = fill_color if on else tokens.TEXT_DIM
     return html.Span(
-        title=label,
+        **hint(f"{label} link set" if on else f"No {label} link"),
         style={
             "width": "8px", "height": "8px", "borderRadius": "8px",
             "background": fill_color if on else "transparent",

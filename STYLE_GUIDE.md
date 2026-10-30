@@ -1092,6 +1092,37 @@ Valid names: `Goal`, `Priority`, `PriorityRank`, `Action`, `Learn`,
 
 ## Tooltips (hover)
 
+A tooltip earns its place by saying something the element doesn't:
+- **Explain, don't repeat.** A text button whose tooltip restates its label
+  ("Delete" → "Delete this node") gets none. Keep one only when it adds a
+  consequence ("Delete this event and all its dormant nodes").
+- **Name icon-only buttons.** Every icon button has a short name, through the
+  `ui_kit` builders or `ui_kit.hint(text, label=True)`.
+- **A full name only when it's cut off.** Give a truncating name the
+  `overflow-hint` class. It shows its own text on hover only while the
+  ellipsis is hiding part of it. Never a tooltip that repeats a visible name.
+- **No native `title`.** It keeps Chromium's own delay and look, and shows
+  again after a click. A Dash component uses `ui_kit.Tooltip`. A small mark or
+  row button that would need one per row uses `ui_kit.hint(text)` instead,
+  which sets `data-hint`. `tests/ui/test_tooltip_trigger.py` fails on a `title=`.
+  `dbc.Button` takes no `data-*` props, so a hinted button is an `html.Button`
+  with the same `btn btn-primary` classes.
+
+Timing is the same for both kinds, and `assets/components/hover_tips.js` runs
+it:
+- A tooltip waits `TOOLTIP_SHOW_DELAY_MS` (700 ms, `skilltree/ui/timing.py`)
+  before it shows. The wait is CSS (`--st-tooltip-show-delay`, the Tooltips
+  section of `custom.css`), so `ui_kit.Tooltip` mounts with no delay of its own.
+- A press cancels: no tooltip shows until the pointer leaves what it pressed.
+- Warm handoff: within half a second of one tooltip closing, the next shows at
+  once, so a row of icon buttons reads quickly.
+- A tooltip whose text is empty shows nothing. Save's tooltip is empty until
+  something stops it, and then says what.
+
+The canvas node card (`assets/canvas/tooltip.js`) and the Analyze data tips
+(`assets/analyze/rating_dist.js`) are data views, not hints, and keep their
+own timing. A press hides the node card too.
+
 ```python
 from skilltree.ui import tokens
 

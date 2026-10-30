@@ -88,20 +88,20 @@ window.dash_clientside.editor = window.dash_clientside.editor || {};
     window.dash_clientside.editor.dismiss_tooltips = function (editorStyle) {
         var NO = window.dash_clientside.no_update;
         if (editorStyle && editorStyle.transform === "translateX(0px)") {
-            return [NO, NO, NO];
+            return [NO, NO];
         }
         // A pending hover timer can fire after the sidebar has moved away.
         // The tooltip's native mouseout handler cancels that timer; resetting
         // is_open then closes a tooltip that was already showing. Save's
         // tooltip hangs on its wrapper, which still gets mouse events while
         // Save is disabled.
-        ["btn-revert", "btn-save-wrap", "btn-delete"]
+        ["btn-revert", "btn-save-wrap"]
             .forEach(function (id) {
                 var button = document.getElementById(id);
                 if (button) {
                     button.dispatchEvent(new MouseEvent("mouseout", {bubbles: true}));
                 }
             });
-        return [false, false, false];
+        return [false, false];
     };
 })();

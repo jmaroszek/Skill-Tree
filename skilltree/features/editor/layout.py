@@ -2,6 +2,7 @@
 import dash
 import dash_bootstrap_components as dbc
 from dash import html
+from skilltree.ui.kit import hint
 from skilltree.store import settings
 from skilltree.ui import tokens
 from skilltree.ui.components.ratings_table import (
@@ -45,9 +46,10 @@ def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-
         rows.append(html.Div([
             dbc.Input(id={'type': input_type, 'index': i}, type='text',
                       value=val or '', placeholder='Enter alias...'),
-            dbc.Button(html.I(className='bi bi-x-lg'),
-                       id={'type': remove_type, 'index': i}, title='Remove alias',
-                       className='editor-icon-btn editor-icon-btn-danger'),
+            html.Button(html.I(className='bi bi-x-lg'),
+                       id={'type': remove_type, 'index': i},
+                       type='button', className='btn btn-primary editor-icon-btn editor-icon-btn-danger',
+                       **hint('Remove alias', label=True)),
         ], className='d-flex editor-field-group mb-1'))
     return rows
 
@@ -227,7 +229,9 @@ def wake_switches(delay_switch, fields, now_switch):
 # weekday indices (0=Mon … 6=Sun); displayed Sunday-first to match the
 # Apple-style day picker. Single-letter labels.
 # Save's tooltip while it is on. While it is off, the tooltip says why.
-SAVE_HINT = "Save changes"
+# Save names itself. Its tooltip only explains why it is disabled, and an
+# empty tooltip shows nothing (custom.css, Tooltips).
+SAVE_HINT = ""
 
 
 WEEKDAY_OPTIONS = [
@@ -269,8 +273,8 @@ _EDITOR_HINTS = {
         "What this node unlocks.",
         "Hard: blocks them until this is done.",
         "Soft: helps them, but does not block."),
-    "helps": "Mutual boost: doing both is worth more than the sum. Does not block.",
-    "resources": "External material that helps with this project. Add more types in Settings.",
+    "helps": "Mutual boost: each makes the other worth more. Never blocks.",
+    "resources": "External material for this node. Add link types in Settings.",
     "ratings_inherit": "Take value and interest from the nodes inside this one.",
     "time_inherit": "Take time from the nodes inside this one.",
     "habit": "A routine spread over weeks. Enter how long it runs, the minutes per session and the days.",
@@ -314,7 +318,7 @@ def build_node_editor_content():
                     searchable=True,
                     clearable=True,
                 ), className="text-dark"),
-                Tooltip("Locate node in current view",
+                Tooltip("Find this node on the canvas",
                             target="btn-locate-node", placement="right"),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
                 dcc.Store(id='locate-animate-trigger', data=None),
@@ -700,9 +704,8 @@ def build_node_editor_content():
                     "backgroundColor": tokens.BG_PANEL,
                     "paddingBottom": "10px",
                 }),
-                Tooltip("Discard unsaved changes and revert this node to its last saved state", id="editor-revert-tooltip", target="btn-revert", placement="top"),
+                Tooltip("Discard unsaved changes", id="editor-revert-tooltip", target="btn-revert", placement="top"),
                 Tooltip(SAVE_HINT, id="editor-save-tooltip", target="btn-save-wrap", placement="top"),
-                Tooltip("Delete this node", id="editor-delete-tooltip", target="btn-delete", placement="top"),
                 dcc.Store(id='node-time-unit-prev', data='weeks'),
                 dcc.Store(id='node-original-name', data=None)
             ])

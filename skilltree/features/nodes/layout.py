@@ -76,7 +76,7 @@ def create_graph_view():
                        id="btn-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            Tooltip("Toggle fullscreen", target="btn-fullscreen", placement="left"),
+            Tooltip("Full screen", target="btn-fullscreen", placement="left"),
             html.Div(id="canvas-node-count", className="canvas-stats-overlay"),
             filter_chip("nodes-filter-chip", "filter-chip-overlay"),
             # Shown over an empty canvas (callbacks.register_engine_callbacks fills it

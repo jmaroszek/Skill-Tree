@@ -162,7 +162,6 @@ def build_details_tab_content():
         html.Div([
             dbc.Button("Edit", id="btn-details-edit", color="secondary",
                        size="sm", style={"flex": "1"}),
-            Tooltip("Open the node editor", target="btn-details-edit", placement="top"),
             dbc.Button("Explain", id="btn-details-explain", color="secondary",
                        size="sm", className="ms-1", style={"flex": "1"}),
             Tooltip("Show where this node's priority score comes from",
@@ -254,7 +253,7 @@ def build_details_tab_content():
                        id="btn-details-graph-fullscreen",
                        color="secondary", size="sm",
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
-            Tooltip("Toggle fullscreen", target="btn-details-graph-fullscreen", placement="left"),
+            Tooltip("Full screen", target="btn-details-graph-fullscreen", placement="left"),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
             filter_chip("details-filter-chip", "filter-chip-overlay"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
@@ -922,8 +921,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Td(
                 html.Span(
                     node.name,
-                    title=f"{node.name} — open in Details",
-                    className="details-subtask-name-link link-like",
+                    className="details-subtask-name-link link-like overflow-hint",
                     role="button", tabIndex=0,
                 ),
                 id={"type": "details-subtask-name", "index": node.name},
@@ -1004,7 +1002,7 @@ def build_milestone_tile(milestone_node, completion: dict):
                 "fontSize": tokens.FS_BASE,
                 "fontWeight": "500",
             },
-            title=milestone_node.name,
+            className="overflow-hint",
         ),
         html.Span(
             milestone_node.status,

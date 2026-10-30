@@ -297,7 +297,7 @@ def filter_chip_state(labels, shown=3):
 def filter_chip_updates(chip, current):
     """`filter_chip_state` as callback outputs, leaving what is already shown.
 
-    ``current`` is the chip's present ``(text, title, hidden)``. A chip that
+    ``current`` is the chip's present ``(text, data-hint, hidden)``. A chip that
     already reads right is not rewritten, so a filter change that leaves the
     summary alone adds no round trip to the page.
     """

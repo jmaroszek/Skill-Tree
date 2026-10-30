@@ -150,6 +150,9 @@
     --st-transition-fast: 0.15s ease;
     --st-transition: 0.2s ease;
     --st-transition-slow: 0.3s ease;
+    /* How long a hover waits before its tooltip shows. hover_tips.js replaces
+       it with TOOLTIP_SHOW_DELAY_MS from skilltree/ui/timing.py. */
+    --st-tooltip-show-delay: 700ms;
 
     /* ---- Z-index scale (documented in STYLE_GUIDE.md) --------------------- */
     --st-z-canvas-overlay: 10;

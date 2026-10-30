@@ -19,7 +19,7 @@ from skilltree.ui.kit import Tooltip
 
 _BRACKET_HINTS = {
     "Lower": "10% chance of finishing sooner than this.",
-    "Expected": "A 50/50 estimate.",
+    "Expected": "Equally likely to take more or less than this.",
     "Upper": "10% chance of taking longer than this.",
 }
 

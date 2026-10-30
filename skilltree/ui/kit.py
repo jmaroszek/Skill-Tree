@@ -29,12 +29,14 @@ import dash_bootstrap_components as dbc
 from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.ui.styles import BADGE_PALETTE
-from skilltree.ui.timing import TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS
+from skilltree.ui.timing import TOOLTIP_HIDE_DELAY_MS
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.ui import tokens
 from skilltree.ui.styles import badge_style
 
-_DELAY = {"show": TOOLTIP_SHOW_DELAY_MS, "hide": TOOLTIP_HIDE_DELAY_MS}
+# The show delay is CSS (custom.css, Tooltips): the tooltip mounts at once and
+# fades in late, so a press or a warm handoff can change the wait.
+_DELAY = {"show": 0, "hide": TOOLTIP_HIDE_DELAY_MS}
 
 
 def Tooltip(children, target, **kwargs):
@@ -56,6 +58,21 @@ def Tooltip(children, target, **kwargs):
     kwargs.setdefault("trigger", "hover")
     kwargs.setdefault("delay", _DELAY)
     return dbc.Tooltip(children, target=target, **kwargs)
+
+
+def hint(text, label=False):
+    """Props that give an element the shared hover tip, instead of a ``title``.
+
+    For small marks and row buttons that would each need a Tooltip component:
+    assets/components/hover_tips.js shows ``data-hint`` with the app's tooltip
+    timing and look. A native ``title`` keeps Chromium's own delay and look,
+    and shows again after a click. ``label=True`` also names an icon-only
+    button for screen readers, which the ``title`` used to do.
+    """
+    props = {"data-hint": text}
+    if label:
+        props["aria-label"] = text
+    return props
 
 
 def bullet_hint(intro, *items):
@@ -223,7 +240,7 @@ def filter_chip(prefix, className_extra=""):
     """The "Filtered" chip: which filters are narrowing this view, and a clear.
 
     Hidden until `ui.filters.filter_chip_state` marks it active. The
-    callback fills ``{prefix}-text`` and the chip's title and `hidden`; the
+    callback fills ``{prefix}-text`` and the chip's data-hint and `hidden`; the
     clear button is ``{prefix}-clear``.
     """
     return html.Div([
@@ -231,8 +248,7 @@ def filter_chip(prefix, className_extra=""):
         html.Span(id=f"{prefix}-text", className="filter-chip-text"),
         html.Button(html.I(className="bi bi-x-lg", **{"aria-hidden": "true"}),
                     id=f"{prefix}-clear", n_clicks=0, type="button",
-                    className="filter-chip-clear", title="Clear all filters",
-                    **{"aria-label": "Clear all filters"}),
+                    className="filter-chip-clear", **hint("Clear all filters", label=True)),
     ], id=prefix, className=" ".join(filter(None, ["filter-chip", className_extra])),
         role="status", hidden=True, **{"aria-label": "Filtered"})
 
