@@ -105,9 +105,24 @@
         // cy-level listeners are attached via onCytoReady so they re-bind if
         // dash-cytoscape ever swaps the underlying cy instance.
         var _mouseLeaveBound = {};
+        // A dragged node stays under the cursor, so its hover timer would
+        // fire mid-drag. Moving it hides the tooltip, and nothing shows again
+        // until the cursor next arrives on a node.
+        var dragging = false;
 
         function bindCyHandlers(cy) {
+            cy.on('drag', 'node', function () {
+                if (dragging) return;
+                dragging = true;
+                window.SkillTree.tooltip.hide();
+            });
+
+            cy.on('free', 'node', function () {
+                dragging = false;
+            });
+
             cy.on('mouseover', 'node', function (evt) {
+                if (dragging) return;
                 var nodeId = evt.target.id();
                 onNode = true;
                 delayElapsed = false;
