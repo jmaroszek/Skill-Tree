@@ -276,6 +276,8 @@ def _explain_bar_chart(contributors: list, top_n: int):
         yaxis=dict(automargin=True, ticksuffix="  "),
         showlegend=False,
         height=max(260, 30 * len(rows) + 80),
+        # Read by hovering: a stray drag would zoom bars that never crowd.
+        dragmode=False,
     )
     return fig
 

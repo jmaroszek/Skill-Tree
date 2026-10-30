@@ -1,6 +1,6 @@
 """The Explain panel's summary, hover text and rank wording."""
 from skilltree.features.details.explain import (
-    build_explain_summary, format_value_rank, format_priority_rank, _ordinal,
+    build_explain_chart, build_explain_summary, format_value_rank, format_priority_rank, _ordinal,
     _contributor_hover,
 )
 
@@ -259,3 +259,9 @@ class TestOrdinal:
     def test_suffix_repeats_past_twenty(self):
         assert [_ordinal(n) for n in (21, 22, 23, 111, 112)] == \
             ["21st", "22nd", "23rd", "111th", "112th"]
+
+
+def test_explain_chart_is_read_by_hovering_not_zooming():
+    # With drag-zoom on, the plot showed a crosshair and a stray drag zoomed
+    # bars that never crowd together.
+    assert build_explain_chart([]).layout.dragmode is False
