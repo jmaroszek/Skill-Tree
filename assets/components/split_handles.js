@@ -103,7 +103,7 @@
         var rows = handle.classList.contains('split-handle-rows');
         var minSize = parseFloat(handle.getAttribute('data-min-size')) || 0;
         window.SkillTree.drag.start({
-            cursor: rows ? 'ns-resize' : 'col-resize',
+            cursor: rows ? 'row-resize' : 'col-resize',
             onMove: (function (move) {
                 return function (ev) { move(rows ? ev.clientY : ev.clientX); };
             })(sizePair(first, second, rows, rows ? e.clientY : e.clientX, minSize)),

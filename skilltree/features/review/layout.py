@@ -451,7 +451,6 @@ def build_reflection_ratings_popup():
                                "Close reflection ratings reference",
                                style={"marginLeft": "auto"}),
         ], id="reflection-ratings-popup-header", className="d-flex align-items-center", style={
-            "cursor": "move",
             "padding": "8px 10px",
             "backgroundColor": tokens.BG_RAISED,
             "borderBottom": f"1px solid {tokens.BORDER_PANEL}",

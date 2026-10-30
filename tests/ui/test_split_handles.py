@@ -153,7 +153,7 @@ def test_a_row_drag_shares_the_height_by_flex_grow():
 const upper = panel(0, 500);
 const lower = panel(0, 300, {paddingTop: '8px', paddingBottom: '8px'});
 press(handle('rows', upper, lower, 100), 0, 500);
-assert.equal(drag.cursor, 'ns-resize');
+assert.equal(drag.cursor, 'row-resize');
 
 // The lower panel's 16px of padding is outside what flex-grow shares, so it
 // comes off its share: 560 and 224 + 16 split the 800px the pair had.

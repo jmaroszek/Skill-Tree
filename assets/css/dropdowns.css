@@ -74,7 +74,6 @@ select.form-select:has(> option[value=""][hidden]:checked) {
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
 }
 
 
@@ -329,7 +328,6 @@ span.dash-dropdown-option {
         border-radius: 3px;
         background: transparent;
         color: var(--st-menu-fg);
-        cursor: pointer;
     }
 
     /* `display: flex` above would otherwise defeat the UA's `display: none`

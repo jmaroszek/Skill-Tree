@@ -80,11 +80,6 @@ input[type=number] {
     scrollbar-width: none;             /* Firefox */
 }
 
-/* Cytoscape box-selection rectangle */
-.cytoscape-container canvas {
-    cursor: crosshair;
-}
-
 /* Tame red/danger buttons and text for a calmer dark mode */
 .btn-danger, .badge.bg-danger {
     background-color: var(--st-danger) !important;
@@ -139,11 +134,6 @@ input[type=number] {
 /* Hide horizontal scrollbar in goal detail left column */
 #goal-detail-content .goal-left-column {
     overflow-x: hidden;
-}
-
-/* A goal card opens the goal in Details (goals_sidebar.js). */
-.goal-card {
-    cursor: pointer;
 }
 
 /* Goal drag-and-drop styles */
@@ -222,16 +212,40 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
     max-width: 100%;
 }
 
-/* A label or heading whose hover tooltip explains it: pointer with a question mark. */
-/* The descendants are included because a form control inside sets its own cursor,
-   which would otherwise win over the wrapper's. */
-.hover-hint,
-.hover-hint * {
-    cursor: help !important;
+/* --- Cursors and text selection (STYLE_GUIDE.md, Cursors) ----------------
+   A desktop app shows the arrow almost everywhere. Text is selectable only
+   where you type, or where .selectable marks text worth copying. */
+body {
+    cursor: default;
+    user-select: none;
 }
-
-/* Same cue for a switch, on its label text only: the switch itself is a control
-   and keeps the normal pointer. */
-.hover-hint-label label {
-    cursor: help !important;
+input,
+textarea,
+[contenteditable]:not([contenteditable="false"]),
+.selectable {
+    user-select: text;
+}
+.selectable {
+    cursor: text;
+}
+/* Bootstrap gives every button the hand. Buttons, menu rows and cards keep the
+   arrow: their hover state already says they respond. The `html` prefix
+   outranks Bootstrap's selectors, which load after this file. */
+html :is(button, [type=button], [type=reset], [type=submit]):not(:disabled),
+html :is(.btn, [role=button], summary),
+html :is(.dash-options-list-option, .dash-slider-thumb),
+html .form-control-color:not(:disabled):not([readonly]),
+html .form-range::-webkit-slider-runnable-track {
+    cursor: default;
+}
+/* dbc.Tabs writes the hand inline on each tab, so only !important reaches it. */
+.nav-link {
+    cursor: default !important;
+}
+/* The hand is for text that navigates like a hyperlink, and nothing else. */
+html .link-like {
+    cursor: pointer;
+}
+.link-like:hover {
+    text-decoration: underline;
 }

@@ -469,7 +469,7 @@
 .rd-group[open] > summary .editor-chevron { transform: none; }
 .rd-leaf .editor-chevron { visibility: hidden; }
 
-.rd-group > summary { list-style: none; cursor: pointer; border-radius: var(--st-radius-sm); }
+.rd-group > summary { list-style: none; border-radius: var(--st-radius-sm); }
 .rd-group > summary::-webkit-details-marker { display: none; }
 .rd-group > summary:hover { background-color: var(--st-bg-panel); }
 .rd-group > summary:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 1px; }
@@ -612,7 +612,6 @@
 .gp-swatch { display: inline-block; width: 12px; height: 10px; border-radius: 2px; }
 .gp-swatch.dot { width: 10px; border-radius: 50%; }
 /* A legend entry that shows or hides its trace (assets/analyze/rating_dist.js). */
-.gp-legend-item { cursor: pointer; user-select: none; }
 .gp-legend-item:hover { color: var(--st-text-primary); }
 .gp-legend-item[aria-pressed="false"] { opacity: 0.45; }
 
@@ -944,7 +943,6 @@
 .settings-choice-list .form-check-label {
     display: block;
     padding: 9px 14px 10px 42px;
-    cursor: pointer;
 }
 .settings-choice-name {
     display: block;
@@ -998,7 +996,6 @@
     height: 30px;
     padding: 2px;
     border-radius: var(--st-radius-sm);
-    cursor: pointer;
 }
 .settings-swatch-hex {
     color: var(--st-text-dim);
@@ -1211,7 +1208,7 @@
 
 .split-handle-rows {
     height: 6px;
-    cursor: ns-resize;
+    cursor: row-resize;
     border-top: 1px solid var(--st-border-panel);
 }
 
@@ -1342,10 +1339,8 @@
 .ctx-menu-item {
     padding: 6px 16px;
     color: var(--st-text-primary);
-    cursor: pointer;
     font-size: 0.9rem;
     transition: background-color 0.15s ease;
-    user-select: none;
     display: flex;
     align-items: center;
 }
@@ -1469,8 +1464,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     padding: 4px 16px 2px 10px;
     color: #888;
     font-size: 0.75rem;
-    cursor: default;
-    user-select: none;
 }
 
 /* A choice menu (the sidebar sort menus) checks its current item. Every row
@@ -1516,7 +1509,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     padding: 0;
     font: inherit;
     color: var(--st-text-soft);
-    cursor: pointer;
 }
 
 .events-triggered-toggle:hover {
@@ -1578,8 +1570,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* --- Goal sidebar rank trigger (clickable rank badge) --- */
 
 .goal-rank-trigger {
-    cursor: pointer;
-    user-select: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1590,10 +1580,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 
 /* --- Home tab — suggestion bar rows --- */
-
-.suggestion-bar-row {
-    cursor: pointer;
-}
 
 .suggestion-bar-row:hover {
     background-color: rgba(255, 255, 255, 0.025);
@@ -1752,7 +1738,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     color: var(--st-text-primary);
     font: inherit;
     text-align: left;
-    cursor: pointer;
     transition: background-color 0.2s, border-color 0.2s;
 }
 
@@ -2254,7 +2239,6 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     min-height: var(--st-menu-row-height);
     padding: 6px 10px;
     border-radius: 3px;
-    cursor: pointer;
 }
 .filter-suggest-item:hover,
 .filter-suggest-item.is-active {

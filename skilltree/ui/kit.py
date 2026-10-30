@@ -75,7 +75,7 @@ def hover_label(text, label_id, hint, component=dbc.Label, placement="top", **kw
     The tooltip targets the element itself, not an (i) button: the text only
     explains, and (i) is kept for controls that open a reference. ``label_id`` must be unique in the layout.
     Pass ``component=html.H5`` for a section heading. The ``hover-hint`` class
-    gives it the help cursor (pointer with a question mark).
+    fits a heading to its text, and keyboard navigation finds the label by it.
     """
     kwargs["className"] = f"{kwargs.get('className', '')} hover-hint".strip()
     hint_id = f"{label_id}-hint"

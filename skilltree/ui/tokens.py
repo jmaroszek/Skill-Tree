@@ -138,13 +138,12 @@ TOOLTIP_STYLE = {
 #: Standard card surface. `selected=True` swaps to the raised background and
 #: the accent border.
 def card_style(selected: bool = False) -> dict:
-    """Return the standard clickable-card style dict."""
+    """Return the standard card style dict."""
     return {
         "padding": "10px 14px",
         "borderRadius": RADIUS,
         "border": f"2px solid {ACCENT}" if selected else f"1px solid {BORDER_PANEL}",
         "backgroundColor": BG_RAISED if selected else BG_PANEL,
-        "cursor": "pointer",
         "transition": "background-color 0.2s",
     }
 

@@ -548,7 +548,6 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
        role="button", tabIndex=0,
        **{"data-event-name": event_name, "data-event-status": status},
        style={
-           "cursor": "pointer",
            "border": border_style,
            "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
            "transition": "border-color 0.2s, background-color 0.2s",

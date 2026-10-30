@@ -183,7 +183,7 @@ def test_subtask_name_column_is_capped_and_keeps_full_name_on_hover():
 
     assert heading.className == "details-subtask-name-heading"
     assert name_cell.className == "details-subtask-name-cell"
-    assert name_link.className == "details-subtask-name-link"
+    assert name_link.className == "details-subtask-name-link link-like"
     assert name_link.children == long_name
     assert name_link.title == f"{long_name} — open in Details"
 

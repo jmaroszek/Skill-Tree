@@ -25,7 +25,6 @@
     padding-top: 0.375rem;
     padding-bottom: 0.375rem;
     text-align: left;
-    cursor: pointer;
 }
 
 .context-picker-multi .context-picker-trigger.form-select {
@@ -58,7 +57,6 @@
     border: 0;
     background: transparent;
     color: var(--st-text-dim);
-    cursor: pointer;
 }
 
 .context-picker-clear:hover {
@@ -113,7 +111,6 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     border-radius: 3px;
     background: transparent;
     color: var(--st-menu-fg);
-    cursor: pointer;
     text-align: left;
 }
 
@@ -173,7 +170,6 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     display: flex;
     align-items: center;
     border-radius: 3px;
-    cursor: pointer;
 }
 
 .context-picker-tree-parent:hover {
@@ -186,7 +182,6 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     height: 16px;
     margin: 0 10px;
     accent-color: var(--st-accent);
-    cursor: pointer;
 }
 
 .context-picker-tree-disclosure {
@@ -204,7 +199,6 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     color: var(--st-menu-fg);
     font-weight: 400;
     text-align: left;
-    cursor: pointer;
 }
 
 .context-picker-tree-disclosure[aria-expanded="true"] .context-picker-right-chevron {
@@ -227,7 +221,6 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     border-radius: 3px;
     color: var(--st-menu-fg);
     font-weight: 400;
-    cursor: pointer;
 }
 
 .context-picker-tree-child:hover {

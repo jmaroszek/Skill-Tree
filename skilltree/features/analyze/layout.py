@@ -15,7 +15,7 @@ from skilltree.ui import tokens
 
 _GEAR_STYLE = {
     "background": "none", "border": "none", "padding": "0",
-    "color": tokens.TEXT_DIM, "cursor": "pointer",
+    "color": tokens.TEXT_DIM,
     "fontSize": tokens.FS_CAP, "lineHeight": "1",
     "position": "relative", "top": "2px",
 }

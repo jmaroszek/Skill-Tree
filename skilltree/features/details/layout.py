@@ -113,7 +113,7 @@ def build_details_tab_content():
 
         # Description
         html.Div(id="details-node-description",
-                 className="text-muted",
+                 className="text-muted selectable",
                  style={"fontSize": tokens.FS_MD, "whiteSpace": "pre-wrap",
                         "marginBottom": tokens.SPACE_SECTION}),
 
@@ -923,9 +923,8 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 html.Span(
                     node.name,
                     title=f"{node.name} — open in Details",
-                    className="details-subtask-name-link",
+                    className="details-subtask-name-link link-like",
                     role="button", tabIndex=0,
-                    style={"cursor": "pointer"},
                 ),
                 id={"type": "details-subtask-name", "index": node.name},
                 className="details-subtask-name-cell",
@@ -1032,7 +1031,6 @@ def build_milestone_tile(milestone_node, completion: dict):
             "backgroundColor": tokens.BG_RAISED,
             "border": f"1px solid {tokens.BORDER_PANEL}",
             "borderRadius": "6px",
-            "cursor": "pointer",
             "minWidth": "0",
         },
         className="details-milestone-tile",

@@ -56,7 +56,7 @@ def build_next_view():
             # Description area — populated when clicking a Now card or Next row.
             html.Div(id="next-description-area", children=[
                 html.H6("Description", className="text-muted mb-2", style=tokens.SECTION_TITLE_STYLE),
-                html.Div("Click a card or row to see its description", id="next-description-text",
+                html.Div("Click a card or row to see its description", id="next-description-text", className="selectable",
                          style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
                 html.Div(id="next-relations"),
             ], style={"flex": "0 1 420px", "minWidth": "280px",

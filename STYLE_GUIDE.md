@@ -129,8 +129,8 @@ bar's end edge does not crowd the time. These are constants in
 Under the description, with no header, **Supports** lists the nodes that name
 the selected one as a hard or soft prerequisite, Goals included, and **Synergy**
 its Helps partners. Each initially shows at most three, best first. A plain
-`+n more` button reveals all remaining items in that section, with a pointer
-cursor and no hover tooltip. Once expanded, the bottom control reads
+`+n more` button reveals all remaining items in that section, with no hover
+tooltip. Once expanded, the bottom control reads
 `Hide n nodes` and restores the three-item list. Selecting a node starts with
 three again.
 Only direct neighbours appear: the whole downstream reach belongs to
@@ -345,18 +345,16 @@ tooltip explains why it is disabled.
 `kit.hover_label(text, label_id, hint, component=dbc.Label, placement="top")`
 builds that pair: the label (or `component=html.H5` heading) plus a `Tooltip`
 targeting it, in a `display: contents` wrapper so it lays out as its two parts. Every such label gets the
-`.hover-hint` class, which shows the help cursor (a pointer with a question
-mark), so it reads as explainable before it is hovered. Give each label a unique
-id. Headings with `.hover-hint` fit their text width, so their tooltip and help
-cursor appear over the text rather than the empty remainder of the row. They
+`.hover-hint` class, which keyboard navigation uses to find it. Give each label a unique
+id. Headings with `.hover-hint` fit their text width, so their tooltip
+appears over the text rather than the empty remainder of the row. They
 keep their block layout and section spacing. The node editor's hover copy lives in `_EDITOR_HINTS` in
 `skilltree/features/editor/layout.py`, the Filters sidebar's in `_FILTER_HINTS` in
 `skilltree/features/filters/layout.py`. Keep tooltips short: the long explanation belongs in `docs/`. Anything a
 tooltip enumerates is a bullet list (`kit.bullet_hint(intro, *items)`), not
 a run-on sentence. Any label, heading or table cell whose tooltip only explains takes the
 `hover-hint` class too. Explain a group of switches on their section heading, not
-per switch. A single switch gets `hover-hint-label`, which puts the help cursor
-on its label text only. Buttons and switches themselves keep the pointer.
+per switch. Labels keep the arrow cursor, not the help cursor (see Cursors).
 
 Axis titles and chart headings say "work time" where the axis holds times, since
 the tick letters (1w, 2m) are the productive hours from Settings and not calendar
@@ -669,7 +667,7 @@ from skilltree.ui import tokens
 style = tokens.card_style(selected=False)
 ```
 
-`card_style` returns the standard padding, radius, border, background, cursor
+`card_style` returns the standard padding, radius, border, background
 and transition, swapping to the raised background and the accent border when
 `selected=True`.
 
@@ -1118,6 +1116,34 @@ Analyze charts follow the same rule. `_graph` in `skilltree/features/analyze/cha
 drag-zoom off by default, so the cursor stays a plain arrow. Only a chart
 whose points crowd together opts back in with `zoom=True`: today, the two
 Time Estimation Accuracy charts.
+
+## Cursors
+
+The app should feel like a desktop app, not a web page. So the cursor is the
+arrow almost everywhere, and it changes only where it tells you something the
+element's look does not. The global rules are the Cursors section of
+`assets/css/custom.css`.
+
+- **Arrow**: the default, on every button (icon, `+` adder and text buttons
+  alike), menu row, dropdown option, card, list row, tab, label and canvas.
+  Their hover state already says they respond. Don't add `cursor: pointer` to a
+  button, card or row, in CSS or in an inline style.
+- **Hand**: only text that navigates like a hyperlink, such as a subtask name
+  that opens it in Details. Give it the `link-like` class, which also
+  underlines it on hover.
+- **I-beam**: only where you can type, plus read-only text worth copying.
+  The page sets `user-select: none`. Inputs, textareas and contenteditable
+  regions select as usual. Mark copyable read-only text, such as a node's
+  description, with `selectable`.
+- **Grab and grabbing**: drag handles (the three-line grips), and the whole page
+  while a card or row is in hand. Right-drag panning on a canvas shows
+  grabbing once the pointer moves.
+- **Resize**: `col-resize` and `row-resize` on split handles, as a matched pair.
+- **Progress**: the startup cover only.
+
+No help cursor on explained labels, and no move cursor on draggable panel
+headers. A Windows title bar drags with the arrow.
+`tests/app/test_cursors.py` fails on a new `cursor: pointer` outside `link-like`.
 
 ## Scrollbars
 

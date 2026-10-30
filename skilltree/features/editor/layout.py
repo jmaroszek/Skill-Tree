@@ -138,7 +138,6 @@ def build_ratings_popup():
             panel_close_button("btn-ratings-close", "Close ratings reference",
                                style={"marginLeft": "auto"}),
         ], id="ratings-popup-header", className="d-flex align-items-center", style={
-            "cursor": "move",
             "padding": "8px 10px",
             "backgroundColor": tokens.BG_RAISED,
             "borderBottom": f"1px solid {tokens.BORDER_PANEL}",
@@ -512,7 +511,7 @@ def build_node_editor_content():
                         value=[],
                         id="node-value-mode",
                         switch=True,
-                        className="mb-0 hover-hint-label",
+                        className="mb-0",
                     ),
                 ], className="d-flex align-items-center mt-2 mb-2"),
                 Tooltip(
@@ -551,7 +550,7 @@ def build_node_editor_content():
                             value=[],
                             id="node-time-mode",
                             switch=True,
-                            className="mb-0 hover-hint-label",
+                            className="mb-0",
                         ),
                         Tooltip(
                             _EDITOR_HINTS["time_inherit"],
@@ -563,7 +562,7 @@ def build_node_editor_content():
                                 value=[],
                                 id="node-time-habit-mode",
                                 switch=True,
-                                className="mb-0 hover-hint-label",
+                                className="mb-0",
                             ),
                             Tooltip(
                                 _EDITOR_HINTS["habit"],

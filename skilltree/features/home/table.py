@@ -65,7 +65,7 @@ def _suggestion_micro_bar(val, label):
         style={
             "position": "relative", "width": "6px", "height": "22px",
             "background": "rgba(255,255,255,0.06)", "borderRadius": "1px",
-            "overflow": "hidden", "display": "inline-block", "cursor": "default",
+            "overflow": "hidden", "display": "inline-block",
         },
     )
 
@@ -497,7 +497,6 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
             "borderRadius": "6px",
             "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
             "border": f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}",
-            "cursor": "pointer",
             "transition": "background-color 0.2s, border-color 0.2s",
             "flex": "0 0 310px",
             "width": "310px",
