@@ -325,18 +325,19 @@ def build_node_editor_content():
                 dcc.Store(id='locate-request-store', data=None),
                 dcc.Store(id='locate-result-store', data=None),
                 dcc.Store(id='locate-missing-node-store', data=None),
+                dcc.Store(id='locate-reveal-store', data=None),
                 dbc.Modal([
                     dbc.ModalHeader(dbc.ModalTitle(id='locate-missing-title'),
                                     close_button=False),
-                    # Body and primary button depend on why the node is
-                    # missing: a dormant node lives on its event, any other
-                    # is likely filtered out and opens in Details.
+                    # Says what hides the node on the Nodes canvas, and the
+                    # button applies the fix: Show Done, Show Dormant or Clear
+                    # Filters.
                     dbc.ModalBody(id='locate-missing-body'),
                     dbc.ModalFooter([
                         # The only modal footer with no spacing class at all.
                         cancel_action("Dismiss", 'btn-locate-dismiss',
                                       className="me-2"),
-                        primary_action("View Details", 'btn-locate-go'),
+                        primary_action("", 'btn-locate-go'),
                     ]),
                 ], id='modal-locate-missing', size="sm", is_open=False,
                    centered=True),

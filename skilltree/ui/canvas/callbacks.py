@@ -12,6 +12,7 @@ from skilltree.ui import tokens
 from skilltree.ui.canvas.registry import CANVASES
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.ui.filters import FILTER_STATES, filters_from
 from skilltree.ui.kit import progress_bar_color
 from skilltree.ui.prerender import prerendered
 
@@ -170,15 +171,19 @@ def register_canvas_callbacks(app, services):
         node = manager.get_node(name)
         if not node:
             return "This node no longer exists.", dash.no_update
+        # A dormant node shows only on its event's canvas, so that is where
+        # Locate takes it when the open canvas doesn't have it.
+        membership = events.get_node_membership(name) if node.dormant else None
         return "", {
             'name': name,
             'activeTab': current_tab,
             'request': n_clicks,
+            'event': membership['event'] if membership else None,
         }
 
-    # Resolve the active canvas against the live Cytoscape instance. Details
-    # and Events remain in place; tabs without a canvas retain the historical
-    # Nodes fallback. The result callback below owns navigation and dialogs.
+    # Resolve the request against the live Cytoscape instances: the open
+    # canvas first, then a dormant node's event, then the Nodes canvas. The
+    # result callback below owns navigation and the hidden-node dialog.
     app.clientside_callback(
         """function(request) {
             if (!request || !request.name || !window.SkillTree ||
@@ -192,41 +197,42 @@ def register_canvas_callbacks(app, services):
         prevent_initial_call=True,
     )
 
-    def _missing_dialog(name, view):
-        """The not-found dialog for ``name``: its title, body, the store that
-        tells the primary button where to go, and that button's label and
-        style. A dormant node is on no canvas but its event's, so it routes
-        there; Details would leave it out too. Any other node is most likely
-        outside what this view shows, and Details roots on it whatever the
-        filters."""
-        view_labels = {
-            'main': 'Nodes',
-            'details': 'Details',
-            'events': 'Events',
-            'canvas': 'current',
-        }
-        reasons = {
-            'main': "Filters may be hiding it.",
-            'details': "It's outside the graph around the node Details is showing.",
-            'events': "It isn't in this event or linked to one of its nodes.",
-        }
-        title = f'“{name}” is not in the {view_labels.get(view, "current")} view'
+    def _hidden_dialog(name, sidebar, community, community_method):
+        """Why the Nodes canvas leaves ``name`` out, and what shows it: the
+        dialog's body, the reveal its button applies, and the button's label.
+        A reveal of None means no switch would bring the node back."""
         node = manager.get_node(name)
-        if node is None or not node.dormant:
-            return (title, reasons.get(view, "Details can show it."),
-                    {'name': name}, "View Details", {})
-        membership = events.get_node_membership(name)
-        if membership is None:
-            return (f'“{name}” is dormant',
-                    "It isn't waiting on any event, so no view shows it.",
-                    {'name': name}, "View Details", {'display': 'none'})
-        event = membership['event']
-        if membership['event_status'] == 'Triggered' and membership['activation_date']:
-            body = f"Its event, {event}, has fired. It wakes on {membership['activation_date']}."
-        else:
-            body = f"It's waiting on its event, {event}."
-        return (f'“{name}” is dormant', body,
-                {'name': name, 'event': event}, "Open Event", {})
+        if node is None:
+            return "This node no longer exists.", None, ""
+        filters = filters_from(sidebar)
+        done = node.status == STATUS_DONE and filters.get('hide_done')
+        dormant = bool(node.dormant) and not filters.get('show_dormant')
+        passes = manager.filter_nodes(
+            [node], {**filters, 'hide_done': False, 'show_dormant': True})
+        # The Community filter isn't one filter_nodes applies. A node every
+        # other filter keeps is taken to be outside the chosen community.
+        narrowed = (not passes or (community or "All") != "All"
+                    or community_method == "orphans")
+        if narrowed:
+            # Clear Filters turns Show Done and Show Dormant off, so the reveal
+            # keeps them on when the node needs them, even if they already are.
+            if done:
+                body = "It's Done, and filters hide it too."
+            elif dormant:
+                body = "It's dormant, and filters hide it too."
+            else:
+                body = "Filters are hiding it."
+            return body, {'clear': True,
+                          'show_done': node.status == STATUS_DONE,
+                          'show_dormant': bool(node.dormant)}, "Clear Filters"
+        if done:
+            return ("It's Done, and Show Done is off.",
+                    {'show_done': True}, "Show Done")
+        if dormant:
+            # Dormant with no event to wait on: only the switch shows it.
+            return ("It's dormant and isn't waiting on any event.",
+                    {'show_dormant': True}, "Show Dormant")
+        return "Nothing in the filters is hiding it.", None, ""
 
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
@@ -237,70 +243,87 @@ def register_canvas_callbacks(app, services):
         Output('locate-missing-node-store', 'data'),
         Output('btn-locate-go', 'children'),
         Output('btn-locate-go', 'style'),
-        Output('details-node-select', 'value', allow_duplicate=True),
         # The Events sidebar's context-menu bridge: "<event>|edit|<ms>"
         # selects the event and switches to its tab.
         Output('event-ctx-action-input', 'value', allow_duplicate=True),
+        # Read by Clear Filters, which applies the reveal in one write.
+        Output('locate-reveal-store', 'data'),
+        Output('filter-done', 'value', allow_duplicate=True),
+        Output('filter-dormant', 'value', allow_duplicate=True),
         Input('locate-result-store', 'data'),
         Input('btn-locate-dismiss', 'n_clicks'),
         Input('btn-locate-go', 'n_clicks'),
         State('locate-missing-node-store', 'data'),
-        State('main-tabs', 'active_tab'),
+        FILTER_STATES,
+        State('filter-community', 'value'),
+        State('community-method', 'value'),
         prevent_initial_call=True,
     )
-    def handle_locate_result(result, _dismiss_clicks, go_clicks,
-                             missing_node, current_tab):
+    def handle_locate_result(result, _dismiss_clicks, go_clicks, hidden_node,
+                             sidebar, community, community_method):
         triggered = ctx.triggered_id
         no = dash.no_update
-        unchanged = (no,) * 10
-        closed = (no, no, False, no, no, None, no, no, no, no)
+        out = dict(tab=no, animate=no, is_open=no, heading=no, body=no,
+                   store=no, label=no, style=no, event=no, reveal=no,
+                   done=no, dormant=no)
+
+        def respond(**changes):
+            return tuple({**out, **changes}.values())
 
         if triggered == 'btn-locate-dismiss':
-            return closed
+            return respond(is_open=False, store=None)
 
         if triggered == 'btn-locate-go':
-            missing_node = missing_node or {}
-            name = missing_node.get('name')
-            if not name or not manager.get_node(name):
-                return closed
-            event = missing_node.get('event')
-            if event:
-                if not events.get_event(event):
-                    return closed
-                animate = {
-                    'name': name,
-                    'canvasId': 'events-detail-graph',
-                    'request': go_clicks,
-                }
-                return (no, animate, False, no, no, None, no, no, no,
-                        f"{event}|edit|{int(time.time() * 1000)}")
-            next_tab = no if current_tab == 'tab-details' else 'tab-details'
-            animate = {
-                'name': name,
-                'canvasId': 'details-mini-graph',
-                'request': go_clicks,
-            }
-            return next_tab, animate, False, no, no, None, no, no, name, no
+            hidden_node = hidden_node or {}
+            name, reveal = hidden_node.get('name'), hidden_node.get('reveal')
+            if not name or not reveal or not manager.get_node(name):
+                return respond(is_open=False, store=None)
+            animate = {'name': name, 'canvasId': 'cytoscape-graph',
+                       'request': go_clicks}
+            # The dialog opens on whichever tab Locate ran from. It moves to
+            # Nodes only now, with the node about to be on it: a tab switch
+            # alongside the dialog closed it.
+            tab = hidden_node.get('targetTab') or no
+            if reveal.get('clear'):
+                return respond(tab=tab, is_open=False, store=None, animate=animate,
+                               reveal={**reveal, 'request': go_clicks})
+            return respond(
+                tab=tab, is_open=False, store=None, animate=animate,
+                done=['show_done'] if reveal.get('show_done') else no,
+                dormant=['show_dormant'] if reveal.get('show_dormant') else no)
 
         if triggered != 'locate-result-store' or not result:
-            return unchanged
+            return respond()
 
         status = result.get('status')
+        name = result.get('name')
         if status == 'located':
-            return closed
-        if status == 'navigate':
-            animate = {
-                'name': result.get('name'),
-                'canvasId': result.get('canvasId'),
-                'request': result.get('request'),
-            }
-            return (result.get('targetTab'), animate, False, no, no, None,
-                    no, no, no, no)
-        if status == 'missing':
-            title, body, store, label, style = _missing_dialog(
-                result.get('name'), result.get('view'))
-            return no, no, True, title, body, store, label, style, no, no
-        return unchanged
+            return respond(is_open=False, store=None)
+        if status in ('navigate', 'missing'):
+            # The filters say whether Nodes would show the node, which a
+            # Nodes canvas not loaded yet can't.
+            body, reveal, label = _hidden_dialog(
+                name, sidebar, community, community_method)
+            if reveal is None and status == 'navigate':
+                animate = {'name': name, 'canvasId': result.get('canvasId'),
+                           'request': result.get('request')}
+                return respond(tab=result.get('targetTab'), animate=animate,
+                               is_open=False, store=None)
+            return respond(
+                is_open=True,
+                heading=f'“{name}” is hidden on the Nodes canvas', body=body,
+                store={'name': name, 'reveal': reveal,
+                       'targetTab': result.get('targetTab')}, label=label,
+                style={} if reveal else {'display': 'none'})
+        if status == 'event':
+            event = result.get('event')
+            if not event or not events.get_event(event):
+                return respond()
+            animate = {'name': name, 'canvasId': 'events-detail-graph',
+                       'request': result.get('request')}
+            return respond(animate=animate, is_open=False, store=None,
+                           event=f"{event}|edit|{int(time.time() * 1000)}")
+        return respond()
 
     # Run the pulse after a tab switch or Details re-root. The fcose layout may
     # still be running, so locateNodeOnGraph retries until the node is present.

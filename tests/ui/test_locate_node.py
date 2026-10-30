@@ -9,10 +9,12 @@ import pytest
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
 
+from skilltree.domain.models import STATUS_DONE
 from skilltree.services import AppServices
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.canvas.callbacks import register_canvas_callbacks
+from support.graphs import make_node
 from support.paths import asset_file
 
 
@@ -70,18 +72,21 @@ def test_locate_routes_the_active_tab_to_the_live_canvas(locate_node):
         "name": "Some Node",
         "activeTab": "tab-details",
         "request": 1,
+        "event": None,
     }
 
 
-def test_dormant_node_is_allowed_to_resolve_against_the_active_canvas(monkeypatch):
+def test_dormant_node_request_names_its_event(monkeypatch):
     class _Dormant:
         dormant = True
 
     monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Dormant())
+    monkeypatch.setattr(EventManager, "get_node_membership",
+                        lambda self, name: {"event": "Job Hunt"})
     fn = _locate_callback()
-    _message, request = fn(1, "Asleep", "tab-events")
+    _message, request = fn(1, "Asleep", "tab-canvas")
     assert request["name"] == "Asleep"
-    assert request["activeTab"] == "tab-events"
+    assert request["event"] == "Job Hunt"
 
 
 def test_deleted_node_reports_in_editor(monkeypatch):
@@ -92,106 +97,129 @@ def test_deleted_node_reports_in_editor(monkeypatch):
     assert request is dash.no_update
 
 
-def test_missing_node_opens_view_specific_fallback(locate_node):
+# The result callback's outputs, in order.
+TAB, ANIMATE, IS_OPEN, TITLE, BODY, STORE, LABEL, STYLE, EVENT, REVEAL, DONE, DORMANT = range(12)
+
+
+def _result(trigger, result=None, go=None, hidden=None, sidebar=None,
+            community="All", method="louvain"):
     fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "locate-result-store.data",
-        {"status": "missing", "name": "Target", "view": "events"},
-        None, None, None, "tab-events",
-    )
-    assert result[2] is True
-    assert result[3] == '“Target” is not in the Events view'
-    assert result[4] == "It isn't in this event or linked to one of its nodes."
-    assert result[5] == {"name": "Target"}
-    assert result[6] == "View Details"
+    return _call_with_trigger(fn, trigger, result, None, go, hidden,
+                              sidebar or {}, community, method)
 
 
-def _dormant(monkeypatch, membership):
-    class _Dormant:
-        dormant = True
-
-    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: _Dormant())
-    monkeypatch.setattr(EventManager, "get_node_membership",
-                        lambda self, name: membership)
+def _missing(monkeypatch, node, **kwargs):
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: node)
+    return _result("locate-result-store.data",
+                   {"status": "missing", "name": node.name, "view": "main",
+                    "targetTab": "tab-canvas"}, **kwargs)
 
 
-def test_missing_dormant_node_offers_its_event(monkeypatch):
-    """Details leaves a dormant node out too, so the dialog sends it to
-    the one canvas that shows it: its event's."""
-    _dormant(monkeypatch, {"event": "Job Hunt", "event_status": "Pending",
-                           "activation_date": None})
-    fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "locate-result-store.data",
-        {"status": "missing", "name": "Interview Process", "view": "main"},
-        None, None, None, "tab-canvas",
-    )
-    assert result[2] is True
-    assert result[3] == '“Interview Process” is dormant'
-    assert "Job Hunt" in result[4]
-    assert result[5] == {"name": "Interview Process", "event": "Job Hunt"}
-    assert result[6] == "Open Event"
-    assert result[7] == {}
-
-
-def test_dormant_node_without_an_event_offers_nothing(monkeypatch):
-    _dormant(monkeypatch, None)
-    fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "locate-result-store.data",
-        {"status": "missing", "name": "Stray", "view": "main"},
-        None, None, None, "tab-canvas",
-    )
-    assert result[2] is True
-    assert result[7] == {"display": "none"}
-
-
-def test_open_event_selects_the_event_and_pulses_the_node(monkeypatch):
-    _dormant(monkeypatch, None)
+def test_dormant_node_goes_straight_to_its_event(monkeypatch):
     monkeypatch.setattr(EventManager, "get_event", lambda self, name: object())
-    fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "btn-locate-go.n_clicks",
-        None, None, 3, {"name": "Interview Process", "event": "Job Hunt"},
-        "tab-canvas",
-    )
-    assert result[1] == {
+    result = _result("locate-result-store.data",
+                     {"status": "event", "name": "Interview Process",
+                      "event": "Job Hunt", "request": 3})
+    assert result[IS_OPEN] is False
+    assert result[ANIMATE] == {
         "name": "Interview Process", "canvasId": "events-detail-graph",
         "request": 3,
     }
-    assert result[2] is False
-    assert result[8] is dash.no_update
-    event, action, _stamp = result[9].split("|")
+    event, action, _stamp = result[EVENT].split("|")
     assert (event, action) == ("Job Hunt", "edit")
 
 
-def test_no_canvas_tab_navigates_to_nodes_before_pulsing():
-    fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "locate-result-store.data",
-        {"status": "navigate", "name": "Target", "request": 2,
-         "canvasId": "cytoscape-graph", "targetTab": "tab-canvas"},
-        None, None, None, "tab-next",
-    )
-    assert result[0] == "tab-canvas"
-    assert result[1] == {
+def test_done_node_offers_show_done(monkeypatch, temp_database):
+    result = _missing(monkeypatch, make_node("Finished", status=STATUS_DONE))
+    # The dialog opens where Locate ran; a tab switch with it closed it.
+    assert result[TAB] is dash.no_update
+    assert result[IS_OPEN] is True
+    assert result[TITLE] == "“Finished” is hidden on the Nodes canvas"
+    assert result[BODY] == "It's Done, and Show Done is off."
+    assert result[LABEL] == "Show Done"
+    assert result[STORE] == {"name": "Finished", "reveal": {"show_done": True},
+                             "targetTab": "tab-canvas"}
+
+
+def test_filtered_node_offers_clear_filters(monkeypatch, temp_database):
+    result = _missing(monkeypatch, make_node("Elsewhere"),
+                      sidebar={"types": ["Goal"]})
+    assert result[BODY] == "Filters are hiding it."
+    assert result[LABEL] == "Clear Filters"
+    assert result[STORE]["reveal"] == {
+        "clear": True, "show_done": False, "show_dormant": False}
+
+
+def test_done_and_filtered_node_clears_filters_and_shows_done(monkeypatch, temp_database):
+    result = _missing(monkeypatch, make_node("Both", status=STATUS_DONE),
+                      sidebar={"types": ["Goal"]})
+    assert result[BODY] == "It's Done, and filters hide it too."
+    assert result[STORE]["reveal"]["show_done"]
+
+
+def test_clearing_filters_keeps_show_done_on_for_a_done_node(monkeypatch, temp_database):
+    """Clear Filters turns Show Done off, which would hide the node again."""
+    result = _missing(monkeypatch, make_node("Shown", status=STATUS_DONE),
+                      sidebar={"types": ["Goal"], "done": ["show_done"]})
+    assert result[BODY] == "Filters are hiding it."
+    assert result[STORE]["reveal"]["show_done"] is True
+
+
+def test_a_chosen_community_counts_as_a_filter(monkeypatch, temp_database):
+    result = _missing(monkeypatch, make_node("Outside"), community="Cluster 2")
+    assert result[LABEL] == "Clear Filters"
+
+
+def test_node_no_filter_hides_offers_nothing(monkeypatch, temp_database):
+    result = _missing(monkeypatch, make_node("Plain"))
+    assert result[STORE]["reveal"] is None
+    assert result[STYLE] == {"display": "none"}
+
+
+def test_show_done_flips_the_switch_and_pulses_on_nodes(locate_node):
+    result = _result("btn-locate-go.n_clicks", go=4,
+                     hidden={"name": "Target", "reveal": {"show_done": True},
+                             "targetTab": "tab-canvas"})
+    assert result[TAB] == "tab-canvas"
+    assert result[IS_OPEN] is False
+    assert result[DONE] == ["show_done"]
+    assert result[REVEAL] is dash.no_update
+    assert result[ANIMATE] == {
+        "name": "Target", "canvasId": "cytoscape-graph", "request": 4,
+    }
+
+
+def test_clear_filters_goes_through_the_clear_filters_callback(locate_node):
+    reveal = {"clear": True, "show_done": True, "show_dormant": False}
+    result = _result("btn-locate-go.n_clicks", go=5,
+                     hidden={"name": "Target", "reveal": reveal})
+    # Clear Filters resets Show Done too, so it applies the whole reveal:
+    # a separate write here could land before the reset.
+    assert result[DONE] is dash.no_update
+    assert result[REVEAL] == {**reveal, "request": 5}
+
+
+def test_navigating_to_an_unloaded_nodes_canvas_checks_the_filters(monkeypatch, temp_database):
+    """A Nodes canvas not loaded yet can't say a node is hidden; the filters can."""
+    monkeypatch.setattr(GraphManager, "get_node",
+                        lambda self, name: make_node(name, status=STATUS_DONE))
+    result = _result("locate-result-store.data",
+                     {"status": "navigate", "name": "Target", "request": 2,
+                      "canvasId": "cytoscape-graph", "targetTab": "tab-canvas"})
+    assert result[TAB] is dash.no_update
+    assert result[IS_OPEN] is True
+    assert result[LABEL] == "Show Done"
+
+
+def test_no_canvas_tab_navigates_to_nodes_before_pulsing(monkeypatch, temp_database):
+    monkeypatch.setattr(GraphManager, "get_node", lambda self, name: make_node(name))
+    result = _result("locate-result-store.data",
+                     {"status": "navigate", "name": "Target", "request": 2,
+                      "canvasId": "cytoscape-graph", "targetTab": "tab-canvas"})
+    assert result[TAB] == "tab-canvas"
+    assert result[ANIMATE] == {
         "name": "Target", "canvasId": "cytoscape-graph", "request": 2,
     }
-
-
-def test_view_details_reroots_details_and_retries_pulse(locate_node):
-    fn = _locate_result_callback()
-    result = _call_with_trigger(
-        fn, "btn-locate-go.n_clicks",
-        None, None, 4, {"name": "Target"}, "tab-events",
-    )
-    assert result[0] == "tab-details"
-    assert result[1] == {
-        "name": "Target", "canvasId": "details-mini-graph", "request": 4,
-    }
-    assert result[2] is False
-    assert result[8] == "Target"
-    assert result[9] is dash.no_update
 
 
 def test_pulse_survives_a_forced_stop_and_runs_concurrently():
@@ -318,11 +346,26 @@ route = window.SkillTree.resolveLocateRequest({
 assert.equal(route.status, 'navigate');
 assert.equal(route.targetTab, 'tab-canvas');
 
+// Missing from the open canvas: Locate looks on Nodes, never Details.
 route = window.SkillTree.resolveLocateRequest({
     name: 'Missing', activeTab: 'tab-events', request: 3
 });
 assert.equal(route.status, 'missing');
-assert.equal(route.view, 'events');
+assert.equal(route.view, 'main');
+assert.equal(route.targetTab, 'tab-canvas');
+
+// A dormant node goes to its event when the open canvas lacks it.
+route = window.SkillTree.resolveLocateRequest({
+    name: 'Missing', activeTab: 'tab-canvas', request: 4, event: 'Job Hunt'
+});
+assert.equal(route.status, 'event');
+assert.equal(route.event, 'Job Hunt');
+
+// Already on the open canvas: pulse in place, wherever its event is.
+route = window.SkillTree.resolveLocateRequest({
+    name: 'Target', activeTab: 'tab-events', request: 5, event: 'Job Hunt'
+});
+assert.equal(route.status, 'located');
 '''
     result = subprocess.run(
         [node_binary, "-e", script, str(asset), str(asset_file("00_browser_bridge.js"))],

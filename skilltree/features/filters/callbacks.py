@@ -1,6 +1,6 @@
 """The Filters sidebar's callbacks: Clear filters, the search field, and the
 chips and funnel that say a view is filtered."""
-from dash import ClientsideFunction, Input, Output, State, no_update
+from dash import ClientsideFunction, Input, Output, State, ctx, no_update
 
 from skilltree.ui.filters import (
     filter_chip_state,
@@ -33,11 +33,20 @@ def register_filters_callbacks(app, services):
         Output('filter-text-scope', 'value'),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
+        Input('locate-reveal-store', 'data'),
         prevent_initial_call=True,
     )
-    def clear_filters(_clear_clicks, _focus_clicks):
+    def clear_filters(_clear_clicks, _focus_clicks, reveal):
+        # Locate's hidden-node dialog clears the filters to show a node, and
+        # turns Show Done or Show Dormant on with them when the node needs
+        # it. Here, in the one write, so the reset can't land after the switch.
+        if ctx.triggered_id != 'locate-reveal-store':
+            reveal = {}
+        elif not reveal:
+            return (no_update,) * 14
         return ([], [], 'louvain', 'All', [1, 10], [1, 10], [1, 10], None, None,
-                'hours', [], [], '', [])
+                'hours', ['show_done'] if reveal.get('show_done') else [],
+                ['show_dormant'] if reveal.get('show_dormant') else [], '', [])
 
     # The Search query every canvas filters by: the field's text and the
     # descriptions switch, as one value. None without text, so a switch change
@@ -135,8 +144,8 @@ def register_filters_callbacks(app, services):
     # uses as license to discard the layout-set value on initial render.
     app.clientside_callback(
         """
-        function(clear_clicks, focus_clicks) {
-            if (!clear_clicks && !focus_clicks) {
+        function(clear_clicks, focus_clicks, reveal) {
+            if (!clear_clicks && !focus_clicks && !reveal) {
                 return window.dash_clientside.no_update;
             }
             return [];
@@ -145,6 +154,7 @@ def register_filters_callbacks(app, services):
         Output('filter-subcontext', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
+        Input('locate-reveal-store', 'data'),
         prevent_initial_call=True,
     )
 

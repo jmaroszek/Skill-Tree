@@ -183,6 +183,9 @@
     // first-paint cover. A pulse before that would be spent on nodes still
     // piled at the origin, or on no nodes at all.
     var FIRST_PAINT_WAIT_TRIES = 150;  // 15 s, the first-paint cover's backstop
+    // A filter change re-renders the Nodes canvas on the server, which takes
+    // longer than a tab switch.
+    var NODE_WAIT_TRIES = 60;  // 6 s
 
     function tryLocate(nodeName, canvasId, attempt, firstPaintWaits) {
         attempt = attempt || 0;
@@ -220,9 +223,10 @@
         }
         var node = cy.getElementById(nodeName);
         if (!node || node.length === 0) {
-            // Node may not yet be in the stylesheet-rendered elements (tab
-            // just switched). Retry a few times.
-            if (attempt < 20) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
+            // Node may not yet be on the canvas: the tab just switched, or a
+            // filter just changed and the redraw is on its way. Keep trying
+            // for a few seconds.
+            if (attempt < NODE_WAIT_TRIES) setTimeout(function () { tryLocate(nodeName, canvasId, attempt + 1); }, 100);
             return;
         }
 
@@ -237,36 +241,37 @@
         setTimeout(function () { tryLocate(nodeName, canvasId, 0); }, 50);
     };
 
+    // Where Locate finds the node: the open canvas when it has it, else a
+    // dormant node's event (request.event), else the Nodes canvas. A node the
+    // Nodes canvas leaves out comes back 'missing', and the server says which
+    // filter hides it. Details is never the fallback: it shares the filters.
     window.SkillTree.resolveLocateRequest = function (request) {
         var registry = window.SkillTree.canvases || [];
-        var canvas = registry.find(function (item) {
+        var base = {name: request.name, request: request.request};
+        var active = registry.find(function (item) {
             return item.tabId === request.activeTab;
         });
-        var needsNavigation = false;
-        if (!canvas) {
-            canvas = registry.find(function (item) { return item.key === 'main'; });
-            needsNavigation = true;
+        if (active && window.SkillTree.canvasHasNode(active.cytoscapeId, request.name)) {
+            window.locateNodeOnGraph(request.name, active.cytoscapeId);
+            return Object.assign(base, {
+                status: 'located', view: active.key, canvasId: active.cytoscapeId
+            });
         }
+        if (request.event) {
+            return Object.assign(base, {status: 'event', event: request.event});
+        }
+        var main = registry.find(function (item) { return item.key === 'main'; });
+        if (!main) return Object.assign(base, {status: 'missing', view: 'main'});
+        var onMain = active === main;
+        var target = {view: main.key, canvasId: main.cytoscapeId,
+                      targetTab: onMain ? null : main.tabId};
         // The Nodes canvas loads on its first visit. Before then it has no
         // nodes at all, which says nothing about this one; the server has
         // already checked that it exists.
-        var unloaded = needsNavigation && canvas && canvasIsEmpty(canvas.cytoscapeId);
-        if (!canvas || (!unloaded && !window.SkillTree.canvasHasNode(
-                canvas.cytoscapeId, request.name))) {
-            return {
-                status: 'missing', name: request.name, request: request.request,
-                view: canvas ? canvas.key : 'canvas',
-                canvasId: canvas ? canvas.cytoscapeId : null
-            };
+        if (!onMain && (canvasIsEmpty(main.cytoscapeId) ||
+                window.SkillTree.canvasHasNode(main.cytoscapeId, request.name))) {
+            return Object.assign(base, target, {status: 'navigate'});
         }
-        if (!needsNavigation) {
-            window.locateNodeOnGraph(request.name, canvas.cytoscapeId);
-        }
-        return {
-            status: needsNavigation ? 'navigate' : 'located',
-            name: request.name, request: request.request,
-            view: canvas.key, canvasId: canvas.cytoscapeId,
-            targetTab: canvas.tabId
-        };
+        return Object.assign(base, target, {status: 'missing'});
     };
 })();
