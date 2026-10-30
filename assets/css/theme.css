@@ -408,9 +408,12 @@
     border-bottom: 1px solid var(--st-border-panel);
 }
 /* With drag-zoom off, Plotly gives the plot area a pointing hand, which
-   promises a click that does nothing. These charts are read by hovering, so
-   they keep the plain arrow. */
-#analyze-tab-content .js-plotly-plot .nsewdrag.cursor-pointer { cursor: default; }
+   promises a click that does nothing. Every chart in the app is read by
+   hovering (Analyze, the Details Time Simulation and Explain charts), so the
+   plot area keeps the plain arrow. A chart with zoom on shows the crosshair.
+   Plotly injects `.js-plotly-plot .plotly .cursor-pointer` after this file,
+   so this selector has to outrank it. */
+.js-plotly-plot .plotly .nsewdrag.cursor-pointer { cursor: default; }
 
 /* --- Analyze: Ratings by Context ------------------------------------------
    An HTML grid, not Plotly, because contexts fold into their subcontexts
