@@ -478,3 +478,104 @@ class TestEmptySubtasksMessage:
         from skilltree.features.details.layout import build_details_subtasks_table
         assert "Only Milestones" in str(build_details_subtasks_table([], milestones_only=True))
         assert "No subtasks found" in str(build_details_subtasks_table([]))
+
+
+# ============================================================================
+# Direction: Unlocks walks forward, to what the node leads to
+# ============================================================================
+
+
+class TestUnlocksDirection:
+    @staticmethod
+    def _chain(mgr):
+        """Before -> Root -> Next -> Later, and Root -soft-> Side."""
+        for name in ("Before", "Root", "Next", "Later", "Side"):
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("Before", "Root", EDGE_NEEDS_HARD)
+        mgr.add_edge("Root", "Next", EDGE_NEEDS_HARD)
+        mgr.add_edge("Next", "Later", EDGE_NEEDS_HARD)
+        mgr.add_edge("Root", "Side", EDGE_NEEDS_SOFT)
+
+    def test_unlocks_follows_edges_forward(self, mgr):
+        self._chain(mgr)
+        needs = mgr.get_dependency_view("Root")
+        unlocks = mgr.get_dependency_view("Root", direction="unlocks")
+
+        assert needs["node_names"] == {"Root", "Before"}
+        assert unlocks["node_names"] == {"Root", "Next", "Later", "Side"}
+        assert unlocks["depth_by_name"] == {
+            "Root": 0, "Next": 1, "Side": 1, "Later": 2}
+        assert unlocks["discovery_edges"] == {
+            ("Root", "Next", EDGE_NEEDS_HARD), ("Next", "Later", EDGE_NEEDS_HARD),
+            ("Root", "Side", EDGE_NEEDS_SOFT)}
+
+    def test_soft_depth_and_filters_apply_forward(self, mgr):
+        self._chain(mgr)
+
+        hard_only = mgr.get_dependency_view(
+            "Root", include_soft=False, direction="unlocks")
+        depth_one = mgr.get_dependency_view(
+            "Root", max_depth=1, direction="unlocks")
+        # Next is Blocked: Root, which it needs, is still open.
+        hide_blocked = mgr.get_dependency_view(
+            "Root", filters={"hide_blocked": True}, direction="unlocks")
+
+        assert hard_only["node_names"] == {"Root", "Next", "Later"}
+        assert depth_one["node_names"] == {"Root", "Next", "Side"}
+        # A hidden node cuts off what lies beyond it, as it does upstream.
+        assert hide_blocked["node_names"] == {"Root", "Side"}
+
+    def test_synergy_partner_seeds_then_follows_unlocks(self, mgr):
+        for name in ("Root", "Partner", "PartnerNeed", "PartnerUnlock"):
+            mgr.add_node(_make_node(name))
+        mgr.add_edge("Root", "Partner", EDGE_HELPS)
+        mgr.add_edge("PartnerNeed", "Partner", EDGE_NEEDS_HARD)
+        mgr.add_edge("Partner", "PartnerUnlock", EDGE_NEEDS_HARD)
+
+        view = mgr.get_dependency_view(
+            "Root", include_synergies=True, direction="unlocks")
+
+        assert view["node_names"] == {"Root", "Partner", "PartnerUnlock"}
+
+    def test_unknown_direction_is_refused(self, mgr):
+        mgr.add_node(_make_node("Root"))
+        with pytest.raises(ValueError):
+            mgr.get_dependency_view("Root", direction="sideways")
+
+    def test_details_graph_draws_the_unlocks_view(self, mgr, services):
+        self._chain(mgr)
+        elements = _build_graph_elements(
+            services.graph, services.events, "Root", ["include"], [],
+            direction="unlocks")
+
+        assert _node_ids(elements) == {"Root", "Next", "Later", "Side"}
+        key = bridge_payloads.edge_key
+        # The edge into Root belongs to the Needs view, not this one.
+        assert key("Before", "Root", "Needs_Hard") not in _edge_ids(elements)
+
+    def test_table_labels_relationships_looking_forward(self, mgr):
+        from skilltree.features.details.layout import build_details_subtasks_table
+        from skilltree.features.details.subtasks import collect_details_subtasks
+        self._chain(mgr)
+        mgr.add_node(_make_node("Partner"))
+        mgr.add_edge("Partner", "Root", EDGE_HELPS)
+
+        rows, edges = collect_details_subtasks(
+            mgr, "Root", True, True, None, {}, "unlocks")
+        table = build_details_subtasks_table(
+            rows, graph_manager=mgr, edges=edges, parent_name="Root",
+            include_soft=True, include_synergies=True, direction="unlocks")
+
+        names = [r.children[0].id["index"] for r in table.children[1].children]
+        rel = {r.children[0].id["index"]: r.children[2].children.children
+               for r in table.children[1].children}
+        assert set(names) == {"Next", "Later", "Side", "Partner"}
+        assert rel == {"Next": "Hard", "Later": "Hard", "Side": "Soft",
+                       "Partner": "Synergy"}
+
+    def test_empty_unlocks_table_says_nothing_depends_on_it(self):
+        from skilltree.features.details.layout import build_details_subtasks_table
+        assert "Nothing depends on this node" in str(
+            build_details_subtasks_table([], direction="unlocks"))
+        assert "leads only to the Milestones" in str(
+            build_details_subtasks_table([], milestones_only=True, direction="unlocks"))

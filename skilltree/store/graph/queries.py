@@ -125,22 +125,36 @@ def get_goal_subtree(manager, goal_name: str, edge_types=None) -> Set[str]:
     return visited
 
 
+DIRECTION_NEEDS = "needs"
+DIRECTION_UNLOCKS = "unlocks"
+
+
 def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
                         include_synergies: bool = False,
                         max_depth: int | None = None,
-                        filters: dict | None = None) -> dict:
+                        filters: dict | None = None,
+                        direction: str = DIRECTION_NEEDS) -> dict:
     """Resolve the deterministic, filter-aware local view for ``root_name``.
 
-    Hard prerequisites are always traversed. Soft prerequisites are
-    optional. Synergy partners are seeded only from the root; Helps edges
-    never chain. Prerequisites beneath a direct synergy partner continue
-    to follow the enabled Needs edge types.
+    ``direction`` picks which way the walk runs. ``"needs"`` follows edges
+    backward, to the prerequisites that lead into the root. ``"unlocks"``
+    follows them forward, to the nodes the root leads to.
+
+    Hard edges are always traversed. Soft edges are optional. Synergy
+    partners are seeded only from the root; Helps edges never chain. The
+    walk continues from a direct synergy partner along the enabled Needs
+    edge types, in the same direction.
 
     The returned mapping contains ``node_names`` (including the root),
     ``depth_by_name``, and ``discovery_edges`` as ``(source, target, type)``
     tuples. Discovery edges form the stable spanning tree used when the
     Details graph hides cross-links.
     """
+    if direction not in (DIRECTION_NEEDS, DIRECTION_UNLOCKS):
+        raise ValueError(f"Unknown direction: {direction!r}")
+    # The end of an edge the walk stands on, and the end it steps to.
+    here, there = (('target', 'source') if direction == DIRECTION_NEEDS
+                   else ('source', 'target'))
     root = manager.get_node(root_name)
     if root is None:
         return {
@@ -158,12 +172,12 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
         manager.get_edges(),
         key=lambda e: (e['target'], e['source'], e['type']),
     )
-    incoming = {}
+    adjacent = {}
     root_synergies = []
     for edge in edges:
         edge_type = edge['type']
         if edge_type in allowed_need_types:
-            incoming.setdefault(edge['target'], []).append(edge)
+            adjacent.setdefault(edge[here], []).append(edge)
         elif include_synergies and edge_type == EDGE_HELPS:
             if edge['target'] == root_name:
                 root_synergies.append((edge['source'], edge))
@@ -186,8 +200,8 @@ def get_dependency_view(manager, root_name: str, *, include_soft: bool = True,
                 continue
 
             candidates = [
-                (edge['source'], edge)
-                for edge in incoming.get(current, ())
+                (edge[there], edge)
+                for edge in adjacent.get(current, ())
             ]
             if current == root_name:
                 candidates.extend(root_synergies)

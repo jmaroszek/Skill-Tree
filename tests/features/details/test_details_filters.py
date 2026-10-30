@@ -60,7 +60,7 @@ def test_a_maximum_in_weeks_reaches_the_details_graph():
 
     def shown(time, unit):
         elements = graph("Goal", 0, 0, [], [], None, [],
-                         {"time": time, "time_unit": unit}, [])
+                         {"time": time, "time_unit": unit}, [], "needs")
         return {e["data"]["id"] for e in elements if "source" not in e["data"]}
 
     # 10 hours leaves the 100-hour task out; 10 weeks (200 hours at the

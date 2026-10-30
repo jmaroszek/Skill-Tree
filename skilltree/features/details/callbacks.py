@@ -30,8 +30,10 @@ from skilltree.features.details.subtasks import (
     collect_details_subtasks,
 )
 from skilltree.features.details.layout import (
+    normalize_direction,
     normalize_max_depth,
 )
+from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_UNLOCKS
 
 
 # The node panel's style while a node is selected. The browser applies it as
@@ -147,6 +149,7 @@ def register_details_callbacks(app, services):
         State("details-include-synergies", "value"),
         FILTER_STATES,
         State("details-hide-blocked", "value"),
+        State("details-direction", "value"),
         # What the store already holds. Most of this callback's Inputs are
         # refresh signals, not selection changes, so the store slot below is
         # left untouched unless the selection actually moved — see the note
@@ -157,7 +160,8 @@ def register_details_callbacks(app, services):
     @database.snapshot_read
     def select_detail_node(node_name, _refresh, _version,
                            max_depth_val, include_soft_val, include_synergies_val,
-                           sidebar_filters, hide_blocked_val, current_selection):
+                           sidebar_filters, hide_blocked_val, direction_val,
+                           current_selection):
         # Dash re-fires every dependent callback when an Output is written,
         # even with an unchanged value. Writing the same node name back on a
         # refresh would look like a fresh selection: the simulation would go
@@ -297,7 +301,7 @@ def register_details_callbacks(app, services):
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
             graph_manager, node_name, include_soft, include_synergies, max_depth,
-            global_filters)
+            global_filters, normalize_direction(direction_val))
 
         # Milestones roster — derived from the same filtered subtask_nodes the
         # Subtasks table uses, so the strip stays in lockstep with the table.
@@ -405,12 +409,13 @@ def register_details_callbacks(app, services):
         Input("details-show-cross-links", "value"),
         FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
+        Input("details-direction", "value"),
     )
     @database.snapshot_read
     def update_details_graph(selected_node, _refresh, _version,
                              include_soft_val, include_synergies_val,
                              max_depth_val, show_cross_links_val,
-                             sidebar_filters, hide_blocked_val):
+                             sidebar_filters, hide_blocked_val, direction_val):
         if not selected_node:
             return []
         # select_detail_node keeps the previous view for a name that no
@@ -426,7 +431,8 @@ def register_details_callbacks(app, services):
                                      max_depth=normalize_max_depth(max_depth_val),
                                      show_cross_links=bool(
                                          show_cross_links_val
-                                         and "show" in show_cross_links_val))
+                                         and "show" in show_cross_links_val),
+                                     direction=normalize_direction(direction_val))
 
     # --- Clicking a node in the dep graph → select it ---
     # In the browser: a server round trip here only delayed the graph's
@@ -628,6 +634,23 @@ def register_details_callbacks(app, services):
         style['display'] = 'none' if style.get('display') != 'none' else 'block'
         return style
 
+    # --- Direction: the table's title, and the + that adds prerequisites ---
+    # The + only ever adds a node that leads into this one, so it has no
+    # place under Unlocks.
+    app.clientside_callback(
+        """
+        function(direction) {
+            var unlocks = direction === '__UNLOCKS__';
+            return [unlocks ? 'Unlocks' : 'Subtasks',
+                    {display: unlocks ? 'none' : 'flex'}];
+        }
+        """.replace("__UNLOCKS__", DIRECTION_UNLOCKS),
+        Output("details-subtasks-heading", "children"),
+        Output("details-add-node-wrap", "style"),
+        Input("details-direction", "value"),
+        prevent_initial_call=True,
+    )
+
     # --- Details Graph Layout: Reset to Stored Defaults ---
     @app.callback(
         Output('details-graph-settings-animate', 'value', allow_duplicate=True),
@@ -799,7 +822,7 @@ def register_details_callbacks(app, services):
 
 def _build_graph_elements(graph, events, selected_node, include_soft_val,
                           include_synergies_val, global_filters=None, max_depth=None,
-                          show_cross_links=True):
+                          show_cross_links=True, direction=DIRECTION_NEEDS):
     """Shared helper to build Cytoscape elements for the dependency graph."""
     include_soft = bool(include_soft_val and "include" in include_soft_val)
     include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
@@ -817,6 +840,7 @@ def _build_graph_elements(graph, events, selected_node, include_soft_val,
         include_synergies=include_synergies,
         max_depth=max_depth,
         filters=global_filters,
+        direction=direction,
     )
     node_names = set(view["node_names"])
     discovery_edges = set(view["discovery_edges"])

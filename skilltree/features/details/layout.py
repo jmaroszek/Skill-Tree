@@ -28,6 +28,7 @@ from skilltree.ui.canvas.settings_panel import (
 )
 from skilltree.ui.kit import goal_corner_badge
 from skilltree.domain.models import EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
+from skilltree.store.graph.queries import DIRECTION_NEEDS, DIRECTION_UNLOCKS
 
 
 def build_details_tab_content():
@@ -241,6 +242,7 @@ def build_details_tab_content():
                 "details-graph-settings",
                 defaults_getter=settings.DETAILS_GRAPH_LAYOUT_DEFAULTS.get,
                 max_depth_id="details-max-depth",
+                direction_id="details-direction",
             ),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",
@@ -347,9 +349,12 @@ def build_details_tab_content():
         # (toggles live up there instead), visible otherwise.
         html.Div([
             html.Div([
-                html.H5("Subtasks", className="mb-0"),
-                add_button("btn-details-add-node", None,
-                           label="Add subtask node"),
+                # Unlocks retitles the table and hides the +, which adds
+                # prerequisites only.
+                html.H5("Subtasks", id="details-subtasks-heading", className="mb-0"),
+                html.Span(add_button("btn-details-add-node", None,
+                                     label="Add subtask node"),
+                          id="details-add-node-wrap", style={"display": "flex"}),
             ], className="d-flex align-items-center"),
             html.Div(_build_toggles(), id="details-subtask-toggles-bottom"),
         ], className="d-flex align-items-center justify-content-between",
@@ -756,7 +761,8 @@ def build_no_selection_subtasks():
 
 def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                   parent_name=None, include_soft=True,
-                                  include_synergies=False, milestones_only=False):
+                                  include_synergies=False, milestones_only=False,
+                                  direction=DIRECTION_NEEDS):
     """Builds the subtasks table for any node's detail view.
 
     Columns: Name | Status | Relationship | Type | Context | Subcontext |
@@ -772,13 +778,21 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         parent_name: The root node name, used to compute need types.
         include_soft: If False, only hard-need subtasks are shown.
         include_synergies: If True, Helps-linked nodes get a "Synergy" relationship label.
-        milestones_only: True when the node's only prerequisites are the
+        milestones_only: True when the node's only related nodes are the
             Milestones shown in the strip above, so the empty table says that.
+        direction: ``"needs"`` for the prerequisites leading into
+            ``parent_name``, ``"unlocks"`` for the nodes it leads to. It
+            decides which way the Relationship column looks.
     """
+    unlocks = direction == DIRECTION_UNLOCKS
     if not subtask_nodes:
-        message = ("Only Milestones lead into this node so far. Add the work "
-                   "that gets you there to see it here." if milestones_only
-                   else "No subtasks found. Add prerequisite nodes to see them here.")
+        if unlocks:
+            message = ("This node leads only to the Milestones above." if milestones_only
+                       else "Nothing depends on this node yet.")
+        else:
+            message = ("Only Milestones lead into this node so far. Add the work "
+                       "that gets you there to see it here." if milestones_only
+                       else "No subtasks found. Add prerequisite nodes to see them here.")
         return html.Div(
             html.P(message, className="text-muted"),
             className="text-center py-3"
@@ -787,18 +801,25 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
     edges = edges or []
     relationship_types = {}
     if parent_name and graph_manager:
-        hard_subtree = graph_manager.get_goal_subtree(parent_name,
-                                                       edge_types=(EDGE_NEEDS_HARD,))
+        def reach(*edge_types):
+            # Everything the given edge types reach from the parent, at any
+            # depth and unfiltered. Needs reads the cached subtree.
+            if not unlocks:
+                return graph_manager.get_goal_subtree(parent_name, edge_types=edge_types)
+            view = graph_manager.get_dependency_view(
+                parent_name, include_soft=EDGE_NEEDS_SOFT in edge_types,
+                include_synergies=EDGE_HELPS in edge_types,
+                direction=DIRECTION_UNLOCKS)
+            return set(view["node_names"]) - {parent_name}
+
+        hard_subtree = reach(EDGE_NEEDS_HARD)
         synergy_nodes = set()
         if include_synergies:
             # "Synergy" = nodes pulled in by the Helps seed (direct partner or
-            # one of its Hard/Soft prereqs) that aren't already in the goal's
-            # Hard/Soft subtree.
-            overall_subtree = graph_manager.get_goal_subtree(
-                parent_name,
-                edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS))
-            hard_soft_subtree = graph_manager.get_goal_subtree(
-                parent_name, edge_types=(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT))
+            # one it leads to or from over Hard/Soft) that aren't already in
+            # the parent's Hard/Soft reach.
+            overall_subtree = reach(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS)
+            hard_soft_subtree = reach(EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT)
             synergy_nodes = overall_subtree - hard_soft_subtree
 
         for node in subtask_nodes:
@@ -818,7 +839,8 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
 
     if not subtask_nodes:
         return html.Div(
-            html.P("No hard-need subtasks for this node.", className="text-muted"),
+            html.P("Nothing depends on this node through a Hard need." if unlocks
+                   else "No hard-need subtasks for this node.", className="text-muted"),
             className="text-center py-3"
         )
 
@@ -1020,3 +1042,8 @@ def build_milestone_tile(milestone_node, completion: dict):
 def normalize_max_depth(value):
     """Map the Details slider's ``All`` sentinel to an uncapped traversal."""
     return None if value in (None, 0, 6) else int(value)
+
+
+def normalize_direction(value):
+    """The Direction radio's value, with anything unknown read as Needs."""
+    return DIRECTION_UNLOCKS if value == DIRECTION_UNLOCKS else DIRECTION_NEEDS

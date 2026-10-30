@@ -462,7 +462,7 @@ def test_subtasks_table_waits_for_current_layout(monkeypatch):
     callback = _raw_callback(spec)
     args = [
         "", 0, 0,
-        ["include"], [], 6,
+        ["include"], [], 6, "needs",
         {}, [], "Current",
     ]
     placeholder = next(
@@ -525,7 +525,7 @@ def test_frozen_selection_renders_without_waiting_for_layout(monkeypatch):
     fire("details-layout-settled-trigger-input.value")
     result = callback(
         '{"root":"Current","settledAt":1}', 0, 0,
-        ["include"], [], 6,
+        ["include"], [], 6, "needs",
         {}, [], "Current",
     )
 

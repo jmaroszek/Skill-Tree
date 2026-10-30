@@ -16,9 +16,11 @@ from skilltree.features.details.layout import (
     build_details_subtasks_table,
     build_milestone_tile,
     build_no_selection_subtasks,
+    normalize_direction,
     normalize_max_depth,
 )
 from skilltree.store import database
+from skilltree.store.graph.queries import DIRECTION_NEEDS
 from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
@@ -48,6 +50,7 @@ def register_subtask_callbacks(app, services):
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
+        Input("details-direction", "value"),
         FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
         State("details-selected-node-store", "data"),
@@ -56,8 +59,8 @@ def register_subtask_callbacks(app, services):
     @database.snapshot_read
     def render_details_subtasks(settled_token, _refresh, _version,
                                 include_soft_val, include_synergies_val,
-                                max_depth_val, sidebar_filters, hide_blocked_val,
-                                selected_node):
+                                max_depth_val, direction_val, sidebar_filters,
+                                hide_blocked_val, selected_node):
         # A deleted node has no table. Its refresh can land after the
         # selection clears.
         if not selected_node or not graph_manager.get_node(selected_node):
@@ -82,16 +85,18 @@ def register_subtask_callbacks(app, services):
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters["hide_blocked"] = True
 
+        direction = normalize_direction(direction_val)
         subtask_nodes, edges = collect_details_subtasks(
             graph_manager, selected_node, include_soft, include_synergies, max_depth,
-            global_filters)
+            global_filters, direction)
         non_milestone_subtasks = [
             node for node in subtask_nodes if node.type != "Milestone"]
         return build_details_subtasks_table(
             non_milestone_subtasks, graph_manager=graph_manager, edges=edges,
             parent_name=selected_node, include_soft=include_soft,
             include_synergies=include_synergies,
-            milestones_only=bool(subtask_nodes) and not non_milestone_subtasks)
+            milestones_only=bool(subtask_nodes) and not non_milestone_subtasks,
+            direction=direction)
 
     # --- Toggle milestone filters ---
     @app.callback(
@@ -101,6 +106,7 @@ def register_subtask_callbacks(app, services):
         Input("details-include-soft-needs", "value"),
         Input("details-include-synergies", "value"),
         Input("details-max-depth", "value"),
+        Input("details-direction", "value"),
         FILTER_INPUTS,
         Input("details-hide-blocked", "value"),
         State("details-selected-node-store", "data"),
@@ -108,7 +114,7 @@ def register_subtask_callbacks(app, services):
     )
     @database.snapshot_read
     def toggle_details_subtask_filters(include_soft_val, include_synergies_val,
-                                       max_depth_val, sidebar_filters,
+                                       max_depth_val, direction_val, sidebar_filters,
                                        hide_blocked_val, selected_node):
         if not selected_node:
             return no_update, no_update, no_update
@@ -122,7 +128,7 @@ def register_subtask_callbacks(app, services):
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
             graph_manager, selected_node, include_soft, include_synergies, max_depth,
-            global_filters)
+            global_filters, normalize_direction(direction_val))
 
         # Milestones roster shares the same filtered, depth-limited view as
         # the table, so both surfaces stay in lockstep.
@@ -304,12 +310,16 @@ def build_milestones_section(graph, subtask_nodes, parent_name, edges):
 
 
 def collect_details_subtasks(graph, node_name, include_soft, include_synergies,
-                             max_depth, global_filters):
-    """Return the filtered, sorted dependency rows shared by Details views."""
+                             max_depth, global_filters, direction=DIRECTION_NEEDS):
+    """Return the filtered, sorted dependency rows shared by Details views.
+
+    ``direction`` is the Direction setting: the nodes leading into
+    ``node_name`` (Needs) or the ones it leads to (Unlocks).
+    """
     view = graph.get_dependency_view(
         node_name, include_soft=include_soft,
         include_synergies=include_synergies, max_depth=max_depth,
-        filters=global_filters)
+        filters=global_filters, direction=direction)
     subtree = set(view["node_names"]) - {node_name}
     subtask_nodes = [graph.get_node(name) for name in subtree]
     subtask_nodes = [node for node in subtask_nodes if node is not None]

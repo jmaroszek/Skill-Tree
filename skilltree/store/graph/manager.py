@@ -1215,20 +1215,23 @@ class GraphManager:
     def get_dependency_view(self, root_name: str, *, include_soft: bool = True,
                             include_synergies: bool = False,
                             max_depth: int | None = None,
-                            filters: dict | None = None) -> dict:
+                            filters: dict | None = None,
+                            direction: str = graph_queries.DIRECTION_NEEDS) -> dict:
         """Resolve the deterministic, filter-aware local view for ``root_name``.
 
-        Hard prerequisites are always traversed. Soft prerequisites are
-        optional. Synergy partners are seeded only from the root; Helps edges
-        never chain. Prerequisites beneath a direct synergy partner continue
-        to follow the enabled Needs edge types.
+        ``direction`` is ``"needs"`` (the prerequisites leading into the
+        root) or ``"unlocks"`` (the nodes the root leads to). Hard edges are
+        always traversed. Soft edges are optional. Synergy partners are
+        seeded only from the root; Helps edges never chain. The walk
+        continues from a direct synergy partner along the enabled Needs edge
+        types, in the same direction.
 
         The returned mapping contains ``node_names`` (including the root),
         ``depth_by_name``, and ``discovery_edges`` as ``(source, target, type)``
         tuples. Discovery edges form the stable spanning tree used when the
         Details graph hides cross-links.
         """
-        return graph_queries.get_dependency_view(self, root_name, include_soft=include_soft, include_synergies=include_synergies, max_depth=max_depth, filters=filters)
+        return graph_queries.get_dependency_view(self, root_name, include_soft=include_soft, include_synergies=include_synergies, max_depth=max_depth, filters=filters, direction=direction)
 
     @database.snapshot_read
     def get_goal_completion(self, goal_name: str, include_soft: bool = True,

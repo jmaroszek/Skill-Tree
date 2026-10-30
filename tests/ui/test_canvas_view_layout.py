@@ -287,3 +287,17 @@ def test_events_tab_content_graph_settings_include_smooth_toggle():
     ids = _ids(content)
 
     assert "events-graph-settings-animate" in ids
+
+
+def test_direction_sits_above_max_depth_in_the_details_panel():
+    content = build_details_tab_content()
+    ids = _ids(content)
+    direction = _by_id(content, "details-direction")
+
+    assert direction.value == "needs"
+    assert [o["value"] for o in direction.options] == ["needs", "unlocks"]
+    assert [o["label"] for o in direction.options] == ["Needs", "Unlocks"]
+    assert ids.count("details-direction") == 1
+    assert ids.index("details-direction") < ids.index("details-max-depth")
+    # Only Details looks out from one node, so the other panels have none.
+    assert "Direction" not in _text(build_graph_settings_panel("p-layout"))
