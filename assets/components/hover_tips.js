@@ -9,7 +9,8 @@
  *   pointer moves off the element it pressed. A tooltip whose hover timer
  *   was still running when you clicked never appears.
  * - Warm handoff: once a tooltip has shown, `tooltips-warm` lets the next
- *   one show at once, until WARM_MS pass with none showing.
+ *   one show at once, until WARM_MS pass with none on screen. Moving the
+ *   pointer doesn't extend it: only a tooltip on screen does.
  * - The shared tip: an element with `data-hint` shows that text, and one with
  *   the `overflow-hint` class shows its own text only while it is cut off
  *   with an ellipsis. Rows can carry these by the hundred without a Dash
@@ -18,9 +19,10 @@
  */
 (function () {
     var WARM_MS = 500;
+    var WARM_POLL_MS = 100;
     var body = null;
     var pressed = null;
-    var coolTimer = null;
+    var warmPoll = null, lastShowing = 0;
     var tip = null, tipInner = null, tipArrow = null, tipTarget = null;
 
     function cls(name, on) { if (body) body.classList.toggle(name, on); }
@@ -84,7 +86,6 @@
         tipTarget = null;
         tip.classList.remove('show');
         if (tip.parentNode) tip.parentNode.removeChild(tip);
-        startCooling();
     }
 
     function anyShowing() {
@@ -92,13 +93,21 @@
             function (t) { return parseFloat(getComputedStyle(t).opacity) > 0; });
     }
 
-    // Warmth lasts WARM_MS past the last tooltip on screen.
-    function startCooling() {
-        clearTimeout(coolTimer);
-        coolTimer = setTimeout(function cool() {
-            if (anyShowing()) coolTimer = setTimeout(cool, WARM_MS);
-            else cls('tooltips-warm', false);
-        }, WARM_MS);
+    // Warmth lasts WARM_MS past the last tooltip on screen, however that one
+    // closed. A check runs only while warm.
+    function warm() {
+        lastShowing = Date.now();
+        cls('tooltips-warm', true);
+        if (warmPoll) return;
+        warmPoll = setInterval(function () {
+            if (anyShowing()) {
+                lastShowing = Date.now();
+            } else if (Date.now() - lastShowing >= WARM_MS) {
+                clearInterval(warmPoll);
+                warmPoll = null;
+                cls('tooltips-warm', false);
+            }
+        }, WARM_POLL_MS);
     }
 
     function init() {
@@ -135,15 +144,8 @@
         document.addEventListener('transitionstart', function (e) {
             var t = e.target;
             if (e.propertyName !== 'opacity' || !t.classList || !t.classList.contains('tooltip')) return;
-            if (t.classList.contains('show') && !body.classList.contains('tooltips-suppressed')) {
-                clearTimeout(coolTimer);
-                cls('tooltips-warm', true);
-            }
+            if (t.classList.contains('show') && !body.classList.contains('tooltips-suppressed')) warm();
         });
-        // Leaving any element may be leaving the last tooltip: start the clock.
-        document.addEventListener('mouseout', function () {
-            if (body.classList.contains('tooltips-warm')) startCooling();
-        }, true);
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

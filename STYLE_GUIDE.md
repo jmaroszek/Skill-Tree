@@ -1114,8 +1114,10 @@ it:
   before it shows. The wait is CSS (`--st-tooltip-show-delay`, the Tooltips
   section of `custom.css`), so `ui_kit.Tooltip` mounts with no delay of its own.
 - A press cancels: no tooltip shows until the pointer leaves what it pressed.
+- A tooltip closes the moment the pointer leaves, with no fade-out.
 - Warm handoff: within half a second of one tooltip closing, the next shows at
-  once, so a row of icon buttons reads quickly.
+  once, so a row of icon buttons reads quickly. Only a tooltip on screen keeps
+  it warm; moving the pointer doesn't.
 - A tooltip whose text is empty shows nothing. Save's tooltip is empty until
   something stops it, and then says what.
 
