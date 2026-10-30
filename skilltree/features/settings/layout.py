@@ -23,7 +23,7 @@ from skilltree.store.resources import get_sections
 from skilltree.store import backup
 from skilltree.runtime.version import __version__
 from skilltree.ui.kit import (cancel_action, danger_action, hover_label,
-                    panel_close_button, primary_action, restore_button)
+                    panel_close_button, quiet_action, restore_button)
 
 
 # One line under each page's title, saying what the page is for.
@@ -371,8 +371,10 @@ def _build_data_tab():
             dbc.Switch(id="setting-auto-backup", value=True,
                        label="Back up automatically"),
             html.Div([
-                primary_action("Back up now", "btn-backup-now", size="sm", className="me-2"),
-                cancel_action("Open backups folder", "btn-open-backup-folder", size="sm"),
+                quiet_action("Back up now", "btn-backup-now", standalone=True, size="sm",
+                             className="me-2"),
+                quiet_action("Open backups folder", "btn-open-backup-folder", standalone=True,
+                             size="sm"),
             ], className="d-flex align-items-center settings-subblock"),
             html.Div([
                 dbc.Label("Also copy each backup to", html_for="setting-backup-extra-dir",
@@ -394,12 +396,13 @@ def _build_data_tab():
                 html.Div(dcc.Dropdown(id="restore-backup-select", options=[],
                                       clearable=False, placeholder="Choose a backup"),
                          className="text-dark", style={"minWidth": "340px"}),
-                danger_action("Restore…", "btn-restore-backup", size="sm", className="ms-2"),
+                danger_action("Restore…", "btn-restore-backup", standalone=True, size="sm",
+                              className="ms-2"),
             ], className="d-flex align-items-center"),
             dbc.Collapse(html.Div([
                 html.Div(id="restore-confirm-text", className="mb-2"),
                 cancel_action("Cancel", "btn-restore-cancel", size="sm", className="me-2"),
-                danger_action("Restore", "btn-restore-confirm", size="sm"),
+                danger_action("Restore", "btn-restore-confirm", commit=True, size="sm"),
             ], className="mt-2"), id="restore-confirm", is_open=False),
         ),
 
@@ -409,15 +412,15 @@ def _build_data_tab():
             "settings. Use it to move to another computer, or to keep a "
             "copy outside Skill Tree.",
             html.Div([
-                primary_action("Export graph (.json)", "btn-export-json", size="sm",
-                               className="me-2 data-graph-btn"),
-                cancel_action("Export database file", "btn-export-db", size="sm"),
+                quiet_action("Export graph (.json)", "btn-export-json", standalone=True, size="sm",
+                             className="me-2 data-graph-btn"),
+                quiet_action("Export database file", "btn-export-db", standalone=True, size="sm"),
             ], className="d-flex align-items-center mb-2"),
             dcc.Download(id="download-export-json"),
             dcc.Download(id="download-export-db"),
             dcc.Upload(
-                cancel_action("Import graph (.json)…", "btn-import-json", size="sm",
-                              className="data-graph-btn"),
+                quiet_action("Import graph (.json)…", "btn-import-json", standalone=True, size="sm",
+                             className="data-graph-btn"),
                 id="upload-import", accept=".json,application/json", multiple=False),
             html.Small("Import fills an empty graph, such as a new installation.",
                        className="settings-help"),

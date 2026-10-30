@@ -372,38 +372,47 @@ stay calendar.
 
 ## Buttons
 
-Build every action button through [`skilltree/ui/kit.py`](skilltree/ui/kit.py), which names the
-**action** rather than the Bootstrap colour:
+Build every text button through [`skilltree/ui/kit.py`](skilltree/ui/kit.py), which names the
+**action** rather than a Bootstrap colour. There are three levels, styled
+under `.st-action` in `theme.css`:
 
-| Helper | Colour | Usage |
-|--------|--------|-------|
-| `primary_action` | `primary` | Commits the form: Save, Apply, View Details |
-| `confirm_action` | `success` | Commits *and* finishes: Trigger, Add |
-| `cancel_action` | `secondary` | Dismisses without committing: Cancel, Revert, Dismiss |
-| `danger_action` | `danger` | Destructive: Delete, Discard |
+| Helper | Level | Look | Usage |
+|--------|-------|------|-------|
+| `primary_action` | commit | Soft neutral fill, bright text | The one routine commit of a form or dialog: Save, Apply, Mark Done |
+| `quiet_action` / `cancel_action` | quiet | Soft text, a ghost tint on hover | Everything else: Cancel, Revert, Skip, Edit, Export |
+| `danger_action` | danger | Red text, a red wash on hover | Destructive: Delete, Discard, Restore |
 
-Do **not** hand-paint a button's background. `custom.css` already restyles
-`.btn-danger` to the tamed red app-wide; repeating `get_danger_color()` inline
-only creates a second place for the value to drift, which is what six delete
-buttons used to do — three of them with their own extra padding on top.
+- **No hue for meaning, and no Bootstrap slab.** Hierarchy comes from fill and
+  brightness. The app used to have Save in green, blue and yellow, depending
+  on the dialog. Never pass `color=` to a text button, and never hand-paint
+  its background.
+- **At most one commit per surface.** Give the fill to the action clicked
+  most, not the most consequential one. Events' Save runs after every edit;
+  Trigger fires once, so Trigger is quiet. A page whose buttons all do
+  separate jobs, such as Settings › App, has no commit.
+- **A confirm's destructive choice is its main action.** `danger_action(...,
+  commit=True)` gives Delete a faint red wash at rest, the danger counterpart
+  of the commit fill. Cancel beside it stays quiet.
+- **Standalone actions take a faint tint.** Plain text reads as an action only
+  beside other actions, as in a dialog footer. Alone in a page, between
+  paragraphs, it reads as more text. Pass `standalone=True` to a quiet or
+  danger action there: Settings › App, a panel's Reset Filters or Settle,
+  Details' Edit and Explain, the empty canvas's Show Done. The tint
+  (`--st-standalone-bg`) is lighter than the commit fill, so it never reads
+  as the main action.
+- **Text labels only.** No icon on one button and not the others; red already
+  marks Delete.
+- **A mode the user can leave** (Clear Focus) is a quiet action with
+  `st-action-warning`, which draws its text in amber.
 
 ### Side-pane form actions
 
 The node editor and the Events editor wrap their action row in
-`.form-actions` (`theme.css`). It restyles the same helpers into a calmer row:
+`.form-actions` (`theme.css`), which only lays it out:
 
-- **One soft fill, on the routine commit.** `primary_action` (Save) takes
-  `--st-action-fill`, a neutral step above `--st-bg-raised`. No accent colour:
-  hierarchy comes from fill and brighter text, not hue. Give the fill to the
-  action clicked most, not the most consequential one. Events' Save runs after
-  every edit; Trigger fires once, so Trigger is quiet.
-- **Everything else is ghost text.** `cancel_action` and `confirm_action` lose
-  their fill and take `--st-text-soft`, lifting on hover like the icon ghosts.
-- **Delete is red text, set apart at one end** by a `flex-grow-1` spacer,
-  with a danger wash on hover. Distance guards against a misclick better than
-  a loud red slab does. Its text lines up with the edge of the fields above.
-- **Text labels only.** No icon on one button and not the others; red already
-  marks Delete.
+- **Delete is set apart at one end** by a `flex-grow-1` spacer. Distance
+  guards against a misclick better than a loud red slab does. Its text lines
+  up with the edge of the fields above.
 - **Save goes where the eye goes.** A footer with no label above it (the node
   editor) reads to the end, so Save sits on the far right and Delete on the
   left. A labelled inline section (Events' Actions) is read from the label
@@ -415,17 +424,15 @@ The node editor's bottom bar holds only Delete, Revert and Save. New node
 anywhere in the form. Close with unsaved changes opens the Discard/Edit/Save
 dialog; Ctrl+S saves.
 
-Modal footers keep Bootstrap's filled buttons. In a confirm, Delete *is* the
-main action.
-
 A "Cancel" that actually reverts should say Revert. The unsaved-changes modal
 calls that choice Discard/Edit/Save; keep those verbs consistent.
 
 ### Modal footers
 
 One structure: actions on the right, the dismissive action first, separated by
-`me-2`. Use `flex-fill` only for a two- or three-way choice with no obvious
-default (the unsaved-changes and delete confirms). Every modal is
+`me-2`. Buttons keep their label's width; no `flex-fill`. A destructive choice
+that isn't the main action (Discard in the unsaved-changes dialog) takes
+`me-auto` and sits apart on the left, as Delete does in the editor. Every modal is
 `centered=True`; yes/no confirms are `size="sm"`; a modal with a form is `lg`
 and one with a table is `xl` or a `dialog_style` max-width. Every modal has a
 `ModalHeader` with a `ModalTitle`, including the short confirms.
@@ -533,12 +540,11 @@ will be added to Now on waking. It uses the same play glyph as the Add to Now me
 command and disappears once the node is awake.
 
 ### Button sizes
-- `size="sm"` — Toolbar, inline actions
-- (default) — Form actions (Save, Delete, Clear)
+- `size="sm"` — Toolbar, inline actions, and every action in a Settings page
+- (default) — Dialog footers and the node editor's footer
 - A form-action row inside a narrow side pane takes `sm` anyway. The Events
   editor's Actions section is the case: at the default size, three buttons
   above a dense table read as a slab rather than a row.
-- `size="lg"` + `className="w-100"` — Full-width major actions (Save Settings)
 
 ## Spacing
 

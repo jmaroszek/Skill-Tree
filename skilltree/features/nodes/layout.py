@@ -7,6 +7,7 @@ from skilltree.ui.canvas.settings_panel import build_graph_settings_panel
 from skilltree.ui.canvas.settings_panel import freeze_indicator
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import filter_chip
+from skilltree.ui.kit import quiet_action
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.styles import stylesheet
 import dash_bootstrap_components as dbc
@@ -85,12 +86,9 @@ def create_graph_view():
                 html.Div("No nodes match your filters", className="canvas-empty-title"),
                 html.Div(id="canvas-empty-detail", className="canvas-empty-detail"),
                 html.Div([
-                    dbc.Button("Show Done", id="btn-empty-show-done",
-                               color="secondary", size="sm"),
-                    dbc.Button("Show Dormant", id="btn-empty-show-dormant",
-                               color="secondary", size="sm"),
-                    dbc.Button("Clear filters", id="btn-empty-clear",
-                               color="secondary", size="sm"),
+                    quiet_action("Show Done", "btn-empty-show-done", standalone=True, size="sm"),
+                    quiet_action("Show Dormant", "btn-empty-show-dormant", standalone=True, size="sm"),
+                    quiet_action("Clear filters", "btn-empty-clear", standalone=True, size="sm"),
                 ], id="canvas-empty-actions", className="canvas-empty-actions"),
             ], id="canvas-empty-state", className="canvas-empty-state",
                 role="status", **{"aria-live": "polite"}),  # type: ignore[reportArgumentType]

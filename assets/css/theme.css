@@ -2293,44 +2293,85 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
 
-/* --- Side-pane form actions --------------------------------------------- */
-/* The node editor's and the Events editor's action rows. One soft neutral
-   fill marks the routine commit (Save); every other action is ghost text.
-   Delete is red text, set apart on the left, rather than a filled red slab.
-   Modal footers keep Bootstrap's filled buttons: there a confirm's Delete is
-   the main action. */
+/* --- Text actions (ui/kit.py *_action) ---------------------------------- */
+/* Every text button in the app is one of three levels. No Bootstrap slab and
+   no hue for meaning: hierarchy comes from fill and brightness.
+   - commit: the one routine commit of a form or dialog (Save, Apply). The
+     --st-commit-* tokens decide whether it carries a soft fill.
+   - quiet: everything else, plain soft text that lifts on hover.
+   - danger: red text, a red wash on hover. danger-commit is a confirm
+     dialog's destructive choice, which is that dialog's main action. */
 
-.form-actions .btn {
-    --bs-btn-border-color: transparent;
-    --bs-btn-hover-border-color: transparent;
-    --bs-btn-active-border-color: transparent;
-    --bs-btn-disabled-border-color: transparent;
-    --bs-btn-focus-shadow-rgb: 173, 181, 189;
-    font-weight: 400;
-}
-
-.form-actions .btn-primary {
-    --bs-btn-bg: var(--st-action-fill);
-    --bs-btn-color: var(--st-text-strong);
-    --bs-btn-hover-bg: var(--st-action-fill-hover);
-    --bs-btn-hover-color: #fff;
-    --bs-btn-active-bg: var(--st-action-fill-active);
-    --bs-btn-active-color: #fff;
-    --bs-btn-disabled-bg: var(--st-action-fill);
-    --bs-btn-disabled-color: var(--st-text-soft);
-}
-
-.form-actions .btn-secondary,
-.form-actions .btn-success {
+.btn.st-action {
     --bs-btn-bg: transparent;
+    --bs-btn-border-color: transparent;
     --bs-btn-color: var(--st-text-soft);
     --bs-btn-hover-bg: var(--st-ghost-hover-dark);
+    --bs-btn-hover-border-color: transparent;
     --bs-btn-hover-color: var(--st-text-strong);
     --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-border-color: transparent;
     --bs-btn-active-color: #fff;
     --bs-btn-disabled-bg: transparent;
+    --bs-btn-disabled-border-color: transparent;
+    --bs-btn-disabled-color: var(--st-text-dim);
+    --bs-btn-focus-shadow-rgb: 173, 181, 189;
+    font-weight: 400;
+    box-shadow: none;
+}
+
+.btn.st-action-commit {
+    --bs-btn-bg: var(--st-commit-bg);
+    --bs-btn-color: var(--st-text-strong);
+    --bs-btn-hover-bg: var(--st-commit-bg-hover);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-bg: var(--st-commit-bg-active);
+    --bs-btn-disabled-bg: var(--st-commit-bg);
+    --bs-btn-disabled-color: var(--st-text-soft);
+    font-weight: var(--st-commit-weight);
+}
+
+.btn.st-action-danger,
+.btn.st-action-danger-commit {
+    --bs-btn-color: var(--st-danger-text);
+    --bs-btn-hover-bg: var(--st-danger-wash);
+    --bs-btn-hover-color: var(--st-danger-text);
+    --bs-btn-active-bg: var(--st-danger-wash-strong);
+    --bs-btn-active-color: var(--st-danger-text);
     --bs-btn-disabled-color: var(--st-text-dim);
 }
+.btn.st-action-danger-commit {
+    --bs-btn-bg: var(--st-danger-commit-bg);
+    font-weight: var(--st-commit-weight);
+}
+
+/* An action alone in a page (Settings > App, a panel's Reset Filters) takes a
+   faint tint at rest, lighter than the commit's fill: plain text there reads
+   as more text. A dialog footer needs none, since its row says "actions". */
+.btn.st-action-standalone {
+    --bs-btn-bg: var(--st-standalone-bg);
+    --bs-btn-hover-bg: var(--st-standalone-bg-hover);
+    --bs-btn-active-bg: var(--st-standalone-bg-active);
+    --bs-btn-disabled-bg: var(--st-standalone-bg);
+}
+.btn.st-action-danger.st-action-standalone {
+    --bs-btn-bg: var(--st-danger-wash);
+    --bs-btn-hover-bg: var(--st-danger-wash-strong);
+    --bs-btn-active-bg: var(--st-danger-wash-strong);
+    --bs-btn-disabled-bg: var(--st-danger-wash);
+}
+
+/* A mode the user can leave, such as Clear Focus. The toolbar's own ghost
+   rule is an id selector, so this names it too. */
+.btn.st-action-warning,
+#main-toolbar .btn.st-action-warning {
+    --bs-btn-color: var(--st-warning-text);
+    --bs-btn-hover-color: var(--st-warning-text);
+}
+
+/* --- Side-pane form actions --------------------------------------------- */
+/* The node editor's and the Events editor's action rows: the st-action levels,
+   with Delete set apart at one end. */
 
 /* The node editor's full-size row. Labels set the width, not flex-fill. */
 .form-actions.form-actions-lg .btn {
@@ -2338,30 +2379,15 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     --bs-btn-padding-y: 6px;
 }
 
-/* custom.css paints .btn-danger with !important, so this must too. */
-.form-actions .btn-danger {
-    background-color: transparent !important;
-    border-color: transparent !important;
-    color: var(--st-danger-text);
-}
 /* Pulled out by its own padding at whichever end of the row it sits: with no
    fill, the text is what lines up with the edge of the fields above it. */
-.form-actions > .btn-danger:first-child,
-.form-actions > :first-child > .btn-danger {
+.form-actions > .st-action-danger:first-child,
+.form-actions > :first-child > .st-action-danger {
     margin-left: calc(-1 * var(--bs-btn-padding-x));
 }
-.form-actions > .btn-danger:last-child,
-.form-actions > :last-child > .btn-danger {
+.form-actions > .st-action-danger:last-child,
+.form-actions > :last-child > .st-action-danger {
     margin-right: calc(-1 * var(--bs-btn-padding-x));
-}
-.form-actions .btn-danger:hover,
-.form-actions .btn-danger:focus-visible {
-    background-color: var(--st-danger-wash) !important;
-    color: var(--st-danger-text);
-}
-.form-actions .btn-danger:active {
-    background-color: var(--st-danger-wash-strong) !important;
-    color: var(--st-danger-text);
 }
 
 /* --- Shared small affordances (ui_kit.py) ------------------------------- */

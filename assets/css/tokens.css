@@ -90,11 +90,21 @@
     --st-ghost-hover-light: rgba(0, 0, 0, 0.06);
     --st-ghost-active-light: rgba(0, 0, 0, 0.10);
 
-    /* ---- Side-pane form actions (.form-actions) -------------------------- */
-    /* The one filled button in a row: a neutral step above bg-raised. */
+    /* ---- Text actions (.st-action, ui/kit.py) ---------------------------- */
+    /* The commit's soft fill: a neutral step above bg-raised. */
     --st-action-fill: #3a4047;
     --st-action-fill-hover: #454c54;
     --st-action-fill-active: #4f5760;
+    --st-commit-bg: var(--st-action-fill);
+    --st-commit-bg-hover: var(--st-action-fill-hover);
+    --st-commit-bg-active: var(--st-action-fill-active);
+    --st-commit-weight: 400;
+    --st-danger-commit-bg: var(--st-danger-wash);
+    /* A standalone action's tint: lighter than the commit's fill. */
+    --st-standalone-bg: rgba(255, 255, 255, 0.05);
+    --st-standalone-bg-hover: rgba(255, 255, 255, 0.09);
+    --st-standalone-bg-active: rgba(255, 255, 255, 0.13);
+    --st-warning-text: #e8b04a;
 
     /* ---- Type scale ------------------------------------------------------
        Eight steps replacing 28 ad-hoc literals. The old near-duplicates

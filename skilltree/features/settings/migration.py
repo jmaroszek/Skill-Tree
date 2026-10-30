@@ -9,6 +9,7 @@ from dash import Input, Output, State, ctx, html
 from skilltree.domain.contexts import sort_subcontexts
 from skilltree.features.settings.contexts import editor_state
 from skilltree.features.settings.draft import apply_settings
+from skilltree.ui.kit import cancel_action, primary_action, quiet_action
 from skilltree.store import database
 from skilltree.store import settings
 from skilltree.ui.dash_tools import get_trigger_id
@@ -146,8 +147,8 @@ def build_migration_content(orphans_by_field, new_values_by_field,
                 value=sub_default,
                 size="sm",
             ), width=3),
-            dbc.Col(dbc.Button("Apply to all", id={"type": btn_type, "index": group_i},
-                               color="secondary", size="sm", className="w-100"), width=2),
+            dbc.Col(quiet_action("Apply to all", {"type": btn_type, "index": group_i},
+                                 standalone=True, size="sm", className="w-100"), width=2),
         ], className="mb-2 pb-2 border-bottom")
 
     def _per_node_row(node_idx, name, ctx_dd_type, sub_dd_type, ctx_default, sub_opts, sub_default):
@@ -291,12 +292,12 @@ def build_migration_modal():
         dbc.ModalHeader(dbc.ModalTitle("Migration Required")),
         dbc.ModalBody(id="migration-modal-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-migration-cancel", color="secondary", className="me-auto"),
+            cancel_action("Cancel", "btn-migration-cancel", className="me-auto"),
             # A refused Apply or Skip says why here. The choices above stay put
             # for another try, and nothing has been saved.
             html.Span(id="migration-error", className="text-danger me-2"),
-            dbc.Button("Skip (keep old values)", id="btn-migration-skip", color="secondary", className="me-2"),
-            dbc.Button("Apply Migrations", id="btn-migration-apply", color="primary"),
+            cancel_action("Skip (keep old values)", "btn-migration-skip", className="me-2"),
+            primary_action("Apply Migrations", "btn-migration-apply"),
         ])
     ], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
 

@@ -1,6 +1,8 @@
 """The dialogs the core engine opens: undo Done, the auto-Done suggestion and group delete."""
 import dash_bootstrap_components as dbc
 
+from skilltree.ui.kit import cancel_action, danger_action, primary_action
+
 
 # Confirmation modal for un-marking a Done node when downstream Done nodes
 # would be re-blocked by the cascade. Lists the affected nodes and waits for
@@ -11,9 +13,9 @@ def build_undo_done_confirm_modal():
         dbc.ModalHeader(dbc.ModalTitle("Un-mark as Done?")),
         dbc.ModalBody(id="undo-done-confirm-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-undo-done-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Un-mark", id="btn-undo-done-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
+            cancel_action("Cancel", "btn-undo-done-cancel", className="me-2"),
+            primary_action("Un-mark", "btn-undo-done-confirm"),
+        ]),
     ], id="modal-undo-done-confirm", size="sm", is_open=False, centered=True)
 
 
@@ -26,8 +28,8 @@ def build_auto_done_suggestion_modal():
         dbc.ModalHeader(dbc.ModalTitle("Mark Done?")),
         dbc.ModalBody(id="auto-done-suggestion-body"),
         dbc.ModalFooter([
-            dbc.Button("Dismiss", id="btn-auto-done-dismiss", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Mark Done", id="btn-auto-done-confirm", color="primary", className="flex-fill"),
+            cancel_action("Dismiss", "btn-auto-done-dismiss", className="me-2"),
+            primary_action("Mark Done", "btn-auto-done-confirm"),
         ], className="d-flex"),
     ], id="modal-auto-done-suggestion", size="sm", is_open=False, centered=True)
 
@@ -40,7 +42,7 @@ def build_group_delete_confirm_modal():
         dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
         dbc.ModalBody(id="group-delete-confirm-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-group-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-group-delete-confirm", color="danger", className="flex-fill"),
+            cancel_action("Cancel", "btn-group-delete-cancel", className="me-2"),
+            danger_action("Delete", "btn-group-delete-confirm", commit=True),
         ], className="d-flex"),
     ], id="modal-group-delete-confirm", size="sm", is_open=False, centered=True)

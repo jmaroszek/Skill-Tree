@@ -95,10 +95,11 @@ def build_unsaved_changes_modal():
         dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
         dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
         dbc.ModalFooter([
-            dbc.Button("Discard", id="btn-unsaved-discard", color="danger", className="flex-fill me-2"),
-            dbc.Button("Edit", id="btn-unsaved-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Save", id="btn-unsaved-save", color="success", className="flex-fill"),
-        ], className="d-flex flex-nowrap"),
+            # Discard is set apart at the far end, as Delete is in the editor.
+            danger_action("Discard", "btn-unsaved-discard", className="me-auto"),
+            cancel_action("Edit", "btn-unsaved-cancel", className="me-2"),
+            primary_action("Save", "btn-unsaved-save"),
+        ], className="flex-nowrap"),
     ], id="modal-unsaved-changes", size="sm", is_open=False, centered=True,
        backdrop="static", keyboard=False)
 
@@ -110,9 +111,9 @@ def build_delete_confirm_modal():
         dbc.ModalBody("Are you sure you want to delete this node? This action cannot be undone.",
                       id="node-delete-confirm-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-node-delete-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Delete", id="btn-node-delete-confirm", color="danger", className="flex-fill"),
-        ], className="d-flex"),
+            cancel_action("Cancel", "btn-node-delete-cancel", className="me-2"),
+            danger_action("Delete", "btn-node-delete-confirm", commit=True),
+        ]),
     ], id="modal-node-delete-confirm", size="sm", is_open=False, centered=True)
 
 
@@ -124,9 +125,9 @@ def build_editor_reopen_confirm_modal():
         dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
         dbc.ModalBody(id="editor-reopen-confirm-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-editor-reopen-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Save", id="btn-editor-reopen-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
+            cancel_action("Cancel", "btn-editor-reopen-cancel", className="me-2"),
+            primary_action("Save", "btn-editor-reopen-confirm"),
+        ]),
     ], id="modal-editor-reopen-confirm", size="sm", is_open=False, centered=True)
 
 
@@ -191,8 +192,8 @@ def build_ratings_editor_modal():
             style={"maxHeight": "70vh", "overflowY": "auto"},
         ),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-ratings-editor-cancel", color="secondary", className="me-auto"),
-            dbc.Button("Save", id="btn-ratings-editor-save", color="primary"),
+            cancel_action("Cancel", "btn-ratings-editor-cancel", className="me-auto"),
+            primary_action("Save", "btn-ratings-editor-save"),
         ]),
     ], id="modal-ratings-editor", size="xl", is_open=False, centered=True,
        scrollable=True)

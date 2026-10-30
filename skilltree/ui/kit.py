@@ -320,38 +320,65 @@ def split_handle(handle_id, axis, min_size):
 #
 # These name the ACTION, not the colour, so the mapping lives in one place and
 # a reader of a call site sees intent rather than a Bootstrap variant.
+#
+# Later the helpers covered only a handful of buttons. The other forty-odd text
+# buttons were filled Bootstrap slabs in five colours, with the same meaning in
+# different hues from one dialog to the next (Save was green in one, blue in the
+# next, and yellow when reopening a node). Every text button now comes from here,
+# and its look is one of three levels, styled under `.st-action` in theme.css:
+# commit, quiet, and danger.
+#
+# Plain text reads as an action only beside other actions, as in a dialog
+# footer. Alone in a page, between paragraphs (Settings > App, a panel's
+# Reset Filters), it reads as more text, so a quiet or danger action there is
+# ``standalone`` and takes a faint tint at rest.
+
+def _action(label, button_id, level, standalone=False, **kwargs):
+    """A text button at one of the `.st-action-*` levels.
+
+    The base colour is a neutral that nothing else restyles; the level class
+    owns the whole look, so no Bootstrap variant leaks a fill through.
+    """
+    classes = " ".join(filter(None, ["st-action", f"st-action-{level}",
+                                     "st-action-standalone" if standalone else "",
+                                     kwargs.pop("className", "")]))
+    return dbc.Button(label, id=button_id, color="secondary", className=classes,
+                      **kwargs)
+
 
 def primary_action(label, button_id, **kwargs):
-    """The button that commits the modal or form: Save, Apply, Confirm."""
-    kwargs.setdefault("color", "primary")
-    return dbc.Button(label, id=button_id, **kwargs)
+    """The one routine commit of a form or dialog: Save, Apply, Mark Done.
 
-
-def confirm_action(label, button_id, **kwargs):
-    """A commit that also closes or completes: Save & Close, Trigger.
-
-    Green is reserved for "this finishes the task", which is why it is a
-    separate helper rather than a flag on primary_action.
+    At most one per surface. A page whose buttons all do separate jobs
+    (Settings > App) has none; every button there is a standalone
+    ``quiet_action``.
     """
-    kwargs.setdefault("color", "success")
-    return dbc.Button(label, id=button_id, **kwargs)
+    return _action(label, button_id, "commit", **kwargs)
+
+
+def quiet_action(label, button_id, **kwargs):
+    """Any other action: plain text that lifts on hover.
+
+    ``standalone=True`` for one that sits alone in a page rather than in a
+    row of actions, which gives it a faint tint at rest.
+    """
+    return _action(label, button_id, "quiet", **kwargs)
 
 
 def cancel_action(label, button_id, **kwargs):
-    """Dismiss without committing. Always `secondary`, never hand-painted."""
-    kwargs.setdefault("color", "secondary")
-    return dbc.Button(label, id=button_id, **kwargs)
+    """Dismiss without committing: Cancel, Revert, Skip. A ``quiet_action``."""
+    return quiet_action(label, button_id, **kwargs)
 
 
-def danger_action(label, button_id, **kwargs):
-    """Destructive: Delete, Discard.
+def danger_action(label, button_id, commit=False, **kwargs):
+    """Destructive: Delete, Discard, Restore.
 
-    No inline background. `custom.css` already restyles `.btn-danger` to the
-    tamed red app-wide, so repeating the colour here only
-    creates a second place for the value to drift.
+    Red text, never a red slab. ``commit=True`` is for a confirm dialog, where
+    the destructive choice is the dialog's main action and takes the commit
+    weight.
     """
-    kwargs.setdefault("color", "danger")
-    return dbc.Button(label, id=button_id, **kwargs)
+    return _action(label, button_id, "danger-commit" if commit else "danger",
+                   **kwargs)
 
 
 def done_color():

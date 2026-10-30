@@ -34,6 +34,7 @@ from skilltree.ui.components.ratings_table import build_popup_table_rows
 from skilltree.ui.kit import edit_button
 from skilltree.ui.kit import info_button
 from skilltree.ui.kit import panel_close_button
+from skilltree.ui.kit import cancel_action, primary_action
 
 
 # History sort criteria, in dropdown order. "Completed" has no column, so the
@@ -122,8 +123,7 @@ def _build_reflect_tab():
                                  className="reflect-queue-label",
                                  children="completed nodes waiting"),
                     ]),
-                    dbc.Button("Start Reflection", id="btn-hub-pending-launch",
-                               color="primary"),
+                    primary_action("Start Reflection", "btn-hub-pending-launch"),
                 ], className="reflect-queue-head"),
                 html.P(
                     "Walk through completed nodes that haven't been "
@@ -409,17 +409,13 @@ def build_time_calibration_modal():
         ]),
         dbc.ModalFooter([
             # Dismiss / Done are shown contextually by the chrome callback.
-            dbc.Button("Don't ask again", id="btn-time-calibration-dismiss",
-                       color="secondary", className="flex-fill me-2",
-                       style={"display": "none"}),
-            dbc.Button("Skip", id="btn-time-calibration-skip",
-                       color="secondary", className="flex-fill me-2"),
-            dbc.Button("Submit", id="btn-time-calibration-submit",
-                       color="primary", className="flex-fill"),
-            dbc.Button("Done", id="btn-time-calibration-done",
-                       color="primary", className="flex-fill",
-                       style={"display": "none"}),
-        ], className="d-flex"),
+            cancel_action("Don't ask again", "btn-time-calibration-dismiss",
+                          className="me-auto", style={"display": "none"}),
+            cancel_action("Skip", "btn-time-calibration-skip", className="me-2"),
+            primary_action("Submit", "btn-time-calibration-submit"),
+            primary_action("Done", "btn-time-calibration-done",
+                           style={"display": "none"}),
+        ]),
     ], id="modal-time-calibration", size="lg", is_open=False, centered=True)
 
 
@@ -502,8 +498,8 @@ def build_reflection_ratings_editor_modal():
             style={"maxHeight": "70vh", "overflowY": "auto"},
         ),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-reflection-ratings-editor-cancel", color="secondary", className="me-auto"),
-            dbc.Button("Save", id="btn-reflection-ratings-editor-save", color="primary"),
+            cancel_action("Cancel", "btn-reflection-ratings-editor-cancel", className="me-auto"),
+            primary_action("Save", "btn-reflection-ratings-editor-save"),
         ]),
     ], id="modal-reflection-ratings-editor", size="xl", is_open=False,
        centered=True, scrollable=True)

@@ -10,10 +10,12 @@ from skilltree.ui import tokens
 from skilltree.ui.kit import (
     Tooltip,
     add_button,
-    done_color,
+    cancel_action,
     filter_chip,
     nav_button,
     panel_close_button,
+    primary_action,
+    quiet_action,
     split_handle)
 from dash import html, dcc
 import dash_bootstrap_components as dbc
@@ -160,10 +162,10 @@ def build_details_tab_content():
         # Action buttons — Edit | Explain  (Locate moved to the header crosshair;
         # Focus lives on the canvas overlay)
         html.Div([
-            dbc.Button("Edit", id="btn-details-edit", color="secondary",
-                       size="sm", style={"flex": "1"}),
-            dbc.Button("Explain", id="btn-details-explain", color="secondary",
-                       size="sm", className="ms-1", style={"flex": "1"}),
+            quiet_action("Edit", "btn-details-edit", standalone=True, size="sm",
+                         style={"flex": "1"}),
+            quiet_action("Explain", "btn-details-explain", standalone=True, size="sm",
+                         className="ms-1", style={"flex": "1"}),
             Tooltip("Show where this node's priority score comes from",
                         target="btn-details-explain", placement="top"),
         ], className="d-flex mt-3"),
@@ -496,10 +498,8 @@ def build_details_tab_content():
         ]),
         dbc.ModalFooter([
             dbc.InputGroup([
-                dbc.Button("Focus top",
-                           id="btn-details-explain-focus",
-                           color="primary", size="sm",
-                           style={"height": "31px"}),
+                quiet_action("Focus top", "btn-details-explain-focus",
+                             standalone=True, size="sm", style={"height": "31px"}),
                 dbc.Input(id="details-explain-focus-count",
                           type="number", step=1, value=3,
                           debounce=True,
@@ -515,8 +515,8 @@ def build_details_tab_content():
                              "fontSize": tokens.FS_CAP,
                              "marginLeft": "10px",
                              "alignSelf": "center"}),
-            dbc.Button("Close", id="btn-details-explain-close",
-                       color="secondary", className="ms-auto"),
+            cancel_action("Close", "btn-details-explain-close",
+                          className="ms-auto"),
         ], className="d-flex"),
     ], id="modal-details-explain", size="lg", is_open=False,
        # Top-anchored, so a taller chart for the next node extends the
@@ -696,8 +696,8 @@ def _build_filters_sidebar():
                     style={"fontSize": tokens.FS_BASE},
                 ),
 
-                dbc.Button("Reset Filters", id="btn-details-filters-reset",
-                           color="secondary", size="sm", className="w-100 mt-2"),
+                quiet_action("Reset Filters", "btn-details-filters-reset",
+                             standalone=True, size="sm", className="w-100 mt-2"),
             ], style={"padding": "0 16px"}),
         ],
         style={
@@ -743,11 +743,8 @@ def _build_link_node_modal():
                      style={"fontSize": tokens.FS_BASE, "minHeight": "1.2em"}),
         ]),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-details-add-cancel",
-                       color="secondary", className="me-2"),
-            dbc.Button("Link", id="btn-details-add-save", color="success",
-                       style={"backgroundColor": done_color(),
-                              "borderColor": done_color()}),
+            cancel_action("Cancel", "btn-details-add-cancel", className="me-2"),
+            primary_action("Link", "btn-details-add-save"),
         ]),
     ], id="modal-details-link-node", is_open=False, centered=True)
 

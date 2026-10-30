@@ -25,7 +25,7 @@ from skilltree.ui.components.context_picker import build_context_picker_support
 from skilltree.ui.components.list_toolbar import SORT_MENUS, sort_menu_items
 from skilltree.ui import tokens
 from skilltree.store.resources import MAX_SECTIONS
-from skilltree.ui.kit import (Tooltip)
+from skilltree.ui.kit import Tooltip, cancel_action, quiet_action
 from skilltree.ui.components.menus import (
     floating_menu, menu_divider,
     menu_heading, menu_item,
@@ -68,7 +68,7 @@ def build_error_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Validation Error", className="text-danger")),
         dbc.ModalBody(id="error-modal-body", style={"color": tokens.TEXT_PRIMARY}),
-        dbc.ModalFooter(dbc.Button("Close", id="btn-close-error", color="secondary"))
+        dbc.ModalFooter(cancel_action("Close", "btn-close-error"))
     ], id="modal-error", size="sm", is_open=False, centered=True)
 
 
@@ -81,7 +81,7 @@ def build_app_error_modal():
     return dbc.Modal([
         dbc.ModalHeader(dbc.ModalTitle("Something went wrong", className="text-danger")),
         dbc.ModalBody(id="app-error-body", style={"color": tokens.TEXT_PRIMARY}),
-        dbc.ModalFooter(dbc.Button("Close", id="btn-close-app-error", color="secondary")),
+        dbc.ModalFooter(cancel_action("Close", "btn-close-app-error")),
     ], id="modal-app-error", size="sm", is_open=False, centered=True)
 
 
@@ -323,8 +323,8 @@ def build_app_layout(graph, env="production"):
 
         # RIGHT: Clear Focus + Filters (open right-side sidebar)
         html.Div([
-            dbc.Button("Clear Focus", id="btn-clear-focus", color="warning", size="sm",
-                       className="me-2", style={"display": "none"}),
+            quiet_action("Clear Focus", "btn-clear-focus", size="sm",
+                         className="st-action-warning me-2", style={"display": "none"}),
             dbc.Button([html.I(className="bi bi-funnel", id="btn-filters-icon",
                                **{"aria-hidden": "true"}),
                         html.Span("Filters", className="visually-hidden")],
@@ -535,8 +535,7 @@ def build_app_layout(graph, env="production"):
         dbc.Modal([
             dbc.ModalHeader(dbc.ModalTitle("Events Triggered")),
             dbc.ModalBody(id="event-announcements-body"),
-            dbc.ModalFooter(dbc.Button("Dismiss", id="btn-event-announcements-dismiss",
-                                       color="primary")),
+            dbc.ModalFooter(cancel_action("Dismiss", "btn-event-announcements-dismiss")),
         ], id="modal-event-announcements", is_open=False, centered=True, size="lg"),
         # The notifications the announcement is showing, so closing it drops
         # those and not one queued meanwhile.

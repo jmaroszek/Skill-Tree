@@ -42,7 +42,7 @@
             });
             dialog.appendChild(table);
             var close = document.createElement('button');
-            close.className = 'btn btn-secondary'; close.textContent = 'Close';
+            close.className = 'btn btn-secondary st-action st-action-quiet'; close.textContent = 'Close';
             close.addEventListener('click', function () { dialog.close(); });
             dialog.appendChild(close);
             dialog.addEventListener('close', function () { window.SkillTree.keyboardFocus.focus(opener); });

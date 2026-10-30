@@ -19,9 +19,9 @@ from skilltree.ui.canvas.settings_panel import (
     build_graph_settings_panel, freeze_indicator,
 )
 from skilltree.ui.components.list_toolbar import EVENTS_SORT, SEARCH_STYLE, build_list_toolbar
-from skilltree.ui.kit import (Tooltip, add_button, confirm_action, danger_action,
-                    done_color, filter_chip, panel_close_button, primary_action,
-                    split_handle)
+from skilltree.ui.kit import (Tooltip, add_button, cancel_action, danger_action,
+                    filter_chip, panel_close_button, primary_action,
+                    quiet_action, split_handle)
 
 # --- Event clock ---
 # How often an open app checks for date triggers and wake dates that have come
@@ -63,10 +63,6 @@ def build_events_sidebar_content():
 
 def build_events_tab_content():
     """Builds the Events tab UI (right panel only — list is now in the global sidebar)."""
-    # Triggering an event is its "done" moment — tint the button with the
-    # node-status Done color rather than a loud default green.
-    _done_color = done_color()
-
     # --- Event Detail (left: fixed natural width, right of it goes to the graph) ---
     event_detail_panel = html.Div([
         # Empty state: shown alongside the automatically opened Events sidebar
@@ -218,7 +214,7 @@ def build_events_tab_content():
                     primary_action("Save", "btn-event-save", size="sm",
                                    className="me-2"),
                     html.Div(
-                        confirm_action("Trigger", "btn-trigger-event", size="sm"),
+                        quiet_action("Trigger", "btn-trigger-event", size="sm"),
                         id="event-trigger-btn-wrapper",
                     ),
                     # The save confirmation rides beside the button that
@@ -273,9 +269,8 @@ def build_events_tab_content():
                         ),
                     ]),
                     dbc.ModalFooter([
-                        dbc.Button("Cancel", id="btn-trigger-cancel", color="secondary", className="me-auto"),
-                        dbc.Button("Trigger Event", id="btn-trigger-confirm", color="success",
-                                   style={"backgroundColor": _done_color, "borderColor": _done_color}),
+                        cancel_action("Cancel", "btn-trigger-cancel", className="me-auto"),
+                        primary_action("Trigger Event", "btn-trigger-confirm"),
                     ]),
                 ], id="modal-confirm-trigger", size="md", is_open=False,
                    centered=True),
@@ -299,10 +294,9 @@ def build_events_tab_content():
                         html.Div(id="move-dormant-status", className="text-danger mt-2"),
                     ]),
                     dbc.ModalFooter([
-                        dbc.Button("Cancel", id="btn-move-dormant-cancel",
-                                   color="secondary", className="me-2"),
-                        dbc.Button("Move", id="btn-move-dormant-confirm",
-                                   color="primary"),
+                        cancel_action("Cancel", "btn-move-dormant-cancel",
+                                      className="me-2"),
+                        primary_action("Move", "btn-move-dormant-confirm"),
                     ]),
                 ], id="modal-move-dormant-node", size="md", is_open=False,
                    centered=True),
@@ -311,11 +305,11 @@ def build_events_tab_content():
                     dbc.ModalHeader(dbc.ModalTitle("Delete Node")),
                     dbc.ModalBody(id="delete-dormant-body"),
                     dbc.ModalFooter([
-                        dbc.Button("Cancel", id="btn-delete-dormant-cancel",
-                                   color="secondary", className="flex-fill me-2"),
-                        dbc.Button("Delete", id="btn-delete-dormant-confirm",
-                                   color="danger", className="flex-fill"),
-                    ], className="d-flex"),
+                        cancel_action("Cancel", "btn-delete-dormant-cancel",
+                                      className="me-2"),
+                        danger_action("Delete", "btn-delete-dormant-confirm",
+                                      commit=True),
+                    ]),
                 ], id="modal-delete-dormant-node", size="sm", is_open=False,
                    centered=True),
                 dcc.Store(id="delete-dormant-node-store", data=None),
@@ -326,8 +320,8 @@ def build_events_tab_content():
                     dbc.ModalHeader(dbc.ModalTitle("Confirm Delete")),
                     dbc.ModalBody("Are you sure you want to delete this event? This will also delete all its dormant nodes."),
                     dbc.ModalFooter([
-                        dbc.Button("Cancel", id="btn-delete-cancel", color="secondary", className="me-2"),
-                        dbc.Button("Delete", id="btn-delete-confirm", color="danger"),
+                        cancel_action("Cancel", "btn-delete-cancel", className="me-2"),
+                        danger_action("Delete", "btn-delete-confirm", commit=True),
                     ]),
                 ], id="modal-confirm-delete", size="sm", is_open=False,
                    centered=True),
@@ -889,9 +883,8 @@ def build_add_to_event_modal():
             html.Div(id="add-to-event-status", className="text-danger mt-2"),
         ]),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-add-to-event-cancel", color="secondary",
-                       className="me-2"),
-            dbc.Button("Add to Event", id="btn-add-to-event-save", color="primary"),
+            cancel_action("Cancel", "btn-add-to-event-cancel", className="me-2"),
+            primary_action("Add to Event", "btn-add-to-event-save"),
         ]),
     ], id="modal-add-to-event", size="md", is_open=False, centered=True)
 

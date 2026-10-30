@@ -5,6 +5,7 @@ from dash import ALL, Input, Output, html, no_update
 import dash_bootstrap_components as dbc
 
 from skilltree.features.onboarding import steps as onboarding
+from skilltree.ui.kit import quiet_action
 import copy
 
 from skilltree.store import settings
@@ -90,9 +91,8 @@ def _card(steps):
     return dbc.Card(dbc.CardBody([
         html.Div([
             html.H6("Getting started", className="mb-2"),
-            dbc.Button("Hide", id={"type": "getting-started-dismiss", "index": 0},
-                       color="link", size="sm",
-                       className="p-0 ms-auto text-muted"),
+            quiet_action("Hide", {"type": "getting-started-dismiss", "index": 0},
+                         size="sm", className="ms-auto"),
         ], className="d-flex align-items-start"),
         html.Ol(items, className="list-unstyled mb-0"),
     ]), className="mb-3", style={"maxWidth": "640px"})

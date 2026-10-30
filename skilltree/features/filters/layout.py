@@ -9,6 +9,7 @@ from skilltree.ui.components.duration import unit_select
 from skilltree.ui.kit import bullet_hint
 from skilltree.ui.kit import hover_label
 from skilltree.ui.kit import panel_close_button
+from skilltree.ui.kit import quiet_action
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
 import dash_bootstrap_components as dbc
 
@@ -162,7 +163,7 @@ def build_filters_content():
 
         html.Hr(className="my-3"),
         html.Div([
-            dbc.Button("Clear Filters", id="btn-clear-filters", color="secondary", size="sm", className="flex-fill"),
+            quiet_action("Clear Filters", "btn-clear-filters", standalone=True, size="sm", className="flex-fill"),
         ], className="d-flex gap-2 mb-3"),
     ], className="px-3 pb-2 pt-0", style={"width": SIDEBAR_WIDTH_PX, "minWidth": SIDEBAR_WIDTH_PX})
 

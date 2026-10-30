@@ -61,7 +61,7 @@ def build_link_reopen_confirm_modal():
         dbc.ModalHeader(dbc.ModalTitle("Reopen Done Nodes?")),
         dbc.ModalBody(id="link-reopen-confirm-body"),
         dbc.ModalFooter([
-            dbc.Button("Cancel", id="btn-link-reopen-cancel", color="secondary", className="flex-fill me-2"),
-            dbc.Button("Change Link", id="btn-link-reopen-confirm", color="warning", className="flex-fill"),
-        ], className="d-flex"),
+            cancel_action("Cancel", "btn-link-reopen-cancel", className="me-2"),
+            primary_action("Change Link", "btn-link-reopen-confirm"),
+        ]),
     ], id="modal-link-reopen-confirm", size="sm", is_open=False, centered=True)

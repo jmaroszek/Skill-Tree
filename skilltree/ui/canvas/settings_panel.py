@@ -6,6 +6,7 @@ from skilltree.ui import tokens
 from skilltree.ui.kit import Tooltip
 from skilltree.ui.kit import panel_close_button
 from skilltree.ui.kit import restore_button
+from skilltree.ui.kit import quiet_action
 import dash_bootstrap_components as dbc
 
 
@@ -190,8 +191,7 @@ def build_graph_settings_panel(
     children += [
         html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
 
-        dbc.Button("Settle", id=f"{p}-relayout",
-                   color="secondary", size="sm", className="w-100 mt-2"),
+        quiet_action("Settle", f"{p}-relayout", standalone=True, size="sm", className="w-100 mt-2"),
         Tooltip("Re-run layout physics to untangle nodes",
                     target=f"{p}-relayout", placement="top"),
     ]
