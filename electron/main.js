@@ -12,7 +12,7 @@
 //   3. Own the lifecycle: quitting closes the server's stdin and the server
 //      shuts itself down. If the shell crashes, stdin closes all the same.
 
-const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, ipcMain, screen, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { registerResourceDialog } = require('./resource_dialog');
@@ -20,7 +20,7 @@ const {
   appUrl, exitMessage, newToken, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 const {
-  BACKDROP_FADE_MS, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay,
+  BACKDROP_FADE_MS, cursorInPage, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay,
   windowChrome,
 } = require('./shell');
 const {
@@ -40,6 +40,7 @@ let quitting = false;
 registerResourceDialog(ipcMain, dialog, () => mainWindow, () => server && server.port);
 registerUpdateSettings();
 registerModalDimming();
+registerCursorPoint();
 
 app.setAppUserModelId('com.skilltree.app');
 // Separate Electron profile per environment so a sandbox window and a
@@ -182,6 +183,21 @@ function registerModalDimming() {
     if (!isAppUrl(url, server && server.port)) return;
     if (process.platform !== 'win32' || !mainWindow) return;
     fadeOverlayTo(open ? 1 : 0);
+  });
+}
+
+// The toolbar is the title bar, and the OS takes the pointer over its drag
+// area and window buttons without telling the page it left. While a tooltip
+// waits or shows, the page asks here where the cursor really is
+// (assets/components/hover_tips.js).
+function registerCursorPoint() {
+  ipcMain.handle('skilltree:cursor-point', event => {
+    const url = event.senderFrame && event.senderFrame.url;
+    if (!isAppUrl(url, server && server.port)) return null;
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return null;
+    return cursorInPage(screen.getCursorScreenPoint(), win.getContentBounds(),
+                        event.sender.getZoomFactor());
   });
 }
 

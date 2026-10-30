@@ -1,159 +1,289 @@
 /**
- * How every tooltip behaves, and the one tooltip for small marks.
+ * Every hover tooltip in the app: when it opens, where it sits, and when it
+ * closes.
  *
- * A tooltip shows after a delay and closes the moment the pointer leaves.
- * The delay lives in CSS (custom.css, Tooltips): a tooltip mounts at once and
- * fades in after --st-tooltip-show-delay, so dbc tooltips and the shared tip
- * below wait the same.
+ * Three kinds of element have one:
+ * - the target of a `ui_kit.Tooltip`. The tooltip's content waits in a
+ *   hidden `.tooltip-source` that names its target in `data-tooltip-for`.
+ *   Callbacks can rewrite it, and an empty one shows nothing.
+ * - an element with `data-hint` (`ui_kit.hint`), which shows that text.
+ * - an element with the `overflow-hint` class, which shows its own text only
+ *   while an ellipsis cuts it off.
+ * The innermost one under the pointer wins. Rows can carry hints by the
+ * hundred, and none of them is a component of its own.
  *
- * - Only a pointer that moves opens one. When a dialog closes, a sidebar
- *   slides in or a list redraws under a still pointer, the browser reports a
- *   hover on whatever is now beneath it. That hover is held back until the
- *   pointer next moves, so a tooltip never opens on its own.
- * - A press closes: pressing an element closes its tooltip, and none opens
- *   again until the pointer has left it, so a click never leaves one up.
- * - The shared tip: an element with `data-hint` shows that text, and one with
- *   the `overflow-hint` class shows its own text only while it is cut off
- *   with an ellipsis. Rows can carry these by the hundred without a Dash
- *   tooltip component each, and they replace native `title` tooltips, which
- *   keep Chromium's own delay, look and click behaviour.
+ * One tooltip shows at a time:
+ * - It opens after TOOLTIP_SHOW_DELAY_MS, only for a pointer that moved onto
+ *   its target. A dialog closing, a sidebar sliding in or a list redrawing
+ *   under a still pointer opens nothing until the pointer next moves.
+ * - It closes the moment the pointer leaves its target or the window.
+ * - A press, a key, the wheel or the window losing focus closes it, and none
+ *   opens on that target again until the pointer has left it.
+ * - The browser reports nothing when a target disappears, or slides or is
+ *   covered out from under a still pointer. While a tooltip waits or shows,
+ *   it checks what is under the pointer, and closes once its target isn't.
+ * - In the desktop window the toolbar is the title bar. The OS takes the
+ *   pointer over its drag area and window buttons without telling the page,
+ *   so that check also asks the shell where the cursor really is.
+ *
+ * dbc.Tooltip decided all this itself, and lost the pointer's leave when it
+ * came before React had re-rendered the tooltip open: the tooltip then stayed
+ * up wherever the pointer went. Each open and close also went through Dash's
+ * store. Here a hover never touches Dash.
  */
 (function () {
-    var pressed = null;
-    var tip = null, tipInner = null, tipArrow = null, tipTarget = null;
-    var lastX = null, lastY = null;   // where the mouse last moved
-    var held = null;                  // a hover the mouse didn't move into
+    var CHECK_MS = 100;   // how often a waiting or open tooltip checks its target
+    var GAP = 6;          // between the target and the tooltip: Bootstrap's offset
+    var EDGE = 8;         // kept clear of the window's edges
+    var SLACK = 4;        // how far off its target the shell's cursor may be
+    var SIDES = { top: 'top', bottom: 'bottom', left: 'start', right: 'end' };
+    var FLIP = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+    var MODIFIERS = { Shift: 1, Control: 1, Alt: 1, Meta: 1 };
 
-    function readDelay() {
+    var tip = null, inner = null, arrow = null;
+    var lastX = null, lastY = null;   // where the pointer last moved
+    var under = null;                 // what it moved over
+    var current = null;               // the target waiting or showing: {target, timer, open}
+    var blocked = null;               // closed by a press or key, until the pointer leaves it
+    var watch = null, asking = false;
+
+    function showDelay() {
         var el = document.getElementById('tooltip-config');
-        if (!el) return false;
-        var show = parseInt(el.getAttribute('data-show'), 10);
-        if (!isNaN(show) && show >= 0) {
-            document.documentElement.style.setProperty(
-                '--st-tooltip-show-delay', show + 'ms');
-            return true;
-        }
-        return false;
+        var ms = el ? parseInt(el.getAttribute('data-show'), 10) : NaN;
+        return ms >= 0 ? ms : 700;
     }
 
-    function hintText(el) {
-        if (el.hasAttribute('data-hint')) return el.getAttribute('data-hint');
-        // overflow-hint: only a name the ellipsis cut short has more to say.
-        if (el.scrollWidth > el.clientWidth + 1) return el.textContent.trim();
-        return '';
+    // The tooltip source for each target id. Dash adds and removes sources as
+    // it renders, so this is read fresh, from a collection the browser keeps.
+    function sources() {
+        var map = new Map();
+        var list = document.getElementsByClassName('tooltip-source');
+        for (var i = 0; i < list.length; i++) {
+            var id = list[i].getAttribute('data-tooltip-for');
+            if (id && !map.has(id)) map.set(id, list[i]);
+        }
+        return map;
+    }
+
+    function cutOff(el) {
+        return el.scrollWidth > el.clientWidth + 1;
+    }
+
+    // The innermost element at or above `node` that has a tooltip.
+    function targetOf(node) {
+        var map = null;
+        for (var el = node; el && el.nodeType === 1; el = el.parentElement) {
+            if (el.hasAttribute('data-hint')) return el;
+            if (el.classList.contains('overflow-hint') && cutOff(el)) return el;
+            if (el.id) {
+                map = map || sources();
+                if (map.has(el.id)) return el;
+            }
+        }
+        return null;
+    }
+
+    function sameTarget(a, b) {
+        return !!a && !!b && (a === b || (!!a.id && a.id === b.id));
+    }
+
+    // Whether the pointer, where it last moved, is over `target`. A target
+    // that is gone, hidden or covered is not.
+    function hovered(target) {
+        if (lastX === null || !target.isConnected) return false;
+        var hit = document.elementFromPoint(lastX, lastY);
+        return !!hit && target.contains(hit);
     }
 
     function ensureTip() {
         if (tip) return;
         tip = document.createElement('div');
-        tip.className = 'tooltip fade bs-tooltip-top hover-tip';
         tip.setAttribute('role', 'tooltip');
-        tipArrow = document.createElement('div');
-        tipArrow.className = 'tooltip-arrow';
-        tipInner = document.createElement('div');
-        tipInner.className = 'tooltip-inner';
-        tip.append(tipArrow, tipInner);
+        arrow = document.createElement('div');
+        arrow.className = 'tooltip-arrow';
+        inner = document.createElement('div');
+        inner.className = 'tooltip-inner';
+        tip.append(arrow, inner);
     }
 
-    function showTip(el, text) {
+    // Copies the target's tooltip into the tip. Returns its placement, or
+    // null when it has nothing to say.
+    function fill(target) {
         ensureTip();
-        tipTarget = el;
-        tipInner.textContent = text;
-        tip.classList.remove('show', 'bs-tooltip-bottom');
-        tip.classList.add('bs-tooltip-top');
-        document.body.appendChild(tip);
-        var r = el.getBoundingClientRect();
+        var placement = 'top', classes = 'tooltip fade hover-tip';
+        if (target.hasAttribute('data-hint') || target.classList.contains('overflow-hint')) {
+            inner.textContent = target.hasAttribute('data-hint')
+                ? target.getAttribute('data-hint') : target.textContent.trim();
+            classes += ' is-text';
+        } else {
+            var source = sources().get(target.id);
+            if (!source) return null;
+            inner.replaceChildren.apply(inner, Array.prototype.map.call(
+                source.childNodes, function (n) { return n.cloneNode(true); }));
+            placement = source.getAttribute('data-placement') || placement;
+            classes += ' ' + (source.getAttribute('data-tooltip-class') || '');
+        }
+        tip.className = classes.trim();
+        return inner.textContent.trim() ? placement : null;
+    }
+
+    function clamp(value, low, high) {
+        return Math.max(low, Math.min(value, high));
+    }
+
+    function fits(side, r, w, h, vw, vh) {
+        if (side === 'top') return r.top - GAP - h >= EDGE;
+        if (side === 'bottom') return r.bottom + GAP + h <= vh - EDGE;
+        if (side === 'left') return r.left - GAP - w >= EDGE;
+        return r.right + GAP + w <= vw - EDGE;
+    }
+
+    // Beside the target on the side asked for, or the opposite one when only
+    // that has room, with the arrow at the target's middle.
+    function place(target, placement) {
+        var side = SIDES[placement] ? placement : 'top';
+        tip.style.left = '0px';   // measured unsqueezed by the window's edge
+        tip.style.top = '0px';
+        var r = target.getBoundingClientRect();
         var w = tip.offsetWidth, h = tip.offsetHeight;
-        var left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2),
-                            window.innerWidth - w - 8);
-        var top = r.top - h - 2;
-        if (top < 8) {
-            top = r.bottom + 2;
-            tip.classList.replace('bs-tooltip-top', 'bs-tooltip-bottom');
+        var vw = document.documentElement.clientWidth;
+        var vh = document.documentElement.clientHeight;
+        if (!fits(side, r, w, h, vw, vh) && fits(FLIP[side], r, w, h, vw, vh)) side = FLIP[side];
+        tip.classList.add('bs-tooltip-' + SIDES[side]);
+        var left, top;
+        if (side === 'top' || side === 'bottom') {
+            left = clamp(r.left + r.width / 2 - w / 2, EDGE, vw - w - EDGE);
+            top = side === 'top' ? r.top - GAP - h : r.bottom + GAP;
+            arrow.style.top = '';
+            arrow.style.left = clamp(r.left + r.width / 2 - left - arrow.offsetWidth / 2,
+                                     4, w - arrow.offsetWidth - 4) + 'px';
+        } else {
+            top = clamp(r.top + r.height / 2 - h / 2, EDGE, vh - h - EDGE);
+            left = side === 'left' ? r.left - GAP - w : r.right + GAP;
+            arrow.style.left = '';
+            arrow.style.top = clamp(r.top + r.height / 2 - top - arrow.offsetHeight / 2,
+                                    4, h - arrow.offsetHeight - 4) + 'px';
         }
         tip.style.left = left + 'px';
         tip.style.top = top + 'px';
-        tipArrow.style.left = (r.left + r.width / 2 - left - tipArrow.offsetWidth / 2) + 'px';
+    }
+
+    function close() {
+        if (!current) return;
+        clearTimeout(current.timer);
+        current = null;
+        clearInterval(watch);
+        watch = null;
+        if (tip && tip.parentNode) {
+            tip.classList.remove('show');
+            tip.parentNode.removeChild(tip);
+        }
+    }
+
+    // Closes the tooltip, and keeps one from opening on that target again
+    // until the pointer has left it. `node` is what was pressed, if anything.
+    function dismiss(node) {
+        var target = (node && targetOf(node)) || (current && current.target) || targetOf(under);
+        close();
+        if (target) blocked = target;
+        if (window.SkillTree && window.SkillTree.tooltip) window.SkillTree.tooltip.hide();
+    }
+
+    // The page has lost track of the pointer: decide afresh on its next move.
+    function lost() {
+        close();
+        under = null;
+    }
+
+    // Desktop only: resolves true unless the shell puts the cursor off `target`.
+    function cursorOn(target) {
+        var desktop = window.skillTreeDesktop;
+        if (!desktop || !desktop.cursorPoint) return Promise.resolve(true);
+        return desktop.cursorPoint().then(function (p) {
+            var r = target.getBoundingClientRect();
+            if (!p || (!r.width && !r.height)) return true;
+            return p.x >= r.left - SLACK && p.x <= r.right + SLACK &&
+                   p.y >= r.top - SLACK && p.y <= r.bottom + SLACK;
+        }, function () { return true; });
+    }
+
+    function open(entry) {
+        if (current !== entry || entry.open) return;
+        if (!hovered(entry.target)) { lost(); return; }
+        var placement = fill(entry.target);
+        if (!placement) return;
+        document.body.appendChild(tip);
+        place(entry.target, placement);
         void tip.offsetWidth;   // so the fade-in starts from hidden
         tip.classList.add('show');
+        entry.open = true;
     }
 
-    function hideTip() {
-        if (!tip || !tipTarget) return;
-        tipTarget = null;
-        tip.classList.remove('show');
-        if (tip.parentNode) tip.parentNode.removeChild(tip);
-    }
-
-    function init() {
-        if (!document.body || !readDelay()) { setTimeout(init, 200); return; }
-
-        document.addEventListener('pointerdown', function (e) {
-            pressed = e.target;
-            hideTip();
-            if (window.SkillTree && window.SkillTree.tooltip) window.SkillTree.tooltip.hide();
-            // dbc tooltips close on their target's mouseout. Only a target
-            // under the pointer has one up, so this reaches it. relatedTarget
-            // is the target itself, so React sees no enter or leave.
-            if (document.querySelector('.tooltip')) {
-                e.target.dispatchEvent(new MouseEvent('mouseout', {
-                    bubbles: true, view: window, relatedTarget: e.target,
-                }));
-            }
-        }, true);
-
-        // pointermove runs before the mouseover of the same step, so leaving
-        // what was pressed clears it before the next hover is weighed.
-        document.addEventListener('pointermove', function (e) {
-            if (pressed && (!pressed.isConnected || !pressed.contains(e.target))) pressed = null;
-        }, true);
-
-        document.addEventListener('mouseover', function (e) {
-            var el = e.target.closest && e.target.closest('[data-hint], .overflow-hint');
-            if (el === tipTarget) return;
-            hideTip();
-            if (!el || pressed) return;
-            var text = hintText(el);
-            if (text) showTip(el, text);
+    function check() {
+        var entry = current;
+        if (!entry) return;
+        if (!hovered(entry.target)) { lost(); return; }
+        if (asking) return;
+        asking = true;
+        cursorOn(entry.target).then(function (on) {
+            asking = false;
+            if (!on && current === entry) lost();
         });
-
-        document.addEventListener('scroll', hideTip, true);
     }
 
-    // The hover gate. Window capture runs before every other listener, dbc's
-    // tooltips included. mouseover fires before the mousemove of the same
-    // step, so a hover at the last move's position came from content moving.
-    window.addEventListener('mouseover', function (e) {
-        if (!e.isTrusted) return;
-        // Still on what was pressed: no tooltip there until the pointer leaves.
-        if (pressed && pressed.isConnected && pressed.contains(e.target)) {
-            e.stopImmediatePropagation();
-            return;
-        }
-        if (lastX === null || (e.clientX === lastX && e.clientY === lastY)) {
-            held = { target: e.target, relatedTarget: e.relatedTarget };
-            e.stopImmediatePropagation();
-            if (tipTarget && !tipTarget.contains(e.target)) hideTip();
-        } else {
-            held = null;
-        }
-    }, true);
+    function arm(target) {
+        var entry = { target: target, open: false, timer: null };
+        current = entry;
+        entry.timer = setTimeout(function () {
+            cursorOn(target).then(function (on) {
+                if (on) open(entry);
+                else if (current === entry) lost();
+            });
+        }, showDelay());
+        watch = setInterval(check, CHECK_MS);
+    }
+
+    // A move is the only thing that opens a tooltip. Chromium can repeat a
+    // move at the same spot when the page changes; that is not the pointer.
     window.addEventListener('mousemove', function (e) {
         if (e.clientX === lastX && e.clientY === lastY) return;
         lastX = e.clientX;
         lastY = e.clientY;
-        if (!held) return;
-        var h = held;
-        held = null;
-        // Still over what it was held on: let that hover through now.
-        if (h.target.isConnected && h.target.contains(e.target)) {
-            h.target.dispatchEvent(new MouseEvent('mouseover', {
-                bubbles: true, cancelable: true, view: window,
-                clientX: e.clientX, clientY: e.clientY, relatedTarget: h.relatedTarget,
-            }));
-        }
+        if (e.target === under) return;
+        under = e.target;
+        var target = targetOf(under);
+        if (!sameTarget(target, blocked)) blocked = null;
+        if (current && current.target === target) return;
+        close();
+        // No tooltip mid-drag, or on what was just pressed or closed.
+        if (target && !blocked && !e.buttons) arm(target);
     }, true);
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-    else init();
+    // A hover the pointer didn't move into: the page changed under it. It
+    // closes a tooltip whose target is no longer under the pointer, and opens
+    // none.
+    window.addEventListener('mouseover', function (e) {
+        if (current && !current.target.contains(e.target)) close();
+    }, true);
+
+    window.addEventListener('mouseout', function (e) {
+        if (!e.relatedTarget) lost();   // off the window
+    }, true);
+
+    window.addEventListener('pointerdown', function (e) { dismiss(e.target); }, true);
+    window.addEventListener('keydown', function (e) {
+        if (!MODIFIERS[e.key]) dismiss(null);
+    }, true);
+    window.addEventListener('wheel', function () { dismiss(null); },
+                            { capture: true, passive: true });
+    window.addEventListener('blur', function () { dismiss(null); });
+    window.addEventListener('resize', lost);
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden) dismiss(null);
+    });
+    // A scroll that carries the target away, like a list scrolled by code.
+    document.addEventListener('scroll', function (e) {
+        var box = e.target;
+        if (current && (box === document || (box.contains && box.contains(current.target)))) lost();
+    }, true);
 })();

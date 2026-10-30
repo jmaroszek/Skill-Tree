@@ -104,12 +104,18 @@
         });
     });
 
-    // A tab switch or scroll can pull the grid out from under a still cursor.
-    document.addEventListener('scroll', function () {
+    function hideTip() {
         if (tip && (current || plotShown)) {
             tip.hidden = true; current = null; plotShown = false;
         }
-    }, true);
+    }
+    // A tab switch or scroll can pull the grid out from under a still cursor.
+    document.addEventListener('scroll', hideTip, true);
+    // Off the window, or the window losing focus: no move comes to hide it.
+    document.addEventListener('mouseout', function (e) {
+        if (!e.relatedTarget) hideTip();
+    });
+    window.addEventListener('blur', hideTip);
 
     // Plotly charts. Their traces use hoverinfo 'none', which draws no box
     // but still fires these events. The box is placed by the pointermove

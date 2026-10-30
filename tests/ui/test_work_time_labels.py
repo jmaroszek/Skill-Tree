@@ -69,7 +69,7 @@ class TestHeading:
         heading = time_estimates_heading("node")
         title, tooltip = heading.children
         assert title.children == "Time Estimates"
-        assert tooltip.target == title.id == "node-time-heading"
+        assert getattr(tooltip, "data-tooltip-for") == title.id == "node-time-heading"
         assert tooltip.id == "node-time-heading-tooltip"
         assert "info-btn" not in _text(heading)
 

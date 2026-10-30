@@ -10,7 +10,7 @@ import dash_bootstrap_components as dbc
 from skilltree.store import settings
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
-    TOOLTIP_SHOW_DELAY_MS, TOOLTIP_HIDE_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
+    TOOLTIP_SHOW_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
     TOAST_CLEAR_INTERVAL_MS,
 )
 from skilltree.ui.styles import CANVAS_HEIGHT
@@ -510,7 +510,6 @@ def build_app_layout(graph, env="production"):
         html.Div(id='canvas-height-config', style={'display': 'none'}, **{'data-height': str(CANVAS_HEIGHT)}),  # type: ignore[reportArgumentType]
         html.Div(id='tooltip-config', style={'display': 'none'}, **{  # type: ignore[reportArgumentType]
             'data-show': str(TOOLTIP_SHOW_DELAY_MS),
-            'data-hide': str(TOOLTIP_HIDE_DELAY_MS),
             'data-node-hide': str(TOOLTIP_NODE_HIDE_DELAY_MS),
         }),
         *build_context_picker_support(),

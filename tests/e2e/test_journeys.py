@@ -505,7 +505,7 @@ def test_settings_migration_cancel_preserves_the_complete_draft(page, server, di
     row = page.evaluate(_INPUT_HOLDING, ['ctx-row-name', 'Mind'])
     remove = (page.locator(f'[id={json.dumps(row)}]')
               .locator('xpath=ancestor::div[@data-ctx-row]')
-              .locator('button[title="Remove context"]'))
+              .locator('button[aria-label="Remove context"]'))
     remove.focus()
     remove.press('Enter')
     _idle(page)

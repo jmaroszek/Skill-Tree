@@ -23,41 +23,56 @@ STYLE_GUIDE.md already required one icon family at one weight and forbade
 Unicode glyphs; these builders are what makes that enforceable rather than
 aspirational.
 """
+import json
+
 from dash import html
 import dash_bootstrap_components as dbc
 
 from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_NODE_COLORS
 from skilltree.ui.styles import BADGE_PALETTE
-from skilltree.ui.timing import TOOLTIP_HIDE_DELAY_MS
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.ui import tokens
 from skilltree.ui.styles import badge_style
 
-# The show delay is CSS (custom.css, Tooltips): the tooltip mounts at once and
-# fades in late, so a press can cancel it.
-_DELAY = {"show": 0, "hide": TOOLTIP_HIDE_DELAY_MS}
+
+def dom_id(component_id):
+    """The DOM id Dash gives a component: a pattern-matching dict id is
+    rendered as JSON with sorted keys and no spaces."""
+    if not isinstance(component_id, dict):
+        return component_id
+    return "{" + ",".join(
+        f"{json.dumps(key, ensure_ascii=False)}:{json.dumps(value, ensure_ascii=False)}"
+        for key, value in sorted(component_id.items())) + "}"
 
 
-def Tooltip(children, target, **kwargs):
-    """The app's one tooltip: a ``dbc.Tooltip`` that opens on hover only.
+def Tooltip(children, target, placement="top", id=None, className=None):
+    """The app's one tooltip: ``children``, shown on hovering ``target``.
 
-    ``dbc.Tooltip`` defaults to ``trigger="hover focus"`` and opens on any
-    ``focusin`` without asking whether the focus came from the keyboard. A modal
-    hands focus back to whatever opened it when it closes, so the tooltip of the
-    button you had just clicked popped open with the cursor nowhere near it, and
-    stayed until you clicked elsewhere. Every tooltip goes through here so the
-    trigger is decided in one place.
+    This renders only the content, hidden. assets/components/hover_tips.js
+    shows a copy beside the target, and decides when for every tooltip in the
+    app: after a delay, only for a pointer that moved there, and closed the
+    moment it leaves. ``dbc.Tooltip`` decided that itself, and missed a leave
+    that came before React had re-rendered it open, so it stayed up wherever
+    the pointer went. It also opened on keyboard focus, which a closing modal
+    hands back to the button that opened it.
 
-    Icon buttons still name themselves for assistive technology through their
-    visually-hidden label, so nothing is lost by dropping the focus trigger.
-    Keyboard focus never opens a tooltip: a field's hint reaches screen readers
-    as its description instead (see ``hover_label``).
-    ``trigger`` and ``delay`` can still be overridden per call.
+    Keyboard focus never opens a tooltip. Icon buttons name themselves through
+    a visually-hidden label, and a field's hint reaches screen readers as its
+    description (see ``hover_label``).
+
+    ``target`` is the element's id, a pattern-matching dict included.
+    ``placement`` is top, bottom, left or right, and the tooltip takes the
+    opposite side when that one has no room. ``id`` lets a callback rewrite
+    the content, and an empty tooltip shows nothing. ``className`` goes on the
+    tooltip itself.
     """
-    kwargs.setdefault("trigger", "hover")
-    kwargs.setdefault("delay", _DELAY)
-    return dbc.Tooltip(children, target=target, **kwargs)
+    props = {"data-tooltip-for": dom_id(target), "data-placement": placement}
+    if className:
+        props["data-tooltip-class"] = className
+    if id is not None:
+        props["id"] = id
+    return html.Div(children, className="tooltip-source", hidden=True, **props)
 
 
 def hint(text, label=False):

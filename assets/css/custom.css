@@ -213,33 +213,20 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
 }
 
 /* --- Tooltips (STYLE_GUIDE.md, Tooltips) ----------------------------------
-   A tooltip mounts at once and fades in after the show delay, so the delay is
-   one CSS value that assets/components/hover_tips.js sets from timing.py.
-   It closes at once, with no fade-out. */
-.tooltip.show {
-    transition: opacity 0.15s linear var(--st-tooltip-show-delay);
-}
-.tooltip:not(.show) {
-    transition: none;
-}
-/* A tooltip whose text a callback has emptied, like Save's when nothing
-   stops it, shows nothing rather than an empty box. */
-.tooltip:has(.tooltip-inner:empty) {
-    display: none;
-}
-/* The shared tip for data-hint and overflow-hint (hover_tips.js). */
+   assets/components/hover_tips.js shows every tooltip as this one element,
+   placed beside its target. It fades in once the show delay has passed, and
+   leaves at once, with no fade-out. */
 .tooltip.hover-tip {
     position: fixed;
     z-index: var(--st-z-tooltip);
     pointer-events: none;
 }
-.tooltip.hover-tip .tooltip-inner {
-    white-space: pre-line;
+.tooltip.hover-tip .tooltip-arrow {
+    position: absolute;
 }
-@media (prefers-reduced-motion: reduce) {
-    .tooltip.show {
-        transition-duration: 0s;
-    }
+/* A data-hint keeps the line breaks in its text. */
+.tooltip.hover-tip.is-text .tooltip-inner {
+    white-space: pre-line;
 }
 
 /* --- Cursors and text selection (STYLE_GUIDE.md, Cursors) ----------------

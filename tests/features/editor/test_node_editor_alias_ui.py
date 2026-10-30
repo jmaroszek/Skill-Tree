@@ -87,7 +87,7 @@ def test_alias_add_button_sits_beside_name_label():
     # Its tooltip is a sibling inside the same wrapper, so the label is still
     # reachable without hovering blind.
     tooltip = next(c for c in button_parent.children
-                   if getattr(c, "target", None) == add_id)
+                   if getattr(c, "data-tooltip-for", None) == add_id)
     assert tooltip.children == "Add alias"
 
     # ui_kit wraps the button with its tooltip in a `display: contents` span,

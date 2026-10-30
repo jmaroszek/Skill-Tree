@@ -1110,32 +1110,44 @@ A tooltip earns its place by saying something the element doesn't:
 - **No native `title`.** It keeps Chromium's own delay and look, and shows
   again after a click. A Dash component uses `ui_kit.Tooltip`. A small mark or
   row button that would need one per row uses `ui_kit.hint(text)` instead,
-  which sets `data-hint`. `tests/ui/test_tooltip_trigger.py` fails on a `title=`.
+  which sets `data-hint`. `tests/ui/test_tooltips.py` fails on a `title=`.
   `dbc.Button` takes no `data-*` props, so a hinted button is an `html.Button`
   with the same `btn btn-primary` classes.
+- **Never `dbc.Tooltip`.** It opens and closes by its own rules, and missed a
+  pointer that left before React had re-rendered it open, so it stayed up
+  wherever the pointer went. `ui_kit.Tooltip` renders only the content,
+  hidden, and names its target. A callback can rewrite that content through
+  the tooltip's `id`.
 
-Timing is the same for both kinds, and `assets/components/hover_tips.js` runs
-it:
+`assets/components/hover_tips.js` shows every kind as the same element, and
+decides when:
 - A tooltip waits `TOOLTIP_SHOW_DELAY_MS` (700 ms, `skilltree/ui/timing.py`)
-  before it shows. The wait is CSS (`--st-tooltip-show-delay`, the Tooltips
-  section of `custom.css`), so `ui_kit.Tooltip` mounts with no delay of its own.
+  before it shows. Each one waits its full delay, even right after another.
 - Only a pointer that moves opens one. A dialog closing, a sidebar sliding in
-  or a list redrawing under a still pointer makes the browser report a hover
-  anyway. That hover waits until the pointer next moves.
-- A press closes the pressed element's tooltip, and none opens there until the
-  pointer has left it.
-- A tooltip closes the moment the pointer leaves, with no fade-out. Each one
-  waits its full delay, even right after another.
+  or a list redrawing under a still pointer opens nothing until the pointer
+  next moves.
+- A tooltip closes the moment the pointer leaves its target or the window,
+  with no fade-out.
+- A press, a key, the wheel or the window losing focus closes it, and none
+  opens on that target again until the pointer has left it. Shift, Ctrl, Alt
+  and the Windows key don't.
+- The browser says nothing when a target disappears, or slides or is covered
+  out from under a still pointer. While a tooltip waits or shows, it checks
+  what is under the pointer, and closes once its target isn't.
 - In the desktop window the toolbar is also the title bar. The OS takes the
-  pointer over its drag area without telling the page it left, so the
-  toolbar's button groups and the room around them are not drag area
-  (`theme.css`, Electron desktop shell). Keep any new tooltip there inside one.
+  pointer over its drag area and window buttons without telling the page, so
+  that check also asks the shell where the cursor is. The toolbar's button
+  groups and the room around them are not drag area either (`theme.css`,
+  Electron desktop shell). Keep any new tooltip there inside one.
+- A tooltip sits on the side its `placement` names (top unless told), and on
+  the opposite side when that one has no room.
 - A tooltip whose text is empty shows nothing. Save's tooltip is empty until
   something stops it, and then says what.
 
 The canvas node card (`assets/canvas/tooltip.js`) and the Analyze data tips
 (`assets/analyze/rating_dist.js`) are data views, not hints, and keep their
-own timing. A press hides the node card too.
+own timing. A press, a key, the wheel or the window losing focus hides the
+node card too.
 
 ```python
 from skilltree.ui import tokens
@@ -1209,8 +1221,10 @@ Do **not** add per-element scrollbar-hiding rules — the global rule covers eve
 | Layer | Value |
 |-------|-------|
 | Startup cover | `20000` |
-| Context menu | `10000` |
-| Tooltip | `9999` |
+| Tooltip | `12500` |
+| Context picker panel | `12000` |
+| Context menu | `10002` |
+| Full-screen canvas | `10000` |
 | Drag clone (a sortable item dragged out of a modal) | `2000` |
 | Filters overlay | `100` |
 | Canvas first-paint cover | `30` |

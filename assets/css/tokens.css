@@ -160,9 +160,6 @@
     --st-transition-fast: 0.15s ease;
     --st-transition: 0.2s ease;
     --st-transition-slow: 0.3s ease;
-    /* How long a hover waits before its tooltip shows. hover_tips.js replaces
-       it with TOOLTIP_SHOW_DELAY_MS from skilltree/ui/timing.py. */
-    --st-tooltip-show-delay: 700ms;
 
     /* ---- Z-index scale (documented in STYLE_GUIDE.md) --------------------- */
     --st-z-canvas-overlay: 10;
@@ -170,8 +167,8 @@
     --st-z-canvas-cover: 30;
     --st-z-filters-overlay: 100;
     --st-z-drag-clone: 2000;       /* above Bootstrap's modal (1055) */
-    --st-z-tooltip: 9999;
-    --st-z-ctx-menu: 10002;
+    --st-z-ctx-menu: 10002;        /* above a full-screen canvas (10000) */
     --st-z-picker-panel: 12000;
+    --st-z-tooltip: 12500;         /* above everything a tooltip's target sits in */
     --st-z-startup-cover: 20000;
 }
