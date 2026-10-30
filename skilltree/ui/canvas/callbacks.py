@@ -197,17 +197,23 @@ def register_canvas_callbacks(app, services):
         tells the primary button where to go, and that button's label and
         style. A dormant node is on no canvas but its event's, so it routes
         there; Details would leave it out too. Any other node is most likely
-        filtered out of this view, and Details shows it whatever the filters."""
+        outside what this view shows, and Details roots on it whatever the
+        filters."""
         view_labels = {
             'main': 'Nodes',
             'details': 'Details',
             'events': 'Events',
             'canvas': 'current',
         }
+        reasons = {
+            'main': "Filters may be hiding it.",
+            'details': "It's outside the graph around the node Details is showing.",
+            'events': "It isn't in this event or linked to one of its nodes.",
+        }
         title = f'“{name}” is not in the {view_labels.get(view, "current")} view'
         node = manager.get_node(name)
         if node is None or not node.dormant:
-            return (title, "Filters may be hiding it. Details shows it either way.",
+            return (title, reasons.get(view, "Details can show it."),
                     {'name': name}, "View Details", {})
         membership = events.get_node_membership(name)
         if membership is None:

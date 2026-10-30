@@ -101,6 +101,7 @@ def test_missing_node_opens_view_specific_fallback(locate_node):
     )
     assert result[2] is True
     assert result[3] == '“Target” is not in the Events view'
+    assert result[4] == "It isn't in this event or linked to one of its nodes."
     assert result[5] == {"name": "Target"}
     assert result[6] == "View Details"
 
