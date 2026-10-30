@@ -6,9 +6,6 @@ contextBridge.exposeInMainWorld('skillTreeDesktop', {
   // The window buttons are drawn by the OS, so the page asks the shell to dim
   // them while a modal is open (assets/window_chrome.js).
   setModalOpen: open => ipcRenderer.send('skilltree:modal-open', !!open),
-  // Where the cursor is, in page pixels. The OS takes the pointer over the
-  // title bar without telling the page (assets/components/hover_tips.js).
-  cursorPoint: () => ipcRenderer.invoke('skilltree:cursor-point'),
   // Settings > App's update preference (about_callbacks.py).
   updates: {
     getAutoCheck: () => ipcRenderer.invoke('skilltree:updates-get'),

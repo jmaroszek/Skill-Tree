@@ -214,22 +214,13 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
 
 /* --- Tooltips (STYLE_GUIDE.md, Tooltips) ----------------------------------
    A tooltip mounts at once and fades in after the show delay, so the delay is
-   one CSS value that assets/components/hover_tips.js can lift. It closes at
-   once, with no fade-out, so a warm handoff never shows two tooltips.
-   hover_tips.js sets the variable from timing.py. */
+   one CSS value that assets/components/hover_tips.js sets from timing.py.
+   It closes at once, with no fade-out. */
 .tooltip.show {
     transition: opacity 0.15s linear var(--st-tooltip-show-delay);
 }
 .tooltip:not(.show) {
     transition: none;
-}
-/* Warm handoff: right after one tooltip, the next shows without waiting. */
-body.tooltips-warm .tooltip.show {
-    transition-delay: 0ms;
-}
-/* A press cancels every tooltip until the pointer leaves what it pressed. */
-body.tooltips-suppressed .tooltip {
-    visibility: hidden;
 }
 /* A tooltip whose text a callback has emptied, like Save's when nothing
    stops it, shows nothing rather than an empty box. */

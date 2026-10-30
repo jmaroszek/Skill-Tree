@@ -3,8 +3,7 @@
 # Tooltip timing (industry standard ~700ms). The show delay reaches CSS through
 # #tooltip-config and assets/components/hover_tips.js.
 TOOLTIP_SHOW_DELAY_MS = 700
-# A tooltip closes as the pointer leaves: any wait overlaps it with the next
-# one during a warm handoff.
+# A tooltip closes as the pointer leaves.
 TOOLTIP_HIDE_DELAY_MS = 0
 # The Cytoscape node cursor tooltip lingers slightly longer to avoid flicker.
 TOOLTIP_NODE_HIDE_DELAY_MS = 300

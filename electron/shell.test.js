@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  cursorInPage, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
+  isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
 } = require('./shell');
 
 const none = () => false;
@@ -105,12 +105,4 @@ test('the macOS menu carries the Edit roles that make Cmd+C and Cmd+V work', () 
     assert.ok(roles.includes(`"role":"${role}"`), role);
   }
   assert.equal(menu[0].label, 'Skill Tree');
-});
-
-test('the cursor is placed in page pixels, from the content area and zoom', () => {
-  const bounds = { x: 100, y: 50, width: 1400, height: 900 };
-  assert.deepEqual(cursorInPage({ x: 300, y: 250 }, bounds, 1), { x: 200, y: 200 });
-  assert.deepEqual(cursorInPage({ x: 300, y: 250 }, bounds, 2), { x: 100, y: 100 });
-  // Off the content area, it is negative or past its size.
-  assert.deepEqual(cursorInPage({ x: 90, y: 40 }, bounds, 1), { x: -10, y: -10 });
 });

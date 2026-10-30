@@ -1,21 +1,17 @@
 /**
  * How every tooltip behaves, and the one tooltip for small marks.
  *
- * Timing lives in CSS (custom.css, Tooltips): a tooltip mounts at once and
- * fades in after --st-tooltip-show-delay. This script only flips classes on
- * <body>, so dbc tooltips and the shared tip below follow the same rules.
+ * A tooltip shows after a delay and closes the moment the pointer leaves.
+ * The delay lives in CSS (custom.css, Tooltips): a tooltip mounts at once and
+ * fades in after --st-tooltip-show-delay, so dbc tooltips and the shared tip
+ * below wait the same.
  *
- * - A press cancels: `tooltips-suppressed` hides every tooltip until the
- *   pointer moves off the element it pressed. A tooltip whose hover timer
- *   was still running when you clicked never appears.
- * - Warm handoff: once a tooltip has shown, `tooltips-warm` lets the next
- *   one show at once, until WARM_MS pass with none on screen. Moving the
- *   pointer doesn't extend it: only a tooltip on screen does.
- * - The title bar: in the desktop window the toolbar is the title bar, and
- *   the OS takes the pointer over its drag strip and window buttons without
- *   telling the page it left. While a tooltip is up, the shell is asked where
- *   the cursor really is; once it is off what the page last saw it over, the
- *   page is told it left, and the tooltip closes.
+ * - Only a pointer that moves opens one. When a dialog closes, a sidebar
+ *   slides in or a list redraws under a still pointer, the browser reports a
+ *   hover on whatever is now beneath it. That hover is held back until the
+ *   pointer next moves, so a tooltip never opens on its own.
+ * - A press closes: pressing an element closes its tooltip, and none opens
+ *   again until the pointer has left it, so a click never leaves one up.
  * - The shared tip: an element with `data-hint` shows that text, and one with
  *   the `overflow-hint` class shows its own text only while it is cut off
  *   with an ellipsis. Rows can carry these by the hundred without a Dash
@@ -23,16 +19,10 @@
  *   keep Chromium's own delay, look and click behaviour.
  */
 (function () {
-    var WARM_MS = 500;
-    var WARM_POLL_MS = 100;
-    var body = null;
     var pressed = null;
-    var warmPoll = null, lastShowing = 0;
-    var ESCAPE_POLL_MS = 150;
-    var lastOver = null, escapePoll = null, asking = false;
     var tip = null, tipInner = null, tipArrow = null, tipTarget = null;
-
-    function cls(name, on) { if (body) body.classList.toggle(name, on); }
+    var lastX = null, lastY = null;   // where the mouse last moved
+    var held = null;                  // a hover the mouse didn't move into
 
     function readDelay() {
         var el = document.getElementById('tooltip-config');
@@ -95,79 +85,30 @@
         if (tip.parentNode) tip.parentNode.removeChild(tip);
     }
 
-    function anyShowing() {
-        return Array.prototype.some.call(document.querySelectorAll('.tooltip.show'),
-            function (t) { return parseFloat(getComputedStyle(t).opacity) > 0; });
-    }
-
-    // Warmth lasts WARM_MS past the last tooltip on screen, however that one
-    // closed. A check runs only while warm.
-    function warm() {
-        lastShowing = Date.now();
-        cls('tooltips-warm', true);
-        if (warmPoll) return;
-        warmPoll = setInterval(function () {
-            if (anyShowing()) {
-                lastShowing = Date.now();
-            } else if (Date.now() - lastShowing >= WARM_MS) {
-                clearInterval(warmPoll);
-                warmPoll = null;
-                cls('tooltips-warm', false);
-            }
-        }, WARM_POLL_MS);
-    }
-
-    // Desktop only: watch for the pointer escaping into the title bar while a
-    // tooltip is up. The check stops when no tooltip is.
-    function watchEscape() {
-        var desktop = window.skillTreeDesktop;
-        if (escapePoll || !desktop || !desktop.cursorPoint) return;
-        escapePoll = setInterval(function () {
-            if (!document.querySelector('.tooltip.show') || !lastOver || !lastOver.isConnected) {
-                clearInterval(escapePoll);
-                escapePoll = null;
-                return;
-            }
-            if (asking) return;
-            asking = true;
-            desktop.cursorPoint().then(function (p) {
-                asking = false;
-                if (!p || !lastOver || !lastOver.isConnected) return;
-                var r = lastOver.getBoundingClientRect();
-                var slack = 2;
-                if (p.x >= r.left - slack && p.x <= r.right + slack &&
-                    p.y >= r.top - slack && p.y <= r.bottom + slack) return;
-                // The page never heard the pointer leave: say so. dbc tooltips
-                // close on their button's mouseout.
-                var left = lastOver;
-                lastOver = null;
-                left.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
-                hideTip();
-            }, function () { asking = false; });
-        }, ESCAPE_POLL_MS);
-    }
-
     function init() {
-        body = document.body;
-        if (!body || !readDelay()) { setTimeout(init, 200); return; }
+        if (!document.body || !readDelay()) { setTimeout(init, 200); return; }
 
         document.addEventListener('pointerdown', function (e) {
             pressed = e.target;
-            cls('tooltips-suppressed', true);
             hideTip();
             if (window.SkillTree && window.SkillTree.tooltip) window.SkillTree.tooltip.hide();
-        }, true);
-
-        document.addEventListener('pointermove', function (e) {
-            if (pressed && (!pressed.isConnected || !pressed.contains(e.target))) {
-                pressed = null;
-                cls('tooltips-suppressed', false);
+            // dbc tooltips close on their target's mouseout. Only a target
+            // under the pointer has one up, so this reaches it. relatedTarget
+            // is the target itself, so React sees no enter or leave.
+            if (document.querySelector('.tooltip')) {
+                e.target.dispatchEvent(new MouseEvent('mouseout', {
+                    bubbles: true, view: window, relatedTarget: e.target,
+                }));
             }
         }, true);
 
-        document.addEventListener('pointerover', function (e) {
-            lastOver = e.target;
-            watchEscape();
+        // pointermove runs before the mouseover of the same step, so leaving
+        // what was pressed clears it before the next hover is weighed.
+        document.addEventListener('pointermove', function (e) {
+            if (pressed && (!pressed.isConnected || !pressed.contains(e.target))) pressed = null;
+        }, true);
+
+        document.addEventListener('mouseover', function (e) {
             var el = e.target.closest && e.target.closest('[data-hint], .overflow-hint');
             if (el === tipTarget) return;
             hideTip();
@@ -177,15 +118,41 @@
         });
 
         document.addEventListener('scroll', hideTip, true);
-
-        // transitionstart fires once the show delay has passed: the tooltip is
-        // really appearing, unless a press is hiding it.
-        document.addEventListener('transitionstart', function (e) {
-            var t = e.target;
-            if (e.propertyName !== 'opacity' || !t.classList || !t.classList.contains('tooltip')) return;
-            if (t.classList.contains('show') && !body.classList.contains('tooltips-suppressed')) warm();
-        });
     }
+
+    // The hover gate. Window capture runs before every other listener, dbc's
+    // tooltips included. mouseover fires before the mousemove of the same
+    // step, so a hover at the last move's position came from content moving.
+    window.addEventListener('mouseover', function (e) {
+        if (!e.isTrusted) return;
+        // Still on what was pressed: no tooltip there until the pointer leaves.
+        if (pressed && pressed.isConnected && pressed.contains(e.target)) {
+            e.stopImmediatePropagation();
+            return;
+        }
+        if (lastX === null || (e.clientX === lastX && e.clientY === lastY)) {
+            held = { target: e.target, relatedTarget: e.relatedTarget };
+            e.stopImmediatePropagation();
+            if (tipTarget && !tipTarget.contains(e.target)) hideTip();
+        } else {
+            held = null;
+        }
+    }, true);
+    window.addEventListener('mousemove', function (e) {
+        if (e.clientX === lastX && e.clientY === lastY) return;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        if (!held) return;
+        var h = held;
+        held = null;
+        // Still over what it was held on: let that hover through now.
+        if (h.target.isConnected && h.target.contains(e.target)) {
+            h.target.dispatchEvent(new MouseEvent('mouseover', {
+                bubbles: true, cancelable: true, view: window,
+                clientX: e.clientX, clientY: e.clientY, relatedTarget: h.relatedTarget,
+            }));
+        }
+    }, true);
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
     else init();

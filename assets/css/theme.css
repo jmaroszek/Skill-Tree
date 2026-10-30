@@ -1645,6 +1645,22 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 .electron-shell #main-toolbar [role="button"] {
     -webkit-app-region: no-drag;
 }
+/* The OS takes the pointer over drag area without telling the page it left,
+   so a button left that way kept its tooltip open. The button groups are not
+   drag area: full height, with room on their inner side, so a pointer leaving
+   a button always lands where the page hears it. The tabs' empty middle still
+   moves the window. */
+.electron-shell .main-toolbar-start,
+.electron-shell .main-toolbar-actions {
+    -webkit-app-region: no-drag;
+    align-self: stretch;
+}
+.electron-shell .main-toolbar-start {
+    padding-right: 1rem;
+}
+.electron-shell .main-toolbar-actions {
+    padding-left: 1rem;
+}
 
 /* Separate the app actions from Electron's three native window controls. */
 .electron-shell .main-toolbar-actions::after {

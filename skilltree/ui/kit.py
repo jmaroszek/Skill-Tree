@@ -35,7 +35,7 @@ from skilltree.ui import tokens
 from skilltree.ui.styles import badge_style
 
 # The show delay is CSS (custom.css, Tooltips): the tooltip mounts at once and
-# fades in late, so a press or a warm handoff can change the wait.
+# fades in late, so a press can cancel it.
 _DELAY = {"show": 0, "hide": TOOLTIP_HIDE_DELAY_MS}
 
 

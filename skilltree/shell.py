@@ -301,7 +301,7 @@ def build_app_layout(graph, env="production"):
                         html.Span("Events", className="visually-hidden")],
                        id="btn-events-sidebar-toggle", color="secondary", size="sm"),
             Tooltip("Events", target="btn-events-sidebar-toggle", placement="bottom"),
-        ], className="d-flex align-items-center ps-3",
+        ], className="main-toolbar-start d-flex align-items-center ps-3",
            style={"flex": "0 0 auto"}),
 
         # CENTER: Tabs

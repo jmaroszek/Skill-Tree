@@ -1119,11 +1119,17 @@ it:
 - A tooltip waits `TOOLTIP_SHOW_DELAY_MS` (700 ms, `skilltree/ui/timing.py`)
   before it shows. The wait is CSS (`--st-tooltip-show-delay`, the Tooltips
   section of `custom.css`), so `ui_kit.Tooltip` mounts with no delay of its own.
-- A press cancels: no tooltip shows until the pointer leaves what it pressed.
-- A tooltip closes the moment the pointer leaves, with no fade-out.
-- Warm handoff: within half a second of one tooltip closing, the next shows at
-  once, so a row of icon buttons reads quickly. Only a tooltip on screen keeps
-  it warm; moving the pointer doesn't.
+- Only a pointer that moves opens one. A dialog closing, a sidebar sliding in
+  or a list redrawing under a still pointer makes the browser report a hover
+  anyway. That hover waits until the pointer next moves.
+- A press closes the pressed element's tooltip, and none opens there until the
+  pointer has left it.
+- A tooltip closes the moment the pointer leaves, with no fade-out. Each one
+  waits its full delay, even right after another.
+- In the desktop window the toolbar is also the title bar. The OS takes the
+  pointer over its drag area without telling the page it left, so the
+  toolbar's button groups and the room around them are not drag area
+  (`theme.css`, Electron desktop shell). Keep any new tooltip there inside one.
 - A tooltip whose text is empty shows nothing. Save's tooltip is empty until
   something stops it, and then says what.
 
