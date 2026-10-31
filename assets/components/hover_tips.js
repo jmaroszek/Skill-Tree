@@ -16,6 +16,8 @@
  * - It opens after TOOLTIP_SHOW_DELAY_MS, only for a pointer that moved onto
  *   its target. A dialog closing, a sidebar sliding in or a list redrawing
  *   under a still pointer opens nothing until the pointer next moves.
+ * - Warm handoff: within WARM_MS of a tooltip closing, the next one opens
+ *   after WARM_SHOW_MS instead. A press, key, wheel or lost focus ends that.
  * - It closes the moment the pointer leaves its target or the window.
  * - A press, a key, the wheel or the window losing focus closes it, and none
  *   opens on that target again until the pointer has left it.
@@ -33,6 +35,8 @@
  */
 (function () {
     var CHECK_MS = 100;   // how often a waiting or open tooltip checks its target
+    var WARM_MS = 500;    // after a tooltip closes, the next opens almost at once
+    var WARM_SHOW_MS = 50;   // short enough to feel instant, long enough that a pass shows nothing
     var GAP = 6;          // between the target and the tooltip: Bootstrap's offset
     var EDGE = 8;         // kept clear of the window's edges
     var SLACK = 4;        // how far off its target the shell's cursor may be
@@ -46,6 +50,7 @@
     var current = null;               // the target waiting or showing: {target, timer, open}
     var blocked = null;               // closed by a press or key, until the pointer leaves it
     var watch = null, asking = false;
+    var warmUntil = 0;                // until when the next tooltip skips the wait
 
     function showDelay() {
         var el = document.getElementById('tooltip-config');
@@ -168,8 +173,11 @@
         tip.style.top = top + 'px';
     }
 
+    // Warmth runs WARM_MS from the last tooltip on screen. A target the
+    // pointer only waited on doesn't start or extend it.
     function close() {
         if (!current) return;
+        if (current.open) warmUntil = Date.now() + WARM_MS;
         clearTimeout(current.timer);
         current = null;
         clearInterval(watch);
@@ -185,6 +193,7 @@
     function dismiss(node) {
         var target = (node && targetOf(node)) || (current && current.target) || targetOf(under);
         close();
+        warmUntil = 0;   // a tooltip closed on purpose doesn't hand off
         if (target) blocked = target;
         if (window.SkillTree && window.SkillTree.tooltip) window.SkillTree.tooltip.hide();
     }
@@ -239,7 +248,7 @@
                 if (on) open(entry);
                 else if (current === entry) lost();
             });
-        }, showDelay());
+        }, Date.now() < warmUntil ? WARM_SHOW_MS : showDelay());
         watch = setInterval(check, CHECK_MS);
     }
 

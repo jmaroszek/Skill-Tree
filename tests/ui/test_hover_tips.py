@@ -21,6 +21,7 @@ const timers = new Map();
 global.setTimeout = (fn, ms) => { timers.set(nextTimer, {fn, at: now + (ms || 0)}); return nextTimer++; };
 global.setInterval = (fn, ms) => { timers.set(nextTimer, {fn, at: now + ms, every: ms}); return nextTimer++; };
 global.clearTimeout = global.clearInterval = id => { timers.delete(id); };
+Date.now = () => now;
 const settle = () => new Promise(resolve => setImmediate(resolve));
 async function wait(ms) {
     const end = now + ms;
@@ -193,6 +194,7 @@ _SCENARIOS = r'''
     assert.equal(tip(), null, 'closed the moment the pointer left');
 
     // A pointer that passes through opens nothing.
+    await wait(1000);
     move(...middle(save)); await wait(40); away();
     await wait(1000);
     assert.equal(tip(), null, 'a pass opens nothing');
@@ -279,6 +281,35 @@ _SCENARIOS = r'''
     name.scrollWidth = 100;
     away(); move(...middle(name)); await wait(750);
     assert.equal(text(), 'Row hint', 'a name that fits defers to its row');
+
+    // Warm handoff: right after one tooltip, the next opens almost at once.
+    away(); await wait(1000);
+    move(...middle(save)); await wait(750);
+    assert.ok(tip());
+    away(); await wait(200);
+    move(...middle(top)); await wait(60);
+    assert.equal(text(), 'At the top', 'handed off');
+    // A pass is still a pass, warm or not.
+    away(); move(...middle(save)); await wait(20);
+    assert.equal(tip(), null, 'a warm pass shows nothing on the way');
+    away(); await wait(1000);
+    assert.equal(tip(), null, 'a warm pass opens nothing');
+    // A target the pointer only waited on warms nothing.
+    move(...middle(save)); await wait(300); away();
+    move(...middle(top)); await wait(100);
+    assert.equal(tip(), null, 'waiting warms nothing');
+    away(); await wait(1000);
+    // Waiting on a target doesn't keep it warm: warmth runs out.
+    move(...middle(save)); await wait(750);
+    away(); await wait(600);
+    move(...middle(top)); await wait(100);
+    assert.equal(tip(), null, 'cold again');
+    await wait(650);
+    assert.ok(tip());
+    // A tooltip closed on purpose hands nothing off.
+    dispatch(body, 'keydown', {key: 'a'});
+    away(); move(...middle(save)); await wait(100);
+    assert.equal(tip(), null, 'no handoff after a key');
 
     // In the desktop window, the shell's cursor off the target closes it:
     // the OS took the pointer into the title bar without telling the page.

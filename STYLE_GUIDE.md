@@ -1122,7 +1122,12 @@ A tooltip earns its place by saying something the element doesn't:
 `assets/components/hover_tips.js` shows every kind as the same element, and
 decides when:
 - A tooltip waits `TOOLTIP_SHOW_DELAY_MS` (700 ms, `skilltree/ui/timing.py`)
-  before it shows. Each one waits its full delay, even right after another.
+  before it shows.
+- Warm handoff: within half a second of a tooltip closing, the next one
+  opens after 50 ms instead, so you can sweep a toolbar and read each name.
+  The 50 ms keeps a fast pass from flashing anything. Only a tooltip that
+  showed starts the half second, and a press, a key, the wheel or the
+  window losing focus ends it.
 - Only a pointer that moves opens one. A dialog closing, a sidebar sliding in
   or a list redrawing under a still pointer opens nothing until the pointer
   next moves.
