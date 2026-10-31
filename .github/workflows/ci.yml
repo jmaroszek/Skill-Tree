@@ -24,7 +24,7 @@ jobs:
       matrix:
         # Every platform the desktop app ships on: Windows, Apple Silicon and
         # Intel macOS, and Linux.
-        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+        os: [windows-latest, macos-15, macos-15-intel, ubuntu-24.04]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -94,7 +94,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+        os: [windows-latest, macos-15, macos-15-intel, ubuntu-24.04]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -124,7 +124,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-14, macos-15-intel, ubuntu-24.04]
+        os: [windows-latest, macos-15, macos-15-intel, ubuntu-24.04]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
