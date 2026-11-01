@@ -1,6 +1,7 @@
 """Next view queries and initial hydration shared by layout and callbacks."""
 from collections import namedtuple
 from copy import deepcopy
+from skilltree.domain.models import STATUS_DONE
 from skilltree.store import database
 from skilltree.store import settings
 from skilltree.features.home.table import (
@@ -52,17 +53,20 @@ def initial_next_view(graph, template, sidebars):
 
 
 def perf_stats_text(graph):
-    """The Home tab's scoring-time caption, or None before one is recorded.
+    """The Home tab's graph statistics caption, or None while Settings has it
+    off or before a scoring time is recorded.
 
-    Timings are recorded once per process, by the first scoring pass, which
-    is the one that builds the first layout. So the layout carries the
-    caption, and each later table refresh reads it again.
+    The time is recorded once per process, by the first scoring pass with the
+    setting on, which is usually the one that builds the first layout. So the
+    layout carries the caption, and each later table refresh reads it again.
+    The counts are read each time, so they follow the graph. Nodes are the
+    ones left to do, which is what that pass scores.
     """
     t = graph.last_perf_timings
-    if not t:
+    if not t or not settings.SHOW_SCORING_PERF.get():
         return None
-    return (f"{t['n_nodes']} nodes · {t['n_edges']} edges · "
-            f"{t['total_ms']:.0f}ms")
+    nodes = sum(node.status != STATUS_DONE for node in graph.get_all_nodes())
+    return f"{nodes} nodes · {len(graph.get_edges())} edges · {t['total_ms']:.0f}ms"
 
 
 #: What the Next table renders: the ordered rows, plus a map from a pinned

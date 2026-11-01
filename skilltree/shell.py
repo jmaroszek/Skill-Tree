@@ -7,7 +7,6 @@ from skilltree.store import database
 
 from dash import html, dcc
 import dash_bootstrap_components as dbc
-from skilltree.store import settings
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
     TOOLTIP_SHOW_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
@@ -20,6 +19,7 @@ from skilltree.features.settings.layout import build_settings_modal
 from skilltree.features.review.layout import build_review_hub_modal
 from skilltree.features.analyze.layout import build_analyze_tab_content
 from skilltree.features.links.layout import build_bridge_modal
+from skilltree.features.home.now import now_cap_message
 from skilltree.features.home.view import initial_next_view, perf_stats_text
 from skilltree.ui.components.context_picker import build_context_picker_support
 from skilltree.ui.components.list_toolbar import SORT_MENUS, sort_menu_items
@@ -479,7 +479,7 @@ def build_app_layout(graph, env="production"):
         # top:60px clears it with a touch of breathing room). zIndex above
         # context menus (10000–10002).
         dbc.Toast(
-            f"{settings.NOW_NODE_CAP.get()} Now nodes is the cap. Clear one to make room.",
+            now_cap_message(),
             id="now-cap-toast",
             header="Now Cap Reached",
             is_open=False,

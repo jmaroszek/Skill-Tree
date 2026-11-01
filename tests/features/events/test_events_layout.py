@@ -343,3 +343,8 @@ def test_the_dormant_table_keeps_name_readable_in_a_narrow_form():
     assert "container: events-form / inline-size;" in _css_rule(css, "#events-detail-panel")
     assert "min-width: 440px;" in _css_rule(css, ".dormant-nodes-table")
     assert "@container events-form (max-width: 600px)" in css
+
+
+def test_the_empty_table_names_the_control_that_adds_a_node():
+    # It said 'Add Node', which is on no button. The heading has a +.
+    assert "Click the + to add one." in build_dormant_nodes_table([]).children.children

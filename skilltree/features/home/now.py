@@ -10,6 +10,13 @@ from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 
 
+def now_cap_message():
+    """The Now cap toast's text, at the cap Settings holds now."""
+    cap = settings.NOW_NODE_CAP.get()
+    nodes = "Now node" if cap == 1 else "Now nodes"
+    return f"{cap} {nodes} is the cap. Clear one to make room."
+
+
 def register_now_callbacks(app, services):
     manager = services.graph
 
@@ -99,8 +106,7 @@ def register_now_callbacks(app, services):
         # the cap.
         if trigger.startswith("error|"):
             return True, trigger.split("|", 2)[2], "Couldn't change Now"
-        cap = settings.NOW_NODE_CAP.get()
-        return True, f"{cap} Now nodes is the cap. Clear one to make room.", "Now Cap Reached"
+        return True, now_cap_message(), "Now Cap Reached"
 
     # --- Drag and drop reordering of Now cards ---
     @app.callback(

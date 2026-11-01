@@ -114,10 +114,84 @@ def test_a_clean_form_loads_straight_away(populate, trigger, values):
     assert out["unsaved_open"] is False
 
 
-def test_a_closed_editor_loads_straight_away(populate):
-    out = populate("edit-trigger-input", edit_trigger_val="B|1", ed_style={})
+def test_a_closed_editor_with_nothing_to_lose_loads_straight_away(populate):
+    out = populate("edit-trigger-input", dirty=False, edit_trigger_val="B|1", ed_style={})
 
     assert out["name"] == "B"
+
+
+# Opening Goals or Events slides the editor away with its form as it was, and
+# reopening it brings the edits back. A closed editor can still hold them.
+
+@pytest.mark.parametrize("trigger, values", [
+    ("edit-trigger-input", {"edit_trigger_val": "B|1"}),
+    ("details-edit-trigger-input", {"details_edit_trigger_val": "B|1"}),
+])
+def test_an_edit_asks_about_edits_left_behind_a_sidebar(populate, trigger, values):
+    assert _asked(populate(trigger, ed_style={}, **values), "B")
+
+
+@pytest.mark.parametrize("trigger, values, target", [
+    ("details-add-choice-input",
+     {"details_add_choice": "new|1", "details_selected_node": "B"}, "__new_subtask__|B"),
+    ("btn-bridge-create", {"bridge_clicks": 1}, "__bridge__"),
+    ("btn-goals-sidebar-new", {"goal_new_clicks": 1}, "__new_goal__"),
+])
+def test_opening_a_new_form_asks_about_edits_left_behind_a_sidebar(
+        populate, trigger, values, target):
+    assert _asked(populate(trigger, ed_style={}, **values), target)
+
+
+@pytest.mark.parametrize("trigger, values", [
+    ("editor-tap-store", {"tapped_node": {"id": "B"}}),
+    ("background-click-input", {}),
+])
+def test_a_click_on_the_canvas_leaves_edits_behind_a_sidebar_alone(populate, trigger, values):
+    # A tap only fills a closed editor in the background, and an empty click
+    # only blanks it. Neither is about the form, so neither asks or replaces it.
+    out = populate(trigger, ed_style={}, **values)
+
+    assert out["name"] is dash.no_update and out["desc"] is dash.no_update
+    assert out["unsaved_open"] is dash.no_update
+
+
+def test_a_tap_still_fills_a_closed_editor_that_holds_no_edits(populate):
+    out = populate("editor-tap-store", dirty=False, tapped_node={"id": "B"}, ed_style={})
+
+    assert out["name"] == "B" and out["unsaved_open"] is False
+
+
+def test_an_empty_click_still_blanks_a_closed_editor_that_holds_no_edits(populate):
+    out = populate("background-click-input", dirty=False, ed_style={})
+
+    assert out["name"] == "" and out["original_name"] is None
+
+
+def test_an_empty_click_asks_when_the_open_editor_holds_edits(populate):
+    assert _asked(populate("background-click-input"), "__background__")
+
+
+# --- The Goals sidebar's + --------------------------------------------------
+
+def test_the_goals_plus_starts_a_blank_goal(populate):
+    # It only set the type, which turned the node the form held into a Goal
+    # and left its name and everything else in place.
+    out = populate("btn-goals-sidebar-new", dirty=False, goal_new_clicks=1)
+
+    assert out["n_type"] == "Goal" and out["time_mode"] == ["inherited"]
+    assert out["name"] == "" and out["desc"] == "" and out["original_name"] is None
+    assert out["snapshot"]["n_type"] == "Goal"  # so the blank form counts as clean
+
+
+@pytest.mark.parametrize("answer, values", [
+    ("btn-unsaved-discard", {"discard_clicks": 1}),
+    ("editor-save-result-store", {"save_result": {"via": "btn-unsaved-save"}}),
+])
+def test_answering_the_dialog_goes_on_to_the_blank_goal(populate, answer, values):
+    out = populate(answer, pending_nav="__new_goal__", **values)
+
+    assert out["n_type"] == "Goal" and out["name"] == ""
+    assert out["unsaved_open"] is False and out["pending_nav"] is None
 
 
 def test_discard_goes_on_to_the_node_edit_asked_for(populate):

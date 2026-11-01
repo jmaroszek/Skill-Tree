@@ -6,9 +6,12 @@ import subprocess
 import dash
 import pytest
 
+from skilltree.domain.models import STATUS_DONE
 from skilltree.features.home.callbacks import register_home_callbacks
-from skilltree.features.home.view import initial_next_view, _components_by_id
-from support.graphs import graph
+from skilltree.features.home.view import initial_next_view, perf_stats_text, _components_by_id
+from skilltree.store import settings
+from support.callbacks import registered
+from support.graphs import graph, make_node
 from support.paths import asset_file
 
 
@@ -125,12 +128,48 @@ def test_the_first_layout_carries_the_scoring_time_caption(monkeypatch):
     from skilltree.store.graph.manager import GraphManager
     from skilltree.shell import build_app_layout
 
+    settings.SHOW_SCORING_PERF.set(True)
     graph = GraphManager()
     graph.last_perf_timings = {"n_nodes": 3, "n_edges": 2, "total_ms": 12.4}
     graph.startup_perf_recorded = True
     caption = _components_by_id(build_app_layout(graph, env="sandbox"))["next-perf-stats"]
 
-    assert caption.children == "3 nodes · 2 edges · 12ms"
+    assert caption.children == "0 nodes · 0 edges · 12ms"
+
+
+def _caption_graph():
+    manager = graph("First")
+    manager.add_node(make_node("Second", status=STATUS_DONE))
+    manager.add_edge("First", "Second", "Needs_Soft")
+    return manager
+
+
+def test_the_caption_leaves_when_the_setting_is_off():
+    # It kept showing, even after a reload, once a time had been recorded.
+    manager = _caption_graph()
+    manager.last_perf_timings = {"total_ms": 12.4}
+    settings.SHOW_SCORING_PERF.set(False)
+
+    assert perf_stats_text(manager) is None
+
+
+def test_the_caption_counts_the_graph_as_it_is_now():
+    # The counts were the first scoring pass's, and never changed after it.
+    manager = _caption_graph()
+    manager.last_perf_timings = {"n_nodes": 900, "n_edges": 900, "total_ms": 12.4}
+    settings.SHOW_SCORING_PERF.set(True)
+
+    assert perf_stats_text(manager) == "1 nodes · 1 edges · 12ms"
+
+
+def test_the_table_refresh_clears_the_caption_when_it_turns_off(services):
+    fn = registered(register_home_callbacks, services=services)["populate_suggestions"]
+    services.graph.last_perf_timings = {"total_ms": 12.4}
+    settings.SHOW_SCORING_PERF.set(False)
+    args = [None] * 15
+
+    assert fn(*args, "0 nodes · 0 edges · 12ms")[1] is None
+    assert fn(*args, None)[1] is dash.no_update
 
 
 def test_no_caption_before_any_timing_is_recorded(monkeypatch):
@@ -138,3 +177,12 @@ def test_no_caption_before_any_timing_is_recorded(monkeypatch):
     from skilltree.features.home.view import perf_stats_text
 
     assert perf_stats_text(GraphManager()) is None
+
+
+def test_the_now_cap_message_counts_properly():
+    from skilltree.features.home.now import now_cap_message
+
+    settings.NOW_NODE_CAP.set(1)
+    assert now_cap_message().startswith("1 Now node is the cap.")
+    settings.NOW_NODE_CAP.set(3)
+    assert now_cap_message().startswith("3 Now nodes is the cap.")

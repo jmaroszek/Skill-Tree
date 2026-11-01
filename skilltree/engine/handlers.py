@@ -15,6 +15,7 @@ from dash import html, no_update
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.names import format_name
 from skilltree.engine.response import CoreResponse
+from skilltree.features.editor.form import editor_form_values_from, is_form_dirty_vs_snapshot
 from skilltree.features.editor.save import save_editor_form
 from skilltree.store import database
 from skilltree.store.commands import (
@@ -141,11 +142,9 @@ def save(request):
     if name and name.strip():
         name = format_name(name.strip(), settings.NAME_FORMATTING.get())
     if not name or not name.strip():
-        # Only show the error if the user has filled in something meaningful.
-        # A blank form means they changed their mind after New Node: close.
-        desc = form.get('desc')
-        if any([desc and desc.strip(), form.get('val') not in (None, 5),
-                form.get('interest') not in (None, 5), form.get('diff') not in (None, 5)]):
+        # A form with nothing in it means they changed their mind after New
+        # Node: close. Anything else in it would be lost, so ask for the name.
+        if is_form_dirty_vs_snapshot(request.pristine_snapshot, editor_form_values_from(form)):
             return _refused("Error: Node name is required.", request)
         return _refused("", request,
                         editor_style={**ed_style, 'transform': SIDEBAR_TRANSLATE_CLOSED})

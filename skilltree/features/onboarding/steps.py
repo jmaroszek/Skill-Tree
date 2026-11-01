@@ -58,7 +58,7 @@ def _steps_now(manager) -> list:
              "relationship to each: the goal then waits on them.",
              any(e["type"] in (EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT) for e in edges)),
         Step("now", "Pick something to work on now",
-             "Right-click a node and choose Now. Now nodes sit at the top of Home.",
+             "Right-click a node and choose Add to Now. Now nodes sit at the top of Home.",
              any(getattr(n, "now", 0) for n in nodes)),
         Step("done", "Mark something Done",
              "Finishing a node unblocks what depends on it, and the "

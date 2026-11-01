@@ -5,6 +5,8 @@ into the database, and the sweep read it as a date before every other: the
 event fired on the next click and woke every node it held, while its card
 still said Manual.
 """
+from datetime import date, timedelta
+
 import dash
 
 from skilltree.store import database
@@ -41,7 +43,8 @@ def _save(selected, trigger_date, name="Spring"):
 def test_a_date_event_without_a_date_is_refused():
     for blank in (None, "", "   ", "not a date"):
         result = _save(None, blank)
-        assert result[2] == "Pick a date."
+        assert result[2].children == "Pick a date."
+        assert result[2].className == "text-danger"  # the line is green for a save
     assert EventManager(GraphManager()).get_event("Spring") is None
 
 
@@ -49,7 +52,7 @@ def test_an_edit_that_clears_the_date_is_refused():
     events = EventManager(GraphManager())
     events.add_event(Event(name="Spring", trigger_date="2030-04-01"))
 
-    assert _save("Spring", "")[2] == "Pick a date."
+    assert _save("Spring", "")[2].children == "Pick a date."
     assert events.get_event("Spring").trigger_date == "2030-04-01"
 
 
@@ -58,6 +61,30 @@ def test_a_date_event_with_a_date_saves():
 
     assert result[2] == "Saved."
     assert EventManager(GraphManager()).get_event("Spring").trigger_date == "2030-04-01"
+
+
+def test_a_new_event_cant_use_a_date_that_has_come():
+    # It said Saved, then fired on the next click, before anything was in it.
+    for days_ago in (0, 1, 400):
+        when = date.today() - timedelta(days=days_ago)
+        assert "already come" in _save(None, when.isoformat())[2].children
+    assert EventManager(GraphManager()).get_event("Spring") is None
+
+
+def test_a_new_event_can_use_tomorrow():
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+    assert _save(None, tomorrow)[2] == "Saved."
+    assert EventManager(GraphManager()).get_event("Spring").status == "Pending"
+
+
+def test_an_edit_can_still_bring_a_date_forward_to_today():
+    # Its nodes are chosen by now, so firing is what the edit is for.
+    events = EventManager(GraphManager())
+    events.add_event(Event(name="Spring", trigger_date="2030-04-01"))
+
+    assert _save("Spring", date.today().isoformat())[2] == "Saved."
+    assert events.get_event("Spring").trigger_date == date.today().isoformat()
 
 
 def test_a_blank_date_is_stored_as_none():

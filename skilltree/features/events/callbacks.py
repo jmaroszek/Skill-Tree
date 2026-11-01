@@ -520,8 +520,13 @@ def register_events_callbacks(app, services):
     )
     def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date,
                    trigger_nodes, trigger_mode):
+        def refused(message):
+            # The status line is green, for the saves that went through.
+            return (no_update, no_update, html.Span(message, className="text-danger"),
+                    no_update, no_update, no_update, no_update)
+
         if not n_clicks or not name or not name.strip():
-            return no_update, no_update, "Event name is required.", no_update, no_update, no_update, no_update
+            return refused("Event name is required.")
 
         name = name.strip()
         description = (description or "").strip()
@@ -532,8 +537,7 @@ def register_events_callbacks(app, services):
         resolved_mode = trigger_mode if trigger_mode in ("any", "all") else "any"
 
         if trigger_type == "node" and not resolved_nodes:
-            return (no_update, no_update, "Pick at least one trigger node.",
-                    no_update, no_update, no_update, no_update)
+            return refused("Pick at least one trigger node.")
         # A Date event saved without one was stored with an empty date, which
         # the sweep read as already due: it fired on the next click and woke
         # every node it held, while its card still said Manual.
@@ -541,8 +545,12 @@ def register_events_callbacks(app, services):
             try:
                 resolved_date = date.fromisoformat((trigger_date or "").strip()).isoformat()
             except ValueError:
-                return (no_update, no_update, "Pick a date.",
-                        no_update, no_update, no_update, no_update)
+                return refused("Pick a date.")
+            # It would fire on the next click, before anything could be put in
+            # it, as a new event watching a Done node would (add_event).
+            if selected_event is None and resolved_date <= date.today().isoformat():
+                return refused("That date has already come, so the event would fire "
+                               "with nothing in it. Pick a later date.")
 
         before = event_manager.get_event(selected_event) if selected_event else None
         try:
@@ -561,7 +569,7 @@ def register_events_callbacks(app, services):
                     trigger_mode=resolved_mode,
                 ))
         except ValueError as e:
-            return no_update, no_update, str(e), no_update, no_update, no_update, no_update
+            return refused(str(e))
 
         event = event_manager.get_event(name)
         fired = event is not None and event.status == "Triggered"

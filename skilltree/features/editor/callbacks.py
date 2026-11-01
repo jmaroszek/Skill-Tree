@@ -38,6 +38,7 @@ from skilltree.features.editor.layout import (
     render_alias_rows,
     update_alias_rows,
 )
+from skilltree.features.editor.values import reexpressed_estimate
 from skilltree.store import database
 from skilltree.store.commands import bridge_form, plan_bridge
 from skilltree.store import settings
@@ -295,6 +296,7 @@ def register_editor_callbacks(app, services):
         Output('btn-editor-new', 'title'),
         Input('btn-add', 'n_clicks'),
         Input('btn-editor-new', 'n_clicks'),
+        Input('btn-goals-sidebar-new', 'n_clicks'),
         prevent_initial_call=True,
     )
 
@@ -327,6 +329,7 @@ def register_editor_callbacks(app, services):
             search_val=Input('search-node', 'value'),
             _bg_click=Input('background-click-input', 'value'),
             editor_new_clicks=Input('btn-editor-new', 'n_clicks'),
+            goal_new_clicks=Input('btn-goals-sidebar-new', 'n_clicks'),
             edit_trigger_val=Input('edit-trigger-input', 'value'),
             details_edit_trigger_val=Input('details-edit-trigger-input', 'value'),
             details_add_choice=Input('details-add-choice-input', 'value'),
@@ -351,7 +354,7 @@ def register_editor_callbacks(app, services):
         prevent_initial_call=True,
     )
     def populate_editor(tapped_node, add_clicks, discard_clicks, save_result, search_val,
-                        _bg_click, editor_new_clicks, edit_trigger_val,
+                        _bg_click, editor_new_clicks, goal_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
                         revert_clicks, ed_style, original_name, pending_nav,
                         pristine_snapshot, details_selected_node, bridge_ends,
@@ -370,8 +373,10 @@ def register_editor_callbacks(app, services):
         all_nodes = manager.get_all_nodes(include_dormant=True)
         options = node_options(all_nodes)
 
+        # Opening Goals or Events slides the editor away with its form as it
+        # was, so a closed editor can hold unsaved edits too.
         def _has_unsaved_edits():
-            return editor_open and is_form_dirty_vs_snapshot(
+            return is_form_dirty_vs_snapshot(
                 pristine_snapshot, editor_form_values_from(form))
 
         def _ask(target, picker=no_update):
@@ -401,6 +406,11 @@ def register_editor_callbacks(app, services):
             is refused ("Node type is required")."""
             return _filled({**NEW_NODE_SNAPSHOT, **fields}, options, status=STATUS_OPEN,
                            original_name=None, search=search, bridge=bridge)
+
+        def _new_goal():
+            """The Goals sidebar's "+": a blank form that is already a Goal,
+            whose time is always inherited."""
+            return _new_node(n_type='Goal', time_mode=['inherited'])
 
         def _bridge_form():
             """A new node between the bridge dialog's two nodes, with the
@@ -438,6 +448,11 @@ def register_editor_callbacks(app, services):
             # under Supports > Hard.
             return _new_node(e_supp_h=[parent]) if parent else _new_node()
 
+        if trigger_id == 'btn-goals-sidebar-new':
+            if not goal_new_clicks:
+                return _untouched(options)
+            return _ask('__new_goal__') if _has_unsaved_edits() else _new_goal()
+
         if trigger_id == 'btn-bridge-create':
             if not bridge_clicks:
                 return _untouched(options)
@@ -448,8 +463,10 @@ def register_editor_callbacks(app, services):
         if trigger_id == 'background-click-input':
             # Intercept background click when the editor is open with unsaved
             # changes — show the save/discard modal instead of silently clobbering.
+            # Behind another sidebar the form is out of sight and the click
+            # isn't about it, so it stays for when the editor comes back.
             if _has_unsaved_edits():
-                return _ask('__background__')
+                return _ask('__background__') if editor_open else _untouched(options)
             return _new_node()
 
         # The unsaved-changes dialog's Save moves on only once the save has
@@ -475,6 +492,8 @@ def register_editor_callbacks(app, services):
                 # __new_node__ leaves the editor open on a blank form;
                 # __background__ closes it (core_engine).
                 return _new_node()
+            if pending_nav == '__new_goal__':
+                return _new_goal()
             if pending_nav.startswith('__new_subtask__|'):
                 parent = pending_nav.split('|', 1)[1]
                 if manager.get_node(parent) is None:
@@ -520,6 +539,10 @@ def register_editor_callbacks(app, services):
             # Read the node from the database: the canvas's copy may be stale.
             node = manager.get_node(tapped_node['id'])
             if node is not None:
+                # A tap fills a closed editor without opening it. It has no
+                # reason to ask about, or replace, edits left behind a sidebar.
+                if not editor_open and _has_unsaved_edits():
+                    return _untouched(options)
                 asked = _ask_before_leaving(node.name)
                 if asked is not None:
                     return asked
@@ -809,9 +832,7 @@ def register_editor_callbacks(app, services):
         def _reexpress(v):
             if v is None:
                 return v
-            hours = float(v) * old_mult
-            result = round(hours / new_mult, 2)
-            return int(result) if result == int(result) else result
+            return reexpressed_estimate(float(v) * old_mult / new_mult)
         return _reexpress(val_o), _reexpress(val_m), _reexpress(val_p), new_unit
 
     # --- Time Estimate Validation ---
@@ -844,6 +865,7 @@ def register_editor_callbacks(app, services):
         Input('node-habit-days', 'value'),
         prevent_initial_call=True,
     )
+    @prerendered
     def validate_time_estimates(time_o, time_m, time_p, time_mode_val, habit_mode_val,
                                 habit_duration, habit_o, habit_m, habit_p, habit_days):
         """Disable Save while the time estimate can't be saved, and say why.
@@ -916,13 +938,16 @@ def register_editor_callbacks(app, services):
 
         return "", hidden
 
-    # Auto-hide duplicate warning after 3 seconds
+    # Auto-hide duplicate warning after 3 seconds. Clearing it through Dash lets
+    # the next blur show it again: hiding only the element left Dash thinking
+    # it was still showing, so the same warning never came back.
     app.clientside_callback(
         """function(children) {
+            clearTimeout(window.SkillTree.duplicateWarningTimer);
             if (children && children !== '') {
-                setTimeout(function() {
-                    var el = document.getElementById('node-name-duplicate-warning');
-                    if (el) el.style.display = 'none';
+                window.SkillTree.duplicateWarningTimer = setTimeout(function() {
+                    window.dash_clientside.set_props('node-name-duplicate-warning',
+                                                     {children: '', style: {display: 'none'}});
                 }, 3000);
             }
             return window.dash_clientside.no_update;

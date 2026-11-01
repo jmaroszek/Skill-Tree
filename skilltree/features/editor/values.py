@@ -1,4 +1,6 @@
 """How the node editor shows a node's time estimates."""
+from math import floor, log10
+
 from skilltree.store import settings
 from skilltree.ui.components.duration import hours_to_friendly_unit
 
@@ -13,6 +15,20 @@ def estimate_in_unit(time_o, time_m, time_p, unit):
             v = int(v)
         return v
     return _convert(time_o), _convert(time_m), _convert(time_p)
+
+
+def reexpressed_estimate(value):
+    """An estimate field's number after a change of unit: two decimals, or
+    four significant digits when it is smaller than that can hold, and whole
+    numbers without them.
+
+    Two decimals alone turned 100 hours into 0.1 years, which is 104 hours on
+    the way back, and a few hours into 0 years.
+    """
+    if not value:
+        return 0
+    result = round(value, max(2, 3 - floor(log10(abs(value)))))
+    return int(result) if result == int(result) else result
 
 
 def friendly_time_estimates(time_o, time_m, time_p):

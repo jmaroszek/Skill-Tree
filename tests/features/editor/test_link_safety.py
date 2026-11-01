@@ -236,3 +236,24 @@ def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):
 
     found["open_confirmed_link"](1, pending)
     assert opened == [("os", "notion://www.notion.so/page")]
+
+
+def test_a_link_that_wont_open_shows_as_an_error(monkeypatch, tmp_path):
+    # It read "Error opening Files: <path>", in the green of a save, and no
+    # dialog opens for that: the dialog is for a message that starts "Error:".
+    from dash._callback_context import context_value
+    from dash._utils import AttributeDict
+    from skilltree.features.editor import resources as resource_link_callbacks
+    monkeypatch.setattr(resource_link_callbacks, "get_sections",
+                        lambda: [dict(MIXED, id="files")])
+    missing = str(tmp_path / "gone.md")
+    token = context_value.set(AttributeDict(
+        triggered_inputs=[{"prop_id": '{"index":"files:0","type":"resource-open"}.n_clicks',
+                           "value": 1}]))
+    try:
+        status = _callbacks()["open_resource_link"](
+            [1], [missing], [{"type": "resource-link", "index": "files:0"}])[0]
+    finally:
+        context_value.reset(token)
+
+    assert status == f"Error: Couldn't open that Files link. There is no file at {missing}."

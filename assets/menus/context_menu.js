@@ -462,7 +462,7 @@
                           openResource(Object.assign({}, request, { confirmed: true }));
                       }
                   } else if (!data.ok) {
-                      alert('Could not open Resource: ' + (data.error || 'unknown'));
+                      alert("Couldn't open that link. " + (data.error || ''));
                   }
               }).catch(function (err) { console.error('Open Resource failed:', err); });
         }

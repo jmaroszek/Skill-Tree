@@ -29,7 +29,9 @@ def _gear_header(text, gear_id, popover_id, label, input_id, lo, hi, value):
     """A section header with a small gear that opens a display-limit popover."""
     return _gear_header_custom(text, gear_id, popover_id, [
         dbc.Label(label, className="mb-1 d-block"),
-        dbc.Input(id=input_id, type="number", min=lo, max=hi, step=5,
+        # step=1: a step of 5 made the browser call 7 invalid, so typing it did
+        # nothing and blanked the field.
+        dbc.Input(id=input_id, type="number", min=lo, max=hi, step=1,
                   debounce=True, value=value, size="sm",
                   style={"width": "88px"}),
     ])

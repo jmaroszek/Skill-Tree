@@ -16,6 +16,7 @@ from skilltree.ui.components.duration import unit_select
 from dash import dcc
 from skilltree.domain.contexts import sort_contexts
 from skilltree.domain.models import STATUS_DONE
+from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.ui.components.context_picker import build_single_context_picker
 from skilltree.ui.components.duration import NEW_NODE_TIME_UNIT
@@ -364,7 +365,9 @@ def build_node_editor_content():
                     is_open=False,
                 ),
                 dcc.Store(id='aliases-store', data=['']),
-                dcc.Store(id='editor-pristine-snapshot', data=None),
+                # A fresh page's form is a blank new node. Without this baseline,
+                # what was typed into it counted as nothing to lose.
+                dcc.Store(id='editor-pristine-snapshot', data=NEW_NODE_SNAPSHOT),
                 # The Nodes canvas taps the editor loads: held ones are left
                 # out (callbacks.py, relay_editor_tap).
                 dcc.Store(id='editor-tap-store', data=None),

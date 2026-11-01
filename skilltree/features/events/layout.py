@@ -797,7 +797,7 @@ def build_dormant_nodes_table(event_nodes, event=None):
     """
     if not event_nodes:
         return html.Div(
-            html.P("No dormant nodes yet. Click 'Add Node' to add one.", className="text-muted"),
+            html.P("No dormant nodes yet. Click the + to add one.", className="text-muted"),
             className="text-center py-3"
         )
 

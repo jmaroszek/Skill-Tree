@@ -57,7 +57,9 @@ def register_details_callbacks(app, services):
     )
     @prerendered
     def populate_details_dropdown(_refresh, _version):
-        nodes = graph_manager.get_all_nodes()
+        # Dormant nodes too: View Details reaches them, and a dropdown drops
+        # a value it has no option for, so nothing would load.
+        nodes = graph_manager.get_all_nodes(include_dormant=True)
         return [{"label": n.name, "value": n.name}
                 for n in sorted(nodes, key=lambda n: n.name)]
 

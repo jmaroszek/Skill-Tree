@@ -204,7 +204,7 @@ def test_the_editor_shows_the_refusal_for_a_new_event():
 
     result = _save_event()(1, None, "Ready", "", "node", None, ["Draft"], "any")
 
-    assert "'Draft' is complete already" in result[2]
+    assert "'Draft' is complete already" in result[2].children
     assert EventManager(GraphManager()).get_event("Ready") is None
 
 

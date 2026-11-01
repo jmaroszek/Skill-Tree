@@ -1,10 +1,13 @@
 """The unsaved-changes check: the form against its pristine snapshot."""
 from skilltree.features.editor.form import (
-    build_editor_snapshot, is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
+    EDITOR_FORM, build_editor_snapshot, editor_form_values_from,
+    is_form_dirty_vs_snapshot, NEW_NODE_SNAPSHOT,
     snapshot_from_form_state, editor_form_values,
 )
 import pytest
+from skilltree.shell import build_app_layout
 from skilltree.store.graph.manager import GraphManager
+from support.layout import find
 
 
 # ============================================================================
@@ -388,6 +391,24 @@ class TestEditorFormValues:
             time_p=None, time_unit='weeks',
         ))
         assert not is_form_dirty_vs_snapshot(NEW_NODE_SNAPSHOT, blank)
+
+    def test_a_fresh_pages_form_is_clean_and_what_is_typed_into_it_counts(self):
+        """The form a page opens with has a baseline, as every later one does.
+        It had none, so a name typed before anything had loaded could be closed
+        or replaced without a question."""
+        layout = build_app_layout(GraphManager(), env="sandbox")
+        form = {}
+        for key, state in EDITOR_FORM.items():
+            if isinstance(state.component_id, dict):
+                continue  # Rows the page draws: none has a value yet.
+            form[key] = getattr(find(layout, state.component_id),
+                                state.component_property, None)
+        baseline = find(layout, "editor-pristine-snapshot").data
+
+        assert baseline == NEW_NODE_SNAPSHOT
+        assert not is_form_dirty_vs_snapshot(baseline, editor_form_values_from(form))
+        assert is_form_dirty_vs_snapshot(
+            baseline, editor_form_values_from({**form, 'name': 'Typed'}))
 
     def test_new_node_starts_without_an_estimate(self):
         """The estimate is the user's own call: nothing is pre-filled, and an

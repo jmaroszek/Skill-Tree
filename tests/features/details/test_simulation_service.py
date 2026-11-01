@@ -312,3 +312,39 @@ def test_details_says_so_when_no_work_leads_in(services):
         with pytest.raises(details_simulation.NothingLeft,
                            match=f"No work with a time estimate leads into '\\{name}'"):
             details_simulation._run_simulation(services.graph, name, ['include'], [])
+
+
+def test_details_doesnt_call_hidden_work_missing(services):
+    """Max Depth, Soft Needs or a filter can leave out all the work. Saying none
+    leads in was false, with the subtasks it had hidden a click away."""
+    from skilltree.features.details import simulation as details_simulation
+    manager = services.graph
+    manager.add_node(make_node('Work'))
+    manager.add_node(make_node('Header', time_mode='inherited'))
+    manager.add_node(make_node('Goal', type='Goal', time_mode='inherited'))
+    manager.add_edge('Work', 'Header', 'Needs_Hard')
+    manager.add_edge('Header', 'Goal', 'Needs_Hard')
+    manager.add_node(make_node('Soft Goal', type='Goal', time_mode='inherited'))
+    manager.add_edge('Work', 'Soft Goal', 'Needs_Soft')
+
+    with pytest.raises(details_simulation.NothingLeft, match="'Goal' is outside this view"):
+        details_simulation._run_simulation(services.graph, 'Goal', ['include'], [], max_depth=1)
+    with pytest.raises(details_simulation.NothingLeft, match="'Soft Goal' is outside this view"):
+        details_simulation._run_simulation(services.graph, 'Soft Goal', [], [])
+    # With nothing hidden, the same goal has a chart.
+    figure, *_styles = details_simulation._run_simulation(services.graph, 'Goal', ['include'], [])
+    assert figure is not None
+
+
+def test_done_work_outside_the_view_isnt_hidden_work(services):
+    """With only Done work out of view, the old sentence still holds."""
+    from skilltree.features.details import simulation as details_simulation
+    manager = services.graph
+    manager.add_node(make_node('Finished', status='Done'))
+    manager.add_node(make_node('Header', time_mode='inherited'))
+    manager.add_node(make_node('Goal', type='Goal', time_mode='inherited'))
+    manager.add_edge('Finished', 'Header', 'Needs_Hard')
+    manager.add_edge('Header', 'Goal', 'Needs_Hard')
+
+    with pytest.raises(details_simulation.NothingLeft, match="No work with a time estimate"):
+        details_simulation._run_simulation(services.graph, 'Goal', ['include'], [], max_depth=1)

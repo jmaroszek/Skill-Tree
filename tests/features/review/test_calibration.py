@@ -7,11 +7,13 @@ Uses the temp-database fixture from conftest.py — never touches real data.
 """
 
 
+import dash
 import pytest
 
 from skilltree.domain.models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
 from skilltree.store.commands import handle_save, prior_node_for_completion
 from skilltree.store import settings
+from skilltree.features.review.calibration import register_calibration_callbacks
 from skilltree.features.review.values import (
     calibration_prepop as calibration_prepop,
     calibration_review_queue as calibration_review_queue,
@@ -19,6 +21,8 @@ from skilltree.features.review.values import (
     calibration_modal_text as calibration_modal_text,
 )
 from skilltree.domain.time import HOURS_PER_YEAR_MULT
+from skilltree.services import AppServices
+from support.callbacks import unwrapped
 from support.triggers import fire
 from support.graphs import make_node
 
@@ -468,3 +472,33 @@ class TestMilestoneReflection:
         assert saved.reflect_difficulty is None
         assert saved.actual_time is None
         assert result[2] == "Logged reflection for 'M'."
+
+
+def test_the_reflection_icon_follows_a_settings_save_at_once():
+    # It only looked at the setting on a tab switch, so it stayed after the
+    # prompt was turned off until the next one.
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    register_calibration_callbacks(app, AppServices())
+    spec = next(spec for spec in app.callback_map.values()
+                if unwrapped(spec["callback"]).__name__ == "_calibration_review_button_visibility")
+    assert {i["id"] for i in spec["inputs"]} == {"main-tabs", "settings-save-status"}
+
+    fn = unwrapped(spec["callback"])
+    settings.TIME_CALIBRATION_ENABLED.set(False)
+    assert fn(None, "Settings saved") == {"display": "none"}
+    settings.TIME_CALIBRATION_ENABLED.set(True)
+    assert fn(None, "Settings saved") == {"display": "inline-block"}
+
+
+def test_the_excluded_badge_points_at_where_it_can_be_undone(services):
+    services.graph.add_node(Node(name="Skipped", type="Learn", description="", value=5,
+                                 time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
+                                 status="Done", context="Mind", calibration_dismissed=1))
+    app = dash.Dash(__name__)
+    app.config.suppress_callback_exceptions = True
+    register_calibration_callbacks(app, services)
+    fn = next(unwrapped(spec["callback"]) for spec in app.callback_map.values()
+              if unwrapped(spec["callback"]).__name__ == "_calibration_editor_badge")
+
+    assert "restore in Reflection" in fn("Skipped")[0]

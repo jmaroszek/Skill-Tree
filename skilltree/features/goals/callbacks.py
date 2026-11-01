@@ -177,9 +177,10 @@ def register_goals_callbacks(app, services):
     )
 
     # --- New Goal from Sidebar "+" Button ---
+    # This swaps the sidebars. populate_editor fills the form, and asks first
+    # if that would lose unsaved edits.
     @app.callback(
         Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("node-type", "value", allow_duplicate=True),
         Output("sidebar-editor-container", "style", allow_duplicate=True),
         Input("btn-goals-sidebar-new", "n_clicks"),
         State("details-goal-sidebar", "style"),
@@ -188,12 +189,12 @@ def register_goals_callbacks(app, services):
     )
     def new_goal_from_sidebar(n_clicks, goal_sidebar_style, editor_style):
         if not n_clicks:
-            return no_update, no_update, no_update
+            return no_update, no_update
         goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
         goal_style["transform"] = SIDEBAR_TRANSLATE_CLOSED
         ed_style = dict(editor_style) if editor_style else {}
         ed_style["transform"] = "translateX(0px)"
-        return goal_style, "Goal", ed_style
+        return goal_style, ed_style
 
     # --- Populate Goal Sidebar ---
     # The cards exist only while the sidebar is open. The result is ~130 KB of

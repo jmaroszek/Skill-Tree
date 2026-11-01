@@ -102,7 +102,7 @@ def register_home_callbacks(app, services):
         caption = perf_stats_text(manager)
         return (format_suggestions_table(next_rows.rows, manager,
                                          pinned_steps=next_rows.pinned_steps),
-                caption if caption and caption != perf_caption else no_update)
+                caption if caption != perf_caption else no_update)
 
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any

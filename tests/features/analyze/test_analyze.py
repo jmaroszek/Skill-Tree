@@ -1139,3 +1139,14 @@ class TestAnalyzeRefreshGate:
         out = refresh('analyze-active-store', 'tab-analyze', None)
         assert out[-3:-1] == (False, True)
         assert out[-1] is None
+
+
+def test_the_row_count_fields_take_any_whole_number():
+    # A step of 5 made the browser call 7 invalid: typing it did nothing, and
+    # the field came back blank.
+    from skilltree.features.analyze.layout import build_analyze_tab_content
+    from support.layout import find
+
+    layout = build_analyze_tab_content()
+    for field in ("setting-analyze-goals", "setting-analyze-bottlenecks"):
+        assert find(layout, field).step == 1

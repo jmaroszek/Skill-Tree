@@ -236,5 +236,5 @@ def open_resource(value, section, confirmed=False):
             if not absolute_path(target):
                 target = os.path.abspath(target)
             if not os.path.exists(target):
-                raise FileNotFoundError(target)
+                raise FileNotFoundError(f"There is no file at {target}.")
         open_path(target)

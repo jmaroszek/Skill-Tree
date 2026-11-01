@@ -14,7 +14,7 @@ stays inside it until **Escape** or Close, including the usual draft checks.
 After opening a panel with the mouse, Tab from its opener enters the panel.
 Floating panels, modals and fullscreen follow the same focus boundary. Escape
 closes the innermost menu or panel first and returns focus to its opener.
-Use **Ctrl+S** (**Cmd+S** on macOS) to save the focused node editor, event
+Use **Ctrl+S** (**Cmd+S** on macOS) to save the focused node editor or event
 editor. Settings saves automatically when you close it. Tooltips open on mouse
 hover only, never on keyboard focus. Escape on an open dropdown closes it without changing its value; the
 next Escape closes the panel. **Enter** on a main tab moves straight into it:
@@ -90,7 +90,7 @@ A node's name is how you find it (using the search bar) and reference it from ot
 
 Unique doesn't have to mean singular, though. 
 
-**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* I actually created two separate projects for the same resource. But now that I have the alias feature, both names direct to the same project. You can add an alias using the gray dropdown arrow next to the name field.
+**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* I actually created two separate projects for the same resource. But now that I have the alias feature, both names direct to the same project. You can add an alias using the **+** next to the name field.
 
 
 ### Node Type
@@ -664,13 +664,12 @@ The top-left panel summarizes the selected node. Most of it is self-explanatory,
 - **Top-level Goals** get a rank badge (Priority 1, 2, or 3) and a progress bar below their description tracking completion. Progress is the share of the Goal's estimated hours that are done, so one large topic still to go keeps the bar short however many small nodes are finished.
 - **Goal dependents** get badges like `Hard 1` or `Soft 2`. The number is which Priority Goal the node feeds; Hard / Soft is whether it does so through a hard or soft chain. `Soft 2` reads as "this node contributes, via a soft path, to your second Priority Goal."
 
-The rest of the panel — node stats and three action buttons — reuses functions introduced elsewhere.
+The rest of the panel — node stats and two action buttons — reuses functions introduced elsewhere.
 
 | Button | What it does |
 |---|---|
 | Edit | Opens the node editor. |
 | Explain | Opens the [explain](#explain) window. |
-| Locate | Briefly pulses the node on the mini-canvas (the same function as the crosshair icon by the node editor search bar). |
 
 ## Canvas Panel
 Every gesture from the [Nodes Tab](#nodes-tab) is supported on Details too, but the canvas has a different job. Nodes is the overview; Details is the local graph. It starts from the selected node and follows its prerequisites instead of treating every relationship as an undirected hop. Hard Needs are always followed, Soft Needs are optional, and Synergies add only direct partners of the selected node. A synergy partner can bring along its own prerequisites, but synergies never chain endlessly into another part of the network.
@@ -702,7 +701,7 @@ Two columns stand out: the **relationship** to the selected node — Hard, Soft,
   <em> Details Tab with Stoicism Goal. </em>
 </p>
 
-If a subtask has a *direct* edge to the selected node, an **×** appears at the end of its row. Click it to open the **Remove Subtask** modal: choose **Remove Edge** to sever just the link (the node stays in the graph), or **Delete Node** to remove the node entirely. The **+** next to the "Subtasks" header opens a menu. **New node** opens the node editor with a Hard relationship to the selected node prefilled under Supports; you can change it to Soft before saving. **Existing node…** opens a small modal to choose a node and a Hard or Soft relationship.
+Click a subtask's name to move the whole tab to it. The pencil at the end of its row opens it in the node editor. The **+** next to the "Subtasks" header opens a menu. **New node** opens the node editor with a Hard relationship to the selected node prefilled under Supports; you can change it to Soft before saving. **Existing node…** opens a small modal to choose a node and a Hard or Soft relationship.
 
 If the subtree contains any Milestones, they get their own horizontal strip of tiles above the table. Milestones are checkpoints rather than work, so they're kept visually separate from the subtasks you actually grind through.
 
@@ -820,12 +819,12 @@ Picking a single node makes the choice moot, so the app just treats it as the pl
 
 A few details worth knowing. Firing is one-way: once an event fires, un-completing one of its trigger nodes does **not** put the dormant nodes back to sleep. Deleting a trigger node narrows the condition rather than voiding it. The remaining nodes still have to be finished, and if they already are, the event fires then. If you delete the *last* node in the set, the event has nothing left to watch. It falls back to manual and tells you it did.
 
-Saving an event checks the condition too. Dropping the last unfinished node from an All event fires it on the spot, and so does switching to Any when one node is Done. A new event can't watch a node that is already Done. It would fire as soon as you saved it, before you could put anything in it.
+Saving an event checks the condition too. Dropping the last unfinished node from an All event fires it on the spot, and so does switching to Any when one node is Done. A new event can't watch a node that is already Done. It would fire as soon as you saved it, before you could put anything in it. A date that has already come is refused for the same reason.
 
 A node can't sleep in an event it triggers. It would have to wake before it could be finished, and it can't wake until the event fires. A delay can be up to 100 years.
 
 ## The Events Tab
-The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The tab's empty state knows this, and offers an **Open Events Sidebar** button to get you started.
+The Events tab is where you create, edit, and trigger events. Unlike the other tabs, it can't function on its own — it needs an event loaded, and the only way to load one is through the Events sidebar. The sidebar opens by itself when you come to the tab with no event loaded, and the tab's empty state points you to it.
 
 <p align="center">
   <img src="images/events-empty.png">
@@ -989,7 +988,7 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 ## Rating Accuracy
 
-**Rating Drift by Context** does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one panel for each of the three. Each bar shows the average change between your original rating and your reflection. A red bar left of zero means you overrated the work going in. A blue bar right of zero means you underrated it. All three panels share one scale, so bar lengths compare directly.
+This chart does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one panel for each of the three. Each bar shows the average change between your original rating and your reflection. A red bar left of zero means you overrated the work going in. A blue bar right of zero means you underrated it. All three panels share one scale, so bar lengths compare directly.
 
 A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has. Milestones and nodes that inherit their ratings are left out. Their ratings don't count toward a score, so there is nothing to drift from.
 

@@ -1,9 +1,11 @@
 """The core engine's handlers, called directly with a Request."""
 import dash
+import pytest
 
 from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN, Node
 from skilltree.engine.handlers import Outcome, Request, handle
+from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 
 OPEN_EDITOR = {'transform': 'translateX(0px)'}
@@ -32,17 +34,38 @@ def test_anything_else_changes_nothing(services):
     assert handle(_request(services, 'filter-context')) == Outcome()
 
 
+def _new_node_form(**fields):
+    return editor_form(time_unit=NEW_NODE_SNAPSHOT['time_unit'], **fields)
+
+
 def test_a_save_without_a_name_closes_a_blank_form(services):
-    outcome = handle(_request(services, 'btn-save', form=editor_form(n_type='Learn')))
+    outcome = handle(_request(services, 'btn-save', form=_new_node_form(),
+                              pristine_snapshot=NEW_NODE_SNAPSHOT))
     assert outcome.response.message == ""
     assert outcome.response.editor_style['transform'] == SIDEBAR_TRANSLATE_CLOSED
 
 
-def test_a_save_without_a_name_says_so_when_the_form_has_content(services):
-    outcome = handle(_request(services, 'btn-save',
-                              form=editor_form(n_type='Learn', desc='notes')))
+@pytest.mark.parametrize("fields", [
+    {'desc': 'notes'}, {'val': 8},
+    # These closed the editor and lost what was in them.
+    {'n_type': 'Learn'}, {'context': 'Mind'}, {'time_m': 2},
+    {'e_needs_h': ['First']}, {'aliases': ['Other Name']},
+])
+def test_a_save_without_a_name_says_so_when_the_form_has_content(services, fields):
+    outcome = handle(_request(services, 'btn-save', form=_new_node_form(**fields),
+                              pristine_snapshot=NEW_NODE_SNAPSHOT))
     assert outcome.response.message == "Error: Node name is required."
+    assert outcome.response.editor_style == OPEN_EDITOR
     assert services.graph.get_all_nodes() == []
+
+
+def test_a_save_that_blanks_a_loaded_nodes_name_says_so(services):
+    services.graph.add_node(_node("Loaded"))
+    outcome = handle(_request(services, 'btn-save', form=_new_node_form(),
+                              original_name="Loaded",
+                              pristine_snapshot={**NEW_NODE_SNAPSHOT, 'name': 'Loaded'}))
+    assert outcome.response.message == "Error: Node name is required."
+    assert services.graph.get_node("Loaded") is not None
 
 
 def test_a_save_may_not_take_another_nodes_name(services):

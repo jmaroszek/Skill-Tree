@@ -318,10 +318,11 @@ def register_calibration_callbacks(app, services):
     @app.callback(
         Output('btn-calibration-review', 'style'),
         Input('main-tabs', 'active_tab'),
+        Input('settings-save-status', 'children'),
         prevent_initial_call=True,
     )
     @prerendered
-    def _calibration_review_button_visibility(_active_tab):
+    def _calibration_review_button_visibility(_active_tab, _settings_saved):
         if settings.TIME_CALIBRATION_ENABLED.get():
             return {"display": "inline-block"}
         return {"display": "none"}
@@ -338,6 +339,6 @@ def register_calibration_callbacks(app, services):
     def _calibration_editor_badge(original_name):
         node = manager.get_node(original_name) if original_name else None
         if node is not None and node.calibration_dismissed:
-            return ("Excluded from calibration review — restore in Settings.",
+            return ("Excluded from calibration review — restore in Reflection.",
                     {"display": "block"})
         return "", {"display": "none"}

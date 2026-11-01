@@ -188,3 +188,22 @@ def test_a_habit_save_says_what_is_missing():
     warning, disabled, tip = habit(4, 5, 50, 15, [0])
     assert disabled is True and warning == tip and "Expected must be ≤ Upper" in tip
     assert habit(4, 5, 10, 15, [0]) == ("", False, SAVE_HINT)
+
+
+def test_the_now_step_names_the_menu_item():
+    # The node menu's item reads Add to Now.
+    step = next(s for s in onboarding.getting_started(GraphManager()) if s.key == "now")
+
+    assert "choose Add to Now" in step.hint
+
+
+def test_save_starts_disabled_on_the_form_a_page_opens_with():
+    # Every other blank form had Save off until there was an estimate, and the
+    # first one had it on, because nothing had changed for the check to run.
+    from skilltree import app as app_module
+    app = app_module.create_app(app_module.AppSettings(
+        environment="sandbox", configure_logging=False))
+    layout = app.layout()
+
+    assert find(layout, "btn-save").disabled is True
+    assert "Expected" in find(layout, "editor-save-tooltip").children

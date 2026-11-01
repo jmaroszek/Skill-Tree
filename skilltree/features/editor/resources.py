@@ -111,7 +111,7 @@ def register_resource_link_callbacks(app, services):
         section_id = key.rpartition(':')[0]
         section = next((s for s in get_sections() if s['id'] == section_id), None)
         if section is None:
-            return ('That resource no longer exists.',) + unchanged
+            return ('Error: That resource no longer exists.',) + unchanged
         value = next((value for value, item_id in zip(values, ids)
                       if item_id['index'] == key), '')
         try:
@@ -134,7 +134,7 @@ def register_resource_link_callbacks(app, services):
             return dash.no_update
         section = next((s for s in get_sections() if s['id'] == pending.get('section')), None)
         if section is None:
-            return 'That resource no longer exists.'
+            return 'Error: That resource no longer exists.'
         try:
             open_resource(pending.get('link', ''), section, confirmed=True)
             return dash.no_update
@@ -145,7 +145,7 @@ def register_resource_link_callbacks(app, services):
         # A missing file or an unset root folder is expected, and its text
         # says what to fix. The log keeps it for anything stranger.
         logger.warning("Opening a %s link failed: %s", section['name'], exc)
-        return f"Error opening {section['name']}: {exc}"
+        return f"Error: Couldn't open that {section['name']} link. {exc}"
 
     # The desktop window's native picker (assets/editor/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.

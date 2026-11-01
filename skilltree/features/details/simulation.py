@@ -120,6 +120,16 @@ class NothingLeft(Exception):
     """The node has no unfinished work to simulate. The message says why."""
 
 
+def _work_outside_view(graph, node_name, allowed, include_helps):
+    """Whether unfinished work with hours of its own leads into the node from
+    outside the names in ``allowed``."""
+    whole = graph.get_dependency_view(node_name, include_soft=True,
+                                      include_synergies=include_helps)
+    outside = (graph.get_node(name) for name in set(whole["node_names"]) - allowed)
+    return any(node is not None and node.status != STATUS_DONE and not node.has_no_own_work
+               for node in outside)
+
+
 def _run_simulation(graph, node_name, include_soft_val, include_synergies_val,
                     global_filters=None, max_depth=None, should_cancel=None):
     """Shared helper: run the Monte Carlo simulation and return (figure, style, style).
@@ -166,9 +176,13 @@ def _run_simulation(graph, node_name, include_soft_val, include_synergies_val,
         node_name, nodes_dict, sim_edges, include_soft, include_helps,
         requested_trials, should_cancel=should_cancel)
     # Every run took zero hours: a chart of P10 = P50 = P90 = 0 tells the user
-    # nothing. Either the work beneath is all Done, or nothing beneath holds
-    # hours at all, like a Milestone over only other Milestones.
+    # nothing. Max Depth, Soft Needs or a filter may have left the work out,
+    # or the work beneath is all Done, or nothing beneath holds hours at all,
+    # like a Milestone over only other Milestones.
     if result['stats']['max'] == 0:
+        if _work_outside_view(graph, node_name, allowed, include_helps):
+            raise NothingLeft(f"The work leading into '{node_name}' is outside this view. "
+                              "Max Depth, Soft Needs or a filter is hiding it.")
         if any(node.status == STATUS_DONE and not node.has_no_own_work
                for name, node in nodes_dict.items() if name != node_name):
             raise NothingLeft(f"Everything '{node_name}' needs is Done, so there is no "
