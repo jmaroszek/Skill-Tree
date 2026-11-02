@@ -1,5 +1,6 @@
 # Skill Tree — what packaging needs: the runtime set plus PyInstaller.
-# The release workflow installs this file; see packaging/skilltree-server.spec.
+# Builds install requirements-lock.txt, which is compiled from this file.
+# docs/setup.md, section 5, has the command.
 -r requirements.txt
 
 pyinstaller==6.22.3

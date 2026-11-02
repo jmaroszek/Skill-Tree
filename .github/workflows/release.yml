@@ -87,8 +87,10 @@ jobs:
         shell: pwsh
         run: Invoke-Expression $env:WINDOWS_SIGN_SETUP
 
+      # Every package at the version and hashes in the lock, so what goes into a
+      # signed installer doesn't change when PyPI does.
       - name: Install build tools
-        run: python -m pip install -r requirements-build.txt
+        run: python -m pip install --require-hashes -r requirements-lock.txt
 
       - name: Install the shell's packages
         working-directory: electron

@@ -1,5 +1,6 @@
 # Skill Tree — runtime pip dependencies (what the app needs to run).
 # Mirrors environment.yml; keep the two in sync when bumping a version.
+# Then recompile requirements-lock.txt: docs/setup.md, section 5, has the command.
 # Test and packaging tools live in requirements-dev.txt.
 # Conda users should prefer environment.yml instead.
 # Requires Python 3.13.

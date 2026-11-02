@@ -1,6 +1,6 @@
 # PyInstaller spec for the Skill Tree server: one folder, one console binary.
 #
-#   pip install -r requirements-build.txt
+#   pip install --require-hashes -r requirements-lock.txt
 #   pyinstaller packaging/skilltree-server.spec --noconfirm
 #
 # Output: dist/skilltree-server/skilltree-server[.exe], with its libraries in

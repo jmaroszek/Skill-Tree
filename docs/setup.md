@@ -40,7 +40,7 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
-`requirements-dev.txt` installs the runtime set in `requirements.txt` plus the test tools. Both mirror `environment.yml`. If you bump a dependency, update all three files.
+`requirements-dev.txt` installs the runtime set in `requirements.txt` plus the test tools. Both mirror `environment.yml`. If you bump a dependency, update all three files, then recompile `requirements-lock.txt` (section 5).
 
 ## 3. Run the app
 
@@ -93,13 +93,32 @@ The desktop app is the Electron shell plus a PyInstaller build of the server.
 Each platform builds its own:
 
 ```bash
-pip install -r requirements-build.txt
+pip install --require-hashes -r requirements-lock.txt
 (cd electron && npm ci)
 python packaging/third_party_notices.py                              # -> THIRD_PARTY_NOTICES.txt
 python -m PyInstaller packaging/skilltree-server.spec --noconfirm   # -> dist/skilltree-server/
 python packaging/smoke_test.py dist/skilltree-server/skilltree-server
 cd electron && npm run dist                                          # -> electron/dist/
 ```
+
+- `requirements-lock.txt` pins every package a build installs, on every platform,
+  each with its hashes. That means what `requirements-build.txt` names and everything
+  those packages pull in. CI's server build and the release workflow install from it,
+  so a release doesn't pick up whatever PyPI has that day. It's also how GitHub's
+  dependency graph, and so Dependabot, sees indirect packages such as Flask and
+  Werkzeug. A package only one platform needs, such as `pefile`, carries a marker, and
+  pip skips it elsewhere. After changing a pin, recompile the lock. A test fails until
+  you do:
+
+  ```bash
+  pip install uv
+  uv pip compile requirements-build.txt --universal --python-version 3.13 --generate-hashes --output-file requirements-lock.txt
+  ```
+
+  Pins already in the lock stay where they are. To take a newer indirect package, such
+  as a security fix, add `--upgrade-package werkzeug`, or `--upgrade` for all of them.
+  If uv reports an `UnknownIssuer` certificate error, set `UV_SYSTEM_CERTS=1` and clear
+  `SSL_CERT_FILE`, so it reads the operating system's certificates as pip does.
 
 - `third_party_notices.py` lists what the build ships that others wrote, with their
   licenses: the server's Python packages, the shell's npm packages and the vendored
