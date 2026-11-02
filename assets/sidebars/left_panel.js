@@ -49,7 +49,8 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
             case 'btn-details-goals-close': return closed(current, 'goals');
             case 'btn-events-sidebar-toggle': return toggled(current, 'events');
             case 'btn-events-sidebar-close': return closed(current, 'events');
-            // Closing it from here runs the unsaved-changes check, on the server.
+            // On an open editor this is a close, which asks the server first
+            // (advance). Nothing changes here.
             case 'btn-add': return 'editor';
             case 'btn-goals-sidebar-new':
             case 'btn-bridge-create':
@@ -86,13 +87,18 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
         var state = {selectedEvent: states[1], emptyStyle: states[2], selectedNode: states[3]};
         var goalListSources = states.slice(4);
         var ctx = window.dash_clientside.callback_context;
+        var NO = window.dash_clientside.no_update;
         var panel = current;
+        var closeAsk = NO;
         (ctx.triggered || []).forEach(function (fired) {
-            panel = next(panel, fired.prop_id.split('.')[0], fired.value, state);
+            var id = fired.prop_id.split('.')[0];
+            // Only here is it known that this click found the editor open. The
+            // unsaved-changes check runs on the server, and by the time it runs
+            // the store may already say what the click did.
+            if (id === 'btn-add' && fired.value && panel === 'editor') closeAsk = Date.now();
+            panel = next(panel, id, fired.value, state);
         });
-        if (panel === current) {
-            return Array(5).fill(window.dash_clientside.no_update);
-        }
+        if (panel === current) return [NO, NO, NO, NO, NO, closeAsk];
         // Plain calls, not callbacks on the store: each callback costs about a
         // dozen store updates, all before the browser paints the slide's first
         // frame.
@@ -103,6 +109,7 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
                 sidebarClass(current, panel, 'events'),
                 classIfChanged(current, panel, 'events',
                                'events-tab-inner is-beside-sidebar', 'events-tab-inner'),
-                panel];
+                panel,
+                closeAsk];
     };
 })();

@@ -45,6 +45,7 @@ from skilltree.store.commands import bridge_form, node_with_alias, plan_bridge
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
+from skilltree.ui.left_panel import close_editor
 from skilltree.ui.notices import info
 from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.duration import work_time_tooltip
@@ -52,10 +53,11 @@ from skilltree.ui.components.ratings_table import (
     build_editor_table,
     build_popup_table_rows,
 )
-from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.ui.dash_tools import get_all_triggered_ids, get_trigger_id
 from skilltree.ui.prerender import prerendered
 from skilltree.features.editor.resources import register_resource_link_callbacks
 from skilltree.features.editor.dormancy import register_dormancy_callbacks
+from skilltree.features.editor.navigation import ASK, CLOSE, KEEP, next_step
 
 
 # populate_editor's outputs. An output that shows a form field takes the key of
@@ -97,7 +99,8 @@ EDITOR_FILL = dict(
     aliases=Output('aliases-store', 'data'),
     aliases_open=Output('collapse-aliases', 'is_open'),
     pending_nav=Output('pending-navigation-store', 'data'),
-    unsaved_open=Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
+    unsaved_open=Output('modal-unsaved-changes', 'is_open'),
+    close_request=Output('left-panel-request', 'data', allow_duplicate=True),
     snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
     value_mode=Output('node-value-mode', 'value'),
     time_habit_mode=Output('node-time-habit-mode', 'value'),
@@ -118,11 +121,9 @@ def _relationship_options(options):
     return {f'{key}_options': options for key in RELATIONSHIP_FIELDS}
 
 
-def _untouched(options, **changes):
-    """populate_editor's outputs left as they are, except ``changes`` and the
-    relationship options, which are always refreshed."""
-    return {**dict.fromkeys(EDITOR_FILL, no_update),
-            **_relationship_options(options), **changes}
+def _untouched(**changes):
+    """populate_editor's outputs left as they are, except ``changes``."""
+    return {**dict.fromkeys(EDITOR_FILL, no_update), **changes}
 
 
 def _filled(snapshot, options, *, status, original_name, search=no_update, bridge=None):
@@ -130,13 +131,14 @@ def _filled(snapshot, options, *, status, original_name, search=no_update, bridg
 
     A load closes the unsaved-changes dialog and forgets where it was going.
     ``search`` is what the node picker shows. Leaving it alone avoids
-    triggering core_engine again.
+    triggering core_engine again. The relationship options only go out with a
+    form: at about 230 KB, nothing else that happens here should pay for them.
     """
     out = {key: snapshot[key] for key in EDITOR_FILL if key in snapshot}
     out.update(_relationship_options(options))
     out.update(status_text=status, time_unit_prev=snapshot['time_unit'],
                original_name=original_name, search=search, pending_nav=None,
-               unsaved_open=False, snapshot=snapshot, bridge=bridge,
+               unsaved_open=False, close_request=no_update, snapshot=snapshot, bridge=bridge,
                aliases_open=any((a or '').strip() for a in snapshot.get('aliases') or []))
     return out
 
@@ -328,6 +330,10 @@ def register_editor_callbacks(app, services):
         inputs=dict(
             tapped_node=Input('editor-tap-store', 'data'),
             add_clicks=Input('btn-add', 'n_clicks'),
+            close_clicks=Input('btn-close-editor', 'n_clicks'),
+            close_asked=Input('editor-close-ask', 'data'),
+            cancel_clicks=Input('btn-unsaved-cancel', 'n_clicks'),
+            answer_save_clicks=Input('btn-unsaved-save', 'n_clicks'),
             discard_clicks=Input('btn-unsaved-discard', 'n_clicks'),
             save_result=Input('editor-save-result-store', 'data'),
             search_val=Input('search-node', 'value'),
@@ -357,13 +363,14 @@ def register_editor_callbacks(app, services):
         # a dozen follow-on callbacks, all before the editor could be seen.
         prevent_initial_call=True,
     )
-    def populate_editor(tapped_node, add_clicks, discard_clicks, save_result, search_val,
+    def populate_editor(tapped_node, add_clicks, close_clicks, close_asked, cancel_clicks,
+                        answer_save_clicks, discard_clicks, save_result, search_val,
                         _bg_click, editor_new_clicks, goal_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
                         revert_clicks, left_panel, original_name, pending_nav,
                         pristine_snapshot, details_selected_node, bridge_ends,
                         bridge_kind, form):
-        """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
+        """What the editor shows and does next, whatever asked (editor navigation).
 
         `form` is what the editor holds now (editor form.EDITOR_FORM),
         checked against `pristine_snapshot` before a switch discards it.
@@ -372,33 +379,16 @@ def register_editor_callbacks(app, services):
         trigger_id = get_trigger_id()
         editor_open = left_panel == 'editor'
 
-        # Relationship pickers must include dormant nodes so active nodes can
-        # be wired to work that has not triggered yet.
-        all_nodes = manager.get_all_nodes(include_dormant=True)
-        options = node_options(all_nodes, aliases=manager.get_all_aliases())
+        def _options(exclude=None):
+            # Relationship pickers must include dormant nodes so active nodes
+            # can be wired to work that has not triggered yet.
+            return node_options(manager.get_all_nodes(include_dormant=True),
+                                exclude=exclude, aliases=manager.get_all_aliases())
 
-        # Opening Goals or Events slides the editor away with its form as it
-        # was, so a closed editor can hold unsaved edits too.
-        def _has_unsaved_edits():
-            return is_form_dirty_vs_snapshot(
-                pristine_snapshot, editor_form_values_from(form))
-
-        def _ask(target, picker=no_update):
-            """The unsaved-changes dialog, which goes on to `target` once
-            answered: a node name or a pending-navigation sentinel. `picker`
-            is what the node picker goes back to while the dialog asks."""
-            return _untouched(options, search=picker, pending_nav=target,
-                              unsaved_open=True)
-
-        def _ask_before_leaving(target, picker=no_update):
-            """The dialog in place of loading `target`, or None when the open
-            form has nothing to lose. Loading the node the form already holds
-            keeps its edits and asks nothing."""
-            if not _has_unsaved_edits():
-                return None
-            if target == original_name:
-                return _untouched(options, search=picker)
-            return _ask(target, picker)
+        def _load(node, search):
+            return _filled(build_editor_snapshot(manager, services.events, node.name),
+                           _options(exclude=node.name), status=node.status,
+                           original_name=node.name, search=search)
 
         def _new_node(search=None, bridge=None, **fields):
             """A blank form, with `fields` filled in. Clearing the search bar
@@ -408,13 +398,8 @@ def register_editor_callbacks(app, services):
             survives until the user picks one. Defaulting it to Learn meant a
             new node silently claimed a type nobody chose; saving without one
             is refused ("Node type is required")."""
-            return _filled({**NEW_NODE_SNAPSHOT, **fields}, options, status=STATUS_OPEN,
+            return _filled({**NEW_NODE_SNAPSHOT, **fields}, _options(), status=STATUS_OPEN,
                            original_name=None, search=search, bridge=bridge)
-
-        def _new_goal():
-            """The Goals sidebar's "+": a blank form that is already a Goal,
-            whose time is always inherited."""
-            return _new_node(n_type='Goal', time_mode=['inherited'])
 
         def _bridge_form():
             """A new node between the bridge dialog's two nodes, with the
@@ -429,103 +414,126 @@ def register_editor_callbacks(app, services):
                                      'replaces': plan['replaces']},
                              **bridge_form(start, end, bridge_kind))
 
-        if trigger_id == 'btn-add':
-            # Toolbar toggle: left_panel.js opens, and core_engine closes. Leave the form untouched so reopening shows
-            # the last-loaded node (matches the Goals/Events toggles).
-            return _untouched(options)
-
-        if trigger_id in ('btn-editor-new', 'details-add-choice-input'):
-            parent = None
-            if trigger_id == 'details-add-choice-input':
-                if not (details_add_choice or '').startswith('new|') or not details_selected_node:
-                    return _untouched(options)
-                if manager.get_node(details_selected_node) is None:
-                    return _untouched(options)
-                parent = details_selected_node
-            if _has_unsaved_edits():
-                return _ask(f'__new_subtask__|{parent}' if parent else '__new_node__')
-            # Clearing search-node re-fires core_engine with an empty value,
-            # but the editor is already open here and compute_sidebar_styles
-            # guards that case (search-node + no value → leave the editor
-            # untouched), so it stays open. A subtask starts with its parent
-            # under Supports > Hard.
-            return _new_node(e_supp_h=[parent]) if parent else _new_node()
-
-        if trigger_id == 'btn-goals-sidebar-new':
-            if not goal_new_clicks:
-                return _untouched(options)
-            return _ask('__new_goal__') if _has_unsaved_edits() else _new_goal()
-
-        if trigger_id == 'btn-bridge-create':
-            if not bridge_clicks:
-                return _untouched(options)
-            if _has_unsaved_edits():
-                return _ask('__bridge__')
-            return _bridge_form() or _untouched(options)
-
-        if trigger_id == 'background-click-input':
-            # Intercept background click when the editor is open with unsaved
-            # changes — show the save/discard modal instead of silently clobbering.
-            # Behind another sidebar the form is out of sight and the click
-            # isn't about it, so it stays for when the editor comes back.
-            if _has_unsaved_edits():
-                return _ask('__background__') if editor_open else _untouched(options)
-            return _new_node()
-
-        # The unsaved-changes dialog's Save moves on only once the save has
-        # committed, which core_engine reports here. It used to move on at
-        # the click, so a refused save (a name clash, a cycle) still swapped
-        # the form out and lost the edits the error was about.
-        if trigger_id == 'editor-save-result-store':
-            if (save_result or {}).get('via') != 'btn-unsaved-save':
-                return dict.fromkeys(EDITOR_FILL, no_update)
-            trigger_id = 'btn-unsaved-save'
-
-        # Find the node to load. A tap, an Edit (the node menu, the Events
-        # table, Details) and the node picker all ask before they replace
-        # unsaved edits.
-        node = None
-        if trigger_id in ('btn-unsaved-discard', 'btn-unsaved-save'):
-            # The dialog was answered: go on to where it was going.
-            if not pending_nav:
-                return _new_node(search=no_update)
-            if pending_nav == '__bridge__':
-                return _bridge_form() or _new_node(search=no_update)
-            if pending_nav in ('__new_node__', '__background__'):
-                # __new_node__ leaves the editor open on a blank form;
-                # __background__ closes it (core_engine).
+        def _go_to(intent, blank_search=None, gone=None):
+            """Show what ``intent`` asked for. ``gone`` is the answer when what it
+            named no longer exists, which can happen while a dialog waits."""
+            kind = intent['kind']
+            if kind == 'bridge':
+                return _bridge_form() or gone
+            if kind == 'background':
                 return _new_node()
-            if pending_nav == '__new_goal__':
-                return _new_goal()
-            if pending_nav.startswith('__new_subtask__|'):
-                parent = pending_nav.split('|', 1)[1]
-                if manager.get_node(parent) is None:
-                    return _new_node()
-                return _new_node(e_supp_h=[parent])
-            node = manager.get_node(pending_nav)
+            if kind == 'new':
+                parent = intent.get('parent')
+                if parent:
+                    # A subtask starts with its parent under Supports > Hard.
+                    return (_new_node(e_supp_h=[parent]) if manager.get_node(parent)
+                            else _new_node())
+                if intent.get('goal'):
+                    # The Goals sidebar's "+": a blank form that is already a
+                    # Goal, whose time is always inherited.
+                    return _new_node(n_type='Goal', time_mode=['inherited'])
+                return _new_node(search=blank_search)
+            # The picker names the loaded node while the editor is open, and
+            # when an Edit opens it.
+            node = manager.get_node(intent['name'])
             if node is None:
-                return _new_node(search=no_update)
-        elif trigger_id == 'btn-revert':
+                return gone
+            return _load(node, node.name if editor_open or kind == 'edit' else no_update)
+
+        def _decide(intent, picker=no_update, blank_search=None):
+            """Go to ``intent``, ask first, or leave the form alone (next_step).
+            `picker` is what the node picker goes back to meanwhile, so it never
+            names a node the form isn't showing."""
+            dirty = is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form))
+            holds = 'name' in intent and intent['name'] == original_name
+            step = next_step(intent, editor_open, dirty, holds)
+            if step == ASK:
+                return _untouched(search=picker, pending_nav=intent, unsaved_open=True)
+            if step == KEEP:
+                return _untouched(search=picker)
+            if step == CLOSE:
+                return _untouched(close_request=close_editor())
+            return _go_to(intent, blank_search, gone=_untouched())
+
+        def _answered():
+            """The dialog was answered and nothing stands in the way. A close
+            or an empty canvas click leaves a blank form behind."""
+            intent = pending_nav or {'kind': 'close'}
+            if intent['kind'] in ('close', 'background'):
+                return {**_new_node(), 'close_request': close_editor()}
+            return _go_to(intent, gone=_new_node(search=no_update))
+
+        # Dash holds this callback back while the core engine runs, since that
+        # writes one of its Inputs, and whatever fired meanwhile arrives as one
+        # run. So what must not be missed is looked for among everything fired,
+        # not only what's named first.
+        fired = get_all_triggered_ids()
+
+        # --- The dialog's answers ---
+        if 'editor-save-result-store' in fired:
+            if (save_result or {}).get('via') == 'btn-unsaved-save':
+                return _answered()
+            # A rename takes the old name out of the picker, which empties it.
+            # That isn't a request for a blank form.
+            if trigger_id in ('editor-save-result-store', 'search-node'):
+                return _untouched()
+        if trigger_id == 'btn-unsaved-cancel':
+            # Keep editing forgets where it was going, or a later Discard would
+            # load the node a cancelled tap was heading for.
+            return _untouched(pending_nav=None, unsaved_open=False)
+        if trigger_id == 'btn-unsaved-save':
+            # Its save may be refused, which keeps the form and the edits. It
+            # moves on once core_engine reports the commit, above.
+            return _untouched(unsaved_open=False)
+        if trigger_id == 'btn-unsaved-discard':
+            return _answered()
+
+        # --- Closing ---
+        # Only left_panel.js knows whether the toolbar icon's click found the
+        # editor open: by the time this runs, left-panel-store can already say
+        # what the click did. So the script asks.
+        if close_asked and 'editor-close-ask' in fired:
+            return _decide({'kind': 'close'})
+        if trigger_id == 'btn-add':
+            # left_panel.js opens the editor, keeping the last-loaded node.
+            return _untouched(**_relationship_options(_options()))
+        if trigger_id == 'btn-close-editor':
+            return _decide({'kind': 'close'})
+
+        # --- Starting a new form ---
+        if trigger_id == 'btn-editor-new':
+            return _decide({'kind': 'new'})
+        if trigger_id == 'details-add-choice-input':
+            if (not (details_add_choice or '').startswith('new|') or not details_selected_node
+                    or manager.get_node(details_selected_node) is None):
+                return _untouched()
+            return _decide({'kind': 'new', 'parent': details_selected_node})
+        if trigger_id == 'btn-goals-sidebar-new':
+            return _decide({'kind': 'new', 'goal': True}) if goal_new_clicks else _untouched()
+        if trigger_id == 'btn-bridge-create':
+            return _decide({'kind': 'bridge'}) if bridge_clicks else _untouched()
+        if trigger_id == 'background-click-input':
+            return _decide({'kind': 'background'})
+
+        # --- Reverting ---
+        if trigger_id == 'btn-revert':
             # Reload the node the editor holds, dropping what wasn't saved.
-            if revert_clicks and original_name:
-                node = manager.get_node(original_name)
-        elif trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
+            node = manager.get_node(original_name) if revert_clicks and original_name else None
+            if node is None:
+                return _untouched()
+            return _load(node, node.name if editor_open else no_update)
+
+        # --- Loading a node ---
+        if trigger_id in ('edit-trigger-input', 'details-edit-trigger-input'):
             # The node's name is carried in the trigger value.
             edit_val = (edit_trigger_val if trigger_id == 'edit-trigger-input'
                         else details_edit_trigger_val)
-            if edit_val:
-                node = manager.get_node(bridge_payloads.strip_stamp(edit_val))
-            if node is not None:
-                asked = _ask_before_leaving(node.name)
-                if asked is not None:
-                    return asked
-        elif trigger_id == 'search-node':
-            # While the dialog asks, the picker goes back to the node the
-            # form holds, so it never names a node the form isn't showing.
+            node = manager.get_node(bridge_payloads.strip_stamp(edit_val)) if edit_val else None
+            return _decide({'kind': 'edit', 'name': node.name}) if node else _untouched()
+        if trigger_id == 'search-node':
             if not search_val:
                 # Clearing the picker starts a blank form, as New Node does.
-                return (_ask_before_leaving('__new_node__', picker=original_name)
-                        or _new_node(search=no_update))
+                return _decide({'kind': 'new'}, picker=original_name, blank_search=no_update)
             # Resolve alias: prefix to actual node name
             resolved_name = search_val
             if search_val.startswith('alias:'):
@@ -534,31 +542,14 @@ def register_editor_callbacks(app, services):
                 resolved = manager.resolve_alias(search_val[6:])
                 resolved_name = resolved if resolved is not None else search_val
             node = manager.get_node(resolved_name)
-            if node is not None:
-                asked = _ask_before_leaving(node.name, picker=original_name)
-                if asked is not None:
-                    return asked
-        elif trigger_id == 'editor-tap-store' and tapped_node and tapped_node.get('id'):
+            if node is None:
+                return _untouched()
+            return _decide({'kind': 'picker', 'name': node.name}, picker=original_name)
+        if trigger_id == 'editor-tap-store' and tapped_node and tapped_node.get('id'):
             # Read the node from the database: the canvas's copy may be stale.
             node = manager.get_node(tapped_node['id'])
-            if node is not None:
-                # A tap fills a closed editor without opening it. It has no
-                # reason to ask about, or replace, edits left behind a sidebar.
-                if not editor_open and _has_unsaved_edits():
-                    return _untouched(options)
-                asked = _ask_before_leaving(node.name)
-                if asked is not None:
-                    return asked
-
-        if node is None:
-            return _untouched(options)
-        # The picker names the loaded node while the editor is open, and
-        # when an Edit opens it.
-        opened_by_edit = trigger_id in ('edit-trigger-input', 'details-edit-trigger-input')
-        return _filled(build_editor_snapshot(manager, services.events, node.name),
-                       node_options(all_nodes, exclude=node.name, aliases=manager.get_all_aliases()),
-                       status=node.status, original_name=node.name,
-                       search=node.name if editor_open or opened_by_edit else no_update)
+            return _decide({'kind': 'tap', 'name': node.name}) if node else _untouched()
+        return _untouched()
 
 
     # --- Post-save sync of original_name / name ---
@@ -1018,38 +1009,6 @@ def register_editor_callbacks(app, services):
         Input('btn-editor-reopen-cancel', 'n_clicks'),
         prevent_initial_call=True,
     )
-
-    # The dialog's pending navigation is where Discard and Save go next.
-    # "Edit" (keep editing) and a close request both forget it, or a later
-    # Discard would load the node a cancelled tap was heading for.
-    @app.callback(
-        Output('modal-unsaved-changes', 'is_open'),
-        Output('pending-navigation-store', 'data', allow_duplicate=True),
-        [Input('btn-close-editor', 'n_clicks'),
-         Input('btn-add', 'n_clicks'),
-         Input('btn-unsaved-cancel', 'n_clicks'),
-         Input('btn-unsaved-save', 'n_clicks'),
-         Input('btn-unsaved-discard', 'n_clicks')],
-        [State('left-panel-store', 'data'),
-         State('editor-pristine-snapshot', 'data'),
-         EDITOR_FORM],
-        prevent_initial_call=True
-    )
-    def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
-                             left_panel, pristine_snapshot, form):
-        trig = get_trigger_id()
-        if trig == 'btn-unsaved-cancel':
-            return False, None
-        if trig == 'btn-add':
-            # btn-add is the toolbar toggle: only its close half (editor already
-            # open) should guard against unsaved changes. Opening never does.
-            if left_panel != 'editor':
-                return False, dash.no_update
-        elif trig != 'btn-close-editor':
-            return False, dash.no_update
-        if not is_form_dirty_vs_snapshot(pristine_snapshot, editor_form_values_from(form)):
-            return False, dash.no_update
-        return True, None
 
     # --- Delete Confirmation Modal ---
     @app.callback(

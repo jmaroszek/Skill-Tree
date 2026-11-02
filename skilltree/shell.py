@@ -497,6 +497,8 @@ def build_app_layout(graph, env="production"):
         # request to close one.
         dcc.Store(id='left-panel-store', data=None),
         dcc.Store(id='left-panel-request', data=None),
+        # The toolbar icon found the editor open: a close, for populate_editor.
+        dcc.Store(id='editor-close-ask', data=None),
         # What the app is telling the user (ui.notices).
         dcc.Store(id='notice-store', data=None),
         # A saved link that needs a yes before it opens (resource_links.NeedsConfirmation).

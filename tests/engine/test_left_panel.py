@@ -2,13 +2,9 @@
 import shutil
 import subprocess
 
-import dash
 import pytest
 
-from skilltree.engine.sidebars import editor_close_request
-from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 from support.callback_graph import built_app, outputs_of
-from support.editor_forms import editor_form
 from support.paths import ROOT
 
 SCRIPT = ROOT / "assets" / "sidebars" / "left_panel.js"
@@ -29,18 +25,18 @@ const advance = (current, id, value, state = {}) => {
                          state.selectedNode, 7, 2, 'q', 'manual', null);
 };
 const opened = (current, id, value, state) => advance(current, id, value, state)[4];
-const UNCHANGED = ['NO', 'NO', 'NO', 'NO', 'NO'];
+const UNCHANGED = ['NO', 'NO', 'NO', 'NO', 'NO', 'NO'];
 
 // One open at a time. Only what changes is written, because each output costs
 // time before the slide's first frame.
 assert.deepEqual(advance(null, 'btn-goals-toggle', 1),
-                 ['NO', 'left-sidebar is-open', 'NO', 'NO', 'goals']);
+                 ['NO', 'left-sidebar is-open', 'NO', 'NO', 'goals', 'NO']);
 // The tab content glides aside in the same return, so it starts with the slide.
 assert.deepEqual(advance('goals', 'btn-events-sidebar-toggle', 1),
                  ['NO', 'left-sidebar', 'left-sidebar is-open',
-                  'events-tab-inner is-beside-sidebar', 'events']);
+                  'events-tab-inner is-beside-sidebar', 'events', 'NO']);
 assert.deepEqual(advance('events', 'btn-events-sidebar-toggle', 2),
-                 ['NO', 'NO', 'left-sidebar', 'events-tab-inner', null]);
+                 ['NO', 'NO', 'left-sidebar', 'events-tab-inner', null, 'NO']);
 assert.equal(opened('editor', 'btn-goals-toggle', 1), 'goals');
 assert.equal(opened('editor', 'btn-events-sidebar-toggle', 1), 'events');
 
@@ -59,9 +55,13 @@ assert.equal(opened('goals', 'btn-details-goals-close', 1), null);
 assert.equal(opened('events', 'btn-events-sidebar-close', 1), null);
 assert.deepEqual(advance('editor', 'btn-details-goals-close', 1), UNCHANGED);
 
-// The toolbar icon opens the editor here. Closing it waits for the server.
+// The toolbar icon opens the editor here. On an open editor it's a close, which
+// only this script can tell, so it asks the server and changes nothing yet.
 assert.equal(opened('goals', 'btn-add', 1), 'editor');
-assert.deepEqual(advance('editor', 'btn-add', 2), UNCHANGED);
+assert.equal(advance('goals', 'btn-add', 1)[5], 'NO');
+const asked = advance('editor', 'btn-add', 2);
+assert.deepEqual(asked.slice(0, 5), ['NO', 'NO', 'NO', 'NO', 'NO']);
+assert.equal(typeof asked[5], 'number');
 
 // Whatever edits a node, or starts one, opens the editor.
 ['edit-trigger-input', 'details-edit-trigger-input'].forEach(id => {
@@ -125,50 +125,3 @@ def test_a_click_never_waits_on_the_server():
     inputs = {f"{i['id']}.{i['property']}" for i in door["inputs"]}
     # An Edit row's button writes this one, but only ever before it fires.
     assert inputs & server_outputs <= {"details-edit-trigger-input.value"}
-
-
-def _clean(**values):
-    return {**editor_form(time_unit=NEW_NODE_SNAPSHOT["time_unit"], **values),
-            "pristine_snapshot": NEW_NODE_SNAPSHOT}
-
-
-def _closes(trigger, open_panel="editor", pending=None, form=None):
-    answer = editor_close_request(trigger, open_panel, pending, form if form is not None else _clean())
-    return answer is not dash.no_update and answer["close"] == "editor"
-
-
-def test_a_clean_form_closes():
-    assert _closes("btn-close-editor")
-    assert _closes("btn-add")
-
-
-def test_a_form_with_edits_stays_for_the_dialog():
-    dirty = _clean(name="Typed")
-    assert not _closes("btn-close-editor", form=dirty)
-    assert not _closes("btn-add", form=dirty)
-
-
-def test_the_toolbar_icon_only_closes_an_open_editor():
-    assert not _closes("btn-add", open_panel=None)
-    assert not _closes("btn-add", open_panel="goals")
-
-
-def test_the_dialogs_answer_closes_unless_it_was_going_somewhere():
-    full = {"name": "A", "n_type": "Learn"}
-    assert _closes("btn-unsaved-discard")
-    assert _closes("btn-unsaved-save", form=full)
-    assert _closes("btn-unsaved-discard", pending="__background__")
-    assert _closes("btn-unsaved-save", pending="__background__", form=full)
-    assert not _closes("btn-unsaved-discard", pending="Next Node")
-    assert not _closes("btn-unsaved-save", pending="Next Node", form=full)
-
-
-def test_a_save_that_will_be_refused_stays():
-    assert not _closes("btn-unsaved-save", form={"name": "", "n_type": "Learn"})
-    assert not _closes("btn-unsaved-save", form={"name": "A", "n_type": None})
-
-
-def test_deleting_closes_and_nothing_else_does():
-    assert _closes("btn-node-delete-confirm")
-    assert not _closes("btn-save")
-    assert not _closes("filter-context")

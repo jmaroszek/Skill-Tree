@@ -1,7 +1,7 @@
 """The node editor's form is declared once (features/editor/form.EDITOR_FORM).
 
 Four callbacks read the whole form: core_engine saves it, and populate_editor,
-toggle_unsaved_modal and sync_original_name_after_save compare it with its
+sync_original_name_after_save compare it with its
 pristine snapshot. Each used to list its ~33 fields itself, by position, so a
 new field meant four matching edits, and a slip passed one field's value in
 another's place. Now each takes the form as one grouped State, a dict keyed
@@ -17,8 +17,7 @@ from skilltree.features.editor.form import (
 from skilltree.features.editor.callbacks import register_editor_callbacks
 from support.callbacks import app_with, unwrapped
 
-READERS = ("core_engine", "populate_editor", "toggle_unsaved_modal",
-           "sync_original_name_after_save")
+READERS = ("core_engine", "populate_editor", "sync_original_name_after_save")
 
 
 def _registered_specs():

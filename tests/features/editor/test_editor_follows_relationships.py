@@ -69,8 +69,7 @@ def _save(handlers, monkeypatch, **state):
     fire("btn-save")
     values = dict(n_type="Learn", desc="edited", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
-                  time_unit="hours", link_values=[], link_ids=[], aliases=[],
-                  left_panel="editor")
+                  time_unit="hours", link_values=[], link_ids=[], aliases=[])
     values.update(state)
     return callbacks.CoreResponse(*call(handlers["core_engine"], **values))
 

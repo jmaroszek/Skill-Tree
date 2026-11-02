@@ -69,6 +69,9 @@ def open_app(browser):
         page = context.new_page()
         page.console_errors = []
         page.hosts = set()
+        page.failed_requests = []
+        page.on("requestfailed", lambda r: page.failed_requests.append(
+            f"{r.failure} {r.url.split('?')[0]}"))
         page.on("console", lambda m: page.console_errors.append(m.text)
                 if m.type == "error" else None)
         page.on("pageerror", lambda e: page.console_errors.append(str(e)))
@@ -85,4 +88,9 @@ def open_app(browser):
 
 @pytest.fixture
 def page(open_app, server):
-    return open_app(server)
+    page = open_app(server)
+    yield page
+    # Pytest shows this only for a journey that failed. A missing stylesheet or
+    # script explains a failure that otherwise looks like the app's own.
+    if page.failed_requests:
+        print("Failed requests:", *page.failed_requests[:20], sep="\n  ")

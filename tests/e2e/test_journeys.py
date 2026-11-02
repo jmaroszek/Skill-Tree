@@ -272,6 +272,33 @@ def test_nothing_leaves_this_computer(page):
     assert page.hosts == {"127.0.0.1"}
 
 
+def test_a_draft_waits_behind_goals_through_a_canvas_click(page, server):
+    """Typed work is what this app must never lose. Goals slides the editor away
+    with its form as it was, and a click on the canvas isn't about that form."""
+    _welcome(page)
+    _new_node(page, "Draft", "Learn")
+    _new_node(page, "Other", "Learn")
+    _open_in_editor(page, "Draft")
+    page.fill("#node-desc", "Words I typed and haven't saved")
+    page.click("#btn-goals-toggle")
+    page.wait_for_function(f"{_EDITOR_LEFT} < -1", timeout=10000)
+
+    page.click("a.nav-link:has-text('Nodes')")
+    page.wait_for_function(_NODE_POSITION, arg="Other", timeout=20000)
+    _idle(page)
+    at = page.evaluate(_NODE_POSITION, "Other")
+    page.mouse.click(at["x"], at["y"])
+    _idle(page)
+    assert not page.is_visible("#modal-unsaved-changes")
+
+    page.click("#btn-add")
+    page.wait_for_function(f"{_EDITOR_LEFT} >= -1", timeout=10000)
+    assert page.input_value("#node-name") == "Draft"
+    assert page.input_value("#node-desc") == "Words I typed and haven't saved"
+    assert server.query("SELECT description FROM Nodes WHERE name = 'Draft'") == [("",)]
+    assert page.console_errors == []
+
+
 def test_rename_and_delete_carry_the_relationships(page, server):
     _welcome(page)
     _new_node(page, "Draft", "Learn")

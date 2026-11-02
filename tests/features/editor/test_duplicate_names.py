@@ -88,8 +88,7 @@ def _save(monkeypatch, trigger, **form):
                   status_done=[], val=5, interest=5, diff=5,
                   time_o=1, time_m=2, time_p=4, time_unit="hours",
                   e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
-                  link_values=[], link_ids=[], aliases=[],
-                  left_panel="editor")
+                  link_values=[], link_ids=[], aliases=[])
     values.update(form)
     return callbacks.CoreResponse(*call(fn, **values))
 

@@ -17,9 +17,6 @@ from skilltree.features.editor import callbacks as editor_callbacks
 from skilltree.features.editor.callbacks import register_editor_callbacks
 from support.callbacks import registered
 
-OPEN = {"transform": "translateX(0px)"}
-
-
 def _node(name):
     return Node(name=name, type="Learn", description="", value=5,
                 time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
@@ -45,7 +42,7 @@ def populate(monkeypatch, manager):
     fn = _registered()["populate_editor"]
 
     def run(trigger, dirty=True, **values):
-        fire(trigger)
+        fire(*([trigger] if isinstance(trigger, str) else trigger))
         monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
                             lambda *_args, **_kwargs: dirty)
         values.setdefault("left_panel", "editor")
@@ -56,7 +53,10 @@ def populate(monkeypatch, manager):
 
 
 def _asked(out, target):
-    return (out["pending_nav"] == target and out["unsaved_open"] is True
+    """The dialog opened to go on to ``target``: an intent, or a node's name."""
+    pending = out["pending_nav"]
+    goes_on = pending == target or (isinstance(target, str) and pending.get("name") == target)
+    return (goes_on and out["unsaved_open"] is True
             and out["name"] is dash.no_update and out["desc"] is dash.no_update)
 
 
@@ -85,7 +85,7 @@ def test_an_alias_in_the_picker_asks_for_its_node(populate):
 def test_clearing_the_picker_asks_before_it_blanks_the_form(populate):
     out = populate("search-node", search_val=None)
 
-    assert _asked(out, "__new_node__")
+    assert _asked(out, {"kind": "new"})
     assert out["search"] == "A"
 
 
@@ -133,9 +133,9 @@ def test_an_edit_asks_about_edits_left_behind_a_sidebar(populate, trigger, value
 
 @pytest.mark.parametrize("trigger, values, target", [
     ("details-add-choice-input",
-     {"details_add_choice": "new|1", "details_selected_node": "B"}, "__new_subtask__|B"),
-    ("btn-bridge-create", {"bridge_clicks": 1}, "__bridge__"),
-    ("btn-goals-sidebar-new", {"goal_new_clicks": 1}, "__new_goal__"),
+     {"details_add_choice": "new|1", "details_selected_node": "B"}, {"kind": "new", "parent": "B"}),
+    ("btn-bridge-create", {"bridge_clicks": 1}, {"kind": "bridge"}),
+    ("btn-goals-sidebar-new", {"goal_new_clicks": 1}, {"kind": "new", "goal": True}),
 ])
 def test_opening_a_new_form_asks_about_edits_left_behind_a_sidebar(
         populate, trigger, values, target):
@@ -168,7 +168,7 @@ def test_an_empty_click_still_blanks_a_closed_editor_that_holds_no_edits(populat
 
 
 def test_an_empty_click_asks_when_the_open_editor_holds_edits(populate):
-    assert _asked(populate("background-click-input"), "__background__")
+    assert _asked(populate("background-click-input"), {"kind": "background"})
 
 
 # --- The Goals sidebar's + --------------------------------------------------
@@ -188,7 +188,7 @@ def test_the_goals_plus_starts_a_blank_goal(populate):
     ("editor-save-result-store", {"save_result": {"via": "btn-unsaved-save"}}),
 ])
 def test_answering_the_dialog_goes_on_to_the_blank_goal(populate, answer, values):
-    out = populate(answer, pending_nav="__new_goal__", **values)
+    out = populate(answer, pending_nav={"kind": "new", "goal": True}, **values)
 
     assert out["n_type"] == "Goal" and out["name"] == ""
     assert out["unsaved_open"] is False and out["pending_nav"] is None
@@ -203,33 +203,104 @@ def test_discard_goes_on_to_the_node_edit_asked_for(populate):
 
 # --- The dialog itself ------------------------------------------------------
 
-@pytest.fixture
-def dialog(monkeypatch):
-    fn = _registered()["toggle_unsaved_modal"]
-
-    def run(trigger, dirty=True):
-        fire(trigger)
-        monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
-                            lambda *_args, **_kwargs: dirty)
-        return call(fn, left_panel="editor", pristine_snapshot={"name": "A"})
-    return run
-
-
-def test_keep_editing_forgets_where_the_dialog_was_going(dialog):
+def test_keep_editing_forgets_where_the_dialog_was_going(populate):
     # Otherwise a later close's Discard would load the node a cancelled tap
     # was heading for, instead of closing.
-    assert dialog("btn-unsaved-cancel") == (False, None)
+    out = populate("btn-unsaved-cancel", pending_nav={"kind": "tap", "name": "B"})
+    assert out["pending_nav"] is None and out["unsaved_open"] is False
+    assert out["name"] is dash.no_update
 
 
-def test_a_close_with_unsaved_edits_asks_and_goes_nowhere_after(dialog):
-    assert dialog("btn-close-editor") == (True, None)
-    assert dialog("btn-add") == (True, None)
+@pytest.mark.parametrize("trigger, values", [
+    ("btn-close-editor", {}),
+    ("editor-close-ask", {"close_asked": 1}),
+])
+def test_a_close_with_unsaved_edits_asks_and_stays(populate, trigger, values):
+    out = populate(trigger, **values)
+    assert _asked(out, {"kind": "close"})
+    assert out["close_request"] is dash.no_update
 
 
-def test_a_clean_close_asks_nothing(dialog):
-    assert dialog("btn-close-editor", dirty=False) == (False, dash.no_update)
+@pytest.mark.parametrize("trigger, values", [
+    ("btn-close-editor", {}),
+    ("editor-close-ask", {"close_asked": 1}),
+])
+def test_a_clean_close_asks_nothing_and_keeps_the_form(populate, trigger, values):
+    out = populate(trigger, dirty=False, **values)
+    assert out["close_request"]["close"] == "editor"
+    assert out["unsaved_open"] is dash.no_update
+    assert out["name"] is dash.no_update
 
 
-def test_save_and_discard_leave_the_navigation_to_the_editor(dialog):
-    assert dialog("btn-unsaved-save") == (False, dash.no_update)
-    assert dialog("btn-unsaved-discard") == (False, dash.no_update)
+def test_the_close_ask_counts_when_it_arrives_with_the_click(populate):
+    """Dash merges the two into one run, and the click is what's named first."""
+    fired = ["btn-add", "editor-close-ask"]
+    assert _asked(populate(fired, close_asked=1, add_clicks=2), {"kind": "close"})
+    out = populate(fired, dirty=False, close_asked=1, add_clicks=2)
+    assert out["close_request"]["close"] == "editor"
+
+
+def test_the_toolbar_icon_alone_closes_nothing(populate):
+    """left_panel.js sends editor-close-ask when this click found the editor
+    open. The store can already say what the click did by the time this runs."""
+    out = populate("btn-add", add_clicks=2)
+    assert out["close_request"] is dash.no_update
+    assert out["unsaved_open"] is dash.no_update
+
+
+def test_the_dialogs_save_waits_for_the_commit(populate):
+    """A refused save has to keep the form, so nothing moves on at the click."""
+    out = populate("btn-unsaved-save", pending_nav={"kind": "close"})
+    assert out["unsaved_open"] is False
+    assert out["pending_nav"] is dash.no_update
+    assert out["name"] is dash.no_update
+    assert out["close_request"] is dash.no_update
+
+
+@pytest.mark.parametrize("kind", ["close", "background"])
+def test_discard_closes_and_leaves_a_blank_form(populate, kind):
+    out = populate("btn-unsaved-discard", discard_clicks=1, pending_nav={"kind": kind})
+    assert out["close_request"]["close"] == "editor"
+    assert out["name"] == "" and out["original_name"] is None
+    assert out["search"] is None, "the picker doesn't name a node the form isn't showing"
+
+
+@pytest.mark.parametrize("kind", ["close", "background"])
+def test_a_committed_save_closes_too(populate, kind):
+    out = populate("editor-save-result-store", pending_nav={"kind": kind},
+                   save_result={"name": "A", "via": "btn-unsaved-save", "ts": 1})
+    assert out["close_request"]["close"] == "editor"
+
+
+@pytest.mark.parametrize("first", ["btn-unsaved-save", "search-node"])
+def test_the_commit_counts_when_it_arrives_with_something_else(populate, first):
+    """Dash holds this callback back during a save, and merges what fired."""
+    out = populate([first, "editor-save-result-store"], pending_nav={"kind": "close"},
+                   save_result={"name": "A", "via": "btn-unsaved-save", "ts": 1})
+    assert out["close_request"]["close"] == "editor"
+
+
+def test_a_rename_emptying_the_picker_is_not_a_request_for_a_blank_form(populate):
+    out = populate(["search-node", "editor-save-result-store"], search_val=None,
+                   save_result={"name": "A", "via": "btn-save", "ts": 1})
+    assert out["name"] is dash.no_update and out["unsaved_open"] is dash.no_update
+
+
+def test_another_saves_result_moves_nothing(populate):
+    out = populate("editor-save-result-store", pending_nav={"kind": "close"},
+                   save_result={"name": "A", "via": "btn-save", "ts": 1})
+    assert out["close_request"] is dash.no_update
+    assert out["name"] is dash.no_update
+
+
+def test_going_on_to_a_node_deleted_meanwhile_starts_a_blank_form(populate):
+    out = populate("btn-unsaved-discard", discard_clicks=1,
+                   pending_nav={"kind": "tap", "name": "Gone"})
+    assert out["name"] == "" and out["original_name"] is None
+
+
+def test_what_does_nothing_sends_no_options(populate):
+    """They're about 230 KB, and only a form or an opening editor needs them."""
+    for out in (populate("btn-close-editor"), populate("btn-unsaved-cancel"),
+                populate("background-click-input", left_panel=None)):
+        assert out["e_needs_h_options"] is dash.no_update

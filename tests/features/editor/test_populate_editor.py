@@ -83,7 +83,7 @@ def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monk
                    pristine_snapshot=NEW_NODE_SNAPSHOT, details_selected_node="Parent")
     pending = _call_with_trigger(monkeypatch, "details-add-choice-input",
                                  details_add_choice="new|123", **editing)
-    assert pending["pending_nav"] == "__new_subtask__|Parent"
+    assert pending["pending_nav"] == {"kind": "new", "parent": "Parent"}
     assert pending["unsaved_open"] is True
 
     cleared = _call_with_trigger(monkeypatch, "btn-unsaved-discard",

@@ -38,8 +38,7 @@ def _save(monkeypatch, trigger, **form):
     fire(trigger)
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
-                  time_unit="hours", link_values=[], link_ids=[], aliases=[],
-                  left_panel="editor")
+                  time_unit="hours", link_values=[], link_ids=[], aliases=[])
     values.update(form)
     return callbacks.CoreResponse(*call(core_engine, **values))
 
@@ -72,7 +71,7 @@ def test_the_unsaved_dialog_moves_on_only_after_its_save(monkeypatch, manager):
     fire("editor-save-result-store")
 
     def run(save_result):
-        return call(populate, save_result=save_result, pending_nav="Next")
+        return call(populate, save_result=save_result, pending_nav={"kind": "tap", "name": "Next"})
 
     # An ordinary Save is not the dialog's: nothing moves.
     unchanged = run({"name": "Nap", "via": "btn-save", "ts": 1})

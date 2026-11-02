@@ -12,7 +12,8 @@ import functools
 import logging
 import time
 from skilltree.store import database
-from skilltree.engine.sidebars import editor_close_request, register_left_panel_callbacks
+from skilltree.engine.sidebars import register_left_panel_callbacks
+from skilltree.ui.left_panel import close_editor
 from skilltree.engine.handlers import (
     SAVE_TRIGGERS, Request, handle, undo_done_body, unexpected_error,
 )
@@ -53,11 +54,6 @@ logger = logging.getLogger(__name__)
 # diff per tab switch, landing right on top of whatever the user did next.
 _NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze", "tab-details", "tab-next"})
 
-# Triggers that only close the editor, once the unsaved-changes check allows it.
-# When core_engine fires on one of these (and nothing else in the same cycle),
-# there's nothing to score or render.
-_EDITOR_UI_ONLY_TRIGGERS = frozenset({'btn-close-editor', 'btn-add'})
-
 # The filter sidebar's controls. They choose which nodes the canvas shows and
 # nothing else.
 _FILTER_TRIGGERS = frozenset({
@@ -95,10 +91,7 @@ CORE_INPUTS = dict(
     f_time_unit=Input('filter-time-unit', 'value'),
     f_difficulty=Input('filter-difficulty', 'value'),
     sugg_count=Input('suggestion-count-store', 'data'),
-    btn_add=Input('btn-add', 'n_clicks'),
-    btn_close_ed=Input('btn-close-editor', 'n_clicks'),
     btn_unsaved_save=Input('btn-unsaved-save', 'n_clicks'),
-    btn_unsaved_discard=Input('btn-unsaved-discard', 'n_clicks'),
     settings_version=Input('settings-version-store', 'data'),
     btn_toggle_done=Input('btn-toggle-done-node', 'n_clicks'),
     group_delete_data=Input('group-delete-input', 'value'),
@@ -124,9 +117,7 @@ CORE_STATE = dict(
     # the callbacks chained to its message landed inside the Settle's
     # animation as stalls of up to 120 ms.
     _relayout=State('graph-settings-relayout', 'n_clicks'),
-    left_panel=State('left-panel-store', 'data'),
     original_name=State('node-original-name', 'data'),
-    pending_nav_store=State('pending-navigation-store', 'data'),
     pristine_snapshot=State('editor-pristine-snapshot', 'data'),
     pending_undo_done=State('pending-undo-done-store', 'data'),
     canvas_stamp=State('canvas-payload-stamp', 'data'),
@@ -188,7 +179,7 @@ def register_engine_callbacks(app, services):
     def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
-                     btn_add, btn_close_ed, btn_unsaved_save, btn_unsaved_discard, settings_version, btn_toggle_done,
+                     btn_unsaved_save, settings_version, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
@@ -196,8 +187,8 @@ def register_engine_callbacks(app, services):
                      active_tab, _relayout,
                      btn_undo_done_confirm, f_time_min,
                      f_search, btn_editor_reopen_confirm,
-                     left_panel, original_name,
-                     pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
+                     original_name,
+                     pristine_snapshot, pending_undo_done, canvas_stamp,
                      bridge_pending, editor_reopen_pending, community_memory, form):
         """Route one action, then render the canvas and the views around it.
 
@@ -208,10 +199,6 @@ def register_engine_callbacks(app, services):
         `form` is the node editor's form (editor form.EDITOR_FORM).
         """
         form = form or {}
-        # What closing the editor reads: the form, and the baseline its
-        # unsaved-changes check compares against.
-        form_state = {**form, 'pristine_snapshot': pristine_snapshot}
-
         trigger_id = get_trigger_id()
 
         # Tab-switch gate: switching to Events/Analyze doesn't need a graph
@@ -236,22 +223,11 @@ def register_engine_callbacks(app, services):
                 return CoreResponse()
             trigger_id, all_triggered_ids, reopen_confirmed = via, {via}, True
 
-        # Closing the editor needs no render.
-        if (trigger_id in _EDITOR_UI_ONLY_TRIGGERS
-                and all_triggered_ids <= _EDITOR_UI_ONLY_TRIGGERS):
-            return CoreResponse(left_panel=editor_close_request(
-                trigger_id, left_panel, pending_nav_store, form_state))
-
         # Check for any delayed event nodes or scheduled events that are due
         event_manager.run_sweeps()
 
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
                                 f_time_min=f_time_min, f_search=f_search)
-
-        # Decided before the handler runs, on the form the user was looking at.
-        # A save the handler refuses never sends this.
-        close_request = editor_close_request(
-            trigger_id, left_panel, pending_nav_store, form_state)
 
         # focus_goal may be a dict {"node": str, "subtree": list,
         #   "path_info": {...}} or a plain string.
@@ -355,7 +331,7 @@ def register_engine_callbacks(app, services):
             # rename clears the node picker, which runs this again, and that
             # run wiped the save's confirmation at once.
             notice=outcome.notice or no_update,
-            left_panel=close_request,
+            left_panel=close_editor() if trigger_id == 'btn-node-delete-confirm' else no_update,
             undo_open=bool(undo_pending),
             undo_body=(undo_done_body(undo_pending, outcome.undo_downstream)
                        if undo_pending else ''),

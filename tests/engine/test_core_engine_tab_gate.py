@@ -11,16 +11,14 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.engine.callbacks import _EDITOR_UI_ONLY_TRIGGERS, _NON_GRAPH_TABS
+from skilltree.engine.callbacks import _NON_GRAPH_TABS
 from skilltree.engine.response import CORE_OUTPUTS, CoreResponse
-from skilltree.engine import sidebars
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
 from support.triggers import fire
 from support.callbacks import app_with, unwrapped
 from support.graphs import make_node
 
-SIDEBAR_FIELDS = ("left_panel",)
 
 
 def _core_engine_fn():
@@ -86,39 +84,12 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     assert not all(r is dash.no_update for r in result)
 
 
-# ---------------------------------------------------------------------------
-# Closing the editor alone should skip the expensive path and send only the
-# request.
-# ---------------------------------------------------------------------------
-
-
-def test_editor_ui_only_triggers_set_content():
-    assert _EDITOR_UI_ONLY_TRIGGERS == frozenset({'btn-close-editor', 'btn-add'})
-
-
-def _only_sidebars_change(result, trigger):
-    for field in result._fields:
-        if field not in SIDEBAR_FIELDS:
-            assert getattr(result, field) is dash.no_update, (
-                f"{field} should be no_update when short-circuiting on {trigger}")
-
-
-@pytest.mark.parametrize("input_id", ['edit-trigger-input', 'details-edit-trigger-input',
-                                       'btn-goals-toggle', 'btn-editor-new'])
-def test_opening_a_sidebar_never_reaches_the_server(input_id):
-    """left_panel.js hears these itself, and a slide doesn't wait on a render."""
+@pytest.mark.parametrize("input_id", [
+    'edit-trigger-input', 'details-edit-trigger-input', 'btn-goals-toggle', 'btn-editor-new',
+    'btn-add', 'btn-close-editor', 'btn-unsaved-discard'])
+def test_what_only_moves_a_sidebar_never_reaches_the_core_engine(input_id):
+    """left_panel.js and populate_editor answer these, and a render shouldn't."""
     assert input_id not in {dep.component_id for dep in callbacks.CORE_INPUTS.values()}
-
-
-def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
-    """btn-close-editor alone short-circuits; closes the editor when form has no content."""
-    cb, _ = _core_engine_fn()
-    fire("btn-close-editor")
-    # Stub out the unsaved-changes check — a blank form, no pending nav.
-    monkeypatch.setattr(sidebars, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
-    result = _call(cb)
-    assert result.left_panel["close"] == "editor"
-    _only_sidebars_change(result, "btn-close-editor")
 
 
 def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):

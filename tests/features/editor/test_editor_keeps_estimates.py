@@ -50,7 +50,7 @@ def _save(handlers, form, snapshot, **edits):
     values = {**form, "link_values": [], "link_ids": [], **edits}
     return callbacks.CoreResponse(*call(
         handlers["core_engine"], original_name="Essay", pristine_snapshot=snapshot,
-        left_panel="editor", **values))
+        **values))
 
 
 def _hours(manager):

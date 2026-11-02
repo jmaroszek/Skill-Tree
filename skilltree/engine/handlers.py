@@ -15,7 +15,6 @@ from dash import html, no_update
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.names import format_name
 from skilltree.engine.response import CoreResponse
-from skilltree.engine.sidebars import close_editor
 from skilltree.features.editor.form import editor_form_values_from, is_form_dirty_vs_snapshot
 from skilltree.features.editor.save import save_editor_form
 from skilltree.store import database
@@ -27,6 +26,7 @@ from skilltree.store.commands import (
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
+from skilltree.ui.left_panel import close_editor
 from skilltree.ui.notices import error, info
 
 logger = logging.getLogger(__name__)

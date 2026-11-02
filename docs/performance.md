@@ -499,19 +499,23 @@ medians of 12 runs on a throwaway copy of the sandbox, in headless Chrome at
 
 | Sidebar | Before | After |
 | --- | ---: | ---: |
-| Editor, opening | 79–86 ms | 85 ms |
-| Editor, closing | 94–105 ms | 113 ms |
-| Goals, opening | 86–89 ms | 81 ms |
-| Goals, closing | 58–61 ms | 47 ms |
+| Editor, opening | 79–86 ms | 56 ms |
+| Editor, closing | 94–105 ms | 84 ms |
+| Goals, opening | 86–89 ms | 83 ms |
+| Goals, closing | 58–61 ms | 42 ms |
 | Events, opening | 49–55 ms | 38 ms |
-| Events, closing | 49–52 ms | 41 ms |
+| Events, closing | 49–52 ms | 38 ms |
 
-"Before" is two runs of the old code, which shows the noise. p95 frame gaps
-didn't move: about 18 ms everywhere but Goals opening, at about 35 ms, whose
-cards cost about 60 ms of long tasks per open before and after. Closing the
-editor takes one more step than it did, because the server's answer now goes
-through the reducer rather than writing the style. It is about 10 to 20 ms
-later, after a round trip the slide was already waiting on.
+"Before" is two runs of the old code, which shows the noise. Goals' cards still
+cost about 60 ms of long tasks per open. The editor's two rows fell by 25 to 30
+ms when the toolbar icon and the X stopped being the core engine's inputs. Until
+then, closing it was 10 to 20 ms slower than the old code, because the server's
+answer goes through the reducer rather than writing the style.
+
+Frame gaps don't compare across these runs. Before the editor's rows fell, p95
+gaps were about 18 ms everywhere but Goals opening, at about 35 ms. In the run
+above they are about 4 ms on every sidebar, including the ones that didn't
+change, so that move came from the machine.
 
 Two versions of this measured worse, and each cost shows up anywhere else a
 slide could start late:

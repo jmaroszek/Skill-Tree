@@ -583,7 +583,7 @@ def editor_form_values(
 
 # The node editor's form: every field a save writes and the unsaved-changes
 # check compares. The callbacks that read the form (core_engine,
-# populate_editor, toggle_unsaved_modal, sync_original_name_after_save) take
+# populate_editor, sync_original_name_after_save) take
 # it as one grouped State, and Dash hands each of them this dict with the
 # fields' values. A new field is added here once. The keys are
 # editor_form_values' names, except that the resource links arrive as the two

@@ -21,7 +21,7 @@ class CoreResponse(NamedTuple):
     filter_type_options: object = no_update
     stylesheet: object = no_update
     clear_focus_style: object = no_update
-    # A request to close the editor (engine.sidebars).
+    # A request to close the editor, after a delete or an empty form's Save.
     left_panel: object = no_update
     undo_open: object = no_update
     undo_body: object = no_update

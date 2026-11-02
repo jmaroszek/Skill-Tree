@@ -220,8 +220,7 @@ def _save(monkeypatch, bridge_pending, original_name=None, **form):
     fire("btn-save")
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
-                  time_unit="hours", link_values=[], link_ids=[], aliases=[],
-                  left_panel="editor")
+                  time_unit="hours", link_values=[], link_ids=[], aliases=[])
     values.update(form)
     return callbacks.CoreResponse(*call(
         core_engine, bridge_pending=bridge_pending, original_name=original_name,
@@ -313,14 +312,14 @@ def test_unsaved_edits_ask_before_the_bridge_replaces_them(monkeypatch, manager)
                     left_panel="editor",
                     pristine_snapshot=NEW_NODE_SNAPSHOT, name="Half-typed")
 
-    assert out["pending_nav"] == "__bridge__"
+    assert out["pending_nav"] == {"kind": "bridge"}
     assert out["unsaved_open"] is True
     assert out["name"] is dash.no_update
 
 
 def test_the_unsaved_dialog_continues_into_the_bridge(monkeypatch, manager):
     out = _populate(monkeypatch, "btn-unsaved-discard", discard_clicks=1,
-                    pending_nav="__bridge__",
+                    pending_nav={"kind": "bridge"},
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="soft")
 
     assert out["e_supp_s"] == ["B"] and out["e_needs_s"] == ["A"]

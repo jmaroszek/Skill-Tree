@@ -14,7 +14,7 @@ from support.layout import walk
 from support.paths import ROOT
 
 # Outputs that two or more callbacks write.
-MOST_SHARED_OUTPUTS = 122
+MOST_SHARED_OUTPUTS = 121
 
 # Callbacks allowed to write each output.
 MOST_WRITERS = {
@@ -29,6 +29,9 @@ MOST_WRITERS = {
     # Everything else writes a notice, and notices.js shows it.
     'save-output.children': 1,
     'modal-error.is_open': 1,
+    # populate_editor decides what the editor does next.
+    'pending-navigation-store.data': 1,
+    'modal-unsaved-changes.is_open': 1,
     # The two places a Settings save commits.
     'settings-version-store.data': 2,
 }
@@ -70,6 +73,19 @@ def test_a_sidebars_style_belongs_to_no_callback():
 
 def test_how_a_sidebar_slides_is_only_in_css():
     assert [path for path, text in _sources() if 'translateX' in text] == []
+
+
+def test_the_unsaved_check_has_two_callers():
+    """populate_editor, for what the editor does next, and an empty form's Save."""
+    callers = sorted(path for path, text in _sources()
+                     if 'is_form_dirty_vs_snapshot(' in text and path.endswith('.py')
+                     and 'def is_form_dirty_vs_snapshot' not in text)
+    assert callers == ['skilltree/engine/handlers.py', 'skilltree/features/editor/callbacks.py']
+
+
+def test_where_the_editor_is_going_is_a_dict_not_a_string():
+    sentinels = re.compile(r"__(?:background|bridge|new_goal|new_node|new_subtask)__")
+    assert [path for path, text in _sources() if sentinels.search(text)] == []
 
 
 def test_no_code_reads_a_message():

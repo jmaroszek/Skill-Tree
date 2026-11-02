@@ -87,6 +87,5 @@ def _save_new_node(monkeypatch):
     response = call(core_engine, name="Fresh", n_type="Learn", desc="", context="Mind",
                     status_done=[], val=5, interest=5, diff=5, time_o=1,
                     time_m=2, time_p=4, time_unit="hours", link_values=[],
-                    link_ids=[], aliases=[],
-                    left_panel="editor")
+                    link_ids=[], aliases=[])
     return callbacks.CoreResponse(*response).notice
