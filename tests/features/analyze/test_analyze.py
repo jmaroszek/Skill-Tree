@@ -1045,9 +1045,9 @@ class TestAnalyzeRefreshGate:
     """Arrivals and the hover prewarm must skip a render that is still
     current, redo one the graph outran, and ignore the stores' mount."""
 
-    ARGS = (25, 75, 'quarter', '', '', 'context', None)
+    ARGS = (25, 75, 'quarter', '', '', 'context', 1, 1)
     PROPS = {'analyze-active-store': 'data', 'analyze-prewarm-store': 'data',
-             'save-output': 'children'}
+             'graph-version-store': 'data', 'reflection-version-store': 'data'}
 
     @pytest.fixture
     def refresh(self, monkeypatch, services):
@@ -1093,8 +1093,8 @@ class TestAnalyzeRefreshGate:
         refresh('analyze-active-store', 'tab-analyze', None)
         assert len(calls) == 1
 
-    def test_save_on_the_tab_always_rerenders(self, refresh, monkeypatch):
-        """A reflection edit changes the charts without moving the signature."""
+    def test_a_reflection_on_the_tab_always_rerenders(self, refresh, monkeypatch):
+        """A reflection changes the charts without moving the signature."""
         from skilltree.features.analyze import callbacks as analyze_callbacks
         GraphManager().add_node(make_node("A"))
         signature = refresh('analyze-prewarm-store', 'tab-next', None)[-1]
@@ -1102,7 +1102,7 @@ class TestAnalyzeRefreshGate:
         real = analyze_callbacks._render_analyze_sections
         monkeypatch.setattr(analyze_callbacks, '_render_analyze_sections',
                             lambda *a: calls.append(a) or real(*a))
-        refresh('save-output', 'tab-analyze', signature)
+        refresh('reflection-version-store', 'tab-analyze', signature)
         assert len(calls) == 1
 
     def test_prewarm_renders_while_hidden_and_uncovers(self, refresh):
@@ -1129,7 +1129,7 @@ class TestAnalyzeRefreshGate:
 
     def test_settings_changes_off_tab_do_nothing(self, refresh):
         from dash import no_update
-        assert refresh('save-output', 'tab-next', None) == (no_update,) * 10
+        assert refresh('graph-version-store', 'tab-next', None) == (no_update,) * 10
 
     def test_failed_render_uncovers_and_retries(self, refresh, monkeypatch):
         from skilltree.features.analyze import callbacks as analyze_callbacks

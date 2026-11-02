@@ -41,7 +41,7 @@ def _new_node_form(**fields):
 def test_a_save_without_a_name_closes_a_blank_form(services):
     outcome = handle(_request(services, 'btn-save', form=_new_node_form(),
                               pristine_snapshot=NEW_NODE_SNAPSHOT))
-    assert outcome.response.message == ""
+    assert outcome.response.notice is None
     assert outcome.response.editor_style['transform'] == SIDEBAR_TRANSLATE_CLOSED
 
 
@@ -54,7 +54,7 @@ def test_a_save_without_a_name_closes_a_blank_form(services):
 def test_a_save_without_a_name_says_so_when_the_form_has_content(services, fields):
     outcome = handle(_request(services, 'btn-save', form=_new_node_form(**fields),
                               pristine_snapshot=NEW_NODE_SNAPSHOT))
-    assert outcome.response.message == "Error: Node name is required."
+    assert outcome.response.notice["text"] == "Error: Node name is required."
     assert outcome.response.editor_style == OPEN_EDITOR
     assert services.graph.get_all_nodes() == []
 
@@ -64,7 +64,7 @@ def test_a_save_that_blanks_a_loaded_nodes_name_says_so(services):
     outcome = handle(_request(services, 'btn-save', form=_new_node_form(),
                               original_name="Loaded",
                               pristine_snapshot={**NEW_NODE_SNAPSHOT, 'name': 'Loaded'}))
-    assert outcome.response.message == "Error: Node name is required."
+    assert outcome.response.notice["text"] == "Error: Node name is required."
     assert services.graph.get_node("Loaded") is not None
 
 
@@ -72,7 +72,7 @@ def test_a_save_may_not_take_another_nodes_name(services):
     services.graph.add_node(_node("Taken"))
     outcome = handle(_request(services, 'btn-save',
                               form=editor_form(name="Taken", n_type='Learn')))
-    assert outcome.response.message.startswith("Error: A node named 'Taken' already exists")
+    assert outcome.response.notice["text"].startswith("Error: A node named 'Taken' already exists")
     assert outcome.response.editor_style == OPEN_EDITOR
     # Nothing that renders the graph or opens a modal.
     assert outcome.response.elements is dash.no_update
@@ -91,7 +91,7 @@ def test_a_sleeping_selection_cannot_be_marked_done(services):
     services.graph.add_node(_node("Asleep", dormant=1))
     outcome = handle(_request(services, 'toggle-done-trigger-input',
                               toggle_done_trigger_data='["Asleep"]|1'))
-    assert outcome.message.startswith("Error: a sleeping node can't be marked Done")
+    assert outcome.notice["text"].startswith("Error: a sleeping node can't be marked Done")
 
 
 def test_reopening_a_node_with_done_dependents_asks_first(services):
@@ -106,7 +106,7 @@ def test_reopening_a_node_with_done_dependents_asks_first(services):
     assert graph.get_node("First").status == STATUS_DONE
 
     confirmed = handle(_request(services, 'btn-undo-done-confirm', pending_undo_done=["First"]))
-    assert confirmed.message == "Un-marked 'First' (Done → Open)"
+    assert confirmed.notice["text"] == "Un-marked 'First' (Done → Open)"
     assert graph.get_node("First").status == STATUS_OPEN
     assert graph.get_node("Second").status != STATUS_DONE
     assert graph.get_node("First").now == 0  # nothing asked for Now

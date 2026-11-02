@@ -100,9 +100,9 @@ def test_an_estimate_the_user_changed_is_read_at_todays_rate(handlers):
 ESTIMATE = ("time_o", "time_m", "time_p", "time_unit")
 
 
-def _follow(handlers, form, snapshot, status="Settings saved"):
+def _follow(handlers, form, snapshot):
     return handlers["follow_editor_estimate"](
-        status, "Essay", snapshot, {key: form[key] for key in ESTIMATE})
+        1, "Essay", snapshot, {key: form[key] for key in ESTIMATE})
 
 
 def _patched(snapshot, patch):
@@ -151,13 +151,12 @@ def test_the_estimate_stays_when_the_rate_does(handlers):
     assert _follow(handlers, form, snapshot) == (dash.no_update,) * 4
 
 
-def test_only_a_settings_save_moves_the_estimate(handlers):
+def test_another_nodes_snapshot_leaves_the_estimate_alone(handlers):
     manager = GraphManager()
     _rate(10)
     _add(manager, 10, 20, 40)
     form, snapshot = _loaded(manager)
 
     _rate(20)
-    assert _follow(handlers, form, snapshot, status="") == (dash.no_update,) * 4
     assert _follow(handlers, form, {**snapshot, "name": "Another"}) == (
         dash.no_update,) * 4

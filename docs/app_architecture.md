@@ -129,7 +129,7 @@ What each canvas shows:
 - Every canvas builds elements with `build_node_element` and `build_edge_element`, so a node looks the same everywhere. A canvas passes only what is its own: selection, Events' attached flag, Details' view root.
 - Elements carry the fields in `CANVAS_NODE_FIELDS`, which names each field's reader.
 - The browser owns the selection. A render sets it only when asked to show one node; every other render passes `KEEP_SELECTION`.
-- Until the Nodes canvas loads on its first visit, the engine sends `CANVAS_DEFERRED` in place of its elements. The stamp still fires.
+- Until the Nodes canvas loads on its first visit, the engine sends `deferred_canvas()` in place of its elements. The stamp still fires.
 
 ## The node editor
 

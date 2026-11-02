@@ -62,7 +62,7 @@ def test_a_committed_save_is_reported(monkeypatch, manager):
 def test_a_refused_save_is_not_reported(monkeypatch, manager):
     response = _save(monkeypatch, "btn-unsaved-save", name="Sleep", original_name=None)
 
-    assert response.message.startswith("Error:")
+    assert response.notice["kind"] == "error"
     assert response.save_result is dash.no_update
 
 

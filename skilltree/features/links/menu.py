@@ -19,6 +19,7 @@ from dash import Input, Output, State, no_update
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.ui.notices import error
 from skilltree.store.commands import change_link, link_change_reopens, link_pair
 
 
@@ -30,16 +31,16 @@ def register_link_menu_callbacks(app, services):
         try:
             change_link(graph_manager, *parts[1:], parts[0])
         except ValueError as e:
-            return no_update, f"Error: {e}"
+            return no_update, error(str(e))
         return f"link-{int(time.time() * 1000)}", no_update
 
     # A change redraws every canvas through the core engine, as linking an
     # existing node on Details does. It says nothing on success: the canvas
-    # shows it. A refusal goes to save-output, whose "Error:" opens the error
-    # dialog. A change that would reopen Done nodes asks first.
+    # shows it. A refusal is an error notice, which opens the error dialog. A
+    # change that would reopen Done nodes asks first.
     @app.callback(
         Output("details-refresh-trigger", "data", allow_duplicate=True),
-        Output("save-output", "children", allow_duplicate=True),
+        Output("notice-store", "data", allow_duplicate=True),
         Output("modal-link-reopen-confirm", "is_open", allow_duplicate=True),
         Output("link-reopen-confirm-body", "children"),
         Output("link-action-pending-store", "data"),
@@ -58,14 +59,14 @@ def register_link_menu_callbacks(app, services):
             action, source, target, edge_type = parts
             reopened = link_change_reopens(graph_manager, source, target, edge_type, action)
         except ValueError as e:
-            return no_update, f"Error: {e}", no_update, no_update, no_update
+            return no_update, error(str(e)), no_update, no_update, no_update
         if reopened:
             return no_update, no_update, True, reopen_body(reopened), parts
         return (*_apply(parts), no_update, no_update, None)
 
     @app.callback(
         Output("details-refresh-trigger", "data", allow_duplicate=True),
-        Output("save-output", "children", allow_duplicate=True),
+        Output("notice-store", "data", allow_duplicate=True),
         Output("modal-link-reopen-confirm", "is_open", allow_duplicate=True),
         Output("link-action-pending-store", "data", allow_duplicate=True),
         Input("btn-link-reopen-confirm", "n_clicks"),

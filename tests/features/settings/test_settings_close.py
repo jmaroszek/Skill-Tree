@@ -68,8 +68,9 @@ def test_unchanged_close_writes_nothing_and_preserves_profile_overrides(monkeypa
     monkeypatch.setattr(settings, 'clear_stored', unexpected)
     monkeypatch.setattr(settings_draft, 'save_sections', unexpected)
     result = callbacks['save_settings'](**args)
-    assert result[5] is False and result[6] == 'close-1'
+    assert result[3] is False and result[4] == 'close-1'
     assert result[0] is dash.no_update
+    assert result[5] is dash.no_update, "nothing changed, so nothing redraws"
     assert _stored() == before
     assert settings.hyperparams()['gamma'] == 1.25
 
@@ -79,8 +80,9 @@ def test_successful_close_commits_all_fields_and_acknowledges_request():
     args = _draft(callbacks)
     args.update(now_node_cap_val=7, hp_profile='Explorer', hpw=17.5, hpm=70)
     result = callbacks['save_settings'](**args)
-    assert result[0] == 'Settings saved' and result[5] is False
-    assert result[6] == 'close-1'
+    assert result[0] == '' and result[3] is False
+    assert result[4] == 'close-1'
+    assert result[5] is not dash.no_update
     assert settings.NOW_NODE_CAP.get() == 7
     assert settings.HP_PROFILE.get() == 'Explorer'
     assert settings.TIME_SETTINGS.get()['hours_per_week'] == 17.5
@@ -93,7 +95,7 @@ def test_hour_equivalents_default_on_and_round_trip_with_capacity():
     callbacks = _callbacks()
     args = _draft(callbacks)
     args.update(show_hour_equivalents_val=[], hpw=17.5, hpm=70)
-    assert callbacks['save_settings'](**args)[5] is False
+    assert callbacks['save_settings'](**args)[3] is False
     assert settings.TIME_SETTINGS.get() == {
         'hours_per_week': 17.5, 'hours_per_month': 70, 'show_hour_equivalents': False,
     }
@@ -101,7 +103,7 @@ def test_hour_equivalents_default_on_and_round_trip_with_capacity():
 
     args = _draft(callbacks)
     args['show_hour_equivalents_val'] = ['enabled']
-    assert callbacks['save_settings'](**args)[5] is False
+    assert callbacks['save_settings'](**args)[3] is False
     assert settings.TIME_SETTINGS.get()['show_hour_equivalents'] is True
     assert callbacks['load_settings'](True)[-2] == ['enabled']
 
@@ -119,7 +121,8 @@ def test_failed_commit_keeps_settings_open_and_rolls_back(monkeypatch):
     monkeypatch.setattr(settings_draft, 'save_sections', broken)
     result = callbacks['save_settings'](**args)
     assert "Couldn't save settings" in result[0]
-    assert result[5] is dash.no_update and result[6] == 'close-1'
+    assert result[3] is dash.no_update and result[4] == 'close-1'
+    assert result[5] is dash.no_update
     assert _stored() == before
     assert settings_callbacks.get_sections()[0]['name'] != 'Renamed Links'
 

@@ -97,7 +97,7 @@ def test_empty_suggestions_do_not_rebuild_after_selection():
         "filter-difficulty",
         "filter-node-type",
         "filter-dormant",
-        "settings-save-status",
+        "settings-version-store",
     }
 
 

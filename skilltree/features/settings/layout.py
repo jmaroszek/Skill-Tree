@@ -536,9 +536,6 @@ def build_settings_modal():
             ])),
             class_name="settings-body",
         ),
-        # Internal completion signal used to refresh other views after commit.
-        # It must never appear during the modal's closing animation.
-        html.Span(id="settings-save-status", style={"display": "none"}),
         dcc.Store(id="settings-close-request"),
         dcc.Store(id="settings-close-result"),
         dcc.Store(id="settings-close-sink"),

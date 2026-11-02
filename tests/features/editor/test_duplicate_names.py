@@ -98,8 +98,8 @@ def _save(monkeypatch, trigger, **form):
 def test_new_node_cannot_overwrite_an_existing_one(monkeypatch, manager, trigger):
     response = _save(monkeypatch, trigger, name="Sleep", original_name=None)
 
-    assert response.message.startswith("Error:")
-    assert "'Sleep' already exists" in response.message
+    assert response.notice["kind"] == "error"
+    assert "'Sleep' already exists" in response.notice["text"]
     # The form stays open, even for Save & Close, so nothing typed is lost.
     assert response.editor_style["transform"] == "translateX(0px)"
     sleep = manager.get_node("Sleep")
@@ -112,7 +112,7 @@ def test_new_node_cannot_overwrite_an_existing_one(monkeypatch, manager, trigger
 def test_rename_cannot_take_another_nodes_name(monkeypatch, manager):
     response = _save(monkeypatch, "btn-save", name="sleep", original_name="Rest")
 
-    assert "'Sleep' already exists" in response.message
+    assert "'Sleep' already exists" in response.notice["text"]
     assert manager.get_node("Rest") is not None
     assert manager.get_node("Sleep").description == "keep me"
 

@@ -26,6 +26,7 @@ from skilltree.store.commands import (
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
+from skilltree.ui.notices import error, info
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class Request:
 @dataclass
 class Outcome:
     """What a handler did, for the render that follows."""
-    message: str = ""
+    notice: Optional[dict] = None
     # The node an explicit single completion just marked Done: the
     # time-calibration modal asks how long it took.
     completed: Optional[str] = None
@@ -75,16 +76,16 @@ class Outcome:
     response: Optional[CoreResponse] = None
 
 
-def unexpected_error_message(action):
-    """Log the exception being handled, and describe it for the user.
+def unexpected_error(action):
+    """Log the exception being handled, and a notice describing it for the user.
 
     Call this from an ``except`` block. The traceback goes to the log file,
     where a bug report can pick it up, and the user sees what failed rather
     than the exception's text.
     """
     logger.exception("%s failed", action)
-    return (f"Error: {action} failed unexpectedly. The details are in the log, "
-            "which a bug report should include.")
+    return error(f"{action} failed unexpectedly. The details are in the log, "
+                 "which a bug report should include.")
 
 
 def undo_done_body(target_names, downstream_done):
@@ -125,12 +126,12 @@ def _editor_kept_open(ed_style):
     return {**ed_style, 'transform': "translateX(0px)"}
 
 
-def _refused(message, request, *, editor_style=None):
-    """A save that didn't go through: its message and the sidebar styles,
+def _refused(notice, request, *, editor_style=None):
+    """A save that didn't go through: its notice and the sidebar styles,
     and nothing that would touch the graph, the filters or a modal."""
     ed_style, goal_style, events_style = request.sidebars
     return Outcome(response=CoreResponse(
-        message=message,
+        notice=notice,
         editor_style=ed_style if editor_style is None else editor_style,
         goal_style=goal_style, events_style=events_style))
 
@@ -146,22 +147,22 @@ def save(request):
         # A form with nothing in it means they changed their mind after New
         # Node: close. Anything else in it would be lost, so ask for the name.
         if is_form_dirty_vs_snapshot(request.pristine_snapshot, editor_form_values_from(form)):
-            return _refused("Error: Node name is required.", request)
-        return _refused("", request,
+            return _refused(error("Node name is required."), request)
+        return _refused(None, request,
                         editor_style={**ed_style, 'transform': SIDEBAR_TRANSLATE_CLOSED})
     if not form.get('n_type'):
-        return _refused("Error: Node type is required.", request)
+        return _refused(error("Node type is required."), request)
     # A new node, or a rename, may not take another node's name: the save
     # would update that node in place and wipe its relationships.
     clash = conflicting_node_name(request.graph, name, request.original_name)
     if clash:
-        return _refused(f"Error: A node named '{clash}' already exists. Choose a "
-                        f"different name, or search for '{clash}' to edit it.",
+        return _refused(error(f"A node named '{clash}' already exists. Choose a "
+                              f"different name, or search for '{clash}' to edit it."),
                         request, editor_style=_editor_kept_open(ed_style))
     alias_owner = node_with_alias(request.graph, name, request.original_name)
     if alias_owner:
-        return _refused(f"Error: '{name}' is an alias of '{alias_owner}'. Choose a "
-                        f"different name, or search for it to edit '{alias_owner}'.",
+        return _refused(error(f"'{name}' is an alias of '{alias_owner}'. Choose a "
+                              f"different name, or search for it to edit '{alias_owner}'."),
                         request, editor_style=_editor_kept_open(ed_style))
     try:
         saved = save_editor_form(
@@ -179,11 +180,11 @@ def save(request):
             reopen_open=True, reopen_body=reopen_body(e.names),
             reopen_pending={'via': request.trigger}))
     except (ValueError, TypeError) as e:
-        return _refused(f"Error: {e}", request, editor_style=_editor_kept_open(ed_style))
+        return _refused(error(str(e)), request, editor_style=_editor_kept_open(ed_style))
     except Exception:
-        return _refused(unexpected_error_message("Saving the node"), request,
+        return _refused(unexpected_error("Saving the node"), request,
                         editor_style=_editor_kept_open(ed_style))
-    return Outcome(message=saved.message, completed=saved.completed,
+    return Outcome(notice=info(saved.message), completed=saved.completed,
                    undo_pending=saved.undo_pending,
                    undo_downstream=saved.undo_downstream,
                    save_result=saved.result, saved_name=name)
@@ -198,11 +199,11 @@ def delete_loaded(request):
     if not name:
         return Outcome()
     try:
-        return Outcome(message=handle_delete(request.graph, name))
+        return Outcome(notice=info(handle_delete(request.graph, name)))
     except ValueError as e:
-        return Outcome(message=f"Error: {e}")
+        return Outcome(notice=error(str(e)))
     except Exception:
-        return Outcome(message=unexpected_error_message("Deleting the node"))
+        return Outcome(notice=unexpected_error("Deleting the node"))
 
 
 def toggle_tapped(request):
@@ -225,11 +226,11 @@ def toggle_tapped(request):
                     undo_pending=[node_id]))
         if node and node.status != STATUS_DONE:
             completed = node_id
-        return Outcome(message=handle_toggle_done(graph, tapped), completed=completed)
+        return Outcome(notice=info(handle_toggle_done(graph, tapped)), completed=completed)
     except ValueError as e:
-        return Outcome(message=f"Error: {e}", completed=completed)
+        return Outcome(notice=error(str(e)), completed=completed)
     except Exception:
-        return Outcome(message=unexpected_error_message("Changing the node's status"),
+        return Outcome(notice=unexpected_error("Changing the node's status"),
                        completed=completed)
 
 
@@ -239,7 +240,7 @@ def toggle_selection(request):
     if not data:
         return Outcome()
     graph = request.graph
-    message, completed = "", None
+    notice, completed = None, None
     try:
         nodes = [n for n in (graph.get_node(name) for name in bridge_payloads.names(data)) if n]
         # A sleeping node can't be Done, and one in the selection used to
@@ -247,7 +248,7 @@ def toggle_selection(request):
         asleep = [n for n in nodes if n.dormant]
         nodes = [n for n in nodes if not n.dormant]
         if asleep and not nodes:
-            message = "Error: a sleeping node can't be marked Done. Wake it first."
+            notice = error("a sleeping node can't be marked Done. Wake it first.")
         if nodes:
             new_status = (STATUS_DONE if any(n.status != STATUS_DONE for n in nodes)
                           else STATUS_OPEN)
@@ -288,11 +289,12 @@ def toggle_selection(request):
                 message = f"Set {flipped} node(s) to {new_status}"
             if asleep:
                 message += f", leaving out {len(asleep)} sleeping"
-        return Outcome(message=message, completed=completed)
+            notice = info(message)
+        return Outcome(notice=notice, completed=completed)
     except ValueError as e:
-        return Outcome(message=f"Error: {e}", completed=completed)
+        return Outcome(notice=error(str(e)), completed=completed)
     except Exception:
-        return Outcome(message=unexpected_error_message("Changing the nodes' status"),
+        return Outcome(notice=unexpected_error("Changing the nodes' status"),
                        completed=completed)
 
 
@@ -318,12 +320,12 @@ def confirm_undo_done(request):
             if request.now_switch and targets == [editing]:
                 add_to_now(request.graph, editing)
         if flipped == 1:
-            return Outcome(message=f"Un-marked '{targets[0]}' (Done → Open)")
-        return Outcome(message=f"Un-marked {flipped} node(s) (Done → Open)")
+            return Outcome(notice=info(f"Un-marked '{targets[0]}' (Done → Open)"))
+        return Outcome(notice=info(f"Un-marked {flipped} node(s) (Done → Open)"))
     except ValueError as e:
-        return Outcome(message=f"Error: {e}")
+        return Outcome(notice=error(str(e)))
     except Exception:
-        return Outcome(message=unexpected_error_message("Reopening the nodes"))
+        return Outcome(notice=unexpected_error("Reopening the nodes"))
 
 
 def group_delete(request):
@@ -333,11 +335,11 @@ def group_delete(request):
         return Outcome()
     try:
         # JS sends '["name1","name2"]|timestamp'. Names may contain "|".
-        return Outcome(message=handle_group_delete(request.graph, bridge_payloads.names(data)))
+        return Outcome(notice=info(handle_group_delete(request.graph, bridge_payloads.names(data))))
     except ValueError as e:
-        return Outcome(message=f"Error: {e}")
+        return Outcome(notice=error(str(e)))
     except Exception:
-        return Outcome(message=unexpected_error_message("Deleting the nodes"))
+        return Outcome(notice=unexpected_error("Deleting the nodes"))
 
 
 HANDLERS = {

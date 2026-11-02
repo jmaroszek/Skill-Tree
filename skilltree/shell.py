@@ -10,7 +10,6 @@ import dash_bootstrap_components as dbc
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
 from skilltree.ui.timing import (
     TOOLTIP_SHOW_DELAY_MS, TOOLTIP_NODE_HIDE_DELAY_MS,
-    TOAST_CLEAR_INTERVAL_MS,
 )
 from skilltree.ui.styles import CANVAS_HEIGHT
 from skilltree.features.events.layout import build_events_tab_content, build_add_to_event_modal
@@ -496,6 +495,8 @@ def build_app_layout(graph, env="production"):
         dcc.Store(id='pending-navigation-store', data=None),
         # Written by core_engine only when an editor save commits.
         dcc.Store(id='editor-save-result-store', data=None),
+        # What the app is telling the user (ui.notices).
+        dcc.Store(id='notice-store', data=None),
         # A saved link that needs a yes before it opens (resource_links.NeedsConfirmation).
         dcc.ConfirmDialog(id='confirm-open-link', message=''),
         dcc.Store(id='pending-open-link', data=None),
@@ -558,6 +559,12 @@ def build_app_layout(graph, env="production"):
         # Downstream listeners use this instead of cytoscape-graph.elements to
         # avoid re-firing on cosmetic updates (filter, depth, highlight).
         dcc.Store(id='graph-version-store', data=0),
+        # A Settings save committed. Written by save_settings and the
+        # migration's Apply, not by every Setting: changing Next's row count
+        # shouldn't redraw the app.
+        dcc.Store(id='settings-version-store', data=0),
+        # A reflection was logged, which changes Analyze but draws no canvas.
+        dcc.Store(id='reflection-version-store', data=0),
         # Holds the names the user is about to un-Done while the confirmation
         # modal is open. Read by the modal-confirm callback to perform the
         # actual toggle once the user has acknowledged the downstream impact.
@@ -590,7 +597,6 @@ def build_app_layout(graph, env="production"):
         # What the rendered Analyze charts were computed from. An arrival that
         # finds it current skips the recompute. See _analyze_signature.
         dcc.Store(id='analyze-rendered-store', data=None),
-        dcc.Interval(id='settings-clear-interval', interval=TOAST_CLEAR_INTERVAL_MS, n_intervals=0, disabled=True),
 
         main_tabs,
         # Tab content wrapper — only one tab visible at a time

@@ -166,5 +166,5 @@ def test_settings_save_keeps_the_extra_backup_folder(tmp_path):
         [], "definition", "definition", [], 5,
         None, None, None, None, None, None, None,
         backup_extra_dir=f"  {tmp_path}  ")
-    assert status.startswith("Settings saved")
+    assert status == ""
     assert settings.BACKUP_EXTRA_DIR.get() == str(tmp_path)

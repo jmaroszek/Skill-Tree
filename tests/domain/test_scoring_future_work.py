@@ -194,7 +194,7 @@ def test_settings_callbacks_use_complete_named_profiles_and_preserve_simulation_
         'estimate_correlation': .25,
     })
     args.update(n_clicks=1, hp_profile='Explorer', hpw=25, hpm=100)
-    assert save(**args)[0] == 'Settings saved'
+    assert save(**args)[0] == ''
     assert settings.HP_PROFILE.get() == 'Explorer'
     # Only the name is stored, so a later retune of Explorer reaches this install.
     assert settings.read_stored('HYPERPARAMS') is None

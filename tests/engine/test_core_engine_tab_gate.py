@@ -15,9 +15,11 @@ from skilltree.engine.callbacks import _EDITOR_UI_ONLY_TRIGGERS, _NON_GRAPH_TABS
 from skilltree.engine.response import CORE_OUTPUTS, CoreResponse
 from skilltree.engine import sidebars
 from skilltree.services import AppServices
+from skilltree.store.graph.manager import GraphManager
 from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from support.triggers import fire
 from support.callbacks import app_with, unwrapped
+from support.graphs import make_node
 
 SIDEBAR_FIELDS = ("editor_style", "goal_style", "events_style")
 
@@ -166,7 +168,7 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
     out = _call(cb)
 
     assert out.elements is not dash.no_update
-    for field in ("message",
+    for field in ("notice",
                   "undo_open", "undo_body", "undo_pending",
                   "calibration_open", "calibration_reference",
                   "calibration_pending"):
@@ -185,16 +187,14 @@ def _render(monkeypatch, trigger, active_tab, stamp=None, search=None):
 def test_the_nodes_canvas_loads_on_its_first_visit(monkeypatch):
     """Its ingest and cold layout used to hold up the startup cover for about
     a second. Until the canvas loads, a render sends a marker instead."""
-    from skilltree.ui.canvas.view import CANVAS_DEFERRED
-
-    assert _render(monkeypatch, "", "tab-next").elements == CANVAS_DEFERRED
+    assert _render(monkeypatch, "", "tab-next").elements["deferred"] is True
     assert isinstance(_render(monkeypatch, "", "tab-canvas").elements, list)
 
 
 def test_a_tab_switch_leaves_the_resets_alone(monkeypatch):
     out = _render(monkeypatch, "main-tabs", "tab-canvas")
     assert isinstance(out.elements, list)
-    assert out.message is dash.no_update
+    assert out.notice is dash.no_update
 
 
 def test_a_loaded_canvas_stays_current_in_the_background(monkeypatch):
@@ -254,3 +254,19 @@ def test_the_registered_callback_hands_dash_its_outputs_by_name():
                                 None) | {"active_tab": "tab-next"})
     assert set(out) == set(CORE_OUTPUTS)
     assert all(value is dash.no_update for value in out.values())
+
+
+def test_a_run_with_nothing_to_say_leaves_the_message_alone(monkeypatch):
+    """Saving a rename clears the node picker, which runs the callback again.
+    That run wiped the save's confirmation."""
+    assert _render(monkeypatch, "search-node", "tab-canvas").notice is dash.no_update
+
+
+def test_a_deferred_canvas_still_reports_a_change(monkeypatch):
+    """The canvas hasn't loaded, so a render sends a marker. If that marker
+    never changed, its stamp wouldn't fire and graph-version-store would miss
+    every change until the canvas loaded."""
+    before = _render(monkeypatch, "", "tab-next").elements
+    GraphManager().add_node(make_node("New"))
+    after = _render(monkeypatch, "", "tab-next").elements
+    assert after["deferred"] is True and after != before

@@ -538,7 +538,7 @@ def register_details_callbacks(app, services):
         Input("filter-difficulty", "value"),
         Input("filter-node-type", "value"),
         Input("filter-dormant", "value"),
-        Input("settings-save-status", "children"),
+        Input("settings-version-store", "data"),
         Input("filter-time-min", "value"),
         Input("filter-search-query", "data"),
         Input("filter-community", "value"),

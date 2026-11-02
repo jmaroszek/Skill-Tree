@@ -64,7 +64,7 @@ def test_multi_node_done_toggle_rolls_back_as_one(monkeypatch, manager):
 
     response = callbacks.CoreResponse(*core_engine(**kwargs))
 
-    assert response.message.startswith("Error")
+    assert response.notice["kind"] == "error"
     assert [manager.get_node(n).status for n in "ABC"] == [STATUS_OPEN] * 3
 
 
@@ -92,10 +92,10 @@ def test_a_sleeping_node_sits_out_of_a_bulk_done(monkeypatch, manager):
 
     response = callbacks.CoreResponse(*core_engine(**kwargs))
 
-    assert response.message == "Set 2 node(s) to Done, leaving out 1 sleeping"
+    assert response.notice["text"] == "Set 2 node(s) to Done, leaving out 1 sleeping"
     assert [manager.get_node(n).status for n in "AB"] == [STATUS_DONE] * 2
     assert manager.get_node("C").status == STATUS_OPEN
 
     kwargs["toggle_done_trigger_data"] = '["C"]|2|2'
     response = callbacks.CoreResponse(*core_engine(**kwargs))
-    assert "sleeping node can't be marked Done" in response.message
+    assert "sleeping node can't be marked Done" in response.notice["text"]

@@ -2,6 +2,7 @@
 Callback definitions for the Settings tab.
 """
 
+import time
 import logging
 from typing import Any, Tuple
 
@@ -137,17 +138,6 @@ def _clamp(val, lo, hi, default):
     return max(lo, min(hi, v))
 
 
-def _save_message(plan) -> str:
-    """Confirm a save, naming the context changes it made.
-
-    Worded by the same describe_plan as the live line under the rows, so the
-    confirmation repeats what the user was told rather than recounting it —
-    a renamed context's subcontexts follow it, and are not changes of their own.
-    """
-    detail = context_rules.describe_plan(plan)
-    return f"Settings saved — {detail}" if detail else "Settings saved"
-
-
 def register_settings_callbacks(app, services):
     manager = services.graph
 
@@ -178,17 +168,6 @@ def register_settings_callbacks(app, services):
         prevent_initial_call=True,
     )
 
-    app.clientside_callback(
-        """function(message) {
-            if (typeof message === 'string' && message.startsWith('Settings saved')) {
-                return '';
-            }
-            return message || '';
-        }""",
-        Output('settings-save-error', 'children'),
-        Input('settings-save-status', 'children'),
-    )
-
     # --- Settings: Show Title Case options only when they apply ---
     @app.callback(
         Output("setting-titlecase-options", "is_open"),
@@ -217,7 +196,7 @@ def register_settings_callbacks(app, services):
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-now-node-cap', 'value'),
         Output('setting-show-hour-equivalents', 'value'),
-        Output('settings-save-status', 'children', allow_duplicate=True),
+        Output('settings-save-error', 'children', allow_duplicate=True),
     ]
 
     @app.callback(*load_outputs, Input('settings-modal', 'is_open'),
@@ -299,13 +278,12 @@ def register_settings_callbacks(app, services):
 
     # --- Settings: Save before closing ---
     @app.callback(
-        Output('settings-save-status', 'children'),
+        Output('settings-save-error', 'children'),
         Output('pending-settings-store', 'data'),
-        Output('settings-clear-interval', 'disabled'),
-        Output('settings-clear-interval', 'n_intervals'),
         Output('context-editor-store', 'data', allow_duplicate=True),
         Output('settings-modal', 'is_open', allow_duplicate=True),
         Output('settings-close-result', 'data'),
+        Output('settings-version-store', 'data'),
         Input('settings-close-request', 'data'),
         State({"type": "setting-shape", "index": ALL}, "value"),
         State({"type": "setting-shape", "index": ALL}, "id"),
@@ -342,12 +320,13 @@ def register_settings_callbacks(app, services):
                        section_use_roots=None, section_use_root_ids=None,
                        backup_extra_dir=None, show_hour_equivalents_val=None):
         if not n_clicks:
-            return (dash.no_update,) * 7
+            return (dash.no_update,) * 6
 
-        def result(message, pending=dash.no_update, editor=dash.no_update, closed=False):
+        def result(message, pending=dash.no_update, editor=dash.no_update, closed=False,
+                   version=dash.no_update):
             # Failure messages remain visible until the user fixes the draft.
-            return (message, pending, True, 0, editor,
-                    False if closed else dash.no_update, n_clicks)
+            return (message, pending, editor,
+                    False if closed else dash.no_update, n_clicks, version)
 
         try:
             # One transaction: a failure anywhere below saves none of it.
@@ -489,25 +468,13 @@ def register_settings_callbacks(app, services):
                 apply_settings(draft)
                 editor = editor_state(manager)
             # Only dismiss after the transaction has committed successfully.
-            return result(_save_message(plan), editor=editor, closed=True)
+            return result("", editor=editor, closed=True, version=int(time.time() * 1000))
 
         except Exception:
             logger.exception("Failed to save settings")
             return result("Couldn't save settings. Nothing was changed; the log has the "
                           "details.")
 
-
-    # --- Settings: Auto-dismiss status message ---
-    @app.callback(
-        Output('settings-save-status', 'children', allow_duplicate=True),
-        Output('settings-clear-interval', 'disabled', allow_duplicate=True),
-        Input('settings-clear-interval', 'n_intervals'),
-        prevent_initial_call=True,
-    )
-    def clear_settings_message(n):
-        if n > 0:
-            return "", True
-        return dash.no_update, dash.no_update
 
     # --- Settings: Restore Default Shapes ---
     @app.callback(

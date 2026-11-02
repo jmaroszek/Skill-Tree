@@ -11,6 +11,8 @@ import logging
 import dash
 from dash import Input, Output, State, ALL, ctx
 
+from skilltree.ui.notices import error
+
 from skilltree.ui.kit import hint
 from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
@@ -43,12 +45,12 @@ def register_resource_link_callbacks(app, services):
     # what the user has typed, not the links last loaded.
     @app.callback(
         Output('resource-links-store', 'data', allow_duplicate=True),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         State({'type': 'resource-link', 'index': ALL}, 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'id'),
         prevent_initial_call=True,
     )
-    def keep_typed_links_across_settings_save(_status, values, ids):
+    def keep_typed_links_across_settings_save(_version, values, ids):
         return resource_link_values(values, ids)
 
     @app.callback(
@@ -93,7 +95,7 @@ def register_resource_link_callbacks(app, services):
         return links
 
     @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
+        Output('notice-store', 'data', allow_duplicate=True),
         Output('confirm-open-link', 'message'),
         Output('confirm-open-link', 'displayed'),
         Output('pending-open-link', 'data'),
@@ -111,7 +113,7 @@ def register_resource_link_callbacks(app, services):
         section_id = key.rpartition(':')[0]
         section = next((s for s in get_sections() if s['id'] == section_id), None)
         if section is None:
-            return ('Error: That resource no longer exists.',) + unchanged
+            return (error('That resource no longer exists.'),) + unchanged
         value = next((value for value, item_id in zip(values, ids)
                       if item_id['index'] == key), '')
         try:
@@ -124,7 +126,7 @@ def register_resource_link_callbacks(app, services):
 
     # A yes in the dialog above.
     @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
+        Output('notice-store', 'data', allow_duplicate=True),
         Input('confirm-open-link', 'submit_n_clicks'),
         State('pending-open-link', 'data'),
         prevent_initial_call=True,
@@ -134,7 +136,7 @@ def register_resource_link_callbacks(app, services):
             return dash.no_update
         section = next((s for s in get_sections() if s['id'] == pending.get('section')), None)
         if section is None:
-            return 'Error: That resource no longer exists.'
+            return error('That resource no longer exists.')
         try:
             open_resource(pending.get('link', ''), section, confirmed=True)
             return dash.no_update
@@ -145,7 +147,7 @@ def register_resource_link_callbacks(app, services):
         # A missing file or an unset root folder is expected, and its text
         # says what to fix. The log keeps it for anything stranger.
         logger.warning("Opening a %s link failed: %s", section['name'], exc)
-        return f"Error: Couldn't open that {section['name']} link. {exc}"
+        return error(f"Couldn't open that {section['name']} link. {exc}")
 
     # The desktop window's native picker (assets/editor/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.

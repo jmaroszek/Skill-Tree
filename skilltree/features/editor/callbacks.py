@@ -45,6 +45,7 @@ from skilltree.store.commands import bridge_form, node_with_alias, plan_bridge
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
+from skilltree.ui.notices import info
 from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.duration import work_time_tooltip
 from skilltree.ui.components.ratings_table import (
@@ -274,15 +275,13 @@ def register_editor_callbacks(app, services):
         Output('node-time-m', 'value', allow_duplicate=True),
         Output('node-time-p', 'value', allow_duplicate=True),
         Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         [State('node-original-name', 'data'),
          State('editor-pristine-snapshot', 'data'),
          {key: EDITOR_FORM[key] for key in ('time_o', 'time_m', 'time_p', 'time_unit')}],
         prevent_initial_call=True,
     )
-    def follow_editor_estimate(status, name, snapshot, form):
-        if not str(status or '').startswith('Settings saved'):
-            return (no_update,) * 4
+    def follow_editor_estimate(_version, name, snapshot, form):
         node = manager.get_node(name) if name else None
         fields, stored = follow_estimate(node, form, snapshot)
         if stored is None:
@@ -988,7 +987,7 @@ def register_editor_callbacks(app, services):
     )
 
     @app.callback(
-        Output('save-output', 'children', allow_duplicate=True),
+        Output('notice-store', 'data', allow_duplicate=True),
         Input('btn-revert', 'n_clicks'),
         State('node-original-name', 'data'),
         prevent_initial_call=True,
@@ -997,8 +996,8 @@ def register_editor_callbacks(app, services):
         if not n_clicks or not name:
             return dash.no_update
         if manager.get_node(name) is None:
-            return f"Couldn't revert: '{name}' no longer exists."
-        return "Changes reverted."
+            return info(f"Couldn't revert: '{name}' no longer exists.")
+        return info("Changes reverted.")
 
     # Either answer closes the reopen confirmation. The core engine reads the
     # held Save from the store on a yes, so only a no clears it.

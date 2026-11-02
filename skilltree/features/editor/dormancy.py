@@ -170,16 +170,16 @@ def register_dormancy_callbacks(app, services):
 
     # A save that put a node to sleep, changed its event or woke it has to
     # reach the Events tab and refill the section from the database. The save
-    # message is written only after the save commits, so it is the signal.
+    # result is written only after the save commits, so it is the signal.
     @app.callback(
         Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Input("save-output", "children"),
+        Input("editor-save-result-store", "data"),
         State("node-dormancy-form", "data"),
         State("node-dormant-loaded", "data"),
         prevent_initial_call=True,
     )
-    def refresh_events_after_save(message, dormancy, was_dormant):
-        saved = isinstance(message, str) and message.startswith(("Updated node", "Added node"))
-        if not saved or not ((dormancy or {}).get("dormant") or was_dormant):
+    def refresh_events_after_save(save_result, dormancy, was_dormant):
+        if (not isinstance(save_result, dict)
+                or not ((dormancy or {}).get("dormant") or was_dormant)):
             return no_update
         return f"editor-save-{int(time.time() * 1000)}"

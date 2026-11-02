@@ -58,13 +58,11 @@ def register_resource_settings_callbacks(app, services):
     @app.callback(
         Output('resource-section-settings-store', 'data'),
         Input('settings-modal', 'is_open'),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         prevent_initial_call=True,
     )
-    def load_resource_sections(is_open, save_status):
-        if ctx.triggered_id == 'settings-save-status':
-            if not str(save_status or '').startswith('Settings saved'):
-                return dash.no_update
+    def load_resource_sections(is_open, _version):
+        if ctx.triggered_id == 'settings-version-store':
             return get_sections()
         return get_sections() if is_open else dash.no_update
 

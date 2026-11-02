@@ -95,7 +95,7 @@ def register_home_callbacks(app, services):
         Input('filter-interest', 'value'), Input('filter-time', 'value'),
         Input('filter-time-unit', 'value'), Input('filter-difficulty', 'value'),
         Input('filter-node-type', 'value'), Input('filter-dormant', 'value'),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         Input('filter-community', 'value'), Input('community-method', 'value'),
@@ -126,7 +126,7 @@ def register_home_callbacks(app, services):
     @app.callback(
         Output('now-nodes-table', 'children'),
         Input('graph-version-store', 'data'),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         State('selected-suggestion-store', 'data'),
         prevent_initial_call=True,
     )

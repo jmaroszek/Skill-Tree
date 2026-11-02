@@ -43,7 +43,7 @@ def register_simulation_callbacks(app, services):
         Input("filter-difficulty", "value"), Input("filter-node-type", "value"),
         Input("filter-dormant", "value"), Input("details-hide-blocked", "value"),
         Input("filter-time-unit", "value"), Input("graph-version-store", "data"),
-        Input("settings-save-status", "children"),
+        Input("settings-version-store", "data"),
         Input("details-simulation-settled-trigger-input", "value"),
         Input("main-tabs", "active_tab"),
         Input("filter-time-min", "value"),

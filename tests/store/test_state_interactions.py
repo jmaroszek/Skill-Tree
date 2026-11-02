@@ -142,14 +142,14 @@ def test_delete_removes_the_loaded_node_not_the_name_typed_over_it(handlers, mon
     result = delete(handlers, monkeypatch, name='B', original_name='A')
     assert manager.get_node('A') is None
     assert manager.get_node('B') is not None
-    assert result.message == "Deleted node 'A'"
+    assert result.notice["text"] == "Deleted node 'A'"
 
 
 def test_delete_during_an_unsaved_rename_deletes_the_node(handlers, monkeypatch):
     manager = graph('A')
     result = delete(handlers, monkeypatch, name='A renamed ', original_name='A')
     assert manager.get_node('A') is None
-    assert result.message == "Deleted node 'A'"
+    assert result.notice["text"] == "Deleted node 'A'"
 
 
 def test_delete_on_a_form_that_never_loaded_a_node_deletes_nothing(handlers, monkeypatch):
@@ -161,8 +161,8 @@ def test_delete_on_a_form_that_never_loaded_a_node_deletes_nothing(handlers, mon
 def test_delete_of_a_node_already_gone_does_not_report_success(handlers, monkeypatch):
     graph('A')
     result = delete(handlers, monkeypatch, name='Gone', original_name='Gone')
-    assert result.message.startswith('Error:')
-    assert 'nothing was deleted' in result.message
+    assert result.notice["kind"] == "error"
+    assert 'nothing was deleted' in result.notice["text"]
 
 
 def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
@@ -239,7 +239,7 @@ def test_sleeping_completion_is_refused_without_firing_events(handlers, monkeypa
     events.add_node_to_event('On Done', 'Reward')
     result = run_core(handlers, monkeypatch, 'toggle-done-trigger-input',
                       toggle_done_trigger_data='["A"]|1')
-    assert result.message.startswith('Error:')
+    assert result.notice["kind"] == "error"
     assert manager.get_node('A').status == 'Open'
     assert events.get_event('On Done').status == 'Pending'
     assert history(manager, 'A') == []
@@ -271,7 +271,7 @@ def test_new_blocker_and_completion_refuse_the_entire_save(handlers, monkeypatch
     result = run_core(handlers, monkeypatch, name='B',
                       original_name='B' if existing else None,
                       status_done=['Done'], e_needs_h=['A'])
-    assert result.message.startswith('Error:')
+    assert result.notice["kind"] == "error"
     assert result.save_result is dash.no_update
     assert result.calibration_open is not True
     assert manager.get_edges() == []
@@ -454,7 +454,7 @@ def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger
     result = run_core(handlers, monkeypatch, trigger, name='A', original_name='A',
                       pristine_snapshot={'name': 'A'}, **state)
 
-    assert result.message.startswith('Error:') and fragment in result.message
+    assert result.notice["kind"] == "error" and fragment in result.notice["text"]
     assert manager.get_node('A').description != 'edited'
 
 
@@ -504,7 +504,7 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
                       pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
     saved = manager.get_node('A')
     assert saved.description == 'notes' and not saved.dormant
-    assert "woke from 'Later' while you were editing" in result.message
+    assert "woke from 'Later' while you were editing" in result.notice["text"]
     assert result.save_result['woke'] == 'Later'
     assert result.save_result['form']['dormancy']['dormant'] is False
 

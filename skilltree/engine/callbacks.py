@@ -14,10 +14,10 @@ import time
 from skilltree.store import database
 from skilltree.engine.sidebars import compute_sidebar_styles
 from skilltree.engine.handlers import (
-    SAVE_TRIGGERS, Request, handle, undo_done_body, unexpected_error_message,
+    SAVE_TRIGGERS, Request, handle, undo_done_body, unexpected_error,
 )
 from skilltree.engine.response import CORE_OUTPUTS, CoreResponse, keyed
-from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, CANVAS_DEFERRED
+from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, deferred_canvas
 
 
 import dash
@@ -28,6 +28,7 @@ from dash import ClientsideFunction, html, Input, Output, State, no_update
 from skilltree.store import settings
 from skilltree.domain.models import STATUS_DONE
 from skilltree.ui import payloads as bridge_payloads
+from skilltree.ui.notices import error, info
 from skilltree.features.editor.form import (
     EDITOR_FORM, follow_done_status,
 )
@@ -108,8 +109,7 @@ CORE_INPUTS = dict(
     btn_goals_toggle=Input('btn-goals-toggle', 'n_clicks'),
     btn_unsaved_save=Input('btn-unsaved-save', 'n_clicks'),
     btn_unsaved_discard=Input('btn-unsaved-discard', 'n_clicks'),
-    settings_save_status=Input('settings-save-status', 'children'),
-    migration_open=Input('modal-migration', 'is_open'),
+    settings_version=Input('settings-version-store', 'data'),
     btn_toggle_done=Input('btn-toggle-done-node', 'n_clicks'),
     group_delete_data=Input('group-delete-input', 'value'),
     f_node_types=Input('filter-node-type', 'value'),
@@ -135,7 +135,7 @@ CORE_STATE = dict(
     active_suggestion_id=State('selected-suggestion-store', 'data'),
     # A State too. Settle only lays out what the canvas shows. As an Input it
     # rebuilt the whole canvas payload, and that response, its restyle and
-    # the callbacks chained to save-output landed inside the Settle's
+    # the callbacks chained to its message landed inside the Settle's
     # animation as stalls of up to 120 ms.
     _relayout=State('graph-settings-relayout', 'n_clicks'),
     ed_style=State('sidebar-editor-container', 'style'),
@@ -173,7 +173,7 @@ def register_engine_callbacks(app, services):
         Input('canvas-payload-stamp', 'data'),
         Input('events-refresh-trigger', 'data'),
         Input('details-refresh-trigger', 'data'),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         State('graph-version-store', 'data'),
         prevent_initial_call=True,
     )
@@ -204,7 +204,7 @@ def register_engine_callbacks(app, services):
     def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_save_status, migration_open, btn_toggle_done,
+                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_version, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
@@ -239,20 +239,6 @@ def register_engine_callbacks(app, services):
         if trigger_id == 'main-tabs' and (
                 active_tab in _NON_GRAPH_TABS
                 or (canvas_stamp or {}).get('loaded')):
-            return CoreResponse()
-
-        # Settings-save gate: we trigger off `settings-save-status` (not the
-        # raw save-button click) so this runs AFTER save_settings has written
-        # the new contexts/types to the DB — otherwise we'd race the write and
-        # re-read stale config, leaving the context/type dropdowns showing
-        # values the user just deleted. Only a "Settings saved" message means
-        # config was actually persisted with no migration pending; a context
-        # edit appends what it changed ("Settings saved — 1 rename"), so this
-        # matches the prefix. The auto-clear to "", the "Migration required"
-        # message (the modal-close path handles that), and "Error..." carry no
-        # config change to render.
-        if (trigger_id == 'settings-save-status'
-                and not str(settings_save_status or '').startswith('Settings saved')):
             return CoreResponse()
 
         all_triggered_ids = get_all_triggered_ids()
@@ -366,7 +352,7 @@ def register_engine_callbacks(app, services):
 
         if (isinstance(view.elements, list)
                 and not canvas_wanted(active_tab, canvas_stamp)):
-            view = view._replace(elements=CANVAS_DEFERRED)
+            view = view._replace(elements=deferred_canvas())
 
         if not trigger_id or trigger_id == 'main-tabs':
             # Page load or a tab switch: nothing ran, so
@@ -407,7 +393,10 @@ def register_engine_callbacks(app, services):
         # pending store cleared.
         undo_pending = outcome.undo_pending
         return view._replace(
-            message=outcome.message,
+            # A run with nothing to say leaves the line to its timer. Saving a
+            # rename clears the node picker, which runs this again, and that
+            # run wiped the save's confirmation at once.
+            notice=outcome.notice or no_update,
             editor_style=next_ed_style,
             goal_style=next_goal_style,
             events_style=next_events_sidebar_style,
@@ -478,7 +467,7 @@ def register_engine_callbacks(app, services):
         Output('auto-done-suggestion-body', 'children'),
         Output('auto-done-candidates-store', 'data'),
         Output('details-refresh-trigger', 'data', allow_duplicate=True),
-        Output('save-output', 'children', allow_duplicate=True),
+        Output('notice-store', 'data', allow_duplicate=True),
         Input('graph-version-store', 'data'),
         Input('btn-auto-done-confirm', 'n_clicks'),
         Input('btn-auto-done-dismiss', 'n_clicks'),
@@ -489,35 +478,35 @@ def register_engine_callbacks(app, services):
         trig = get_trigger_id()
         candidates = list(current_candidates or [])
         refresh_out = no_update
-        save_msg_out = no_update
+        notice_out = no_update
 
         if trig == 'btn-auto-done-confirm' and candidates:
             target = candidates.pop(0)
             node = manager.get_node(target)
             if node is None:
-                save_msg_out = f"'{target}' no longer exists"
+                notice_out = f"'{target}' no longer exists"
             elif node.status == STATUS_DONE:
                 # Already Done via another path — silently skip.
                 pass
             elif not manager.is_auto_done_ready(target):
                 # Prereqs no longer all Done (e.g. a sibling un-done) —
                 # don't force; let the user re-decide later.
-                save_msg_out = (
+                notice_out = info(
                     f"'{target}' is no longer eligible — "
                     "its state or prerequisites changed."
                 )
             else:
                 try:
                     accepted = manager.complete_suggested_node(target)
-                    save_msg_out = (f"Marked '{target}' as Done" if accepted
-                                    else f"'{target}' is no longer eligible")
+                    notice_out = info(f"Marked '{target}' as Done" if accepted
+                                      else f"'{target}' is no longer eligible")
                     if accepted:
                         refresh_out = f"auto-done-{time.time()}"
                 except Exception as exc:
-                    save_msg_out = (
-                        f"Error marking '{target}' Done: {exc}"
+                    notice_out = (
+                        error(f"Couldn't mark '{target}' Done. {exc}")
                         if isinstance(exc, ValueError)
-                        else unexpected_error_message(f"Marking '{target}' Done"))
+                        else unexpected_error(f"Marking '{target}' Done"))
                     # Re-prepend so the user can retry from the modal.
                     candidates.insert(0, target)
 
@@ -551,8 +540,8 @@ def register_engine_callbacks(app, services):
                     className="text-muted small",
                 ),
             ])
-            return True, body, candidates, refresh_out, save_msg_out
-        return False, "", [], refresh_out, save_msg_out
+            return True, body, candidates, refresh_out, notice_out
+        return False, "", [], refresh_out, notice_out
 
 
     # --- Group Delete Confirmation Modal (context menu + Delete key) ---
@@ -607,29 +596,22 @@ def register_engine_callbacks(app, services):
         prevent_initial_call=True,
     )
 
-    @app.callback(
+    app.clientside_callback(
+        ClientsideFunction(namespace='notices', function_name='show'),
+        Output("save-output", "children"),
         Output("modal-error", "is_open"),
         Output("error-modal-body", "children"),
-        Input("save-output", "children"),
+        Input("notice-store", "data"),
         Input("btn-close-error", "n_clicks"),
-        State("modal-error", "is_open"),
-        prevent_initial_call=True
+        prevent_initial_call=True,
     )
-    def toggle_error_modal(save_msg, close_clicks, is_open):
-        ctx = dash.callback_context
-        trigger = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else ""
-        if trigger == "btn-close-error":
-            return False, dash.no_update
-        if trigger == "save-output" and save_msg and isinstance(save_msg, str) and save_msg.startswith("Error:"):
-            return True, save_msg
-        return is_open, dash.no_update
 
 
     # --- Each Nodes render: stamp it, and report it to both covers ---
     # The stamp is what server callbacks listen to instead of the elements,
     # which would send the whole canvas back to the server on every render.
     # `loaded` stays true once the canvas has had elements; until then the
-    # core engine sends CANVAS_DEFERRED (see canvas_view.canvas_wanted).
+    # core engine sends deferred_canvas() (see canvas_view.canvas_wanted).
     # The canvas cover waits for the main canvas's layout to settle, and a
     # graph with no nodes never runs one — no `layoutstop` is ever coming, so
     # nothing else would release it. Only the empty case matters to it; the JS

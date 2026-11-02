@@ -94,7 +94,7 @@ def test_settings_save_renames_and_clears_an_unused_root():
         {"id": "drive", "name": "Drive", "root_path": "G:/Drive", "use_root": False},
         {"id": "website", "name": "Web", "root_path": ""},
     ]
-    assert _save(store, cards)[0] == "Settings saved"
+    assert _save(store, cards)[0] == ""
     saved = {s["id"]: s for s in resources.get_sections()}
     assert saved["obsidian"]["name"] == "Notes"
     assert saved["obsidian"]["root_path"] == "C:/Vault"
@@ -109,7 +109,7 @@ def test_settings_save_removes_a_held_section_with_its_links():
         if row["id"] == "drive":
             row["deleted"] = True
     cards = [dict(row) for row in store if not row.get("deleted")]
-    assert _save(store, cards)[0] == "Settings saved"
+    assert _save(store, cards)[0] == ""
     assert [s["id"] for s in resources.get_sections()] == ["obsidian", "website"]
     assert GraphManager().get_node("Reading").resource_links == {
         "website": ["https://example.com"]}

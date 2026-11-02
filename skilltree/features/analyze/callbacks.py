@@ -141,21 +141,19 @@ def register_analyze_callbacks(app, services):
         Input("setting-analyze-throughput-start", "value"),
         Input("setting-analyze-throughput-end", "value"),
         Input("setting-analyze-throughput-color", "value"),
-        # save-output is the global "something was saved" channel. Reflection
-        # edits via the hub modal don't regenerate Cytoscape elements, so
-        # graph-version-store doesn't bump and the usual graph-change signal
-        # misses them. Listening to save-output picks them up; the active_tab
-        # guard below short-circuits when the user is not on this tab.
-        Input("save-output", "children"),
+        # What changes the charts while the tab is showing. A reflection draws
+        # no canvas, so it has a signal of its own.
+        Input("graph-version-store", "data"),
+        Input("reflection-version-store", "data"),
         # Read as State now that arrival is signalled by analyze-active-store.
-        # Still needed: the settings and save-output Inputs fire from any tab.
+        # Still needed: the settings and version Inputs fire from any tab.
         State("main-tabs", "active_tab"),
         State("analyze-rendered-store", "data"),
         prevent_initial_call=True,
     )
     def refresh_analyze_tab(_arrived, _prewarm, bottlenecks, goals,
                             thru_gran, thru_start, thru_end, thru_color,
-                            _save_output, active_tab, rendered_signature):
+                            _version, _reflection, active_tab, rendered_signature):
         skip = (no_update,) * 10
         fired = set(ctx.triggered_prop_ids)
         # A dcc.Store whose data starts as None reports a change with no

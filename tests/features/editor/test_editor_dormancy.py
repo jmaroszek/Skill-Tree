@@ -360,3 +360,19 @@ def test_add_to_event_refuses_a_node_in_another_event_and_adds_none(mgr, em):
     assert "Piano" in result[1]
     assert em.get_event_nodes("Move") == []
     assert mgr.get_node("Voice").dormant == 0
+
+
+def _refresh_after_save():
+    return registered(dormancy.register_dormancy_callbacks)["refresh_events_after_save"]
+
+
+def test_a_save_refreshes_events_when_the_node_sleeps_or_slept():
+    refresh = _refresh_after_save()
+    saved = {"name": "A", "via": "btn-save", "ts": 1}
+    assert refresh(saved, {"dormant": True}, False) is not dash.no_update
+    assert refresh(saved, {"dormant": False}, True) is not dash.no_update
+    assert refresh(saved, {"dormant": False}, False) is dash.no_update
+
+
+def test_no_committed_save_refreshes_nothing():
+    assert _refresh_after_save()(None, {"dormant": True}, True) is dash.no_update

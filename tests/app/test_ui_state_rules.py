@@ -22,20 +22,17 @@ MOST_WRITERS = {
     'details-goal-sidebar.style': 8,
     'events-sidebar-container.style': 7,
     'editor-pristine-snapshot.data': 9,
+    # Everything else writes a notice, and notices.js shows it.
+    'save-output.children': 1,
+    'modal-error.is_open': 1,
+    # The two places a Settings save commits.
+    'settings-version-store.data': 2,
 }
 
 # A message says something to a person. Code that reads one to learn what
 # happened breaks when the wording changes.
 MESSAGE_TEST = re.compile(
     r"""start(?:s|S)[Ww]ith\(\s*\(?\s*["'](?:Error|Settings saved|Updated node|Added node)""")
-READS_MESSAGES = {
-    'skilltree/engine/callbacks.py': 2,
-    'skilltree/features/editor/callbacks.py': 1,
-    'skilltree/features/editor/dormancy.py': 1,
-    'skilltree/features/settings/callbacks.py': 1,
-    'skilltree/features/settings/resources.py': 1,
-    'skilltree/ui/components/context_picker.py': 1,
-}
 
 # Stores that exist to be written: a browser callback needed an Output.
 SINKS = {'settings-close-sink', 'data-reload-sink', 'about-update-sink', 'welcome-reload-sink'}
@@ -60,13 +57,8 @@ def test_owned_outputs_have_no_new_writers():
             if counts.get(output, 0) > MOST_WRITERS[output]} == {}
 
 
-def test_no_new_code_reads_a_message():
-    found = {}
-    for path, text in _sources():
-        count = len(MESSAGE_TEST.findall(text))
-        if count:
-            found[path] = count
-    assert found == READS_MESSAGES
+def test_no_code_reads_a_message():
+    assert [path for path, text in _sources() if MESSAGE_TEST.search(text)] == []
 
 
 def test_every_store_has_a_reader():

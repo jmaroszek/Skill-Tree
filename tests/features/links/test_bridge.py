@@ -236,7 +236,7 @@ def test_saving_the_new_node_replaces_the_link(monkeypatch, manager):
     response = _save(monkeypatch, pending, name="Middle",
                      e_needs_h=["A"], e_supp_h=["B"])
 
-    assert "replacing the link from 'A' to 'B'" in response.message
+    assert "replacing the link from 'A' to 'B'" in response.notice["text"]
     assert _edges(manager) == {("A", "Middle", EDGE_NEEDS_HARD),
                                ("Middle", "B", EDGE_NEEDS_HARD)}
 
@@ -248,7 +248,7 @@ def test_a_refused_save_keeps_the_link(monkeypatch, manager):
     # Saving under an existing node's name is refused before anything is written.
     response = _save(monkeypatch, pending, name="C", e_needs_h=["A"], e_supp_h=["B"])
 
-    assert response.message.startswith("Error:")
+    assert response.notice["kind"] == "error"
     assert ("A", "B", EDGE_NEEDS_HARD) in _edges(manager)
 
 

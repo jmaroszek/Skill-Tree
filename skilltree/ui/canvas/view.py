@@ -2,6 +2,7 @@
 from typing import NamedTuple
 
 import dash
+from skilltree.store.graph.state import revisions
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import settings
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
@@ -14,7 +15,10 @@ _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 # What goes to elements-pending-store in place of the Nodes canvas's elements
 # until that canvas loads. It still marks a render, which is what the graph
 # version bridge, the startup cover and the Goals prewarm listen for.
-CANVAS_DEFERRED = {'deferred': True}
+def deferred_canvas():
+    """What a render sends a canvas that hasn't loaded. The revision makes it a
+    new value after a change, so its stamp still fires sync_graph_version."""
+    return {'deferred': True, 'revision': revisions.graph}
 
 
 class CanvasView(NamedTuple):

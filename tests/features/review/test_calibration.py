@@ -9,6 +9,7 @@ Uses the temp-database fixture from conftest.py — never touches real data.
 
 import dash
 import pytest
+from dash import no_update
 
 from skilltree.domain.models import Node, expected_time_estimate, STATUS_DONE, STATUS_OPEN
 from skilltree.store.commands import handle_save, prior_node_for_completion
@@ -462,7 +463,8 @@ class TestMilestoneReflection:
         result = calibration_handlers['handle_time_calibration'](
             0, 1, 0, None, None, None, 'hours', 5, 5, 5, '',
             {'mode': 'review', 'queue': ['A', 'M'], 'index': 0})
-        assert result[-3:-1] == ({"display": "none"}, {"display": "none"})
+        assert result[-4:-2] == ({"display": "none"}, {"display": "none"})
+        assert result[-1] is no_update, "nothing was logged"
 
     def test_submit_saves_only_the_notes(self, mgr, calibration_handlers, monkeypatch):
         mgr.add_node(make_node("M", type="Milestone", time_mode='inherited', status=STATUS_DONE))
@@ -475,7 +477,8 @@ class TestMilestoneReflection:
         assert saved.reflect_value is None and saved.reflect_interest is None
         assert saved.reflect_difficulty is None
         assert saved.actual_time is None
-        assert result[2] == "Logged reflection for 'M'."
+        assert result[2]["text"] == "Logged reflection for 'M'."
+        assert result[-1] is not no_update, "Analyze charts what was logged"
 
 
 def test_the_reflection_icon_follows_a_settings_save_at_once():
@@ -486,13 +489,13 @@ def test_the_reflection_icon_follows_a_settings_save_at_once():
     register_calibration_callbacks(app, AppServices())
     spec = next(spec for spec in app.callback_map.values()
                 if unwrapped(spec["callback"]).__name__ == "_calibration_review_button_visibility")
-    assert {i["id"] for i in spec["inputs"]} == {"main-tabs", "settings-save-status"}
+    assert {i["id"] for i in spec["inputs"]} == {"main-tabs", "settings-version-store"}
 
     fn = unwrapped(spec["callback"])
     settings.TIME_CALIBRATION_ENABLED.set(False)
-    assert fn(None, "Settings saved") == {"display": "none"}
+    assert fn(None, 1) == {"display": "none"}
     settings.TIME_CALIBRATION_ENABLED.set(True)
-    assert fn(None, "Settings saved") == {"display": "inline-block"}
+    assert fn(None, 2) == {"display": "inline-block"}
 
 
 def test_the_excluded_badge_points_at_where_it_can_be_undone(services):

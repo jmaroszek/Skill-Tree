@@ -240,7 +240,7 @@ def test_the_editor_button_asks_through_a_confirm_dialog(monkeypatch, opened):
 
 def test_a_link_that_wont_open_shows_as_an_error(monkeypatch, tmp_path):
     # It read "Error opening Files: <path>", in the green of a save, and no
-    # dialog opens for that: the dialog is for a message that starts "Error:".
+    # dialog opened for it.
     from dash._callback_context import context_value
     from dash._utils import AttributeDict
     from skilltree.features.editor import resources as resource_link_callbacks
@@ -256,4 +256,5 @@ def test_a_link_that_wont_open_shows_as_an_error(monkeypatch, tmp_path):
     finally:
         context_value.reset(token)
 
-    assert status == f"Error: Couldn't open that Files link. There is no file at {missing}."
+    assert status["kind"] == "error"
+    assert status["text"] == f"Error: Couldn't open that Files link. There is no file at {missing}."

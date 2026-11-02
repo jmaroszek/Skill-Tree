@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable
 
-from dash import Input, Output, ctx, dcc, html, no_update
+from dash import Input, Output, dcc, html
 import dash_bootstrap_components as dbc
 
 from skilltree.ui.kit import hint
@@ -271,16 +271,8 @@ def register_context_picker_callbacks(app: Any, services) -> None:
 
     @app.callback(
         Output("context-taxonomy-store", "data"),
-        Input("settings-save-status", "children"),
-        Input("modal-migration", "is_open"),
+        Input("settings-version-store", "data"),
         prevent_initial_call=True,
     )
-    def refresh_context_taxonomy(settings_status: Any, migration_open: bool) -> Any:
-        trigger_id = ctx.triggered_id
-        # A context edit appends what it changed ("Settings saved — 1 rename").
-        if (trigger_id == "settings-save-status"
-                and not str(settings_status or "").startswith("Settings saved")):
-            return no_update
-        if trigger_id == "modal-migration" and migration_open:
-            return no_update
+    def refresh_context_taxonomy(_version: Any) -> Any:
         return build_context_taxonomy()

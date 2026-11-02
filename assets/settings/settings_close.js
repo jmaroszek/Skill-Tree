@@ -35,14 +35,14 @@
         if (Date.now() - pending.started > 20000) {
             freeze(false);
             pending = null;
-            window.dash_clientside.set_props('settings-save-status', {
+            window.dash_clientside.set_props('settings-save-error', {
                 children: "Settings are still loading. Please try closing again."});
             return;
         }
         if (document.querySelector('._dash-loading-callback')) quietSince = 0;
         else if (!quietSince) quietSince = Date.now();
         if (quietSince && Date.now() - quietSince >= 150) {
-            window.dash_clientside.set_props('settings-save-status', {children: ''});
+            window.dash_clientside.set_props('settings-save-error', {children: ''});
             window.dash_clientside.set_props('settings-close-request', {data: pending.id});
             quietSince = 0;
             setTimeout(function () { checkResponse(id); }, 250);
@@ -57,7 +57,7 @@
             // without our result. Keep the draft usable and allow a retry.
             freeze(false);
             pending = null;
-            window.dash_clientside.set_props('settings-save-status', {
+            window.dash_clientside.set_props('settings-save-error', {
                 children: "Couldn't confirm settings were saved. Please try closing again."});
         } else setTimeout(function () { checkResponse(id); }, 250);
     }

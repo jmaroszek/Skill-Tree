@@ -150,7 +150,7 @@ def test_a_refused_request_reports_an_error_and_redraws_nothing(manager):
 
     assert refresh is dash.no_update
     assert is_open is dash.no_update
-    assert message.startswith("Error: ")
+    assert message["kind"] == "error"
 
 
 def test_a_malformed_request_does_nothing(manager):
@@ -261,7 +261,7 @@ def test_a_link_that_would_close_a_circle_says_which_way_works(manager):
     refresh, message, *_rest = _apply_link_action()('["pair","B","A","Needs_Soft"]|1')
 
     assert refresh is dash.no_update
-    assert message.startswith("Error: ") and "circular dependency" in message
+    assert message["kind"] == "error" and "circular dependency" in message["text"]
     assert ("B", "A", EDGE_NEEDS_SOFT) not in _edges(manager)
 
 

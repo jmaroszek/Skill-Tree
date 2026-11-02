@@ -1,5 +1,6 @@
 """The dialog that asks where nodes go when Settings removes their context:
 its layout, its per-node and bulk choices, and applying them."""
+import time
 import logging
 
 import dash
@@ -329,8 +330,9 @@ def register_migration_callbacks(app, services):
         Output('context-editor-store', 'data', allow_duplicate=True),
         Output('migration-error', 'children'),
         Output('pending-settings-store', 'data', allow_duplicate=True),
-        Output('settings-save-status', 'children', allow_duplicate=True),
+        Output('settings-save-error', 'children', allow_duplicate=True),
         Output('settings-modal', 'is_open', allow_duplicate=True),
+        Output('settings-version-store', 'data', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
         Input('btn-migration-cancel', 'n_clicks'),
@@ -369,12 +371,12 @@ def register_migration_callbacks(app, services):
                 rename_map=rename_map,
             )
             return (True, children, mapping, dash.no_update, "",
-                    dash.no_update, dash.no_update, dash.no_update)
+                    dash.no_update, dash.no_update, dash.no_update, dash.no_update)
 
         if trigger_id == 'btn-migration-cancel':
             # Declining migration returns to the complete draft, including the
             # context removals, so the user can correct it without losing edits.
-            return False, [], None, dash.no_update, "", None, "", dash.no_update
+            return False, [], None, dash.no_update, "", None, "", dash.no_update, dash.no_update
 
         if trigger_id == 'btn-migration-apply' and pending_state:
             try:
@@ -406,13 +408,13 @@ def register_migration_callbacks(app, services):
                 logger.exception("Failed to apply the settings migration")
                 return (dash.no_update,) * 4 + (
                     "Couldn't apply the changes, so nothing was saved. The log "
-                    "has the details.",) + (dash.no_update,) * 3
+                    "has the details.",) + (dash.no_update,) * 4
 
             # Re-seed the rows from what was just saved, so the next edit
             # diffs against it and the node counts reflect the rehoming.
-            return False, [], None, editor, "", None, "Settings saved", False
+            return False, [], None, editor, "", None, "", False, int(time.time() * 1000)
 
-        return (dash.no_update,) * 8
+        return (dash.no_update,) * 9
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         mode = settings.SUBCONTEXT_SORT_MODE.get()

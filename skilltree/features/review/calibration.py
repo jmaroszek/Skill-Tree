@@ -5,10 +5,13 @@ after one completion (core_engine opens it), as a review of completed nodes
 (the Review Hub's Start review), or to edit an earlier answer (the Hub's
 History tab). Its helpers are in editor_values.
 """
+import time
+
 from dash import html, Input, Output, State, no_update
 
 from skilltree.ui import tokens
 from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.ui.notices import info
 from skilltree.domain.time import actual_bracket_hours
 from skilltree.store import settings
 from skilltree.features.review.values import (
@@ -40,7 +43,7 @@ def register_calibration_callbacks(app, services):
     @app.callback(
         Output('modal-time-calibration', 'is_open', allow_duplicate=True),
         Output('time-calibration-pending-store', 'data', allow_duplicate=True),
-        Output('save-output', 'children', allow_duplicate=True),
+        Output('notice-store', 'data', allow_duplicate=True),
         Output('time-calibration-lower', 'value'),
         Output('time-calibration-point', 'value'),
         Output('time-calibration-upper', 'value'),
@@ -59,6 +62,7 @@ def register_calibration_callbacks(app, services):
         Output('calibration-vie-section', 'style', allow_duplicate=True),
         Output('calibration-time-section', 'style', allow_duplicate=True),
         Output('calibration-notes', 'placeholder', allow_duplicate=True),
+        Output('reflection-version-store', 'data'),
         Input('btn-time-calibration-submit', 'n_clicks'),
         Input('btn-time-calibration-skip', 'n_clicks'),
         Input('btn-time-calibration-dismiss', 'n_clicks'),
@@ -75,6 +79,13 @@ def register_calibration_callbacks(app, services):
     )
     def handle_time_calibration(_submit, _skip, _dismiss, lower, point, upper,
                                 unit, val, interest, diff, notes, pending):
+        answer = _answer_calibration(lower, point, upper, unit, val, interest, diff,
+                                     notes, pending)
+        # Analyze charts what a submit wrote, and no canvas render reports it.
+        logged = get_trigger_id() == 'btn-time-calibration-submit'
+        return (*answer, int(time.time() * 1000) if logged else no_update)
+
+    def _answer_calibration(lower, point, upper, unit, val, interest, diff, notes, pending):
         # cleared inputs for the next node: 4 time slots + 3 V/I/E sliders + notes
         reset = (None, None, None, 'hours', 5, 5, 5, '')
         keep = (no_update,) * 3  # the section styles, set only on a new node
@@ -124,7 +135,7 @@ def register_calibration_callbacks(app, services):
 
         if mode == 'single':
             logged = "reflection" if reflects_in_notes_only(node) else "actuals"
-            msg = (f"Logged {logged} for '{node.name}'."
+            msg = (info(f"Logged {logged} for '{node.name}'.")
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
@@ -132,10 +143,10 @@ def register_calibration_callbacks(app, services):
 
         if mode == 'edit':
             # Submit or Cancel both close the modal and bounce the user back
-            # to the History tab. Submit emits a save-output toast so the
+            # to the History tab. Submit shows a notice so the
             # change is visible even after the hub re-opens.
             updated = "reflection" if reflects_in_notes_only(node) else "actuals"
-            msg = (f"Updated {updated} for '{node.name}'."
+            msg = (info(f"Updated {updated} for '{node.name}'.")
                    if (trig == 'btn-time-calibration-submit' and node) else no_update)
             return (False, None, msg, *reset,
                     no_update, no_update, no_update, no_update, no_update,
@@ -168,7 +179,7 @@ def register_calibration_callbacks(app, services):
                    className="text-muted small mb-0"),
         ])
         return (True, {'mode': 'complete'},
-                f"Reflection complete — {n} node(s).",
+                info(f"Reflection complete — {n} node(s)."),
                 *reset, no_update, 100, f"{n} / {n}", complete_msg,
                 "Reflection complete", no_update, no_update, *keep)
 
@@ -318,11 +329,11 @@ def register_calibration_callbacks(app, services):
     @app.callback(
         Output('btn-calibration-review', 'style'),
         Input('main-tabs', 'active_tab'),
-        Input('settings-save-status', 'children'),
+        Input('settings-version-store', 'data'),
         prevent_initial_call=True,
     )
     @prerendered
-    def _calibration_review_button_visibility(_active_tab, _settings_saved):
+    def _calibration_review_button_visibility(_active_tab, _settings_version):
         if settings.TIME_CALIBRATION_ENABLED.get():
             return {"display": "inline-block"}
         return {"display": "none"}

@@ -12,7 +12,7 @@ from dash import Output, no_update
 
 class CoreResponse(NamedTuple):
     elements: object = no_update
-    message: object = no_update
+    notice: object = no_update
     community_options: object = no_update
     search_options: object = no_update
     editor_style: object = no_update
@@ -59,7 +59,7 @@ class CoreResponse(NamedTuple):
 
 CORE_OUTPUTS = dict(
     elements=Output('elements-pending-store', 'data', allow_duplicate=True),
-    message=Output('save-output', 'children'),
+    notice=Output('notice-store', 'data'),
     community_options=Output('filter-community', 'options'),
     search_options=Output('search-node', 'options'),
     editor_style=Output('sidebar-editor-container', 'style'),

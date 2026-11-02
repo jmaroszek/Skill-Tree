@@ -64,10 +64,11 @@ def test_an_unexpected_save_failure_is_logged_not_shown_raw(monkeypatch, caplog)
     monkeypatch.setattr(editor_save, "handle_save", broken)
 
     with caplog.at_level(logging.ERROR):
-        message = _save_new_node(monkeypatch)
+        notice = _save_new_node(monkeypatch)
 
-    assert message.startswith("Error: Saving the node failed unexpectedly")
-    assert "database is locked" not in message
+    assert notice["kind"] == "error"
+    assert notice["text"].startswith("Error: Saving the node failed unexpectedly")
+    assert "database is locked" not in notice["text"]
     assert "database is locked" in caplog.text
 
 
@@ -88,4 +89,4 @@ def _save_new_node(monkeypatch):
                     time_m=2, time_p=4, time_unit="hours", link_values=[],
                     link_ids=[], aliases=[],
                     ed_style={"transform": "translateX(0px)"})
-    return callbacks.CoreResponse(*response).message
+    return callbacks.CoreResponse(*response).notice

@@ -65,7 +65,7 @@ def test_a_fractional_week_saves_as_typed():
     save, args = _save_settings()
     args.update(n_clicks=1, hpw=17.5, hpm=70)
 
-    assert save(**args)[0] == 'Settings saved'
+    assert save(**args)[0] == ''
     assert _saved_hours() == (17.5, 70)
 
 
