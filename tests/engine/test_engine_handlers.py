@@ -1,23 +1,19 @@
 """The core engine's handlers, called directly with a Request."""
 import dash
 import pytest
+from dash import no_update
 
 from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN, Node
 from skilltree.engine.handlers import Outcome, Request, handle
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
-
-OPEN_EDITOR = {'transform': 'translateX(0px)'}
-
 
 def _request(services, trigger, **fields):
     values = dict(graph=services.graph, events=services.events, trigger=trigger,
                   form=editor_form(), original_name=None, pristine_snapshot=None,
                   bridge_pending=None, reopen_confirmed=False, now_switch=False,
                   tapped_node=None, toggle_done_trigger_data=None,
-                  pending_undo_done=None, group_delete_data=None,
-                  sidebars=(dict(OPEN_EDITOR), {'display': 'none'}, {'display': 'none'}))
+                  pending_undo_done=None, group_delete_data=None)
     values.update(fields)
     return Request(**values)
 
@@ -42,7 +38,7 @@ def test_a_save_without_a_name_closes_a_blank_form(services):
     outcome = handle(_request(services, 'btn-save', form=_new_node_form(),
                               pristine_snapshot=NEW_NODE_SNAPSHOT))
     assert outcome.response.notice is None
-    assert outcome.response.editor_style['transform'] == SIDEBAR_TRANSLATE_CLOSED
+    assert outcome.response.left_panel["close"] == "editor"
 
 
 @pytest.mark.parametrize("fields", [
@@ -55,7 +51,7 @@ def test_a_save_without_a_name_says_so_when_the_form_has_content(services, field
     outcome = handle(_request(services, 'btn-save', form=_new_node_form(**fields),
                               pristine_snapshot=NEW_NODE_SNAPSHOT))
     assert outcome.response.notice["text"] == "Error: Node name is required."
-    assert outcome.response.editor_style == OPEN_EDITOR
+    assert outcome.response.left_panel is no_update
     assert services.graph.get_all_nodes() == []
 
 
@@ -73,7 +69,7 @@ def test_a_save_may_not_take_another_nodes_name(services):
     outcome = handle(_request(services, 'btn-save',
                               form=editor_form(name="Taken", n_type='Learn')))
     assert outcome.response.notice["text"].startswith("Error: A node named 'Taken' already exists")
-    assert outcome.response.editor_style == OPEN_EDITOR
+    assert outcome.response.left_panel is no_update
     # Nothing that renders the graph or opens a modal.
     assert outcome.response.elements is dash.no_update
     assert outcome.response.undo_open is dash.no_update

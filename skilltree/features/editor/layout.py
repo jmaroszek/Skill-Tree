@@ -30,7 +30,6 @@ from skilltree.ui.kit import danger_action
 from skilltree.ui.kit import hover_label
 from skilltree.ui.kit import info_button
 from skilltree.ui.kit import primary_action
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.ui.styles import SIDEBAR_WIDTH_PX
 
 
@@ -164,25 +163,7 @@ def build_ratings_popup():
                 ),
             ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-    ], id="ratings-popup", style={
-        "display": "none",
-        "flexDirection": "column",
-        "position": "fixed",
-        "top": "120px",
-        "left": "420px",
-        "width": "960px",
-        "height": "auto",
-        "maxHeight": "calc(100vh - 160px)",
-        "minWidth": "400px",
-        "minHeight": "200px",
-        "zIndex": 9998,
-        "backgroundColor": tokens.BG_PANEL,
-        "border": f"1px solid {tokens.BORDER_PANEL}",
-        "borderRadius": "6px",
-        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-        "resize": "both",
-        "overflow": "hidden",
-    })
+    ], id="ratings-popup", className="ratings-popup")
 
 
 def build_ratings_editor_modal():
@@ -725,20 +706,5 @@ def build_node_editor_sidebar():
     return html.Div(
         id="sidebar-editor-container",
         children=[build_node_editor_content()],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "left": "0",
-            "width": SIDEBAR_WIDTH_PX,
-            "minWidth": SIDEBAR_WIDTH_PX,
-            "height": "100%",
-            "zIndex": 1000,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "transform 0.3s ease",
-            "transform": SIDEBAR_TRANSLATE_CLOSED,
-            "willChange": "transform",
-            "backgroundColor": tokens.BG_PANEL
-        }
+        className="left-sidebar",
     )

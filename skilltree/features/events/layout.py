@@ -13,8 +13,6 @@ from typing import List, Any
 from datetime import date, timedelta
 from skilltree.store import settings
 from skilltree.ui.styles import badge_style
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
-from skilltree.ui.styles import SIDEBAR_WIDTH_PX
 from skilltree.ui.styles import events_graph_stylesheet
 from skilltree.ui.canvas.settings_panel import (
     build_graph_settings_panel, freeze_indicator,
@@ -417,14 +415,7 @@ def build_events_tab_content():
             event_detail_panel,
             v_drag_handle,
             event_graph_panel,
-        ], id="events-tab-inner", style={
-            "display": "flex",
-            "flexDirection": "row",
-            "height": "100%",
-            "width": "100%",
-            "marginLeft": "0",
-            "transition": "margin-left 0.3s ease, width 0.3s ease",
-        }),
+        ], id="events-tab-inner", className="events-tab-inner"),
     ], style={
         "display": "flex",
         "flexDirection": "row",
@@ -944,21 +935,5 @@ def build_events_sidebar():
     return html.Div(
         id="events-sidebar-container",
         children=[build_events_sidebar_content()],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "left": "0",
-            "width": SIDEBAR_WIDTH_PX,
-            "height": "100%",
-            "zIndex": 100,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "transform 0.3s ease",
-            "transform": SIDEBAR_TRANSLATE_CLOSED,
-            "willChange": "transform",
-            "backgroundColor": tokens.BG_PANEL,
-            "display": "flex",
-            "flexDirection": "column",
-        }
+        className="left-sidebar",
     )

@@ -1,5 +1,4 @@
-"""The Goals sidebar: its toggle's browser contract, the left-sidebar mutex,
-and how its list is built."""
+"""The Goals sidebar: how its list follows the left panel, and how it's built."""
 
 from contextvars import copy_context
 import shutil
@@ -11,10 +10,8 @@ from dash._utils import AttributeDict
 import dash_bootstrap_components as dbc
 import pytest
 
-from skilltree.engine import callbacks
 from skilltree.store import database
 from skilltree.features.goals import callbacks as sidebars_callbacks
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node
 from skilltree.features.goals.layout import build_goals_sidebar
@@ -26,7 +23,7 @@ from support.layout import find
 ASSET = asset_file("goals_sidebar.js")
 
 
-def test_goals_sidebar_browser_contract():
+def test_goals_list_follows_the_left_panel():
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is required for the Goals sidebar contract")
@@ -57,55 +54,40 @@ const finishSlide = () => {
     due.forEach(fn => fn());
 };
 require(process.argv[1]);
-const toggle = window.dash_clientside.goals.toggle_sidebar;
-const closed = {transform: 'translateX(-350px)'};
-const open = {transform: 'translateX(0px)'};
-const trigger = id => {
-    window.dash_clientside.callback_context.triggered = [{prop_id: id + '.n_clicks'}];
-};
+const follow = window.dash_clientside.goals.follow_left_panel;
 
-// Opening slides the sidebar in and slides the editor and Events shut.
-trigger('btn-goals-toggle');
-let result = toggle(1, 0, closed, open, open, 4);
-assert.equal(result.length, 3);
-assert.equal(result[0].transform, 'translateX(0px)');
-assert.equal(result[0].left, '0');
-assert.equal(result[1].transform, 'translateX(-350px)');
-assert.equal(result[2].transform, 'translateX(-350px)');
-// The list refresh waits for the slide to finish.
+const fired = () => setProps.map(call => call[0]);
+
+// Opening waits for the slide to finish before it refreshes the list.
+follow('goals');
 assert.deepEqual(setProps, []);
 finishSlide();
-assert.deepEqual(setProps, [['goals-ui-refresh-trigger', {data: 5}]]);
+assert.deepEqual(fired(), ['goals-ui-refresh-trigger']);
 setProps.length = 0;
 
-// Peers that are already shut are left alone.
-result = toggle(2, 0, closed, closed, closed, 5);
-assert.equal(result[1], 'NO');
-assert.equal(result[2], 'NO');
-
-// Closing before the slide finishes drops the pending refresh.
-trigger('btn-details-goals-close');
-result = toggle(2, 1, open, closed, closed, 5);
-assert.equal(result[0].transform, 'translateX(-350px)');
+// Another panel opening, or the same one, starts nothing new.
+follow('goals');
 finishSlide();
 assert.deepEqual(setProps, []);
 
-// The toggle closes an open sidebar.
-trigger('btn-goals-toggle');
-result = toggle(3, 1, open, closed, closed, 5);
-assert.equal(result[0].transform, 'translateX(-350px)');
+// Closing before the slide finishes drops the pending refresh.
+follow(null);
+follow('goals');
+follow('editor');
+finishSlide();
+assert.deepEqual(setProps, []);
 
 // A finished close slide, whoever closed it, asks for the list to clear.
-const slideEnd = (id, property, transform) => listeners.transitionend(
-    {target: {id: id, style: {transform: transform}}, propertyName: property});
-slideEnd('details-goal-sidebar', 'transform', 'translateX(-350px)');
+const slideEnd = (id, property, isOpen) => listeners.transitionend(
+    {target: {id: id, classList: {contains: () => isOpen}}, propertyName: property});
+slideEnd('details-goal-sidebar', 'transform', false);
 assert.equal(setProps.length, 1);
 assert.equal(setProps[0][0], 'goals-ui-refresh-trigger');
 setProps.length = 0;
 // An open slide, another element's slide, or another property doesn't.
-slideEnd('details-goal-sidebar', 'transform', 'translateX(0px)');
-slideEnd('events-sidebar-container', 'transform', 'translateX(-350px)');
-slideEnd('details-goal-sidebar', 'opacity', 'translateX(-350px)');
+slideEnd('details-goal-sidebar', 'transform', true);
+slideEnd('events-sidebar-container', 'transform', false);
+slideEnd('details-goal-sidebar', 'opacity', false);
 assert.deepEqual(setProps, []);
 
 // A reopen shows the last built list at once if nothing it came from has
@@ -117,29 +99,31 @@ const cover = {type: 'Div', namespace: 'dash_html_components',
 const sources = [7, 2, '', 'manual', null];
 remember(cards, ...sources);
 remember(cover, ...sources);  // the cover is never remembered
-trigger('btn-goals-toggle');
-toggle(4, 1, closed, closed, closed, 9, ...sources);
+follow('goals', ...sources);
 finishSlide();
-assert.deepEqual(setProps, [['details-goal-list-container', {children: cards}],
-                            ['goals-ui-refresh-trigger', {data: 10}]]);
+assert.deepEqual(fired(), ['details-goal-list-container', 'goals-ui-refresh-trigger']);
+assert.deepEqual(setProps[0][1], {children: cards});
 setProps.length = 0;
+follow(null, ...sources);
 
 // Cards still showing (a close reversed mid-slide) are left alone.
 shownCards = true;
-toggle(5, 1, closed, closed, closed, 10, ...sources);
+follow('goals', ...sources);
 finishSlide();
-assert.deepEqual(setProps, [['goals-ui-refresh-trigger', {data: 11}]]);
+assert.deepEqual(fired(), ['goals-ui-refresh-trigger']);
 setProps.length = 0;
+follow(null, ...sources);
 shownCards = false;
 
 // A change to the graph, priorities, search, sort or order waits for the
 // rebuild.
 [[8, 2, '', 'manual', null], [7, 3, '', 'manual', null], [7, 2, 'x', 'manual', null],
  [7, 2, '', 'priority', null], [7, 2, '', 'manual', ['a']]].forEach(changed => {
-    toggle(6, 1, closed, closed, closed, 0, ...changed);
+    follow('goals', ...changed);
     finishSlide();
-    assert.deepEqual(setProps, [['goals-ui-refresh-trigger', {data: 1}]]);
+    assert.deepEqual(fired(), ['goals-ui-refresh-trigger']);
     setProps.length = 0;
+    follow(null, ...changed);
 });
 '''
     result = subprocess.run(
@@ -151,17 +135,6 @@ shownCards = false;
     assert result.returncode == 0, result.stderr
 
 
-def test_opening_the_editor_slides_goals_and_events_shut():
-    open_style = {"transform": "translateX(0px)", "left": "0"}
-    _, goal_style, events_style = callbacks.compute_sidebar_styles(
-        "btn-editor-new", {"btn-editor-new"}, None,
-        None, open_style, open_style, None, {},
-    )
-    assert goal_style["transform"] == SIDEBAR_TRANSLATE_CLOSED
-    assert events_style["transform"] == SIDEBAR_TRANSLATE_CLOSED
-    assert goal_style["left"] == "0"
-
-
 def test_goal_list_shows_a_spinner_until_its_first_render():
     container = find(build_goals_sidebar(), "details-goal-list-container")
     cover = container.children
@@ -169,7 +142,7 @@ def test_goal_list_shows_a_spinner_until_its_first_render():
     assert isinstance(cover.children[0], dbc.Spinner)
 
 
-def _render_goal_list(trigger, sidebar_style):
+def _render_goal_list(trigger, left_panel):
     """Run render_goal_list as Dash would for a single triggering input."""
     app = dash.Dash(__name__)
     app.config.suppress_callback_exceptions = True
@@ -183,7 +156,7 @@ def _render_goal_list(trigger, sidebar_style):
     def run():
         context_value.set(AttributeDict(triggered_inputs=[{"prop_id": trigger, "value": 1}]))
         return render("tab-next", None, None, None, None, "priority", None, None,
-                      sidebar_style)
+                      left_panel)
     return copy_context().run(run)
 
 
@@ -205,8 +178,7 @@ def test_goal_list_builds_from_one_database_snapshot(monkeypatch):
             super().__init__()
 
     monkeypatch.setattr(database, "ReadSnapshot", CountingSnapshot)
-    cards = _render_goal_list("goals-ui-refresh-trigger.data",
-                              {"transform": "translateX(0px)"})
+    cards = _render_goal_list("goals-ui-refresh-trigger.data", "goals")
     assert len(cards) == 3
     assert len(built) == 1
 
@@ -216,9 +188,8 @@ def test_closed_goal_list_never_builds_and_clears_after_its_slide():
     only the cover: graph changes leave it alone, and a finished close slide
     swaps the cards out for it."""
     _add_goals("Alpha")
-    closed = {"transform": SIDEBAR_TRANSLATE_CLOSED}
-    assert _render_goal_list("graph-version-store.data", closed) is dash.no_update
-    cover = _render_goal_list("goals-ui-refresh-trigger.data", closed)
+    assert _render_goal_list("graph-version-store.data", None) is dash.no_update
+    cover = _render_goal_list("goals-ui-refresh-trigger.data", "editor")
     assert cover.className == "loading-cover"
 
 

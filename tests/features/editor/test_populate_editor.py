@@ -79,7 +79,7 @@ def test_details_new_subtask_prefills_parent_in_shared_editor(monkeypatch):
 
 def test_details_new_subtask_waits_for_unsaved_changes_then_prefills_parent(monkeypatch):
     GraphManager().add_node(_node("Parent", type="Goal"))
-    editing = dict(ed_style={"transform": "translateX(0px)"}, name="Unsaved",
+    editing = dict(left_panel="editor", name="Unsaved",
                    pristine_snapshot=NEW_NODE_SNAPSHOT, details_selected_node="Parent")
     pending = _call_with_trigger(monkeypatch, "details-add-choice-input",
                                  details_add_choice="new|123", **editing)

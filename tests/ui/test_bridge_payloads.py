@@ -13,7 +13,6 @@ from skilltree.ui import payloads as bridge
 from skilltree.engine import callbacks
 from skilltree.features.details import callbacks as details_callbacks
 from skilltree.features.goals import callbacks as sidebars_callbacks
-from skilltree.engine.callbacks import resolve_active_node_id
 from skilltree.store import settings
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Node, STATUS_DONE, STATUS_OPEN
@@ -90,11 +89,6 @@ def test_group_delete_removes_only_the_named_node(manager):
 
     assert manager.get_node("A|B") is None
     assert manager.get_node("A") is not None
-
-
-def test_edit_trigger_opens_the_named_node():
-    assert resolve_active_node_id(GraphManager(), {"edit-trigger-input"}, "edit-trigger-input",
-                                  f"A|B|{STAMP}", None, None, None) == "A|B"
 
 
 def test_details_navigation_selects_the_named_node():

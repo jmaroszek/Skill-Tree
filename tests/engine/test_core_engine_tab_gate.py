@@ -16,12 +16,11 @@ from skilltree.engine.response import CORE_OUTPUTS, CoreResponse
 from skilltree.engine import sidebars
 from skilltree.services import AppServices
 from skilltree.store.graph.manager import GraphManager
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from support.triggers import fire
 from support.callbacks import app_with, unwrapped
 from support.graphs import make_node
 
-SIDEBAR_FIELDS = ("editor_style", "goal_style", "events_style")
+SIDEBAR_FIELDS = ("left_panel",)
 
 
 def _core_engine_fn():
@@ -88,17 +87,13 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Editor-UI-only short-circuit: edit-trigger-input / details-edit-trigger-input
-# / btn-close-editor / btn-goals-toggle alone should skip the expensive path
-# and send only the three sidebar styles.
+# Closing the editor alone should skip the expensive path and send only the
+# request.
 # ---------------------------------------------------------------------------
 
 
 def test_editor_ui_only_triggers_set_content():
-    assert _EDITOR_UI_ONLY_TRIGGERS == frozenset({
-        'edit-trigger-input', 'details-edit-trigger-input',
-        'btn-close-editor', 'btn-goals-toggle', 'btn-add',
-    })
+    assert _EDITOR_UI_ONLY_TRIGGERS == frozenset({'btn-close-editor', 'btn-add'})
 
 
 def _only_sidebars_change(result, trigger):
@@ -108,27 +103,11 @@ def _only_sidebars_change(result, trigger):
                 f"{field} should be no_update when short-circuiting on {trigger}")
 
 
-@pytest.mark.parametrize("trigger", ['edit-trigger-input', 'details-edit-trigger-input'])
-def test_edit_trigger_short_circuits_and_opens_editor(monkeypatch, trigger):
-    """An Edit trigger alone short-circuits and opens the sidebar (translateX(0px))."""
-    cb, _ = _core_engine_fn()
-    fire(trigger)
-    result = _call(cb, edit_trigger_data="NodeX|123", details_edit_trigger_data="NodeX|123")
-    ed = result.editor_style
-    assert isinstance(ed, dict), f"ed_style should be a dict, got {type(ed)}"
-    assert ed.get('transform') == 'translateX(0px)', f"editor should open, got {ed}"
-    # Scoring and the canvas did NOT run.
-    _only_sidebars_change(result, trigger)
-
-
-def test_btn_goals_toggle_short_circuits_and_closes_editor(monkeypatch):
-    """btn-goals-toggle alone short-circuits and closes the editor."""
-    cb, _ = _core_engine_fn()
-    fire("btn-goals-toggle")
-    result = _call(cb)
-    assert isinstance(result.editor_style, dict)
-    assert result.editor_style.get('transform') == SIDEBAR_TRANSLATE_CLOSED
-    _only_sidebars_change(result, "btn-goals-toggle")
+@pytest.mark.parametrize("input_id", ['edit-trigger-input', 'details-edit-trigger-input',
+                                       'btn-goals-toggle', 'btn-editor-new'])
+def test_opening_a_sidebar_never_reaches_the_server(input_id):
+    """left_panel.js hears these itself, and a slide doesn't wait on a render."""
+    assert input_id not in {dep.component_id for dep in callbacks.CORE_INPUTS.values()}
 
 
 def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch):
@@ -138,24 +117,8 @@ def test_btn_close_editor_short_circuits_and_closes_when_form_blank(monkeypatch)
     # Stub out the unsaved-changes check — a blank form, no pending nav.
     monkeypatch.setattr(sidebars, "is_form_dirty_vs_snapshot", lambda *a, **kw: False)
     result = _call(cb)
-    assert isinstance(result.editor_style, dict)
-    assert result.editor_style.get('transform') == SIDEBAR_TRANSLATE_CLOSED
-
-
-def test_edit_trigger_batched_with_other_input_does_not_short_circuit(monkeypatch):
-    """If edit-trigger-input fires batched with a non-editor Input, the full path must run."""
-    cb, _ = _core_engine_fn()
-    fire("edit-trigger-input", "search-node")
-    try:
-        result = _call(cb, edit_trigger_data="NodeX|123")
-    except Exception:
-        return  # the full path ran and failed on None arguments: no short-circuit
-    # It must not be the editor-only response: something besides the
-    # sidebars was computed.
-    computed = [field for field in result._fields
-                if field not in SIDEBAR_FIELDS and getattr(result, field) is not dash.no_update]
-    assert computed, ("batched edit-trigger+search-node should have run the full "
-                      "path; the short-circuit fired instead")
+    assert result.left_panel["close"] == "editor"
+    _only_sidebars_change(result, "btn-close-editor")
 
 
 def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):

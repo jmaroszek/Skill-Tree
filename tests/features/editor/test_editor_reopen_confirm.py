@@ -34,7 +34,7 @@ def _run(monkeypatch, trigger, **state):
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],
-                  ed_style={"transform": "translateX(0px)"})
+                  left_panel="editor")
     values.update(state)
     return callbacks.CoreResponse(*call(core_engine, **values))
 
@@ -75,7 +75,7 @@ def test_a_save_that_reopens_done_nodes_asks_and_saves_nothing(monkeypatch, mana
     assert response.reopen_pending == {"via": trigger}
     assert "reopens 2 Done nodes" in str(response.reopen_body)
     # The editor stays open, even for the dialog's Save, and nothing was saved.
-    assert response.editor_style["transform"] == "translateX(0px)"
+    assert response.left_panel is dash.no_update
     assert response.save_result is dash.no_update
     assert _edges(manager) == {("Basics", "Advanced", EDGE_NEEDS_HARD)}
     assert manager.get_node("Extra").description == ""

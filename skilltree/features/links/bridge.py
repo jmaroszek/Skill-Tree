@@ -116,24 +116,3 @@ def register_bridge_callbacks(app, services):
                 "Node" if synergy else "Start", "Node" if synergy else "End",
                 text, style, bool(plan['problem']),
                 {"display": "none"} if synergy else {})
-
-    # Create opens the editor. The server fills it in (populate_editor); this
-    # only slides the sidebar open, as the Details tab's "New node" does.
-    app.clientside_callback(
-        """
-        function(clicks, editorStyle, goalStyle, eventsStyle) {
-            var NO = window.dash_clientside.no_update;
-            if (!clicks) return [NO, NO, NO];
-            return window.dash_clientside.editor.open_on_add(
-                clicks, editorStyle, goalStyle, eventsStyle);
-        }
-        """,
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("events-sidebar-container", "style", allow_duplicate=True),
-        Input("btn-bridge-create", "n_clicks"),
-        State("sidebar-editor-container", "style"),
-        State("details-goal-sidebar", "style"),
-        State("events-sidebar-container", "style"),
-        prevent_initial_call=True,
-    )

@@ -188,28 +188,6 @@ def register_subtask_callbacks(app, services):
         return triggered["index"]
 
     # --- Details > Subtasks: link an existing node ---
-    app.clientside_callback(
-        """
-        function(choice, selectedNode, editorStyle, goalStyle, eventsStyle) {
-            var NO = window.dash_clientside.no_update;
-            if (!(choice || '').startsWith('new|') || !selectedNode) {
-                return [NO, NO, NO];
-            }
-            return window.dash_clientside.editor.open_on_add(
-                choice, editorStyle, goalStyle, eventsStyle);
-        }
-        """,
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("events-sidebar-container", "style", allow_duplicate=True),
-        Input("details-add-choice-input", "value"),
-        State("details-selected-node-store", "data"),
-        State("sidebar-editor-container", "style"),
-        State("details-goal-sidebar", "style"),
-        State("events-sidebar-container", "style"),
-        prevent_initial_call=True,
-    )
-
     @app.callback(
         Output("modal-details-link-node", "is_open", allow_duplicate=True),
         Output("details-add-existing-dropdown", "options"),

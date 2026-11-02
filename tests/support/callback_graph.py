@@ -27,13 +27,21 @@ def outputs_of(callback):
     return {part.split("@")[0] for part in parts if "." in part}
 
 
+def _writer(callback, position):
+    """One browser function registered twice is one owner of what it writes."""
+    function = callback.get("clientside_function")
+    if function and function.get("namespace") != "_dashprivate_clientside_funcs":
+        return function["namespace"], function["function_name"]
+    return position
+
+
 def writer_counts(app):
     """{output: how many callbacks write it}."""
-    counts = {}
-    for callback in app._callback_list:
+    writers = {}
+    for position, callback in enumerate(app._callback_list):
         for output in outputs_of(callback):
-            counts[output] = counts.get(output, 0) + 1
-    return counts
+            writers.setdefault(output, set()).add(_writer(callback, position))
+    return {output: len(found) for output, found in writers.items()}
 
 
 def read_ids(app):

@@ -64,7 +64,7 @@ def _save(handlers, form, snapshot, **edits):
     values = {**form, "link_values": [], "link_ids": [], **edits}
     return callbacks.CoreResponse(*call(
         handlers["core_engine"], original_name="Sleep Theory",
-        pristine_snapshot=snapshot, ed_style={"transform": "translateX(0px)"},
+        pristine_snapshot=snapshot, left_panel="editor",
         **values))
 
 

@@ -17,8 +17,6 @@ from skilltree.ui.components.list_toolbar import build_list_toolbar
 from skilltree.ui.kit import add_button
 from skilltree.ui.kit import panel_close_button
 from skilltree.ui.styles import LOADING_SPINNER_STYLE
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
-from skilltree.ui.styles import SIDEBAR_WIDTH_PX
 import dash_bootstrap_components as dbc
 
 
@@ -165,21 +163,5 @@ def build_goals_sidebar():
                 id="details-goal-list-container",
                 style={"overflowY": "auto", "flex": "1", "padding": "0 12px"}),
         ],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "left": "0",
-            "width": SIDEBAR_WIDTH_PX,
-            "height": "100%",
-            "zIndex": 100,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderRight": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "transform 0.3s ease",
-            "transform": SIDEBAR_TRANSLATE_CLOSED,
-            "willChange": "transform",
-            "backgroundColor": tokens.BG_PANEL,
-            "display": "flex",
-            "flexDirection": "column",
-        }
+        className="left-sidebar",
     )

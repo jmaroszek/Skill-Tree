@@ -16,13 +16,11 @@ from skilltree.ui.components.card_search import card_matches
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 from skilltree.store import settings
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.goals.layout import build_goal_card
 from skilltree.features.goals.layout import goal_list_cover
 from skilltree.ui.components.list_toolbar import merge_manual_order
 from skilltree.ui.components.menus import node_menu_attributes
-from skilltree.ui.sidebars import left_sidebar_is_open
 from skilltree.domain.goals import normalize_goal_scores, rank_goals
 
 
@@ -162,47 +160,13 @@ def register_goals_callbacks(app, services):
     # render_goal_list re-runs — core_engine stays idle, and the rebuilt list
     # doesn't land mid-slide. The States after the refresh are what the list
     # was built from: if none changed, a reopen shows the remembered list.
-    app.clientside_callback(
-        ClientsideFunction(namespace='goals', function_name='toggle_sidebar'),
-        Output("details-goal-sidebar", "style"),
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("events-sidebar-container", "style", allow_duplicate=True),
-        Input("btn-goals-toggle", "n_clicks"),
-        Input("btn-details-goals-close", "n_clicks"),
-        State("details-goal-sidebar", "style"),
-        State("sidebar-editor-container", "style"),
-        State("events-sidebar-container", "style"),
-        State("goals-ui-refresh-trigger", "data"),
-        *GOAL_LIST_SOURCES,
-        prevent_initial_call=True,
-    )
-    # Remembers each built list for the toggle above.
+    # Remembers each built list, for a reopen (goals_sidebar.js).
     app.clientside_callback(
         ClientsideFunction(namespace='goals', function_name='remember_list'),
         Input("details-goal-list-container", "children"),
         *GOAL_LIST_SOURCES,
         prevent_initial_call=True,
     )
-
-    # --- New Goal from Sidebar "+" Button ---
-    # This swaps the sidebars. populate_editor fills the form, and asks first
-    # if that would lose unsaved edits.
-    @app.callback(
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Input("btn-goals-sidebar-new", "n_clicks"),
-        State("details-goal-sidebar", "style"),
-        State("sidebar-editor-container", "style"),
-        prevent_initial_call=True,
-    )
-    def new_goal_from_sidebar(n_clicks, goal_sidebar_style, editor_style):
-        if not n_clicks:
-            return no_update, no_update
-        goal_style = dict(goal_sidebar_style) if goal_sidebar_style else {}
-        goal_style["transform"] = SIDEBAR_TRANSLATE_CLOSED
-        ed_style = dict(editor_style) if editor_style else {}
-        ed_style["transform"] = "translateX(0px)"
-        return goal_style, ed_style
 
     # --- Populate Goal Sidebar ---
     # The cards exist only while the sidebar is open. The result is ~130 KB of
@@ -224,13 +188,13 @@ def register_goals_callbacks(app, services):
         Input("details-goal-sort", "data"),
         Input("details-goal-order-store", "data"),
         State("details-selected-node-store", "data"),
-        State("details-goal-sidebar", "style"),
+        State("left-panel-store", "data"),
         # The sidebar starts closed, so a page-load call has nothing to do.
         prevent_initial_call=True,
     )
     def render_goal_list(active_tab, _refresh, _ui_refresh, _version, search_val,
-                         sort_mode, _order_changed, selected_node, goal_sidebar_style):
-        if not left_sidebar_is_open(goal_sidebar_style):
+                         sort_mode, _order_changed, selected_node, left_panel):
+        if left_panel != "goals":
             if "goals-ui-refresh-trigger.data" in ctx.triggered_prop_ids:
                 return goal_list_cover()
             return no_update
@@ -323,26 +287,9 @@ def register_goals_callbacks(app, services):
     # delayed the CSS transition by 500ms-2s on each click.
     app.clientside_callback(
         ClientsideFunction(namespace='filters', function_name='toggle_sidebar'),
-        Output('sidebar-filters-container', 'style'),
+        Output('sidebar-filters-container', 'className'),
         Input('btn-filters-toggle', 'n_clicks'),
         Input('btn-close-filters', 'n_clicks'),
-        State('sidebar-filters-container', 'style'),
-        prevent_initial_call=True,
-    )
-
-    # --- Editor Sidebar Fast-Path (CLIENTSIDE) ---
-    # Starts the open-editor CSS transition immediately on btn-add, in parallel
-    # with core_engine's form-population work. core_engine still sets the same
-    # open-transform value server-side as a safety net. Close/save/new-node
-    # stay server-side because they depend on form state.
-    app.clientside_callback(
-        ClientsideFunction(namespace='editor', function_name='open_on_add'),
-        Output('sidebar-editor-container', 'style', allow_duplicate=True),
-        Output('details-goal-sidebar', 'style', allow_duplicate=True),
-        Output('events-sidebar-container', 'style', allow_duplicate=True),
-        Input('btn-add', 'n_clicks'),
-        State('sidebar-editor-container', 'style'),
-        State('details-goal-sidebar', 'style'),
-        State('events-sidebar-container', 'style'),
+        State('sidebar-filters-container', 'className'),
         prevent_initial_call=True,
     )

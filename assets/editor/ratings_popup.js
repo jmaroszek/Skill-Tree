@@ -1,11 +1,6 @@
 (function () {
-    // Keep in sync with the inline style declared on the popups in layout.py.
-    // These are reapplied each time a popup is opened so a prior drag/resize
-    // doesn't persist across reopenings.
-    var DEFAULT_WIDTH = '960px';
-    var DEFAULT_HEIGHT = 'auto';
-    var DEFAULT_LEFT = '420px';
-    var DEFAULT_TOP = '120px';
+    var CLOSED = 'ratings-popup';
+    var OPEN = 'ratings-popup is-open';
 
     // Two independent rubrics share this behavior. The estimation popup is
     // triggered from the node editor; the reflection popup is triggered from
@@ -35,14 +30,18 @@
         window.SkillTree.keyboardFocus.register({id: cfg.popupId,
             triggerId: cfg.triggerIds[0], closeId: cfg.closeId, initial: '#' + cfg.closeId,
             modalId: cfg.modalId, flow: true,
-            hideWhenClosed: true, isOpen: function (el) { return el.style.display === 'flex'; }});
+            hideWhenClosed: true, isOpen: function (el) { return el.classList.contains('is-open'); }});
     });
 
-    function resetPopupGeometry(p) {
-        p.style.width = DEFAULT_WIDTH;
-        p.style.height = DEFAULT_HEIGHT;
-        p.style.left = DEFAULT_LEFT;
-        p.style.top = DEFAULT_TOP;
+    // Through Dash, which owns the element. A drag or resize writes the popup's
+    // geometry directly while it runs, and opening clears it.
+    function setOpen(popup, open) {
+        if (open) {
+            ['width', 'height', 'left', 'top'].forEach(function (key) {
+                popup.style[key] = '';
+            });
+        }
+        window.dash_clientside.set_props(popup.id, {className: open ? OPEN : CLOSED});
     }
 
     function makeTriggerHandler(popupId) {
@@ -50,12 +49,7 @@
             e.stopPropagation();
             var popup = document.getElementById(popupId);
             if (!popup) return;
-            if (popup.style.display === 'flex') {
-                popup.style.display = 'none';
-            } else {
-                resetPopupGeometry(popup);
-                popup.style.display = 'flex';
-            }
+            setOpen(popup, !popup.classList.contains('is-open'));
         };
     }
 
@@ -73,7 +67,7 @@
         var closeBtn = document.getElementById(cfg.closeId);
         if (closeBtn && !closeBtn.__ratingsWired) {
             closeBtn.addEventListener('click', function () {
-                if (popup) popup.style.display = 'none';
+                if (popup) setOpen(popup, false);
             });
             closeBtn.__ratingsWired = true;
         }
@@ -84,7 +78,7 @@
             // closes (reopen_after_edit).
             editBtn.addEventListener('click', function () {
                 if (!popup) return;
-                popup.style.display = 'none';
+                setOpen(popup, false);
                 popup.__reopenAfterEdit = true;
             });
             editBtn.__ratingsWired = true;
@@ -129,7 +123,7 @@
             var popup = document.getElementById(popupId);
             if (!isOpen && popup && popup.__reopenAfterEdit) {
                 popup.__reopenAfterEdit = false;
-                popup.style.display = 'flex';
+                setOpen(popup, true);
             }
             return window.dash_clientside.no_update;
         },

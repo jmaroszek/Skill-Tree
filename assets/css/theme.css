@@ -2653,3 +2653,72 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 @media (prefers-reduced-motion: reduce) {
     .now-pulse-layer > g { animation: none; }
 }
+
+/* --- The sliding sidebars ---
+   Editor, Goals and Events share the left slot (assets/sidebars/left_panel.js).
+   Filters has the right. They slide with `transform`, which the browser animates
+   off the main thread, so a slide stays smooth while the page is busy. */
+.left-sidebar, .right-sidebar {
+    position: absolute;
+    top: 0;
+    width: var(--st-sidebar-width);
+    height: 100%;
+    z-index: 100;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background-color: var(--st-bg-panel);
+    transition: transform 0.3s ease;
+    will-change: transform;
+}
+.left-sidebar {
+    left: 0;
+    border-right: 1px solid var(--st-border-panel);
+    transform: translateX(calc(-1 * var(--st-sidebar-width)));
+}
+.right-sidebar {
+    right: 0;
+    border-left: 1px solid var(--st-border-panel);
+    transform: translateX(100%);
+}
+.left-sidebar.is-open, .right-sidebar.is-open { transform: translateX(0); }
+#sidebar-editor-container { min-width: var(--st-sidebar-width); z-index: 1000; }
+#details-goal-sidebar, #events-sidebar-container { display: flex; flex-direction: column; }
+
+/* The Events tab glides aside with its sidebar, because the list and the panel
+   are two halves of one task. */
+.events-tab-inner {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    width: 100%;
+    margin-left: 0;
+    transition: margin-left 0.3s ease, width 0.3s ease;
+}
+.events-tab-inner.is-beside-sidebar {
+    width: calc(100% - var(--st-sidebar-width));
+    margin-left: var(--st-sidebar-width);
+}
+
+/* The Ratings Reference floats, and can be dragged and resized. A drag writes
+   its position directly while it runs; opening clears that, so a popup comes
+   back where it starts (assets/editor/ratings_popup.js). */
+.ratings-popup {
+    display: none;
+    flex-direction: column;
+    position: fixed;
+    top: 120px;
+    left: 420px;
+    width: 960px;
+    height: auto;
+    max-height: calc(100vh - 160px);
+    min-width: 400px;
+    min-height: 200px;
+    z-index: 9998;
+    background-color: var(--st-bg-panel);
+    border: 1px solid var(--st-border-panel);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5); /* literal: floating popup shadow */
+    resize: both;
+    overflow: hidden;
+}
+.ratings-popup.is-open { display: flex; }

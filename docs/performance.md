@@ -487,3 +487,43 @@ idle for most of it. The GPU process ran 83 canvas raster jobs: Cytoscape
 drawing each new node's body and label into its texture cache. Later opens of
 the same graph reuse those textures and showed no stall. The 3- and 17-node
 views showed none on their first open with the fix on.
+
+## Sliding a sidebar (2026-11-01)
+
+The left sidebars moved from three style dicts with up to eight writers each to
+one reducer, `assets/sidebars/left_panel.js`, which writes classes. CSS does the
+slide. The measure is the time from the click to the sidebar's first movement,
+because a slide that starts late feels late however smooth it is. These are
+medians of 12 runs on a throwaway copy of the sandbox, in headless Chrome at
+60 Hz, with Home showing. Nodes came out within a few milliseconds of each.
+
+| Sidebar | Before | After |
+| --- | ---: | ---: |
+| Editor, opening | 79–86 ms | 85 ms |
+| Editor, closing | 94–105 ms | 113 ms |
+| Goals, opening | 86–89 ms | 81 ms |
+| Goals, closing | 58–61 ms | 47 ms |
+| Events, opening | 49–55 ms | 38 ms |
+| Events, closing | 49–52 ms | 41 ms |
+
+"Before" is two runs of the old code, which shows the noise. p95 frame gaps
+didn't move: about 18 ms everywhere but Goals opening, at about 35 ms, whose
+cards cost about 60 ms of long tasks per open before and after. Closing the
+editor takes one more step than it did, because the server's answer now goes
+through the reducer rather than writing the style. It is about 10 to 20 ms
+later, after a round trip the slide was already waiting on.
+
+Two versions of this measured worse, and each cost shows up anywhere else a
+slide could start late:
+
+- **A callback listening to a store costs about 20 ms per callback.** Two small
+  callbacks on `left-panel-store`, for Goals' and Events' list refreshes, added
+  30 ms to every slide. Each callback is about a dozen updates to Dash's own
+  store, and they all run before the browser paints the slide's first frame. The
+  reducer calls those two functions directly instead.
+- **Dash holds a callback back while anything that writes one of its Inputs is
+  running.** The reducer first listened to `left-panel-request`, which the core
+  engine writes. The toolbar icon fires the core engine too, so the editor's
+  opening waited for that response, and a click on any sidebar would have waited
+  for a render already running. That Input and `main-tabs` now come through a
+  second registration of the same function, and clicks through the first.

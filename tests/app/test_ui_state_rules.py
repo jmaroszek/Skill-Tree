@@ -14,13 +14,17 @@ from support.layout import walk
 from support.paths import ROOT
 
 # Outputs that two or more callbacks write.
-MOST_SHARED_OUTPUTS = 126
+MOST_SHARED_OUTPUTS = 122
 
 # Callbacks allowed to write each output.
 MOST_WRITERS = {
-    'sidebar-editor-container.style': 8,
-    'details-goal-sidebar.style': 8,
-    'events-sidebar-container.style': 7,
+    # left_panel.js draws the left sidebars and owns the store they follow.
+    'left-panel-store.data': 1,
+    'sidebar-editor-container.className': 1,
+    'details-goal-sidebar.className': 1,
+    'events-sidebar-container.className': 1,
+    'events-tab-inner.className': 1,
+    'sidebar-filters-container.className': 1,
     'editor-pristine-snapshot.data': 9,
     # Everything else writes a notice, and notices.js shows it.
     'save-output.children': 1,
@@ -55,6 +59,17 @@ def test_owned_outputs_have_no_new_writers():
     counts = writer_counts(built_app())
     assert {output: counts.get(output, 0) for output in MOST_WRITERS
             if counts.get(output, 0) > MOST_WRITERS[output]} == {}
+
+
+def test_a_sidebars_style_belongs_to_no_callback():
+    counts = writer_counts(built_app())
+    assert [sidebar for sidebar in ('sidebar-editor-container', 'details-goal-sidebar',
+                                    'events-sidebar-container', 'sidebar-filters-container')
+            if f'{sidebar}.style' in counts] == []
+
+
+def test_how_a_sidebar_slides_is_only_in_css():
+    assert [path for path, text in _sources() if 'translateX' in text] == []
 
 
 def test_no_code_reads_a_message():

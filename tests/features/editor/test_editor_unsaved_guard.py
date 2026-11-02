@@ -48,7 +48,7 @@ def populate(monkeypatch, manager):
         fire(trigger)
         monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
                             lambda *_args, **_kwargs: dirty)
-        values.setdefault("ed_style", OPEN)
+        values.setdefault("left_panel", "editor")
         values.setdefault("original_name", "A")
         values.setdefault("pristine_snapshot", {"name": "A"})
         return call(fn, **values)
@@ -115,7 +115,7 @@ def test_a_clean_form_loads_straight_away(populate, trigger, values):
 
 
 def test_a_closed_editor_with_nothing_to_lose_loads_straight_away(populate):
-    out = populate("edit-trigger-input", dirty=False, edit_trigger_val="B|1", ed_style={})
+    out = populate("edit-trigger-input", dirty=False, edit_trigger_val="B|1", left_panel=None)
 
     assert out["name"] == "B"
 
@@ -128,7 +128,7 @@ def test_a_closed_editor_with_nothing_to_lose_loads_straight_away(populate):
     ("details-edit-trigger-input", {"details_edit_trigger_val": "B|1"}),
 ])
 def test_an_edit_asks_about_edits_left_behind_a_sidebar(populate, trigger, values):
-    assert _asked(populate(trigger, ed_style={}, **values), "B")
+    assert _asked(populate(trigger, left_panel=None, **values), "B")
 
 
 @pytest.mark.parametrize("trigger, values, target", [
@@ -139,7 +139,7 @@ def test_an_edit_asks_about_edits_left_behind_a_sidebar(populate, trigger, value
 ])
 def test_opening_a_new_form_asks_about_edits_left_behind_a_sidebar(
         populate, trigger, values, target):
-    assert _asked(populate(trigger, ed_style={}, **values), target)
+    assert _asked(populate(trigger, left_panel=None, **values), target)
 
 
 @pytest.mark.parametrize("trigger, values", [
@@ -149,20 +149,20 @@ def test_opening_a_new_form_asks_about_edits_left_behind_a_sidebar(
 def test_a_click_on_the_canvas_leaves_edits_behind_a_sidebar_alone(populate, trigger, values):
     # A tap only fills a closed editor in the background, and an empty click
     # only blanks it. Neither is about the form, so neither asks or replaces it.
-    out = populate(trigger, ed_style={}, **values)
+    out = populate(trigger, left_panel=None, **values)
 
     assert out["name"] is dash.no_update and out["desc"] is dash.no_update
     assert out["unsaved_open"] is dash.no_update
 
 
 def test_a_tap_still_fills_a_closed_editor_that_holds_no_edits(populate):
-    out = populate("editor-tap-store", dirty=False, tapped_node={"id": "B"}, ed_style={})
+    out = populate("editor-tap-store", dirty=False, tapped_node={"id": "B"}, left_panel=None)
 
     assert out["name"] == "B" and out["unsaved_open"] is False
 
 
 def test_an_empty_click_still_blanks_a_closed_editor_that_holds_no_edits(populate):
-    out = populate("background-click-input", dirty=False, ed_style={})
+    out = populate("background-click-input", dirty=False, left_panel=None)
 
     assert out["name"] == "" and out["original_name"] is None
 
@@ -211,7 +211,7 @@ def dialog(monkeypatch):
         fire(trigger)
         monkeypatch.setattr(editor_callbacks, "is_form_dirty_vs_snapshot",
                             lambda *_args, **_kwargs: dirty)
-        return call(fn, ed_style=OPEN, pristine_snapshot={"name": "A"})
+        return call(fn, left_panel="editor", pristine_snapshot={"name": "A"})
     return run
 
 

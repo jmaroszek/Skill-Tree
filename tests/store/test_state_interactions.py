@@ -59,7 +59,7 @@ def run_core(handlers, monkeypatch, trigger='btn-save', **state):
     form = dict(n_type='Learn', desc='edited', context='Mind', status_done=[],
                 val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                 time_unit='hours', link_values=[], link_ids=[], aliases=[],
-                ed_style={'transform': 'translateX(0px)'})
+                left_panel="editor")
     form.update(state)
     return callbacks.CoreResponse(*call(handlers['core_engine'], **form))
 

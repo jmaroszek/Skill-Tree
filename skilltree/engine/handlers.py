@@ -15,6 +15,7 @@ from dash import html, no_update
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.domain.names import format_name
 from skilltree.engine.response import CoreResponse
+from skilltree.engine.sidebars import close_editor
 from skilltree.features.editor.form import editor_form_values_from, is_form_dirty_vs_snapshot
 from skilltree.features.editor.save import save_editor_form
 from skilltree.store import database
@@ -27,7 +28,6 @@ from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.notices import error, info
-from skilltree.ui.styles import SIDEBAR_TRANSLATE_CLOSED
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,6 @@ class Request:
     toggle_done_trigger_data: object
     pending_undo_done: object
     group_delete_data: object
-    # The editor, Goals and Events sidebar styles a response carries.
-    sidebars: tuple
 
 
 @dataclass
@@ -114,32 +112,15 @@ def undo_done_body(target_names, downstream_done):
     return children
 
 
-def _editor_kept_open(ed_style):
-    """The editor style for a refused save: open, so the form stays on screen.
-
-    The unsaved-changes dialog's Save computes a closed style before the save
-    runs. A save that is then refused must not slide the form away with the
-    user's input in it.
-    """
-    if not isinstance(ed_style, dict):
-        return ed_style
-    return {**ed_style, 'transform': "translateX(0px)"}
-
-
-def _refused(notice, request, *, editor_style=None):
-    """A save that didn't go through: its notice and the sidebar styles,
-    and nothing that would touch the graph, the filters or a modal."""
-    ed_style, goal_style, events_style = request.sidebars
-    return Outcome(response=CoreResponse(
-        notice=notice,
-        editor_style=ed_style if editor_style is None else editor_style,
-        goal_style=goal_style, events_style=events_style))
+def _refused(notice, *, close=no_update):
+    """A save that didn't go through: its notice, and nothing that would touch
+    the graph, the filters or a modal. The form stays up unless ``close`` says."""
+    return Outcome(response=CoreResponse(notice=notice, left_panel=close))
 
 
 def save(request):
     """The editor's Save, and the unsaved-changes dialog's."""
     form = request.form
-    ed_style = request.sidebars[0]
     name = form.get('name')
     if name and name.strip():
         name = format_name(name.strip(), settings.NAME_FORMATTING.get())
@@ -147,23 +128,20 @@ def save(request):
         # A form with nothing in it means they changed their mind after New
         # Node: close. Anything else in it would be lost, so ask for the name.
         if is_form_dirty_vs_snapshot(request.pristine_snapshot, editor_form_values_from(form)):
-            return _refused(error("Node name is required."), request)
-        return _refused(None, request,
-                        editor_style={**ed_style, 'transform': SIDEBAR_TRANSLATE_CLOSED})
+            return _refused(error("Node name is required."))
+        return _refused(None, close=close_editor())
     if not form.get('n_type'):
-        return _refused(error("Node type is required."), request)
+        return _refused(error("Node type is required."))
     # A new node, or a rename, may not take another node's name: the save
     # would update that node in place and wipe its relationships.
     clash = conflicting_node_name(request.graph, name, request.original_name)
     if clash:
         return _refused(error(f"A node named '{clash}' already exists. Choose a "
-                              f"different name, or search for '{clash}' to edit it."),
-                        request, editor_style=_editor_kept_open(ed_style))
+                              f"different name, or search for '{clash}' to edit it."))
     alias_owner = node_with_alias(request.graph, name, request.original_name)
     if alias_owner:
         return _refused(error(f"'{name}' is an alias of '{alias_owner}'. Choose a "
-                              f"different name, or search for it to edit '{alias_owner}'."),
-                        request, editor_style=_editor_kept_open(ed_style))
+                              f"different name, or search for it to edit '{alias_owner}'."))
     try:
         saved = save_editor_form(
             request.graph, request.events, form, name,
@@ -173,17 +151,13 @@ def save(request):
             reopen_confirmed=request.reopen_confirmed, via=request.trigger,
             now=request.now_switch)
     except ReopensDoneNodes as e:
-        _, goal_style, events_style = request.sidebars
         return Outcome(response=CoreResponse(
-            editor_style=_editor_kept_open(ed_style),
-            goal_style=goal_style, events_style=events_style,
             reopen_open=True, reopen_body=reopen_body(e.names),
             reopen_pending={'via': request.trigger}))
     except (ValueError, TypeError) as e:
-        return _refused(error(str(e)), request, editor_style=_editor_kept_open(ed_style))
+        return _refused(error(str(e)))
     except Exception:
-        return _refused(unexpected_error("Saving the node"), request,
-                        editor_style=_editor_kept_open(ed_style))
+        return _refused(unexpected_error("Saving the node"))
     return Outcome(notice=info(saved.message), completed=saved.completed,
                    undo_pending=saved.undo_pending,
                    undo_downstream=saved.undo_downstream,

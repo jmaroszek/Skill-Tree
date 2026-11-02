@@ -54,34 +54,25 @@ def register_dormant_callbacks(app, services):
     # --- Events tab: "+" > New node opens the node editor on a new dormant node ---
     # Clears the form through the editor's own New-node button, so the
     # unsaved-changes prompt behaves exactly as it does there. That button
-    # lives inside the editor and never has to open it, so the sidebar is
-    # opened here, the way the toolbar's fast path does (editor_sidebar.js).
-    # The preset rides alongside and populate_node_dormancy applies it.
+    # lives inside the editor and never has to open it, so left_panel.js opens
+    # the sidebar on this same choice. The preset rides alongside and
+    # populate_node_dormancy applies it.
     app.clientside_callback(
         """
-        function(choice, selectedEvent, editorStyle, goalStyle, eventsStyle) {
+        function(choice, selectedEvent) {
             var NO = window.dash_clientside.no_update;
             var parts = (choice || '').split('|');
-            if (parts[0] !== 'new' || !selectedEvent) return [NO, NO, NO, NO];
-            var n = Number(parts[1]) || 1;
+            if (parts[0] !== 'new' || !selectedEvent) return NO;
             setTimeout(function() {
                 var btn = document.getElementById('btn-editor-new');
                 if (btn) btn.click();
             }, 0);
-            var styles = window.dash_clientside.editor.open_on_add(
-                n, editorStyle, goalStyle, eventsStyle);
-            return [{event: selectedEvent, ts: Date.now()}].concat(styles);
+            return {event: selectedEvent, ts: Date.now()};
         }
         """,
         Output("editor-dormant-preset", "data", allow_duplicate=True),
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Output("events-sidebar-container", "style", allow_duplicate=True),
         Input("dormant-add-choice-input", "value"),
         State("selected-event-store", "data"),
-        State("sidebar-editor-container", "style"),
-        State("details-goal-sidebar", "style"),
-        State("events-sidebar-container", "style"),
         prevent_initial_call=True,
     )
 

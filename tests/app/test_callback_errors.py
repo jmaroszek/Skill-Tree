@@ -88,5 +88,5 @@ def _save_new_node(monkeypatch):
                     status_done=[], val=5, interest=5, diff=5, time_o=1,
                     time_m=2, time_p=4, time_unit="hours", link_values=[],
                     link_ids=[], aliases=[],
-                    ed_style={"transform": "translateX(0px)"})
+                    left_panel="editor")
     return callbacks.CoreResponse(*response).notice

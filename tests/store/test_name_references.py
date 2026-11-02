@@ -62,7 +62,7 @@ def _render_goal_names(stale_store_order):
         context_value.set(AttributeDict(
             triggered_inputs=[{"prop_id": "goals-ui-refresh-trigger.data", "value": 1}]))
         return render("tab-next", None, None, None, None, "manual", stale_store_order,
-                      None, {"transform": "translateX(0px)"})
+                      None, "goals")
 
     cards = copy_context().run(run)
     return [card.id["index"] if isinstance(card.id, dict) else card.id for card in cards]

@@ -221,7 +221,7 @@ def _save(monkeypatch, bridge_pending, original_name=None, **form):
     values = dict(n_type="Learn", desc="", context="Mind", status_done=[],
                   val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
                   time_unit="hours", link_values=[], link_ids=[], aliases=[],
-                  ed_style={"transform": "translateX(0px)"})
+                  left_panel="editor")
     values.update(form)
     return callbacks.CoreResponse(*call(
         core_engine, bridge_pending=bridge_pending, original_name=original_name,
@@ -310,7 +310,7 @@ def test_a_bridge_that_no_longer_holds_leaves_the_editor_alone(monkeypatch, mana
 def test_unsaved_edits_ask_before_the_bridge_replaces_them(monkeypatch, manager):
     out = _populate(monkeypatch, "btn-bridge-create", bridge_clicks=1,
                     bridge_ends={"start": "A", "end": "B"}, bridge_kind="hard",
-                    ed_style={"transform": "translateX(0px)"},
+                    left_panel="editor",
                     pristine_snapshot=NEW_NODE_SNAPSHOT, name="Half-typed")
 
     assert out["pending_nav"] == "__bridge__"

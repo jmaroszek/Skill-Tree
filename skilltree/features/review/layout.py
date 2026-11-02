@@ -469,25 +469,7 @@ def build_reflection_ratings_popup():
                 ),
             ], style={"width": "100%", "borderCollapse": "collapse", "fontSize": tokens.FS_CAP, "color": tokens.TEXT_PRIMARY}),
         ], style={"overflow": "auto", "flex": "1", "padding": "4px"}),
-    ], id="reflection-ratings-popup", style={
-        "display": "none",
-        "flexDirection": "column",
-        "position": "fixed",
-        "top": "120px",
-        "left": "420px",
-        "width": "960px",
-        "height": "auto",
-        "maxHeight": "calc(100vh - 160px)",
-        "minWidth": "400px",
-        "minHeight": "200px",
-        "zIndex": 9998,
-        "backgroundColor": tokens.BG_PANEL,
-        "border": f"1px solid {tokens.BORDER_PANEL}",
-        "borderRadius": "6px",
-        "boxShadow": "0 4px 16px rgba(0,0,0,0.5)",
-        "resize": "both",
-        "overflow": "hidden",
-    })
+    ], id="reflection-ratings-popup", className="ratings-popup")
 
 
 def build_reflection_ratings_editor_modal():

@@ -341,7 +341,7 @@ def register_editor_callbacks(app, services):
             revert_clicks=Input('btn-revert', 'n_clicks'),
         ),
         state=dict(
-            ed_style=State('sidebar-editor-container', 'style'),
+            left_panel=State('left-panel-store', 'data'),
             original_name=State('node-original-name', 'data'),
             pending_nav=State('pending-navigation-store', 'data'),
             pristine_snapshot=State('editor-pristine-snapshot', 'data'),
@@ -360,7 +360,7 @@ def register_editor_callbacks(app, services):
     def populate_editor(tapped_node, add_clicks, discard_clicks, save_result, search_val,
                         _bg_click, editor_new_clicks, goal_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
-                        revert_clicks, ed_style, original_name, pending_nav,
+                        revert_clicks, left_panel, original_name, pending_nav,
                         pristine_snapshot, details_selected_node, bridge_ends,
                         bridge_kind, form):
         """Populate the editor sidebar form fields when a node is selected, searched, or cleared.
@@ -370,7 +370,7 @@ def register_editor_callbacks(app, services):
         Returns EDITOR_FILL's outputs by name.
         """
         trigger_id = get_trigger_id()
-        editor_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
+        editor_open = left_panel == 'editor'
 
         # Relationship pickers must include dormant nodes so active nodes can
         # be wired to work that has not triggered yet.
@@ -430,8 +430,7 @@ def register_editor_callbacks(app, services):
                              **bridge_form(start, end, bridge_kind))
 
         if trigger_id == 'btn-add':
-            # Toolbar toggle: open/close is handled by core_engine + the
-            # clientside fast-path. Leave the form untouched so reopening shows
+            # Toolbar toggle: left_panel.js opens, and core_engine closes. Leave the form untouched so reopening shows
             # the last-loaded node (matches the Goals/Events toggles).
             return _untouched(options)
 
@@ -1031,21 +1030,20 @@ def register_editor_callbacks(app, services):
          Input('btn-unsaved-cancel', 'n_clicks'),
          Input('btn-unsaved-save', 'n_clicks'),
          Input('btn-unsaved-discard', 'n_clicks')],
-        [State('sidebar-editor-container', 'style'),
+        [State('left-panel-store', 'data'),
          State('editor-pristine-snapshot', 'data'),
          EDITOR_FORM],
         prevent_initial_call=True
     )
     def toggle_unsaved_modal(_close, _add, _cancel, _save, _discard,
-                             ed_style, pristine_snapshot, form):
+                             left_panel, pristine_snapshot, form):
         trig = get_trigger_id()
         if trig == 'btn-unsaved-cancel':
             return False, None
         if trig == 'btn-add':
             # btn-add is the toolbar toggle: only its close half (editor already
             # open) should guard against unsaved changes. Opening never does.
-            editor_open = bool(ed_style) and ed_style.get('transform', '') == 'translateX(0px)'
-            if not editor_open:
+            if left_panel != 'editor':
                 return False, dash.no_update
         elif trig != 'btn-close-editor':
             return False, dash.no_update

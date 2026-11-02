@@ -91,14 +91,13 @@ def register_event_graph_callbacks(app, services):
     @app.callback(
         Output("details-edit-trigger-input", "value", allow_duplicate=True),
         Input("events-detail-graph", "tapNodeData"),
-        State("sidebar-editor-container", "style"),
+        State("left-panel-store", "data"),
         prevent_initial_call=True,
     )
-    def populate_editor_from_event_graph(tap_data, editor_style):
+    def populate_editor_from_event_graph(tap_data, left_panel):
         if not tap_data or not tap_data.get("id"):
             return no_update
-        editor_open = bool(editor_style) and editor_style.get("transform", "") == "translateX(0px)"
-        if not editor_open:
+        if left_panel != "editor":
             return no_update
         return f"{tap_data['id']}|{int(time.time())}"
 

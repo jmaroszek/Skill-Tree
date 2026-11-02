@@ -15,15 +15,14 @@ class CoreResponse(NamedTuple):
     notice: object = no_update
     community_options: object = no_update
     search_options: object = no_update
-    editor_style: object = no_update
     filter_context_options: object = no_update
     node_context_options: object = no_update
     node_type_options: object = no_update
     filter_type_options: object = no_update
     stylesheet: object = no_update
     clear_focus_style: object = no_update
-    goal_style: object = no_update
-    events_style: object = no_update
+    # A request to close the editor (engine.sidebars).
+    left_panel: object = no_update
     undo_open: object = no_update
     undo_body: object = no_update
     undo_pending: object = no_update
@@ -62,15 +61,13 @@ CORE_OUTPUTS = dict(
     notice=Output('notice-store', 'data'),
     community_options=Output('filter-community', 'options'),
     search_options=Output('search-node', 'options'),
-    editor_style=Output('sidebar-editor-container', 'style'),
     filter_context_options=Output('filter-context', 'options'),
     node_context_options=Output('node-context', 'options'),
     node_type_options=Output('node-type', 'options'),
     filter_type_options=Output('filter-node-type', 'options'),
     stylesheet=Output('cytoscape-graph', 'stylesheet'),
     clear_focus_style=Output('btn-clear-focus', 'style'),
-    goal_style=Output('details-goal-sidebar', 'style', allow_duplicate=True),
-    events_style=Output('events-sidebar-container', 'style', allow_duplicate=True),
+    left_panel=Output('left-panel-request', 'data'),
     undo_open=Output('modal-undo-done-confirm', 'is_open'),
     undo_body=Output('undo-done-confirm-body', 'children'),
     undo_pending=Output('pending-undo-done-store', 'data'),

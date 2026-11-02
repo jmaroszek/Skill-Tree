@@ -89,7 +89,7 @@ def _save(monkeypatch, trigger, **form):
                   time_o=1, time_m=2, time_p=4, time_unit="hours",
                   e_needs_h=[], e_needs_s=[], e_supp_h=[], e_supp_s=[], e_helps=[],
                   link_values=[], link_ids=[], aliases=[],
-                  ed_style={"transform": "translateX(0px)"})
+                  left_panel="editor")
     values.update(form)
     return callbacks.CoreResponse(*call(fn, **values))
 
@@ -101,7 +101,7 @@ def test_new_node_cannot_overwrite_an_existing_one(monkeypatch, manager, trigger
     assert response.notice["kind"] == "error"
     assert "'Sleep' already exists" in response.notice["text"]
     # The form stays open, even for Save & Close, so nothing typed is lost.
-    assert response.editor_style["transform"] == "translateX(0px)"
+    assert response.left_panel is dash.no_update
     sleep = manager.get_node("Sleep")
     assert sleep.description == "keep me"
     assert manager.get_edges() == [

@@ -271,16 +271,16 @@
 
     register({id: 'sidebar-editor-container', triggerId: 'btn-add', closeId: 'btn-close-editor',
         initial: '#search-node', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
+        isOpen: function (el) { return el.classList.contains('is-open'); }});
     register({id: 'details-goal-sidebar', triggerId: 'btn-goals-toggle', closeId: 'btn-details-goals-close',
         initial: '#details-goal-search', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
+        isOpen: function (el) { return el.classList.contains('is-open'); }});
     register({id: 'events-sidebar-container', triggerId: 'btn-events-sidebar-toggle', closeId: 'btn-events-sidebar-close',
         initial: '#events-search-input', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
+        isOpen: function (el) { return el.classList.contains('is-open'); }});
     register({id: 'sidebar-filters-container', triggerId: 'btn-filters-toggle', closeId: 'btn-close-filters',
         initial: '#filter-text', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
+        isOpen: function (el) { return el.classList.contains('is-open'); }});
     // Analyze's gear popovers render at the end of the page, out of Tab reach
     // from their gear. Opening one from the keyboard moves focus into it.
     [['popover-analyze-goals', 'btn-analyze-goals-limit'],

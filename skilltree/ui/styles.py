@@ -315,11 +315,4 @@ CANVAS_HEIGHT = 760  # Default pixel height of the node canvas area
 # Anything in JS that opens or closes a sidebar must keep its magic number in
 # sync (see assets/sidebars/editor_sidebar.js, goals_sidebar.js, events_sidebar.js,
 # filters_sidebar.js).
-SIDEBAR_WIDTH = 350
-SIDEBAR_WIDTH_PX = f"{SIDEBAR_WIDTH}px"
-
-
-# The left sidebars (editor, goals, events) slide with `transform` rather than
-# `left`. The browser runs a transform animation off the main thread, so the
-# slide stays smooth while the page is busy mounting the sidebar's contents.
-SIDEBAR_TRANSLATE_CLOSED = f"translateX(-{SIDEBAR_WIDTH}px)"
+SIDEBAR_WIDTH_PX = "var(--st-sidebar-width)"

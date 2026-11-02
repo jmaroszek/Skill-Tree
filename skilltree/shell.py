@@ -179,7 +179,6 @@ def build_app_layout(graph, env="production"):
     sidebars = build_all_sidebars()
     initial_next = initial_next_view(graph, build_next_view(), sidebars)
     
-    edit_trigger = html.Button(id="btn-edit-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
     toggle_trigger = html.Button(id="btn-toggle-done-node", style={"visibility": "hidden", "width": 0, "height": 0, "position": "absolute"})
 
     # --- Node context menu: every canvas, Next rows, Now cards, goal cards ---
@@ -425,7 +424,6 @@ def build_app_layout(graph, env="production"):
         build_hover_tooltip(),
         build_ratings_popup(),
         build_reflection_ratings_popup(),
-        edit_trigger,
         toggle_trigger,
         context_menu,
         edge_context_menu,
@@ -495,6 +493,10 @@ def build_app_layout(graph, env="production"):
         dcc.Store(id='pending-navigation-store', data=None),
         # Written by core_engine only when an editor save commits.
         dcc.Store(id='editor-save-result-store', data=None),
+        # Which left sidebar is open (engine.sidebars), and the server's
+        # request to close one.
+        dcc.Store(id='left-panel-store', data=None),
+        dcc.Store(id='left-panel-request', data=None),
         # What the app is telling the user (ui.notices).
         dcc.Store(id='notice-store', data=None),
         # A saved link that needs a yes before it opens (resource_links.NeedsConfirmation).

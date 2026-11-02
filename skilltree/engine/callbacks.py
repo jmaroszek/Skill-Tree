@@ -12,7 +12,7 @@ import functools
 import logging
 import time
 from skilltree.store import database
-from skilltree.engine.sidebars import compute_sidebar_styles
+from skilltree.engine.sidebars import editor_close_request, register_left_panel_callbacks
 from skilltree.engine.handlers import (
     SAVE_TRIGGERS, Request, handle, undo_done_body, unexpected_error,
 )
@@ -53,18 +53,10 @@ logger = logging.getLogger(__name__)
 # diff per tab switch, landing right on top of whatever the user did next.
 _NON_GRAPH_TABS = frozenset({"tab-events", "tab-analyze", "tab-details", "tab-next"})
 
-# Triggers that only open/close the editor sidebar without touching graph data,
-# filters, or focus. When core_engine fires on one of these (and nothing else
-# in the same cycle), we can skip the expensive scoring + element regen and
-# just compute the three sidebar styles. Saves ~100-300 ms per Edit click.
-_EDITOR_UI_ONLY_TRIGGERS = frozenset({
-    'edit-trigger-input', 'details-edit-trigger-input',
-    'btn-close-editor', 'btn-goals-toggle',
-    # btn-add is the toolbar toggle. Its close half must run the same
-    # unsaved-changes guard as btn-close-editor, which needs the short-circuit
-    # path's pristine_snapshot — so route it here too.
-    'btn-add',
-})
+# Triggers that only close the editor, once the unsaved-changes check allows it.
+# When core_engine fires on one of these (and nothing else in the same cycle),
+# there's nothing to score or render.
+_EDITOR_UI_ONLY_TRIGGERS = frozenset({'btn-close-editor', 'btn-add'})
 
 # The filter sidebar's controls. They choose which nodes the canvas shows and
 # nothing else.
@@ -103,10 +95,8 @@ CORE_INPUTS = dict(
     f_time_unit=Input('filter-time-unit', 'value'),
     f_difficulty=Input('filter-difficulty', 'value'),
     sugg_count=Input('suggestion-count-store', 'data'),
-    btn_edit=Input('btn-edit-node', 'n_clicks'),
     btn_add=Input('btn-add', 'n_clicks'),
     btn_close_ed=Input('btn-close-editor', 'n_clicks'),
-    btn_goals_toggle=Input('btn-goals-toggle', 'n_clicks'),
     btn_unsaved_save=Input('btn-unsaved-save', 'n_clicks'),
     btn_unsaved_discard=Input('btn-unsaved-discard', 'n_clicks'),
     settings_version=Input('settings-version-store', 'data'),
@@ -114,8 +104,6 @@ CORE_INPUTS = dict(
     group_delete_data=Input('group-delete-input', 'value'),
     f_node_types=Input('filter-node-type', 'value'),
     focus_goal=Input('focus-goal-store', 'data'),
-    edit_trigger_data=Input('edit-trigger-input', 'value'),
-    details_edit_trigger_data=Input('details-edit-trigger-input', 'value'),
     toggle_done_trigger_data=Input('toggle-done-trigger-input', 'value'),
     _node_now_trigger=Input('node-now-trigger-input', 'value'),
     _events_refresh=Input('events-refresh-trigger', 'data'),
@@ -123,8 +111,6 @@ CORE_INPUTS = dict(
     _bg_click=Input('background-click-input', 'value'),
     active_tab=Input('main-tabs', 'active_tab'),
     btn_undo_done_confirm=Input('btn-undo-done-confirm', 'n_clicks'),
-    # The toolbar "+" new-node button. Only that it fired matters.
-    btn_editor_new=Input('btn-editor-new', 'n_clicks'),
     f_time_min=Input('filter-time-min', 'value'),
     f_search=Input('filter-search-query', 'data'),
     # The confirmation of a save that reopens Done nodes.
@@ -138,10 +124,8 @@ CORE_STATE = dict(
     # the callbacks chained to its message landed inside the Settle's
     # animation as stalls of up to 120 ms.
     _relayout=State('graph-settings-relayout', 'n_clicks'),
-    ed_style=State('sidebar-editor-container', 'style'),
+    left_panel=State('left-panel-store', 'data'),
     original_name=State('node-original-name', 'data'),
-    goal_sidebar_style=State('details-goal-sidebar', 'style'),
-    events_sidebar_style=State('events-sidebar-container', 'style'),
     pending_nav_store=State('pending-navigation-store', 'data'),
     pristine_snapshot=State('editor-pristine-snapshot', 'data'),
     pending_undo_done=State('pending-undo-done-store', 'data'),
@@ -204,15 +188,15 @@ def register_engine_callbacks(app, services):
     def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
                      f_community, community_method, f_value, f_interest, f_time, f_time_unit, f_difficulty, sugg_count,
-                     btn_edit, btn_add, btn_close_ed, btn_goals_toggle, btn_unsaved_save, btn_unsaved_discard, settings_version, btn_toggle_done,
+                     btn_add, btn_close_ed, btn_unsaved_save, btn_unsaved_discard, settings_version, btn_toggle_done,
                      group_delete_data, f_node_types,
                      active_suggestion_id,
                      focus_goal,
-                     edit_trigger_data, details_edit_trigger_data, toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
+                     toggle_done_trigger_data, _node_now_trigger, _events_refresh, _details_refresh, _bg_click,
                      active_tab, _relayout,
-                     btn_undo_done_confirm, btn_editor_new, f_time_min,
+                     btn_undo_done_confirm, f_time_min,
                      f_search, btn_editor_reopen_confirm,
-                     ed_style, original_name, goal_sidebar_style, events_sidebar_style,
+                     left_panel, original_name,
                      pending_nav_store, pristine_snapshot, pending_undo_done, canvas_stamp,
                      bridge_pending, editor_reopen_pending, community_memory, form):
         """Route one action, then render the canvas and the views around it.
@@ -224,7 +208,7 @@ def register_engine_callbacks(app, services):
         `form` is the node editor's form (editor form.EDITOR_FORM).
         """
         form = form or {}
-        # What the sidebar decisions read: the form, and the baseline its
+        # What closing the editor reads: the form, and the baseline its
         # unsaved-changes check compares against.
         form_state = {**form, 'pristine_snapshot': pristine_snapshot}
 
@@ -252,20 +236,11 @@ def register_engine_callbacks(app, services):
                 return CoreResponse()
             trigger_id, all_triggered_ids, reopen_confirmed = via, {via}, True
 
-        # Editor-UI-only short-circuit: when the only thing that fired is a
-        # pure editor UI trigger (e.g. context-menu Edit, close button, goals
-        # toggle), skip the scoring + element regen pipeline and return just
-        # the three sidebar styles. Saves ~100-300 ms per Edit click and
-        # prevents the old ed_style race by minimizing the window in which
-        # other callbacks could race with us.
+        # Closing the editor needs no render.
         if (trigger_id in _EDITOR_UI_ONLY_TRIGGERS
                 and all_triggered_ids <= _EDITOR_UI_ONLY_TRIGGERS):
-            ed, goal, events = compute_sidebar_styles(
-                trigger_id, all_triggered_ids, search_val,
-                ed_style, goal_sidebar_style, events_sidebar_style,
-                pending_nav_store, form_state,
-            )
-            return CoreResponse(editor_style=ed, goal_style=goal, events_style=events)
+            return CoreResponse(left_panel=editor_close_request(
+                trigger_id, left_panel, pending_nav_store, form_state))
 
         # Check for any delayed event nodes or scheduled events that are due
         event_manager.run_sweeps()
@@ -273,23 +248,11 @@ def register_engine_callbacks(app, services):
         filters = build_filters(f_context, f_subcontext, f_done, f_value, f_interest, f_time, f_difficulty, f_node_types, f_time_unit=f_time_unit, f_show_dormant=f_show_dormant,
                                 f_time_min=f_time_min, f_search=f_search)
 
-        # Editor Sidebar State — delegate to the shared helper so both the
-        # short-circuit path above and the full path below compute sidebars
-        # identically.
-        next_ed_style, next_goal_style, next_events_sidebar_style = compute_sidebar_styles(
-            trigger_id, all_triggered_ids, search_val,
-            ed_style, goal_sidebar_style, events_sidebar_style,
-            pending_nav_store, form_state,
-        )
+        # Decided before the handler runs, on the form the user was looking at.
+        # A save the handler refuses never sends this.
+        close_request = editor_close_request(
+            trigger_id, left_panel, pending_nav_store, form_state)
 
-        # Use whichever edit trigger fired (details tab or main)
-        _edit_trigger = details_edit_trigger_data if trigger_id == 'details-edit-trigger-input' else edit_trigger_data
-        active_node_id = resolve_active_node_id(
-            manager, all_triggered_ids, trigger_id, _edit_trigger,
-            search_val, tapped_node, form.get('name'))
-
-        # When entering focus mode, clear the selected node so only the
-        # goal's subtree is highlighted (not a previously-tapped node).
         # focus_goal may be a dict {"node": str, "subtree": list,
         #   "path_info": {...}} or a plain string.
         focus_subtree_override = None
@@ -298,9 +261,6 @@ def register_engine_callbacks(app, services):
             focus_subtree_override = set(focus_goal.get("subtree", []))
             focus_path_info = focus_goal.get("path_info")
             focus_goal = focus_goal.get("node")
-        if trigger_id == 'focus-goal-store' and focus_goal:
-            active_node_id = None
-
         # --- The action: a save, a delete, a Done toggle (engine.handlers) ---
         outcome = handle(Request(
             graph=manager, events=event_manager, trigger=trigger_id, form=form,
@@ -308,8 +268,7 @@ def register_engine_callbacks(app, services):
             bridge_pending=bridge_pending, reopen_confirmed=reopen_confirmed,
             now_switch='now' in (form.get('now') or []),
             tapped_node=tapped_node, toggle_done_trigger_data=toggle_done_trigger_data,
-            pending_undo_done=pending_undo_done, group_delete_data=group_delete_data,
-            sidebars=(next_ed_style, next_goal_style, next_events_sidebar_style)))
+            pending_undo_done=pending_undo_done, group_delete_data=group_delete_data))
         if outcome.response is not None:
             return outcome.response
 
@@ -321,8 +280,11 @@ def register_engine_callbacks(app, services):
         # entering focus, which clears it.
         if outcome.saved_name:
             canvas_selection = outcome.saved_name
-        elif trigger_id == 'search-node' or (trigger_id == 'focus-goal-store' and focus_goal):
-            canvas_selection = active_node_id
+        elif trigger_id == 'search-node':
+            canvas_selection = searched_node(manager, search_val, form.get('name'))
+        elif trigger_id == 'focus-goal-store' and focus_goal:
+            # Only the goal's subtree is highlighted, not a tapped node.
+            canvas_selection = None
         else:
             canvas_selection = KEEP_SELECTION
         with database.read_snapshot():
@@ -359,11 +321,7 @@ def register_engine_callbacks(app, services):
             # there's no message and no modal to open, and the page already
             # holds every reset below. Sending them anyway woke six callbacks
             # each time that only reset again.
-            return view._replace(
-                editor_style=next_ed_style,
-                goal_style=next_goal_style,
-                events_style=next_events_sidebar_style,
-            )
+            return view
 
         if all_triggered_ids <= _FILTER_TRIGGERS:
             # A filter only narrows the view. The search list, the option
@@ -397,9 +355,7 @@ def register_engine_callbacks(app, services):
             # rename clears the node picker, which runs this again, and that
             # run wiped the save's confirmation at once.
             notice=outcome.notice or no_update,
-            editor_style=next_ed_style,
-            goal_style=next_goal_style,
-            events_style=next_events_sidebar_style,
+            left_panel=close_request,
             undo_open=bool(undo_pending),
             undo_body=(undo_done_body(undo_pending, outcome.undo_downstream)
                        if undo_pending else ''),
@@ -585,6 +541,7 @@ def register_engine_callbacks(app, services):
         return json.dumps(names) + '|' + str(time.time())
 
     register_toast_timer(app, 'save-output', TOAST_CLEAR_INTERVAL_MS)
+    register_left_panel_callbacks(app)
 
 
     # The unexpected-error modal opens from app.report_callback_error, through
@@ -628,24 +585,12 @@ def register_engine_callbacks(app, services):
 
 
 
-def resolve_active_node_id(graph, all_triggered_ids, trigger_id, edit_trigger_data,
-                           search_val, tapped_node, current_name):
-    """Determine which node the editor should display.
-
-    Prefers ``edit-trigger-input`` (carries the node ID explicitly) even when
-    it is batched with another trigger like tapNodeData.
-    """
-    if ('edit-trigger-input' in all_triggered_ids or 'details-edit-trigger-input' in all_triggered_ids) and edit_trigger_data:
-        return bridge_payloads.strip_stamp(edit_trigger_data)
-    if trigger_id in ('background-click-input', 'btn-editor-new'):
-        return None
-    if trigger_id == 'search-node' and search_val:
-        if search_val.startswith('alias:'):
-            alias_key = search_val[6:]
-            # Case-insensitive resolve so 'alias:mathnotes' finds 'MathNotes'.
-            resolved = graph.resolve_alias(alias_key)
-            return resolved if resolved is not None else search_val
-        return search_val
-    if trigger_id == 'cytoscape-graph' and tapped_node:
-        return tapped_node.get('id')
-    return current_name
+def searched_node(graph, search_val, current_name):
+    """The node the node picker names, or the one the form holds once it's cleared."""
+    if not search_val:
+        return current_name
+    if search_val.startswith('alias:'):
+        # Case-insensitive resolve so 'alias:mathnotes' finds 'MathNotes'.
+        resolved = graph.resolve_alias(search_val[6:])
+        return resolved if resolved is not None else search_val
+    return search_val

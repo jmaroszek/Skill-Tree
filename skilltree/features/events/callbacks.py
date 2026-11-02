@@ -7,7 +7,7 @@ from datetime import date
 
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.toast import register_toast_timer
-from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_update
+from dash import ALL, Input, Output, State, ctx, html, no_update
 
 from skilltree.domain.models import Event
 from skilltree.features.events.announcements import register_announcement_callbacks
@@ -737,36 +737,6 @@ def register_events_callbacks(app, services):
     # --- Events Graph Layout: layout requests ---
     # Registered with every canvas's in callbacks.py; built by
     # assets/canvas/layout_requests.js.
-
-    # --- Events Sidebar Toggle + Tab-Arrival Default + Tab-Inner Shift (CLIENTSIDE) ---
-    # Prior server-side implementations of this toggle exhibited a persistent
-    # "sidebar won't reopen after close" bug that resisted multiple fixes. Moving
-    # the logic to clientside JS in assets/sidebars/events_sidebar.js eliminates server-
-    # state sync as a failure mode. The handlers also BASE-merge the style dict
-    # so a corrupted/partial state can't strand the sidebar off-screen.
-    app.clientside_callback(
-        ClientsideFunction(namespace='events', function_name='toggle_sidebar'),
-        Output("events-sidebar-container", "style"),
-        Output("events-tab-inner", "style", allow_duplicate=True),
-        Output("sidebar-editor-container", "style", allow_duplicate=True),
-        Output("details-goal-sidebar", "style", allow_duplicate=True),
-        Input("btn-events-sidebar-toggle", "n_clicks"),
-        Input("btn-events-sidebar-close", "n_clicks"),
-        Input("main-tabs", "active_tab"),
-        State("events-sidebar-container", "style"),
-        State("sidebar-editor-container", "style"),
-        State("details-goal-sidebar", "style"),
-        State("events-ui-refresh-trigger", "data"),
-        State("selected-event-store", "data"),
-        State("event-detail-empty", "style"),
-        prevent_initial_call=True,
-    )
-
-    app.clientside_callback(
-        ClientsideFunction(namespace='events', function_name='adjust_tab_inner'),
-        Output("events-tab-inner", "style"),
-        Input("events-sidebar-container", "style"),
-    )
 
     register_dormant_callbacks(app, services)
     register_announcement_callbacks(app, services)

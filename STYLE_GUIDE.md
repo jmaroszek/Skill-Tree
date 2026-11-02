@@ -575,7 +575,7 @@ command and disappears once the node is awake.
 
 | Element | Value |
 |---------|-------|
-| Sidebar width (editor / goals / events / filters) | `350px` (`styles.SIDEBAR_WIDTH`) |
+| Sidebar width (editor / goals / events / filters) | `350px` (`--st-sidebar-width`) |
 | Canvas height | `760px` (from config) |
 | Transition speed | `0.3s ease` (sidebar toggles) |
 
@@ -583,12 +583,13 @@ command and disappears once the node is awake.
 
 The desktop window opens maximized and cannot be dragged smaller than `900 x 600` (`minWidth` and `minHeight` in `electron/main.js`). Every tab must read cleanly at that size, and at the sizes laptops and desktops ship with: 1280 x 720, 1366 x 768, 1536 x 864, 1920 x 1080 and 2560 x 1440. Check a layout change at 900 x 600 first, since that is where a fixed width runs out of room. A panel beside a 350px sidebar has 550px there. Give it a shrinkable basis (`flex: 0 1 ...`) rather than a fixed one, and clip anything that has been squeezed to nothing. The phone and tablet widths are not supported.
 
-All sidebars slide with `transform: translateX(...)` and `willChange: transform`.
+All sidebars slide with `transform`, set by `.left-sidebar`, `.right-sidebar` and
+`.is-open` in `assets/css/theme.css`. Nothing else may say where a sidebar is.
 The left panels translate left when closed; Filters stays anchored at `right: 0`
 and translates right by its own width. The browser can run the slide off the
 main thread while the page is busy. Rebuilding a sidebar's list waits until the
 slide finishes. On the Events tab, the content glides aside with the sidebar.
-Its style comes back in the same callback return as the sidebar's, so both
+Its class comes back in the same callback return as the sidebar's, so both
 animations start on the same frame.
 
 Now nodes wear a solid ring in the configured Now color, drawn as a Cytoscape

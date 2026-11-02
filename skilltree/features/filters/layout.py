@@ -3,7 +3,6 @@ from dash import dcc
 from dash import html
 from skilltree.ui.kit import hint
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
-from skilltree.ui import tokens
 from skilltree.ui.components.context_picker import build_multi_context_picker
 from skilltree.ui.components.duration import unit_select
 from skilltree.ui.kit import bullet_hint
@@ -173,19 +172,5 @@ def build_filters_sidebar():
     return html.Div(
         id="sidebar-filters-container",
         children=[build_filters_content()],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "right": "0px",
-            "transform": "translateX(100%)",
-            "width": SIDEBAR_WIDTH_PX,
-            "height": "100%",
-            "zIndex": 100,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "transform 0.3s ease",
-            "willChange": "transform",
-            "backgroundColor": tokens.BG_PANEL
-        }
+        className="right-sidebar",
     )

@@ -32,6 +32,7 @@
     --st-bg-sunken: #343a40;      /* pressed states, table rules */
 
     --st-border-panel: #495057;   /* panel dividers, card borders, hr */
+    --st-sidebar-width: 350px;    /* editor, Goals, Events, Filters */
     --st-border-subtle: #343a40;  /* in-table cell rules */
     /* Translucent rules that sit lightly on any surface: section dividers
        and row rules inside a modal, where a solid grey reads as a box. */

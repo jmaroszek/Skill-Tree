@@ -98,14 +98,8 @@ def register_nodes_callbacks(app, services):
         return dash.no_update
 
     # --- Edit Trigger: switch to canvas tab ---
-    # NOTE: short-circuit when already on canvas. Writing the same value to
-    # main-tabs.active_tab with allow_duplicate=True still re-fires any Input
-    # depending on it (notably core_engine). That second core_engine run had
-    # trigger_id='main-tabs', which doesn't match any editor-open branch, so
-    # it returned the State-cached ed_style — racing with the open-editor
-    # output from the Edit-trigger run and sometimes clobbering it back to
-    # the closed translateX. Only writing when the tab actually needs to change
-    # avoids the spurious re-fire.
+    # Only when the tab has to change. Writing the same value still re-fires
+    # everything listening to main-tabs.
     @app.callback(
         Output('main-tabs', 'active_tab', allow_duplicate=True),
         Input('edit-trigger-input', 'value'),
