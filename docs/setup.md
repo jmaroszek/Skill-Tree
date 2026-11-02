@@ -124,6 +124,19 @@ cd electron && npm run dist                                          # -> electr
   workflows could read. Branch trial builds use the separate `trial-build`
   environment, which has no signing secrets. Recreate these protections if the
   release workflow moves to another repository.
+- An installed Windows app refuses an update unless a publisher named in
+  `win.signtoolOptions.publisherName` (`electron/electron-builder.yml`) signed it.
+  electron-builder can't read the name from a sign script, so it has to be set by
+  hand, exactly as the certificate has it. To read it from a signed file:
+
+  ```powershell
+  (Get-AuthenticodeSignature .\signed.exe).SignerCertificate.Subject
+  ```
+
+  A tag build runs the same check on its installer and stops if it fails
+  (`electron/build/check-update-signature.js`). Each copy keeps the names it was
+  built with. Before a certificate's subject changes, ship a release that lists both
+  the old and new names, or copies already installed can't update again.
 - `packaging/app_journey.py` drives a built app the way a new user would: the window,
   the welcome, a node saved, quitting, and a second start. It uses a throwaway data
   folder, so it never touches yours. The release workflow runs it on every platform:
