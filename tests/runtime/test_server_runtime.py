@@ -102,6 +102,21 @@ def test_the_published_token_is_readable_only_by_its_user(tmp_path):
     owner.release()
 
 
+def _python_process(args, env=None, **popen_args):
+    """A Python child whose PID is its own, as the frozen server's is.
+
+    A Windows venv's python.exe is a launcher that runs the real interpreter
+    as its child, so .pid and .kill() would reach the launcher. This starts
+    the real one in the same venv, as multiprocessing does on Windows.
+    """
+    env = dict(os.environ if env is None else env)
+    python = sys.executable
+    if sys.platform == "win32" and sys.prefix != sys.base_prefix:
+        python = sys._base_executable
+        env["__PYVENV_LAUNCHER__"] = sys.executable
+    return subprocess.Popen([python, *args], env=env, **popen_args)
+
+
 def _hold_lock_in_another_process(db_path):
     script = textwrap.dedent(f"""
         import sys, time
@@ -111,8 +126,7 @@ def _hold_lock_in_another_process(db_path):
         print("held" if lock.acquire() else "refused", flush=True)
         time.sleep(60)
     """)
-    proc = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE,
-                            text=True)
+    proc = _python_process(["-c", script], stdout=subprocess.PIPE, text=True)
     assert proc.stdout.readline().strip() == "held"
     return proc
 
@@ -314,9 +328,9 @@ def _launch(home, *args, token="desk-token"):
     env = {**os.environ, "SKILLTREE_HOME": str(home), "SKILLTREE_TOKEN": token,
            "PYTHONUNBUFFERED": "1"}
     env.pop("WERKZEUG_RUN_MAIN", None)
-    return subprocess.Popen([sys.executable, str(ROOT / "app.py"), *args], cwd=ROOT,
-                            env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.DEVNULL, text=True)
+    return _python_process([str(ROOT / "app.py"), *args], env=env, cwd=ROOT,
+                           stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, text=True)
 
 
 def _line_starting(proc, prefix, timeout=90):
