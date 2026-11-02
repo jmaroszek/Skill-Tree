@@ -6,7 +6,9 @@ canvas and merges the two. A handler that has to answer without a render,
 for a refused save or a confirmation to ask for, puts the whole response in
 its Outcome instead.
 """
+import json
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -24,6 +26,7 @@ from skilltree.store.commands import (
     handle_toggle_done,
 )
 from skilltree.store import settings
+from skilltree.store.graph.state import revisions
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.left_panel import close_editor
@@ -34,6 +37,16 @@ logger = logging.getLogger(__name__)
 # The editor's own saves: each commits the whole form, so the form is what
 # the database holds afterwards.
 SAVE_TRIGGERS = ('btn-save', 'btn-unsaved-save')
+
+
+class SaveMemory:
+    """The last save that committed, and the answer it was given."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.asked = None
+        self.outcome = None
+        self.revision = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +67,7 @@ class Request:
     toggle_done_trigger_data: object
     pending_undo_done: object
     group_delete_data: object
+    saves: SaveMemory = field(default_factory=SaveMemory)
 
 
 @dataclass
@@ -119,7 +133,27 @@ def _refused(notice, *, close=no_update):
 
 
 def save(request):
-    """The editor's Save, and the unsaved-changes dialog's."""
+    """The editor's Save, and the unsaved-changes dialog's.
+
+    A second click before the first has answered, a double-click on a big graph,
+    sends the same form from the same baseline, and Dash throws away the first
+    answer. So the repeat gets that answer. Running it would refuse a rename as a
+    duplicate of itself. Saves go one at a time, so a repeat sees what the first did.
+    If the graph has changed since, a link menu's edit say, it's a save of its own.
+    """
+    asked = json.dumps([request.trigger, request.original_name, request.pristine_snapshot,
+                        request.form], sort_keys=True)
+    memory = request.saves
+    with memory.lock:
+        if asked == memory.asked and revisions.graph == memory.revision:
+            return memory.outcome
+        outcome = _save_form(request)
+        if outcome.save_result is not no_update:
+            memory.asked, memory.outcome, memory.revision = asked, outcome, revisions.graph
+        return outcome
+
+
+def _save_form(request):
     form = request.form
     name = form.get('name')
     if name and name.strip():

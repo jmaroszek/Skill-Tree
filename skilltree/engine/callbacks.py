@@ -15,7 +15,7 @@ from skilltree.store import database
 from skilltree.engine.sidebars import register_left_panel_callbacks
 from skilltree.ui.left_panel import close_editor
 from skilltree.engine.handlers import (
-    SAVE_TRIGGERS, Request, handle, undo_done_body, unexpected_error,
+    SAVE_TRIGGERS, Request, SaveMemory, handle, undo_done_body, unexpected_error,
 )
 from skilltree.engine.response import CORE_OUTPUTS, CoreResponse, keyed
 from skilltree.ui.canvas.view import build_canvas_view, canvas_wanted, deferred_canvas
@@ -74,9 +74,26 @@ _STATUS_CHANGING_TRIGGERS = ('btn-toggle-done-node', 'toggle-done-trigger-input'
 
 # The core callback's inputs and state, under the names core_engine takes them
 # by. Its outputs are CORE_OUTPUTS (engine/response.py).
-CORE_INPUTS = dict(
+#
+# What changes the graph comes in by its own door. When a callback fires again
+# before its last run has answered, Dash throws that answer away, though the run
+# still finishes on the server. Renders can replace each other. A save can't be
+# replaced: a tab switch right after Save committed it and lost the answer, so the
+# page went on holding the node's old name, and the next Save was refused as a
+# duplicate of itself.
+CORE_ACTIONS = dict(
     save_clicks=Input('btn-save', 'n_clicks'),
     delete_confirm_clicks=Input('btn-node-delete-confirm', 'n_clicks'),
+    btn_unsaved_save=Input('btn-unsaved-save', 'n_clicks'),
+    btn_toggle_done=Input('btn-toggle-done-node', 'n_clicks'),
+    group_delete_data=Input('group-delete-input', 'value'),
+    toggle_done_trigger_data=Input('toggle-done-trigger-input', 'value'),
+    btn_undo_done_confirm=Input('btn-undo-done-confirm', 'n_clicks'),
+    # The confirmation of a save that reopens Done nodes.
+    btn_editor_reopen_confirm=Input('btn-editor-reopen-confirm', 'n_clicks'),
+)
+_ACTION_TRIGGERS = frozenset(dep.component_id for dep in CORE_ACTIONS.values())
+CORE_RENDERS = dict(
     f_context=Input('filter-context', 'value'),
     f_subcontext=Input('filter-subcontext', 'value'),
     f_done=Input('filter-done', 'value'),
@@ -91,23 +108,16 @@ CORE_INPUTS = dict(
     f_time_unit=Input('filter-time-unit', 'value'),
     f_difficulty=Input('filter-difficulty', 'value'),
     sugg_count=Input('suggestion-count-store', 'data'),
-    btn_unsaved_save=Input('btn-unsaved-save', 'n_clicks'),
     settings_version=Input('settings-version-store', 'data'),
-    btn_toggle_done=Input('btn-toggle-done-node', 'n_clicks'),
-    group_delete_data=Input('group-delete-input', 'value'),
     f_node_types=Input('filter-node-type', 'value'),
     focus_goal=Input('focus-goal-store', 'data'),
-    toggle_done_trigger_data=Input('toggle-done-trigger-input', 'value'),
     _node_now_trigger=Input('node-now-trigger-input', 'value'),
     _events_refresh=Input('events-refresh-trigger', 'data'),
     _details_refresh=Input('details-refresh-trigger', 'data'),
     _bg_click=Input('background-click-input', 'value'),
     active_tab=Input('main-tabs', 'active_tab'),
-    btn_undo_done_confirm=Input('btn-undo-done-confirm', 'n_clicks'),
     f_time_min=Input('filter-time-min', 'value'),
     f_search=Input('filter-search-query', 'data'),
-    # The confirmation of a save that reopens Done nodes.
-    btn_editor_reopen_confirm=Input('btn-editor-reopen-confirm', 'n_clicks'),
 )
 CORE_STATE = dict(
     # A State: selecting a suggestion asks the server for nothing.
@@ -128,11 +138,17 @@ CORE_STATE = dict(
 )
 
 
+def _as_state(inputs):
+    return {name: State(dep.component_id, dep.component_property)
+            for name, dep in inputs.items()}
+
+
 def register_engine_callbacks(app, services):
     """Register all Dash callbacks for the application."""
     manager = services.graph
     event_manager = services.events
     render_elements = functools.partial(generate_elements, manager, event_manager)
+    saves = SaveMemory()
 
     # --- Graph Version Bridge ---
     # Observes cytoscape element changes and updates graph-version-store only
@@ -172,9 +188,6 @@ def register_engine_callbacks(app, services):
     # store and, when freeze is on, injects pinned positions into each
     # node's data before pushing to Cytoscape. That's what keeps node
     # positions from drifting on save during bulk-edit freeze mode.
-    # Dash merges the inputs into the state dict it is given, so it gets a copy.
-    @app.callback(output=CORE_OUTPUTS, inputs=CORE_INPUTS, state=dict(CORE_STATE),
-                  prevent_initial_call='initial_duplicate')
     @keyed
     def core_engine(save_clicks, delete_confirm_clicks, f_context, f_subcontext, f_done, f_show_dormant, search_val,
                      tapped_node,  # Cytoscape tapNodeData dict (not a Node object)
@@ -244,7 +257,8 @@ def register_engine_callbacks(app, services):
             bridge_pending=bridge_pending, reopen_confirmed=reopen_confirmed,
             now_switch='now' in (form.get('now') or []),
             tapped_node=tapped_node, toggle_done_trigger_data=toggle_done_trigger_data,
-            pending_undo_done=pending_undo_done, group_delete_data=group_delete_data))
+            pending_undo_done=pending_undo_done, group_delete_data=group_delete_data,
+            saves=saves))
         if outcome.response is not None:
             return outcome.response
 
@@ -310,6 +324,11 @@ def register_engine_callbacks(app, services):
                                 community_value=view.community_value,
                                 community_memory=view.community_memory)
 
+        if trigger_id not in _ACTION_TRIGGERS:
+            # A render only draws. It has no message to give, and resetting the
+            # modals here could close one that an action has just opened.
+            return view
+
         # The editor may be showing a node whose status just changed from
         # the node menu or a cascade; its Done switch follows.
         editor_done = editor_snapshot = no_update
@@ -348,6 +367,19 @@ def register_engine_callbacks(app, services):
             editor_done=editor_done,
             editor_snapshot=editor_snapshot,
         )
+
+    # One function with two doors (CORE_ACTIONS says why). Each door reads the
+    # other's inputs as State, so the function is called the same way from both.
+    # Dash merges the inputs into the state dict it is given, so each is its own.
+    app.callback(output=CORE_OUTPUTS, inputs=CORE_ACTIONS,
+                 state={**CORE_STATE, **_as_state(CORE_RENDERS)},
+                 prevent_initial_call=True)(core_engine)
+    app.callback(output={name: Output(dep.component_id, dep.component_property,
+                                      allow_duplicate=True)
+                         for name, dep in CORE_OUTPUTS.items()},
+                 inputs=CORE_RENDERS,
+                 state={**CORE_STATE, **_as_state(CORE_ACTIONS)},
+                 prevent_initial_call='initial_duplicate')(core_engine)
 
     # The filters-sidebar toggle and editor-sidebar fast-path clientside
     # callbacks live in sidebars_callbacks.register_goals_callbacks.

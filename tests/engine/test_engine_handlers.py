@@ -5,7 +5,7 @@ from dash import no_update
 
 from support.editor_forms import editor_form
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN, Node
-from skilltree.engine.handlers import Outcome, Request, handle
+from skilltree.engine.handlers import Outcome, Request, SaveMemory, handle
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
 
 def _request(services, trigger, **fields):
@@ -62,6 +62,63 @@ def test_a_save_that_blanks_a_loaded_nodes_name_says_so(services):
                               pristine_snapshot={**NEW_NODE_SNAPSHOT, 'name': 'Loaded'}))
     assert outcome.response.notice["text"] == "Error: Node name is required."
     assert services.graph.get_node("Loaded") is not None
+
+
+def test_a_second_click_on_a_rename_gets_the_first_ones_answer(services):
+    """The first answer is thrown away, and the page still sends the old name."""
+    services.graph.add_node(_node("Old Name"))
+    repeat = dict(form=_new_node_form(name="New Name", n_type="Learn", context="Mind", time_m=2),
+                  original_name="Old Name", pristine_snapshot={"name": "Old Name"},
+                  saves=SaveMemory())
+    first = handle(_request(services, 'btn-save', **repeat))
+    second = handle(_request(services, 'btn-save', **repeat))
+    assert first.response is None and second is first
+    assert services.graph.get_node("New Name") is not None
+
+
+def test_a_second_click_on_a_new_node_gets_the_first_ones_answer(services):
+    repeat = dict(form=_new_node_form(name="Fresh", n_type="Learn", context="Mind", time_m=2),
+                  pristine_snapshot=NEW_NODE_SNAPSHOT, saves=SaveMemory())
+    first = handle(_request(services, 'btn-save', **repeat))
+    second = handle(_request(services, 'btn-save', **repeat))
+    assert first.response is None and second is first
+    assert services.graph.get_node("Fresh") is not None
+
+
+def test_a_refused_save_is_not_remembered(services):
+    services.graph.add_node(_node("Taken"))
+    repeat = dict(form=_new_node_form(name="Taken", n_type="Learn", context="Mind", time_m=2),
+                  pristine_snapshot=NEW_NODE_SNAPSHOT, saves=SaveMemory())
+    first = handle(_request(services, 'btn-save', **repeat))
+    assert first.response is not None
+    services.graph.delete_node("Taken")
+    second = handle(_request(services, 'btn-save', **repeat))
+    assert second is not first and second.response is None
+    assert services.graph.get_node("Taken") is not None
+
+
+def test_a_save_that_changed_anything_runs(services):
+    services.graph.add_node(_node("Kept"))
+    memory = SaveMemory()
+    def saved(desc):
+        return handle(_request(
+            services, 'btn-save', saves=memory, original_name="Kept",
+            pristine_snapshot={"name": "Kept"},
+            form=_new_node_form(name="Kept", n_type="Learn", context="Mind", time_m=2, desc=desc)))
+
+    saved("one")
+    saved("two")
+    assert services.graph.get_node("Kept").description == "two"
+
+
+def test_a_repeat_runs_once_the_graph_has_changed(services):
+    """The link menu changed something while the first answer was on its way."""
+    services.graph.add_node(_node("Kept"))
+    repeat = dict(form=_new_node_form(name="Kept", n_type="Learn", context="Mind", time_m=2),
+                  original_name="Kept", pristine_snapshot={"name": "Kept"}, saves=SaveMemory())
+    first = handle(_request(services, 'btn-save', **repeat))
+    services.graph.add_node(_node("Elsewhere"))
+    assert handle(_request(services, 'btn-save', **repeat)) is not first
 
 
 def test_a_save_may_not_take_another_nodes_name(services):

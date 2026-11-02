@@ -91,8 +91,8 @@ def test_generate_elements_active_node_marked_selected(services):
     assert by_id["A"].get("selected") in (False, None)
 
 
-def test_generate_elements_core_engine_callback_registered_once(services):
-    """Drift guard: renames or duplicate registration of core_engine will surface here."""
+def test_generate_elements_core_engine_callback_registered_on_its_two_doors(services):
+    """Drift guard: renames or a further registration of core_engine will surface here."""
     import dash
     from skilltree.engine.callbacks import register_engine_callbacks
     app = dash.Dash(__name__)
@@ -106,4 +106,4 @@ def test_generate_elements_core_engine_callback_registered_once(services):
         if cb is not None:
             qualnames.append(getattr(cb, "__qualname__", ""))
     core_engine_hits = [q for q in qualnames if q.endswith("core_engine")]
-    assert len(core_engine_hits) == 1, f"expected exactly one core_engine registration, got {core_engine_hits}"
+    assert len(core_engine_hits) == 2, f"expected core_engine's two doors, got {core_engine_hits}"

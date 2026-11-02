@@ -9,7 +9,9 @@ A limit here may only fall. When a change lowers a count, lower its limit.
 """
 import re
 
+from skilltree.engine.handlers import HANDLERS
 from support.callback_graph import built_app, read_ids, writer_counts
+from support.callbacks import unwrapped
 from support.layout import walk
 from support.paths import ROOT
 
@@ -86,6 +88,22 @@ def test_the_unsaved_check_has_two_callers():
 def test_where_the_editor_is_going_is_a_dict_not_a_string():
     sentinels = re.compile(r"__(?:background|bridge|new_goal|new_node|new_subtask)__")
     assert [path for path, text in _sources() if sentinels.search(text)] == []
+
+
+def test_a_render_can_never_replace_what_changes_the_graph():
+    """Dash throws away a callback's answer if it fires again first, though the
+    run still finishes on the server. So what commits has a callback to itself."""
+    app = built_app()
+    doors = [callback for callback in app._callback_list
+             if callback["output"] in app.callback_map
+             and "callback" in app.callback_map[callback["output"]]
+             and unwrapped(app.callback_map[callback["output"]]["callback"]).__name__
+             == "core_engine"]
+    assert len(doors) == 2
+    ids = [{dep["id"] for dep in door["inputs"]} for door in doors]
+    actions = set(HANDLERS) | {"btn-editor-reopen-confirm"}
+    assert actions in ids
+    assert not (ids[0] & ids[1])
 
 
 def test_no_code_reads_a_message():

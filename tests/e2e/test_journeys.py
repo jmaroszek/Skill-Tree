@@ -323,6 +323,74 @@ def test_rename_and_delete_carry_the_relationships(page, server):
     assert page.console_errors == []
 
 
+def _slow_saves(page):
+    """Hold back the answer to Save, as a big graph does."""
+    page.evaluate("""() => {
+        const send = window.fetch;
+        window.fetch = function (url, options) {
+            const sent = send.apply(this, arguments);
+            const isSave = options && options.body && options.body.includes(
+                '"changedPropIds":["btn-save.n_clicks"]');
+            return isSave ? sent.then(r => new Promise(done => setTimeout(() => done(r), 800)))
+                          : sent;
+        };
+    }""")
+
+
+def test_two_quick_clicks_on_save_are_one_save(page, server):
+    """The second click sent the old name again, and Dash threw away the first
+    answer. So a rename was refused as a duplicate of itself."""
+    _welcome(page)
+    _new_node(page, "Draft", "Learn")
+    _open_in_editor(page, "Draft")
+    _idle(page)
+    page.fill("#node-name", "First Draft")
+    _idle(page)
+    _slow_saves(page)
+    page.click("#btn-save")
+    page.wait_for_timeout(100)
+    page.click("#btn-save")
+    page.wait_for_function(
+        "document.querySelector('#save-output')?.innerText.includes(\"Updated node 'First Draft'\")",
+        timeout=15000)
+    _idle(page)
+    assert not page.is_visible("#modal-error")
+    assert server.query("SELECT name FROM Nodes") == [("First Draft",)]
+
+    page.fill("#node-desc", "Later words")
+    _idle(page)
+    page.click("#btn-save")
+    _idle(page)
+    assert not page.is_visible("#modal-error")
+    assert server.query("SELECT description FROM Nodes") == [("Later words",)]
+    assert page.console_errors == []
+
+
+def test_leaving_the_tab_during_a_save_keeps_the_editor_in_step(page, server):
+    """Dash throws away a callback's answer if it fires again first, and a tab
+    switch fires the core engine. This one was lost, so the page went on holding
+    the old name, and the next Save was refused as a duplicate of the rename."""
+    _welcome(page)
+    _new_node(page, "Draft", "Learn")
+    _open_in_editor(page, "Draft")
+    _idle(page)
+    page.fill("#node-name", "First Draft")
+    _idle(page)
+    _slow_saves(page)
+    page.click("#btn-save")
+    page.click("a.nav-link:has-text('Details')")
+    page.wait_for_function(
+        "document.querySelector('#save-output')?.innerText.includes(\"Updated node 'First Draft'\")",
+        timeout=15000)
+    _idle(page)
+
+    page.click("#btn-save")
+    _idle(page)
+    assert not page.is_visible("#modal-error")
+    assert server.query("SELECT name FROM Nodes") == [("First Draft",)]
+    assert page.console_errors == []
+
+
 def test_now_holds_what_is_in_progress_until_it_is_done(page, server):
     _welcome(page)
     _new_node(page, "Stretching", "Action")

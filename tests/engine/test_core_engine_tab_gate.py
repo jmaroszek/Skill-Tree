@@ -89,7 +89,8 @@ def test_core_engine_runs_when_trigger_is_not_main_tabs(monkeypatch):
     'btn-add', 'btn-close-editor', 'btn-unsaved-discard'])
 def test_what_only_moves_a_sidebar_never_reaches_the_core_engine(input_id):
     """left_panel.js and populate_editor answer these, and a render shouldn't."""
-    assert input_id not in {dep.component_id for dep in callbacks.CORE_INPUTS.values()}
+    inputs = {**callbacks.CORE_ACTIONS, **callbacks.CORE_RENDERS}
+    assert input_id not in {dep.component_id for dep in inputs.values()}
 
 
 def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
@@ -106,6 +107,20 @@ def test_page_load_leaves_the_layouts_resets_alone(monkeypatch):
                   "undo_open", "undo_body", "undo_pending",
                   "calibration_open", "calibration_reference",
                   "calibration_pending"):
+        assert getattr(out, field) is dash.no_update, field
+
+
+def test_a_render_leaves_the_modals_alone(monkeypatch):
+    """It arrives after an action's answer as easily as before it, and an action
+    may just have opened one of them."""
+    cb, _ = _core_engine_fn()
+    fire("search-node")
+    monkeypatch.setattr(callbacks, "get_all_triggered_ids", lambda *a: {"search-node"})
+    out = _call(cb, search_val="Nothing")
+
+    assert out.elements is not dash.no_update
+    for field in ("notice", "undo_open", "undo_pending", "calibration_open",
+                  "calibration_pending", "save_result", "left_panel"):
         assert getattr(out, field) is dash.no_update, field
 
 

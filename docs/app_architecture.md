@@ -71,13 +71,17 @@ Importing `skilltree.app` does none of this. Tests replace `database.get_db_path
 
 ### The core engine
 
-One callback, in `engine/callbacks.py`, saves, deletes, toggles Done and renders the Nodes canvas, so each action is one request. It only routes:
+One function, in `engine/callbacks.py`, saves, deletes, toggles Done and renders the Nodes canvas, so each action is one request. It only routes:
 
 1. Gates come first. A switch to a tab other than Nodes, or an editor open or close, sends only what changed.
 2. `handlers.handle(Request(...))` runs the handler for the trigger: save, delete the loaded node, toggle Done on a tap or a selection, confirm undo-Done, or group delete. A handler returns an `Outcome`: a message, the completed node, the undo-pending names, or a whole early response.
 3. The shared render builds the canvas view, and the outcome merges into a `CoreResponse`.
 
-Its inputs, state and outputs are dicts keyed by name. The outputs are `CoreResponse`'s fields (`CORE_OUTPUTS` in `engine/response.py`). Dash merges the inputs into the state dict it is given, so the engine passes a copy. A render that only the filters fired sends only the view.
+Its inputs, state and outputs are dicts keyed by name. The outputs are `CoreResponse`'s fields (`CORE_OUTPUTS` in `engine/response.py`). Dash merges the inputs into the state dict it is given, so each registration gets its own. A render that only the filters fired sends only the view.
+
+The function is registered twice, because of how Dash treats a callback that fires again before its last run has answered. It throws that answer away, though the run still finishes on the server. Renders can replace each other, since the newest reads the newest data. An action's answer can't be lost: it's how the page learns that a save committed. So `CORE_ACTIONS` have one callback and `CORE_RENDERS` the other. Each reads the other's inputs as State. A render only draws: it never touches a modal or a message, because an action may have just opened one.
+
+Two quick clicks on Save are the same problem from one door. The second sends the same form from the same baseline, and the first answer is thrown away. So `handlers.save` remembers the last commit, and a repeat gets that answer without writing again. Saves run one at a time, so a repeat always sees what the first did.
 
 The editor's save transaction is `save_editor_form` in `features/editor/save.py`. It doesn't touch Dash, and it raises `ReopensDoneNodes`, `ValueError` or `TypeError` for the handler to report.
 

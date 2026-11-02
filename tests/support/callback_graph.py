@@ -9,6 +9,7 @@ import functools
 import pytest
 
 from skilltree import app as app_module
+from support.callbacks import unwrapped
 
 
 @functools.cache
@@ -27,12 +28,13 @@ def outputs_of(callback):
     return {part.split("@")[0] for part in parts if "." in part}
 
 
-def _writer(callback, position):
-    """One browser function registered twice is one owner of what it writes."""
+def _writer(app, callback, position):
+    """One function registered twice is one owner of what it writes."""
     function = callback.get("clientside_function")
     if function and function.get("namespace") != "_dashprivate_clientside_funcs":
         return function["namespace"], function["function_name"]
-    return position
+    server = app.callback_map.get(callback["output"], {}).get("callback")
+    return unwrapped(server) if server else position
 
 
 def writer_counts(app):
@@ -40,7 +42,7 @@ def writer_counts(app):
     writers = {}
     for position, callback in enumerate(app._callback_list):
         for output in outputs_of(callback):
-            writers.setdefault(output, set()).add(_writer(callback, position))
+            writers.setdefault(output, set()).add(_writer(app, callback, position))
     return {output: len(found) for output, found in writers.items()}
 
 

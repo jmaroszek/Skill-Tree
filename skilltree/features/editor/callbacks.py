@@ -463,10 +463,10 @@ def register_editor_callbacks(app, services):
                 return {**_new_node(), 'close_request': close_editor()}
             return _go_to(intent, gone=_new_node(search=no_update))
 
-        # Dash holds this callback back while the core engine runs, since that
-        # writes one of its Inputs, and whatever fired meanwhile arrives as one
-        # run. So what must not be missed is looked for among everything fired,
-        # not only what's named first.
+        # Dash holds this callback back while a save runs, since that writes one
+        # of its Inputs, and whatever fired meanwhile arrives as one run. So what
+        # must not be missed is looked for among everything fired, not only
+        # what's named first.
         fired = get_all_triggered_ids()
 
         # --- The dialog's answers ---

@@ -517,6 +517,11 @@ gaps were about 18 ms everywhere but Goals opening, at about 35 ms. In the run
 above they are about 4 ms on every sidebar, including the ones that didn't
 change, so that move came from the machine.
 
+Other work on the machine shows up as one row looking 25 ms slower, with long
+tasks to match, in a run of either version. So compare two versions side by side
+with nothing else running. A single slower row said nothing about the code it
+was run on.
+
 Two versions of this measured worse, and each cost shows up anywhere else a
 slide could start late:
 
