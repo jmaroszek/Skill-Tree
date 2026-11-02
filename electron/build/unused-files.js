@@ -4,16 +4,15 @@
 // on the packed app, before it signs it and builds the installer (afterPack in
 // electron-builder.yml).
 //
-// dxcompiler.dll and dxil.dll are the DirectX shader compiler behind
-// Chromium's WebGPU on Windows, about 26 MB. Nothing Skill Tree loads uses
-// WebGPU: the graphs and charts draw with Canvas 2D, SVG and WebGL, which
-// don't need it.
+// dxcompiler.dll is the DirectX shader compiler behind Chromium's WebGPU on
+// Windows, about 26 MB. Nothing Skill Tree loads uses WebGPU: the graphs and
+// charts draw with Canvas 2D, SVG and WebGL, which don't need it.
 
 const fs = require('fs');
 const path = require('path');
 
 const UNUSED = {
-  win32: ['dxcompiler.dll', 'dxil.dll'],
+  win32: ['dxcompiler.dll'],
 };
 
 function unusedFiles(platform) {

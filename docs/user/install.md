@@ -12,8 +12,8 @@ your download.
 | System | File |
 |---|---|
 | Windows 10 or 11 (64-bit) | `Skill-Tree-Setup-<version>.exe` |
-| macOS on Apple silicon (M1 and later) | `Skill-Tree-<version>-mac-arm64.dmg` |
-| macOS on an Intel Mac | `Skill-Tree-<version>-mac-x64.dmg` |
+| macOS 13 or later on Apple silicon (M1 and later) | `Skill-Tree-<version>-mac-arm64.dmg` |
+| macOS 13 or later on an Intel Mac | `Skill-Tree-<version>-mac-x64.dmg` |
 | Linux: Ubuntu, Debian and relatives | `skill-tree_<version>_amd64.deb` |
 | Linux: anything else | `Skill-Tree-<version>-linux-x86_64.AppImage` |
 
