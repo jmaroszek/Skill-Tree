@@ -143,6 +143,8 @@ SIDEBAR_FILTERS = {
     'types': ('filter-node-type', 'value'),
     'dormant': ('filter-dormant', 'value'),
     'search': ('filter-search-query', 'data'),
+    'community': ('filter-community', 'value'),
+    'community_method': ('community-method', 'value'),
 }
 
 
@@ -161,6 +163,31 @@ def filters_from(values):
         values.get('difficulty'), values.get('types'),
         f_time_unit=values.get('time_unit'), f_show_dormant=values.get('dormant'),
         f_time_min=values.get('time_min'), f_search=values.get('search'))
+
+
+def narrowed_to_community(manager, filters, community, community_method):
+    """``filters``, narrowed to the Community selection if there is one.
+
+    The rows come from ``filters`` as they stand, which is what the sidebar
+    lists them from. "All" in Orphans mode means every orphan.
+    """
+    method = community_method or "louvain"
+    if community and community != "All":
+        members = dict(manager.list_communities(method=method, filters=filters)).get(community)
+        if members is None:
+            return filters  # It regrouped: the core callback is moving the selection.
+    elif method == "orphans":
+        members = set().union(*manager.detect_communities(method="orphans", filters=filters))
+    else:
+        return filters
+    return {**filters, 'community_names': set(members)}
+
+
+def filters_with_community(manager, values):
+    """filters_from(), with the Community selection applied."""
+    values = values or {}
+    return narrowed_to_community(manager, filters_from(values), values.get('community'),
+                                 values.get('community_method'))
 
 
 def time_range(f_time_min, f_time):
@@ -204,9 +231,8 @@ def is_filters_active(*, node_type=None, context=None, subcontext=None,
 
     Defaults match the "Clear Filters" reset state in
     callbacks.clear_filters. Pass None for filters that don't affect the
-    calling canvas (e.g. the Details canvas ignores Community)
-    so the indicator only fires on filters that actually narrow what
-    the user sees.
+    calling canvas, so the indicator only fires on filters that actually
+    narrow what the user sees.
 
     Show Done and Show Dormant are deliberately absent. Both default to off
     and can only be switched *on*, which reveals nodes rather than hiding

@@ -74,5 +74,5 @@ def test_a_filter_that_matches_nothing_still_shows_the_event(render):
 def test_the_chip_names_the_filters():
     chip = _callback('update_events_filter_chip')
     text, title, hidden = chip(None, ['Mind'], None, None, None, None, None,
-                               None, None, 'hours', '', '', True)
+                               None, None, 'hours', None, None, '', '', True)
     assert (text, title, hidden) == ('Mind', 'Mind', False)

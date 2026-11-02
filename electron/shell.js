@@ -105,7 +105,7 @@ function isExternalUrl(url) {
 
 // macOS takes Cmd+C, Cmd+V and friends from the menu's roles; with no menu
 // they don't work, even in text fields.
-function macMenuTemplate(appName) {
+function macMenuTemplate(appName, isPackaged = false) {
   return [
     {
       label: appName,
@@ -126,7 +126,8 @@ function macMenuTemplate(appName) {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' },
+        { role: 'reload' }, ...(isPackaged ? [] : [{ role: 'toggleDevTools' }]),
+        { type: 'separator' },
         { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
         { type: 'separator' }, { role: 'togglefullscreen' },
       ],

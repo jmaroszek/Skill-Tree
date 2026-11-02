@@ -144,10 +144,11 @@ def test_cancel_puts_the_editor_switch_back(monkeypatch):
     fire("btn-undo-done-cancel")
     snapshot = {"name": "Basics", "status_done": [], "desc": "new notes"}
 
-    is_open, pending, switch, kept = close(1, None, ["Basics"], "Basics", snapshot)
+    is_open, pending, switch, kept, now = close(1, None, ["Basics"], "Basics", snapshot)
 
     assert (is_open, pending) == (False, None)
     assert switch == [STATUS_DONE]
+    assert now == []  # it stays Done, and a Done node can't be in Now
     assert kept == {**snapshot, "status_done": [STATUS_DONE]}
 
 
@@ -161,4 +162,4 @@ def test_the_switch_is_left_alone_otherwise(monkeypatch, trigger, editing):
 
     result = close(1, 1, ["Basics"], editing, {"status_done": []})
 
-    assert result == (False, None, dash.no_update, dash.no_update)
+    assert result == (False, None, dash.no_update, dash.no_update, dash.no_update)

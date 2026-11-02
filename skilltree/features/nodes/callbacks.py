@@ -1,7 +1,7 @@
 """The Nodes tab's callbacks: its empty state and node count, Clear focus, the
 graph settings panel, and switching to the tab when a node is edited."""
 import dash
-from dash import Input, Output, State, no_update
+from dash import ClientsideFunction, Input, Output, State, no_update
 
 from skilltree.features.nodes.layout import empty_canvas_detail
 from skilltree.store import settings
@@ -76,6 +76,16 @@ def register_nodes_callbacks(app, services):
         return ('canvas-empty-state is-open', empty_canvas_detail(hidden),
                 shown if hidden['done'] else away,
                 shown if hidden['dormant'] else away)
+
+    # Zoom toward what Focus highlights, once the render carrying it has landed
+    # (assets/canvas/focus_frame.js).
+    app.clientside_callback(
+        ClientsideFunction(namespace='canvas_focus', function_name='frame'),
+        Output('nodes-filter-chip', 'data-framed'),  # dummy output
+        Input('cytoscape-graph', 'stylesheet'),
+        State('focus-goal-store', 'data'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output('focus-goal-store', 'data', allow_duplicate=True),

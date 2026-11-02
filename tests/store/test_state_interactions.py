@@ -86,7 +86,7 @@ def test_editor_keeps_a_deliberate_unsaved_flip_but_follows_now(handlers):
     manager.update_node(item)
     complete(manager, 'A')
     switch, snapshot, now = handlers['sync_editor_status'](
-        1, 'A', ['Done'], {'name': 'A', 'status_done': []}, ['now'])
+        1, 'A', ['Done'], {'name': 'A', 'status_done': [], 'now': ['now']}, ['now'])
     assert switch is dash.no_update  # already shows what is stored
     assert now == []
     # The user flipped Done off after loading a Done node: their flip stays.
@@ -99,7 +99,7 @@ def test_now_waits_for_the_save_that_reopens_a_done_node(handlers):
     manager = graph('A')
     complete(manager, 'A')
     # Done is switched off but not saved: Now stays on and writes nothing.
-    assert handlers['dispatch_now_toggle'](['now'], 'A', []) == (
+    assert handlers['refuse_now_switch'](['now'], 'A', []) == (
         dash.no_update, dash.no_update)
     assert manager.get_node('A').now == 0
     # Another change elsewhere doesn't turn the held switch back off.
@@ -219,7 +219,9 @@ def test_ineligible_nodes_cannot_enter_now(handlers, via, state):
     if via == 'menu':
         handlers['handle_now_trigger']('["A"]|1')
     elif via == 'editor':
-        handlers['dispatch_now_toggle'](['now'], 'A', ['Done'] if state == 'Done' else [])
+        switch, _ = handlers['refuse_now_switch'](
+            ['now'], 'A', ['Done'] if state == 'Done' else [])
+        assert switch == []
     else:
         item = manager.get_node('A')
         item.now = 1
@@ -422,18 +424,14 @@ def test_existing_missing_done_dates_stay_unknown():
     assert manager.get_node('A').done_date is None
 
 
-@pytest.mark.parametrize('via', ['menu', 'editor'])
-def test_a_refused_now_change_says_why(handlers, via):
+def test_a_refused_now_change_says_why(handlers):
     # A node with no context: every save of it is refused until it gets one.
     manager = graph('A', 'B')
     with database.transaction() as conn:
         conn.execute("UPDATE Nodes SET context=NULL WHERE name='A'")
 
-    if via == 'menu':
-        _, toast = handlers['handle_now_trigger']('["A", "B"]|1')
-        assert manager.get_node('B').now > 0  # the other still changed
-    else:
-        _, toast = handlers['dispatch_now_toggle'](['now'], 'A', [])
+    _, toast = handlers['handle_now_trigger']('["A", "B"]|1')
+    assert manager.get_node('B').now > 0  # the other still changed
 
     assert manager.get_node('A').now == 0
     assert toast.startswith('error|') and 'must have a context' in toast
@@ -460,11 +458,7 @@ def test_every_save_path_checks_the_time_estimate(handlers, monkeypatch, trigger
     assert manager.get_node('A').description != 'edited'
 
 
-@pytest.mark.parametrize('name, args', [
-    ('handle_now_trigger', lambda node: (f'["{node}"]|1',)),
-    ('dispatch_now_toggle', lambda node: (['now'], node, [])),
-])
-def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, services):
+def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, services):
     """The cap check and the write hold one lock, so a second request waits
     for the first to finish and then sees the list full."""
     import threading
@@ -475,7 +469,7 @@ def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, s
     register_editor_callbacks(app, services)
     register_now_callbacks(app, services)
     registered = next(spec['callback'] for spec in app.callback_map.values()
-                      if getattr(spec.get('callback'), '__name__', None) == name)
+                      if getattr(spec.get('callback'), '__name__', None) == 'handle_now_trigger')
     handler = registered.__wrapped__  # Dash's wrapper, then ours
     manager = graph('A', 'B')
     settings.NOW_NODE_CAP.set(1)
@@ -486,7 +480,7 @@ def test_two_requests_at_once_cannot_pass_the_now_cap(monkeypatch, name, args, s
         return original(self, node, *a, **kw)
 
     monkeypatch.setattr(GraphManager, 'update_node', slow_update)
-    threads = [threading.Thread(target=handler, args=args(node)) for node in 'AB']
+    threads = [threading.Thread(target=handler, args=(f'["{node}"]|1',)) for node in 'AB']
     for thread in threads:
         thread.start()
     for thread in threads:
@@ -515,9 +509,9 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     assert result.save_result['form']['dormancy']['dormant'] is False
 
 
-def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monkeypatch, services):
+def test_a_changed_dormant_section_still_counts_after_a_wake(handlers, monkeypatch, services):
     """Only an untouched section gives way to the wake. Asking to sleep in
-    another event is a real request, refused with its own reason."""
+    another event is a real request, and the node sleeps there."""
     from skilltree.features.editor.form import build_dormancy_snapshot
     manager = graph('A')
     events = EventManager(GraphManager())
@@ -526,11 +520,12 @@ def test_a_changed_dormant_section_is_still_refused_after_a_wake(handlers, monke
     events.add_node_to_event('Later', 'A')
     loaded = build_dormancy_snapshot(manager.get_node('A'), services.events)
     events.trigger_event_manually('Later')
-    result = run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
-                      dormancy={**loaded, 'event': 'Other'},
-                      pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
-    assert "already woke from 'Later'" in result.message
-    assert manager.get_node('A').description != 'notes'
+    run_core(handlers, monkeypatch, name='A', original_name='A', desc='notes',
+             dormancy={**loaded, 'event': 'Other'},
+             pristine_snapshot={'name': 'A', 'status_done': [], 'dormancy': loaded})
+    assert manager.get_node('A').description == 'notes'
+    assert manager.get_node('A').dormant == 1
+    assert events.get_event_for_node('A') == 'Other'
 
 
 @pytest.mark.parametrize('node_type, hidden', [('Milestone', True), ('Action', False)])

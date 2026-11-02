@@ -469,6 +469,9 @@ def filter_nodes(manager, nodes: List[Node], filters: Dict) -> List[Node]:
     if 'hide_blocked' in filters and filters['hide_blocked']:
         result = [n for n in result if n.status != STATUS_BLOCKED]
 
+    if 'community_names' in filters:
+        result = [n for n in result if n.name in filters['community_names']]
+
     query = _search_query(filters.get('search') or '')
     if query:
         result = _matching_terms(manager, result, query,

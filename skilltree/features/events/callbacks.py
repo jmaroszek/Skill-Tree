@@ -5,7 +5,6 @@ Callback definitions for the Events tab.
 import time
 from datetime import date
 
-import dash
 from skilltree.ui.timing import TOAST_CLEAR_INTERVAL_MS
 from skilltree.ui.toast import register_toast_timer
 from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_update
@@ -15,6 +14,10 @@ from skilltree.features.events.announcements import register_announcement_callba
 from skilltree.features.events.dormant import register_dormant_callbacks
 from skilltree.features.events.graph import register_event_graph_callbacks
 from skilltree.features.events.layout import (
+    EVENT_FORM,
+    event_form_is_dirty,
+    trigger_mode_options,
+    trigger_type_options,
     event_trigger_type,
     build_dormant_nodes_table,
     build_event_card,
@@ -23,12 +26,12 @@ from skilltree.features.events.layout import (
 )
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
-from skilltree.ui import tokens
+from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.list_toolbar import merge_manual_order
 from skilltree.ui.prerender import prerendered
 
 
-_badge_hidden = {"fontSize": tokens.FS_BASE, "display": "none"}
+_DELETE_SHOWN = {"display": "flex", "alignItems": "center"}
 
 
 def _normalize_trigger_nodes(value):
@@ -177,6 +180,7 @@ def register_events_callbacks(app, services):
                     trigger_nodes=event.trigger_nodes,
                     trigger_mode=event.trigger_mode,
                     show_drag_handle=is_manual,
+                    search=search_text,
                 ))
             return cards
 
@@ -297,7 +301,8 @@ def register_events_callbacks(app, services):
         # so an event can wait on another event's node. Without them a saved
         # trigger on a dormant node showed as a blank dropdown.
         nodes = graph_manager.get_all_nodes(include_dormant=True)
-        return [{"label": n.name, "value": n.name} for n in sorted(nodes, key=lambda n: n.name)]
+        return node_options(sorted(nodes, key=lambda n: n.name),
+                            aliases=graph_manager.get_all_aliases())
 
     # --- Trigger mode hint text ---
     @app.callback(
@@ -323,8 +328,8 @@ def register_events_callbacks(app, services):
         node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
         return date_style, node_style
 
-    # Outputs shared by create/select. Last output is `main-tabs.active_tab` so that
-    # selecting/creating an event also switches to the Events tab (works from any tab).
+    # Last output is `main-tabs.active_tab` so that selecting/creating an event
+    # also switches to the Events tab (works from any tab).
     _DETAIL_OUTPUTS = [
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
@@ -332,9 +337,6 @@ def register_events_callbacks(app, services):
         Output("event-detail-content", "style", allow_duplicate=True),
         Output("event-name", "value", allow_duplicate=True),
         Output("event-description", "value", allow_duplicate=True),
-        Output("event-status-badge", "children", allow_duplicate=True),
-        Output("event-status-badge", "color", allow_duplicate=True),
-        Output("event-status-badge", "style", allow_duplicate=True),
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
         Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
@@ -346,30 +348,19 @@ def register_events_callbacks(app, services):
     ]
     _N_DETAIL = len(_DETAIL_OUTPUTS)
 
-    # --- New Event ---
-    @app.callback(
-        *_DETAIL_OUTPUTS,
-        Input("btn-new-event", "n_clicks"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def create_new_event(n_clicks, active_tab):
-        if not n_clicks:
-            return (no_update,) * _N_DETAIL
-
+    def _new_detail(active_tab):
         return (
             None,                   # selected_event_store — clear
-            dash.callback_context.triggered_id,
+            "btn-new-event",
             {"display": "none"},    # hide empty state
             {"display": "block"},   # show detail
             "",                     # name
             "",                     # description
-            "", "primary", _badge_hidden,
             html.Div(
                 html.P("Save the event first, then add dormant nodes.", className="text-muted"),
                 className="text-center py-3"
             ),
-            {"display": "none"},    # hide trigger/delete for new event
+            {"display": "none"},    # no Delete for a new event
             "",                     # save status
             "",                     # trigger date
             "manual",               # trigger type
@@ -378,16 +369,7 @@ def register_events_callbacks(app, services):
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
-    # --- Close Event Detail ---
-    @app.callback(
-        *_DETAIL_OUTPUTS,
-        Input("btn-event-close", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def close_event_detail(n_clicks):
-        if not n_clicks:
-            return (no_update,) * _N_DETAIL
-
+    def _closed_detail():
         return (
             None,
             f"close-{time.time()}",
@@ -395,7 +377,6 @@ def register_events_callbacks(app, services):
             {"display": "none"},
             "",
             "",
-            "", "primary", _badge_hidden,
             [],
             {"display": "none"},
             "",
@@ -406,98 +387,126 @@ def register_events_callbacks(app, services):
             no_update,
         )
 
-    # --- Event Selection ---
-    @app.callback(
-        *_DETAIL_OUTPUTS,
-        Input({"type": "event-card", "index": ALL}, "n_clicks"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def select_event(n_clicks_list, active_tab):
-        if not any(n_clicks_list):
-            return (no_update,) * _N_DETAIL
-
-        triggered = ctx.triggered_id
-        if not triggered:
-            return (no_update,) * _N_DETAIL
-
-        event_name = triggered["index"]
-        event = event_manager.get_event(event_name)
-        if not event:
-            return (no_update,) * _N_DETAIL
-
-        event_nodes = event_manager.get_event_nodes(event_name)
-        trigger_style = {"display": "none"} if event.status == "Triggered" else {
-            "display": "flex", "alignItems": "center"
-        }
-        t_type = event_trigger_type(event)
-
+    def _event_detail(event, active_tab):
         return (
-            event_name,
+            event.name,
             no_update,  # Selection does not invalidate event data or dropdowns.
             {"display": "none"},
             {"display": "block"},
             event.name,
             event.description,
-            "", "primary", _badge_hidden,
-            build_dormant_nodes_table(event_nodes, event),
-            trigger_style,
+            build_dormant_nodes_table(event_manager.get_event_nodes(event.name), event),
+            _DELETE_SHOWN,
             "",
             event.trigger_date or "",
-            t_type,
+            event_trigger_type(event),
             list(event.trigger_nodes),
             event.trigger_mode or "any",
             "tab-events" if active_tab != "tab-events" else no_update,
         )
 
-    # --- Event Context Menu (right-click on event card) ---
+    def _leave_target(trigger, card_clicks, ctx_action):
+        """Where this click is going: a {"kind", "event", "action"} dict, or None."""
+        if trigger == "btn-new-event":
+            return {"kind": "new"}
+        if trigger == "btn-event-close":
+            return {"kind": "close"}
+        if isinstance(trigger, dict) and trigger.get("type") == "event-card":
+            # A rebuilt list re-fires this with no click.
+            if not any(card_clicks or []):
+                return None
+            return {"kind": "event", "event": trigger["index"], "action": "edit"}
+        if trigger == "event-ctx-action-input":
+            # "name|action|<ms>". The event's name may itself contain "|".
+            parts = bridge_payloads.fields(ctx_action, 2) if ctx_action else None
+            if parts is None:
+                return None
+            return {"kind": "event", "event": parts[0], "action": parts[1]}
+        return None
+
+    # --- Opening and leaving an event ---
+    # One callback, so that nothing can throw edits away without asking. The
+    # dialog's Discard, and its Save once that has committed, come back here
+    # with the place the first click was going.
     @app.callback(
         *_DETAIL_OUTPUTS,
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
         Output("modal-confirm-delete", "is_open", allow_duplicate=True),
+        Output("modal-event-unsaved", "is_open", allow_duplicate=True),
+        Output("event-leave-pending", "data", allow_duplicate=True),
+        Input("btn-new-event", "n_clicks"),
+        Input("btn-event-close", "n_clicks"),
+        Input({"type": "event-card", "index": ALL}, "n_clicks"),
         Input("event-ctx-action-input", "value"),
+        Input("btn-event-unsaved-discard", "n_clicks"),
+        Input("event-leave-after-save", "data"),
+        EVENT_FORM,
+        State("selected-event-store", "data"),
+        State("event-leave-pending", "data"),
         State("main-tabs", "active_tab"),
         prevent_initial_call=True,
     )
-    def handle_event_context_action(action_value, active_tab):
-        if not action_value:
-            return (no_update,) * (_N_DETAIL + 2)
-        # "name|action|<ms>". The event's name may itself contain "|".
-        parts = bridge_payloads.fields(action_value, 2)
-        if parts is None:
-            return (no_update,) * (_N_DETAIL + 2)
-        event_name, action = parts
-        event = event_manager.get_event(event_name)
+    def open_event_detail(_new, _close, card_clicks, ctx_action, _discard, after_save,
+                          form, selected_event, pending, active_tab):
+        nothing = (no_update,) * (_N_DETAIL + 4)
+        trigger = ctx.triggered_id
+        if trigger == "btn-event-unsaved-discard":
+            target = pending
+        elif trigger == "event-leave-after-save":
+            target = after_save
+        else:
+            target = _leave_target(trigger, card_clicks, ctx_action)
+            if target is None:
+                return nothing
+            current = event_manager.get_event(selected_event) if selected_event else None
+            if event_form_is_dirty(form, current):
+                # The card that's already open has nothing to go to.
+                if target.get("event") == selected_event and target.get("action") == "edit":
+                    return nothing
+                return (*(no_update,) * (_N_DETAIL + 2), True, target)
+        if not target:
+            return nothing
+
+        opened = {"new": lambda: _new_detail(active_tab), "close": _closed_detail}.get(target["kind"])
+        if opened:
+            return (*opened(), no_update, no_update, False, None)
+        event = event_manager.get_event(target["event"])
         if not event:
-            return (no_update,) * (_N_DETAIL + 2)
+            return (*(no_update,) * (_N_DETAIL + 2), False, None)
+        action = target.get("action")
+        return (*_event_detail(event, active_tab),
+                action == "trigger" and event.status != "Triggered",
+                action == "delete", False, None)
 
-        event_nodes = event_manager.get_event_nodes(event_name)
-        trigger_style = {"display": "none"} if event.status == "Triggered" else {
-            "display": "flex", "alignItems": "center"
-        }
-        t_type = event_trigger_type(event)
+    @app.callback(
+        Output("modal-event-unsaved", "is_open", allow_duplicate=True),
+        Output("event-leave-pending", "data", allow_duplicate=True),
+        Input("btn-event-unsaved-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def keep_editing_event(_n_clicks):
+        return False, None
 
-        detail = (
-            event_name,
-            no_update,
-            {"display": "none"},
-            {"display": "block"},
-            event.name,
-            event.description,
-            "", "primary", _badge_hidden,
-            build_dormant_nodes_table(event_nodes, event),
-            trigger_style,
-            "",
-            event.trigger_date or "",
-            t_type,
-            list(event.trigger_nodes),
-            event.trigger_mode or "any",
-            "tab-events" if active_tab != "tab-events" else no_update,
-        )
-
-        open_trigger = action == "trigger" and event.status != "Triggered"
-        open_delete = action == "delete"
-        return (*detail, open_trigger, open_delete)
+    # What a saved event's panel offers. Trigger is for an event that hasn't
+    # fired, and a fired event's trigger fields have nothing left to do. Its
+    # name and description stay editable, to correct or annotate the record.
+    @app.callback(
+        Output("event-trigger-btn-wrapper", "style"),
+        Output("event-trigger-type", "options"),
+        Output("event-trigger-date", "disabled"),
+        Output("event-trigger-node", "disabled"),
+        Output("event-trigger-mode", "options"),
+        Input("selected-event-store", "data"),
+        Input("events-refresh-trigger", "data"),
+        Input("graph-version-store", "data"),
+        prevent_initial_call=True,
+    )
+    def show_event_state(selected_event, _refresh, _version):
+        event = event_manager.get_event(selected_event) if selected_event else None
+        fired = event is not None and event.status == "Triggered"
+        return (_DELETE_SHOWN if event is not None and not fired else {"display": "none"},
+                trigger_type_options(disabled=fired), fired, fired,
+                trigger_mode_options(disabled=fired))
 
     # --- Save Event ---
     @app.callback(
@@ -505,9 +514,9 @@ def register_events_callbacks(app, services):
         Output("events-refresh-trigger", "data", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("event-delete-wrapper", "style", allow_duplicate=True),
-        Output("event-status-badge", "children", allow_duplicate=True),
-        Output("event-status-badge", "color", allow_duplicate=True),
-        Output("event-status-badge", "style", allow_duplicate=True),
+        Output("modal-event-unsaved", "is_open", allow_duplicate=True),
+        Output("event-leave-pending", "data", allow_duplicate=True),
+        Output("event-leave-after-save", "data"),
         Input("btn-event-save", "n_clicks"),
         State("selected-event-store", "data"),
         State("event-name", "value"),
@@ -516,16 +525,20 @@ def register_events_callbacks(app, services):
         State("event-trigger-date", "value"),
         State("event-trigger-node", "value"),
         State("event-trigger-mode", "value"),
+        Input("btn-event-unsaved-save", "n_clicks"),
+        State("event-leave-pending", "data"),
         prevent_initial_call=True,
     )
     def save_event(n_clicks, selected_event, name, description, trigger_type, trigger_date,
-                   trigger_nodes, trigger_mode):
+                   trigger_nodes, trigger_mode, unsaved_save_clicks=None, pending=None):
         def refused(message):
-            # The status line is green, for the saves that went through.
+            # The status line is green, for the saves that went through. The
+            # unsaved-changes dialog closes, so the refusal can be read and the
+            # form fixed. It goes nowhere.
             return (no_update, no_update, html.Span(message, className="text-danger"),
-                    no_update, no_update, no_update, no_update)
+                    no_update, False, None, no_update)
 
-        if not n_clicks or not name or not name.strip():
+        if not (n_clicks or unsaved_save_clicks) or not name or not name.strip():
             return refused("Event name is required.")
 
         name = name.strip()
@@ -573,16 +586,16 @@ def register_events_callbacks(app, services):
 
         event = event_manager.get_event(name)
         fired = event is not None and event.status == "Triggered"
-        trigger_style = {"display": "none"} if fired else {
-            "display": "flex", "alignItems": "center"
-        }
         # An edit can leave the trigger condition met already (it dropped the
         # unfinished nodes, or switched to OR), and the save fires the event.
         message = ("Saved. Its trigger condition was already met, so it fired."
                    if fired and before is not None and before.status == "Pending"
                    else "Saved.")
 
-        return name, f"save-{name}", message, trigger_style, "", "primary", _badge_hidden
+        # Only the dialog leaves something pending, and it blocks the plain Save.
+        # Its Save goes on to where the click was going, now it's saved.
+        going_on = {**pending, "saved": time.time()} if pending else no_update
+        return name, f"save-{name}", message, _DELETE_SHOWN, False, None, going_on
 
     # --- Auto-dismiss save status ---
     register_toast_timer(app, "event-save-status", TOAST_CLEAR_INTERVAL_MS)
@@ -636,33 +649,9 @@ def register_events_callbacks(app, services):
             return True
         return False
 
-    # All three verbs sit in the Actions section now, but they do not share a
-    # visibility rule: Delete and Trigger exist only for a saved, untriggered
-    # event, while Save has to stay live so a new event can be created at all.
-    # Four callbacks drive the Delete wrapper's style and the Trigger wrapper
-    # mirrors it; Save is deliberately in neither wrapper.
-    #
-    # Neither wrapper may carry a Bootstrap display utility (.d-flex and
-    # friends are `!important` and beat an inline style). That is exactly how
-    # the old event-trigger-section lost this argument: it boxed Delete and
-    # Save together in a .d-flex, so the `display: none` these callbacks write
-    # was silently ignored and Delete stayed on screen for new and already-
-    # triggered events.
-    @app.callback(
-        Output("event-trigger-btn-wrapper", "style"),
-        Input("event-delete-wrapper", "style"),
-        prevent_initial_call=True,
-    )
-    def mirror_trigger_button_visibility(section_style):
-        return section_style
-
-
     # Fills the confirm modal once it is open. Three separate callbacks already
-    # write this modal's `is_open`, and one of them splats _DETAIL_OUTPUTS and
-    # counts its no_updates by hand -- adding a body Output to each would mean
-    # three edits in lockstep every time that count moves. Reading `is_open` as
-    # an Input costs one round trip after the modal appears and keeps them all
-    # untouched.
+    # write this modal's `is_open`. Reading it as an Input costs one round trip
+    # after the modal appears and keeps them all untouched.
     @app.callback(
         Output("trigger-confirm-body", "children"),
         Input("modal-confirm-trigger", "is_open"),
@@ -678,9 +667,6 @@ def register_events_callbacks(app, services):
     @app.callback(
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
-        Output("event-status-badge", "children", allow_duplicate=True),
-        Output("event-status-badge", "color", allow_duplicate=True),
-        Output("event-delete-wrapper", "style", allow_duplicate=True),
         Output("dormant-nodes-table-container", "children", allow_duplicate=True),
         Output("event-save-status", "children", allow_duplicate=True),
         Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
@@ -692,7 +678,7 @@ def register_events_callbacks(app, services):
     )
     def trigger_event(n_clicks, selected_event, now_toggle):
         if not n_clicks or not selected_event:
-            return (no_update,) * 9
+            return (no_update,) * 6
 
         # One button, every node. The Now pinning and the announcement live in
         # the manager now, so this path behaves exactly like the date and
@@ -705,13 +691,11 @@ def register_events_callbacks(app, services):
             # Close the dialog and show the event as it now stands.
             event = event_manager.get_event(selected_event)
             if event is None:
-                return (no_update, f"trigger-{selected_event}", no_update, no_update,
-                        no_update, no_update, str(exc), False, no_update)
+                return (no_update, f"trigger-{selected_event}", no_update,
+                        str(exc), False, no_update)
             return (
                 selected_event,
                 f"trigger-{selected_event}",
-                "Triggered", "success",
-                {"display": "none"},
                 build_dormant_nodes_table(event_manager.get_event_nodes(selected_event),
                                           event),
                 str(exc),
@@ -741,8 +725,6 @@ def register_events_callbacks(app, services):
         return (
             selected_event,
             f"trigger-{selected_event}",
-            "Triggered", "success",
-            {"display": "none"},
             build_dormant_nodes_table(event_nodes,
                                       event_manager.get_event(selected_event)),
             "Event triggered. " + (", ".join(msg_parts) if msg_parts

@@ -31,7 +31,7 @@ C:\Users\jonah\Documents\Code\Terminal\Batch\skill_tree_sandbox.bat
 A first pass ran on 2026-11-01, starting from commit 3c07a51. It read the code behind every item, then drove the app in a real browser, on throwaway copies of the sandbox data. It never touched your production data.
 
 - [Fixed](#fixed-in-the-first-pass) lists the problems that are now gone. Each has tests, and each was checked again in the browser. Start with those items, since they changed.
-- [Decisions for you](#decisions-for-you) lists what might be a problem or might be your design. None of those were changed.
+- [Decisions for you](#decisions-for-you) lists what might have been a problem or your design, and what you decided on each.
 - [What the first pass couldn't check](#what-the-first-pass-couldnt-check) lists where your eyes matter most: the desktop app, how things feel, and whether it's what you want.
 
 ---
@@ -115,7 +115,7 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] SH-22. On your 4K screen, nothing looks stranded or tiny.
 - [ ] SH-23. Descriptions can be selected and copied. Buttons and rows don't select as you click.
 - [ ] SH-24. Every icon-only button has a tooltip that names it.
-- [ ] SH-25. The left sidebars sit on top of Home rather than moving it, so they hide the first Now card and the names in Next. Decide whether that's what you want.
+- [ ] SH-25. The left sidebars sit on top of Home rather than moving it, so they can hide the first Now card and the names in Next. Set aside for its own pass.
 
 ---
 
@@ -149,10 +149,10 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] ED-18. Saving an exact duplicate name, in any case, is refused and names the other node. The form stays open with your input.
 - [ ] ED-19. A name over 200 characters, or with a tab or newline, is refused with a reason.
 - [ ] ED-20. Name formatting applies on save: as typed, Title Case or Sentence case. The field then shows the saved form.
-- [ ] ED-21. The **+** beside Name reveals an alias row. Further clicks add rows. Removing the last row hides the section. A loaded node's aliases stay hidden until you click it, and the section stays open on the next node. Decide whether a node's aliases should show by themselves.
+- [ ] ED-21. The **+** beside Name reveals an alias row. Further clicks add rows. Removing the last row hides the section. A loaded node's aliases show by themselves, and the section closes on a node with none.
 - [ ] ED-22. Aliases save, reload, and find the node from Search and from the Filters search.
 - [ ] ED-23. An alias owned by another node is refused, and the save changes nothing.
-- [ ] ED-24. An alias equal to another node's name is accepted, and Search lists both. Think about whether to refuse that, and about a name equal to another node's alias.
+- [ ] ED-24. An alias can't match another node's name, and a name can't match another node's alias. Each is refused and names the other node.
 - [ ] ED-25. Type starts unselected on a new node. Saving without one is refused.
 - [ ] ED-26. The Type label's hover lists all five types with one line each.
 - [ ] ED-27. Description is a resizable box. Line breaks survive and show on Home and Details.
@@ -162,8 +162,8 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 
 ## Status
 
-- [ ] ED-31. Now writes the moment you flip it. Think about whether that should wait for Save like every other field.
-- [ ] ED-32. Now refuses past the cap: the switch bounces back and the toast explains.
+- [ ] ED-31. Now waits for Save like every other field. Flipping it writes nothing, Revert undoes it, and leaving asks first.
+- [ ] ED-32. Now refuses past the cap: the switch bounces back at once and the toast explains. A list that fills up before the Save doesn't refuse the save, and the message says Now wasn't added.
 - [ ] ED-33. Done waits for Save. A node with unfinished hard prerequisites is refused and names them.
 - [ ] ED-34. A Goal or Milestone can be marked Done with unfinished prerequisites.
 - [ ] ED-35. Un-marking Done with no Done nodes after it just reopens. With some, a dialog lists them first. Cancel leaves the node Done with the switch back on.
@@ -182,14 +182,14 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] ED-45. Choosing another event and saving moves the node there.
 - [ ] ED-46. After the event fires, a delayed node shows a wake date instead of a delay. Clearing the date is refused.
 - [ ] ED-47. A node can't sleep in an event it triggers. The message says why.
-- [ ] ED-48. A node its event already woke can't go back to sleep. Decide whether that's what you want.
+- [ ] ED-48. A node its event already woke can sleep again, under a Pending event. The new event replaces the old one, which no longer lists it.
 - [ ] ED-49. A node that wakes while its editor is open saves fine, stays awake, and the message says so.
 
 ## Ratings
 
 - [ ] ED-50. Value, Interest and Effort are 1 to 10 sliders.
 - [ ] ED-51. The info icon opens the Ratings Reference, a floating panel that drags by its header and resizes.
-- [ ] ED-52. Its pencil opens an editable table and closes the panel, which stays closed after Save or Cancel. Decide whether it should come back. Save changes the definitions, Cancel changes nothing, and definitions survive a restart.
+- [ ] ED-52. Its pencil opens an editable table and steps aside. It comes back where it was after Save or Cancel. Save changes the definitions, Cancel changes nothing, and definitions survive a restart.
 - [ ] ED-53. Inherit hides Value and Interest. Effort stays while the node has its own hours.
 - [ ] ED-54. Inherit on a Milestone is locked on, and trying to clear it explains why.
 - [ ] ED-55. A Goal has no Effort slider ("Derived from subtasks").
@@ -293,13 +293,13 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] HM-16. The bar's length is relative to the longest row shown.
 - [ ] HM-17. Only Learn, Action and Resource nodes appear. Containers with inherited time don't.
 - [ ] HM-18. Blocked, Done and dormant nodes never appear.
-- [ ] HM-19. **+** and **−** change the row count, never below 1. Decide whether the count should survive a restart.
+- [ ] HM-19. **+** and **−** change the row count, never below 1. The number can be typed over: Enter or clicking away applies it, and anything but a whole number from 1 to 999 puts the last one back. It reads as plain text until clicked, the buttons stay gray, and the count survives a restart.
 - [ ] HM-20. A click selects a row and shows its description, without a server wait.
 - [ ] HM-21. The panel also lists what the node supports and its synergy partners, best first, with a "more" control.
 - [ ] HM-22. The selection survives a refresh while the row stays visible.
 - [ ] HM-23. Hovering the rating bars names each value. Hovering a dot says whether that link is set.
 - [ ] HM-24. The "Filtered" chip lists what's narrowing the list. Its × clears the filters.
-- [ ] HM-25. Community and Orphans don't affect Next, and don't show in its chip. Decide whether that's what you want.
+- [ ] HM-25. Community and Orphans narrow Next, and show in its chip.
 - [ ] HM-26. With "Show graph statistics" on, a caption shows the nodes left to do, the edges and the scoring time. It hides when content would sit under it.
 - [ ] HM-27. Turning that setting off hides the caption without a restart. Its counts stay right after you add a node.
 
@@ -326,7 +326,7 @@ Check it on a Home row, a Now card, a goal card, and all three canvases.
 - [ ] MN-8. Add to Now or Remove from Now is hidden for Done and dormant nodes.
 - [ ] MN-9. Mark Done or Reopen is hidden for dormant nodes.
 - [ ] MN-10. Mark Done on a Blocked node explains what it needs. It doesn't go through.
-- [ ] MN-11. Add to Event opens the modal with the node chosen. Think about how it should behave on a Done or dormant node.
+- [ ] MN-11. Add to Event opens the modal with the node chosen. On a Done or dormant node it's hidden. With a mixed selection the label counts only nodes that can join.
 - [ ] MN-12. Delete asks, naming the node or the count.
 - [ ] MN-13. With several selected, labels show the count: "Mark 3 Done", "Add 3 to Now", "Delete 3…".
 - [ ] MN-14. A mixed selection acts sensibly: if any isn't Done, all become Done. If any isn't Now, all join Now up to the cap.
@@ -380,10 +380,10 @@ Check it on a Home row, a Now card, a goal card, and all three canvases.
 - [ ] EX-11. A Blocked or Done node says why it isn't ranked.
 - [ ] EX-12. Selecting another node on Details with the modal open refills it, keeping your Show count.
 - [ ] EX-13. Focus top n accepts 1 to 5, and says so otherwise.
-- [ ] EX-14. Focus switches to Nodes, dims the rest and draws each route in its own color. Contributors on one line count as one route. It keeps the whole graph in frame, so on a big graph a short route can look tiny. Decide whether it should zoom to the route.
+- [ ] EX-14. Focus switches to Nodes, dims the rest and draws each route in its own color. Contributors on one line count as one route. It zooms toward the route, stops at natural size, and keeps the graph around it in view. Judge how far it zooms on your own graph.
 - [ ] EX-15. A route's label sits at the contributor that started it.
-- [ ] EX-16. Clear Focus returns the canvas to normal.
-- [ ] EX-17. Focus with a filter on: decide whether hidden route nodes should show.
+- [ ] EX-16. Clear Focus returns the canvas to normal, and the view to where Focus found it.
+- [ ] EX-17. Focus clears filters, from either button, so no part of a route is hidden.
 
 ---
 
@@ -469,7 +469,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] FL-21. Each name says what it's built around, with a context prefix when one dominates. Each shows its node count.
 - [ ] FL-22. The list is ordered by importance, and capped at 20. Groups of one or two are left out, except in Orphans.
 - [ ] FL-23. Orphans → All shows every orphan. The canvas empties once every node has a link, with a message that says so.
-- [ ] FL-24. Selecting a community narrows Nodes only.
+- [ ] FL-24. Selecting a community narrows Nodes, Next, Details and the nodes outside an event on Events. Each tab's chip names it.
 - [ ] FL-25. Marking a node Done can regroup and rename a community. Your selection follows it, or returns to All.
 - [ ] FL-26. Orphans stays right with Done hidden: a node linked only to Done nodes isn't an orphan.
 
@@ -520,7 +520,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] DT-27. The table arrives once the graph settles, with a "Loading subtasks…" line before it.
 - [ ] DT-28. Scores match Home. Blocked, Done and Goal rows show a dash and sort below.
 - [ ] DT-29. Relationship reads Hard, Soft or Synergy, in both directions.
-- [ ] DT-30. A name click navigates. The pencil opens the editor. At 1600 pixels wide the table is wider than its panel, so the pencil takes a sideways scroll, and tabbing to it scrolls the names out of view. Decide whether that's acceptable.
+- [ ] DT-30. A name click navigates. The pencil opens the editor. When the table is wider than its panel, the pencil stays at the panel's edge on hover or keyboard focus, over what scrolls beneath it.
 - [ ] DT-31. **+ → New node** preselects Hard under Supports.
 - [ ] DT-32. **+ → Existing node** offers nodes not already beneath it. Hard or Soft. A cycle is refused with a message in the dialog.
 - [ ] DT-33. Linking one that reopens Done nodes asks first.
@@ -546,7 +546,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] GL-1. Cards list unfinished Goals with percent done and time left. "No subtasks yet" when empty.
 - [ ] GL-2. A click opens the Goal in Details, on any tab.
 - [ ] GL-3. **+** starts a new Goal in a blank form.
-- [ ] GL-4. Search narrows by name. Decide whether it should include aliases.
+- [ ] GL-4. Search covers names, aliases and descriptions. A card shows two lines of description. An alias match gets its own line. A description match highlights the words, with an excerpt if they'd fall below the two lines. A name match adds nothing.
 - [ ] GL-5. Sort offers Priority, Time, Manual and Alphabetical. The tooltip names the current one, the menu checks it, and it survives a restart.
 - [ ] GL-6. Priority shows 0 to 100, where 100 is your top unfinished Goal. A search doesn't change the numbers.
 - [ ] GL-7. Time runs longest first.
@@ -555,7 +555,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] GL-10. The rank badge opens a popover: 1, 2, 3 or Clear.
 - [ ] GL-11. Setting a rank pushes the others along. A fourth drops off the end.
 - [ ] GL-12. Done frees the slot, and later ranks move up. So does changing the type.
-- [ ] GL-13. A Goal whose work is all Done but isn't marked Done leaves the sidebar. Decide whether that's what you want, including when it holds a rank.
+- [ ] GL-13. A Goal whose work is all Done but isn't marked Done leaves the sidebar, unless it holds a rank. Then it stays, so you can mark it Done or clear the rank.
 - [ ] GL-14. A rename or delete carries into ranks and manual order.
 - [ ] GL-15. Reopening the sidebar shows the list at once, with a spinner only when something changed.
 - [ ] GL-16. Priority boost: tasks under a Priority Goal rise on Home, rank 1 most.
@@ -569,7 +569,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] EV-1. The sidebar opens from its icon, and opens by itself on the Events tab when no event is selected.
 - [ ] EV-2. Cards show name, description, trigger (Date, Trigger names or Manual) and a node count.
 - [ ] EV-3. Sort offers Manual, Alphabetical, Trigger Type and Node Count, and survives a restart.
-- [ ] EV-4. Search covers names and descriptions, with suggestions.
+- [ ] EV-4. Search covers names and descriptions, with suggestions. A card shows two lines of description. A description match highlights the words, with an excerpt if they'd fall below the two lines.
 - [ ] EV-5. Manual shows handles, and dragging saves. A finished event can't be dragged across the divider.
 - [ ] EV-6. A fired event with nodes waiting stays: "5 nodes · 2 waking later".
 - [ ] EV-7. Finished events hide behind a counted line, with a Show button that resets each launch.
@@ -587,9 +587,9 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] EV-16. A node asleep in this event can't be its trigger.
 - [ ] EV-17. Renaming carries nodes, triggers, and manual order.
 - [ ] EV-18. Save confirms beside the button and clears. A refusal shows in the same place, in red.
-- [ ] EV-19. Close (X) leaves without changing anything. Decide whether unsaved edits should ask.
+- [ ] EV-19. Close (X), another card, **+** and the card menu all ask first when the form holds unsaved edits: Discard goes on, Edit stays, Save saves and goes on. A refused Save stays and says why. With nothing unsaved, they just go.
 - [ ] EV-20. Delete warns that the dormant nodes go too, and only those.
-- [ ] EV-21. A triggered event hides Trigger and Delete in the panel, and only the right-click menu can delete it. Name and trigger stay editable. Decide what you want here.
+- [ ] EV-21. A triggered event's panel offers Delete but not Trigger. Its trigger fields are locked. Name and description stay editable.
 - [ ] EV-22. Ctrl+S saves when focus is in the event editor.
 
 ## Dormant nodes table
@@ -617,7 +617,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] EV-40. A narrowed set whose rest are already Done fires then.
 - [ ] EV-41. A delayed node wakes on its day, with its own announcement, and joins Now if flagged and there's room.
 - [ ] EV-42. A woken node that was stored Done fires events watching it.
-- [ ] EV-43. Think about two events whose trigger nodes sleep in each other: neither can ever fire.
+- [ ] EV-43. Two events whose trigger nodes sleep in each other, or a longer loop, are refused and named, from saving a trigger or from adding or moving a node. Any trigger with a way out (a date, or Any with an awake node) isn't a loop. Trigger Now still breaks one saved earlier.
 
 ## Announcements
 
@@ -641,7 +641,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] RF-3. Time fields start blank, in a unit that suits the estimate. Hour hints show under them.
 - [ ] RF-4. A bracket typed back to front is put in order. A blank or zero field is no data.
 - [ ] RF-5. A Milestone asks for notes only, with its own prompt.
-- [ ] RF-6. Marking a Goal or a container Done: decide whether it should ask for time and ratings, since the queue skips them.
+- [ ] RF-6. Marking a Goal or a container Done opens the short form: notes only, like a Milestone's.
 - [ ] RF-7. Bulk Done, a cascade and the "Mark Done?" suggestion never prompt.
 - [ ] RF-8. The info icon opens the reflection wording of the rubric, separately editable.
 
@@ -728,8 +728,8 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] SE-15. Swapping two context names, or chaining renames, doesn't merge them.
 - [ ] SE-16. Dragging a chip reorders it within its own row. It can't be dragged to another context.
 - [ ] SE-17. Removing a context strikes it through with a node count and an undo, until you close.
-- [ ] SE-18. Removing one with nodes opens the migration dialog: per-node pickers, Bulk apply, Apply, Skip and Cancel.
-- [ ] SE-19. Cancel returns to the draft with your edits. Skip keeps old values on the nodes. Decide whether a node should keep a context that no longer exists.
+- [ ] SE-18. Removing one with nodes opens the migration dialog: per-node pickers, Bulk apply, Apply and Cancel. Pickers offer only contexts that exist, and a subcontext can be cleared.
+- [ ] SE-19. Cancel returns to the draft with your edits. There's no way to leave a node on a removed context. A node already on one has to pick a real one before it saves, and an import lists any its nodes use.
 - [ ] SE-20. Priority scales rankings: 2 doubles, 0.5 halves, 0 to 10. A chip's hover gives its node count.
 - [ ] SE-21. Dropdown Order changes every picker.
 
@@ -745,7 +745,7 @@ Check on Nodes, Details and Events unless an item names one.
 
 - [ ] SE-27. Shapes and colors per type, plus Done, Blocked and Now colors, apply on every canvas at close.
 - [ ] SE-28. Hex shows beside each color. ↺ restores each group.
-- [ ] SE-29. Think about whether Home bars and badges should follow your type colors. Today they don't.
+- [ ] SE-29. At default colors Home's bars and badges are your curated palette. Change a type color: they follow it, muted the same way its default was, and badge text stays white.
 
 ## App
 
@@ -759,7 +759,7 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] SE-37. Import fills an empty graph and reloads. A non-empty graph refuses and points to Restore.
 - [ ] SE-38. A wrong file, a newer export or a damaged export refuses and changes nothing.
 - [ ] SE-39. After an import, root folders are empty and the extra backup folder is this computer's.
-- [ ] SE-40. There is no in-app way to reach diagnostics, the bug report link, third-party notices or Check Now. Decide whether that's what you want.
+- [ ] SE-40. No in-app way to reach diagnostics, the bug report link, third-party notices or Check Now yet. Add Settings > About for the first release.
 
 ---
 
@@ -797,7 +797,7 @@ All (desktop).
 - [ ] DK-7. A killed page offers Reload or Quit. A killed server says it stopped.
 - [ ] DK-8. An update check runs 15 seconds after launch when on, and never when off.
 - [ ] DK-9. Windows and AppImage download and install on the next quit. macOS and .deb offer the download page.
-- [ ] DK-10. F12 or Ctrl+Shift+I opens DevTools. Decide whether a shipped build should allow that.
+- [ ] DK-10. F12 or Ctrl+Shift+I opens DevTools in sandbox and development runs. A packaged build has none, and no menu item for it.
 - [ ] DK-11. Native file and folder pickers appear on top of the window.
 - [ ] DK-12. macOS: Cmd+C and Cmd+V work in fields, and the menu is sensible. Linux: native frame.
 - [ ] DK-13. Uninstalling leaves your data, and a reinstall picks it up.
@@ -865,7 +865,7 @@ Read [time.md](time.md) alongside these.
 - [ ] HD-34. The app makes no outside requests at all, apart from the update check. Fonts and icons are local.
 - [ ] HD-35. Logs name no personal data beyond node names. Decide whether that's acceptable.
 - [ ] HD-36. An imported file can't run anything or inject markup, and its risky links still ask first.
-- [ ] HD-37. Watch for "Callback failed: the server did not respond", which shouldn't appear. Heavy automated driving caused it now and then ([details](#decisions-for-you)).
+- [ ] HD-37. Watch for "Callback failed: the server did not respond", which shouldn't appear. Automated driving caused it now and then, never real use. If it appears by hand, it's a bug.
 
 ---
 
@@ -912,41 +912,44 @@ The caption's node count means nodes left to do, which is what it already showed
 
 ## Decisions for you
 
-Each of these could be a problem or could be your design. None was changed.
+You went through these on 2026-11-01. Items marked Fix were then changed, with tests, and driven in a real browser where they show there. Check them again in your manual pass.
 
-- [ ] ED-31. Now writes the moment you flip it, and Revert doesn't undo it. Every other field waits for Save.
-- [ ] ED-48. A node its event already woke can never sleep again.
-- [ ] ED-21. A loaded node's aliases stay hidden until you click **+**.
-- [ ] ED-24. An alias equal to another node's name is accepted.
-- [ ] ED-52. The Ratings Reference closes when you click its pencil, and doesn't come back.
-- [ ] HM-19. Next's row count resets to 10 at each launch. The setting for it exists, but nothing writes it.
-- [ ] HM-25, FL-24. Community and Orphans narrow the Nodes canvas only, though features.md says filters apply everywhere but Analyze.
-- [ ] SH-25. The left sidebars hide the first Now card and the names in Next.
-- [ ] MN-11. Add to Event on a Done or dormant node opens the modal with nothing chosen.
-- [ ] EX-14. Focus keeps the whole graph in frame, so on a big graph a short route looks tiny.
-- [ ] EX-17. Focus Top n with a filter on hides route nodes the filter leaves out. Details' Focus clears filters instead.
-- [ ] DT-30. The Subtasks table can need a sideways scroll to reach its pencil.
-- [ ] DT-34. A Subtasks row has no way to remove its link.
-- [ ] GL-4, EV-4. Goals search covers names only. Events search covers names and descriptions. Neither covers aliases.
-- [ ] GL-9. Priority Goals stay pinned on top in every sort, including Alphabetical.
-- [ ] GL-13. A Goal whose work is all Done but isn't marked Done leaves the sidebar, and can still hold a priority slot.
-- [ ] EV-19. The event editor's X closes without asking about unsaved edits, unlike the node editor.
-- [ ] EV-21. A triggered event stays editable, and only its right-click menu can delete it.
-- [ ] EV-43. Two events whose trigger nodes sleep in each other can never fire on their own, and nothing warns about it. A node can't trigger the event it sleeps in, but this longer loop saves fine. Trigger Now still works.
-- [ ] RF-6. Marking a Goal or a container Done opens the full reflection form, with time and ratings, though the review queue skips them.
-- [ ] SE-19. Skip in the migration dialog leaves nodes on a context that's no longer listed. The editor still shows it, and saves it.
-- [ ] SE-29. Home's bars and badges ignore your type colors.
-- [ ] SE-40. Nothing in the app reaches diagnostics, the bug report link, third-party notices or Check Now. The code for them exists, and packaging/third_party_notices.py says Settings > About opens the notices.
-- [ ] DK-10. DevTools can be opened in a shipped build.
-- [ ] HD-37. Heavy automated driving sometimes made Chrome fail a request with `ERR_NO_BUFFER_SPACE`, which the app reports as "the server did not respond". The server opens a new connection for every request, and one run left over 700 sockets waiting to close. Normal use shouldn't reach that. Keep-alive connections would remove the risk, if you see it.
+| Item | Decision | What it means |
+|---|---|---|
+| ED-31 | Fix | The editor's Now switch waits for Save, and Revert undoes it. The menu, Now cards and dragging still act at once, since they have no Save. |
+| ED-48 | Fix | A node its event woke can sleep again. Its new event replaces the old row, so the old event no longer lists it. |
+| ED-21 | Fix | A node's aliases show by themselves when it has any. |
+| ED-24 | Fix | An alias can't match another node's name, and a name can't match another node's alias. |
+| ED-52 | Fix | The Ratings Reference comes back after its table's Save or Cancel. |
+| ED-104 | Keep | Opening Goals or Events slides the editor away with your unsaved edits, without asking. Nothing marks a waiting draft yet. See whether you miss one in your manual pass. |
+| HM-19 | Fix | Next's row count survives a restart, can be typed, and its buttons stay gray after a click. |
+| HM-25, FL-24 | Fix | Community and Orphans narrow Next, Details and Events too, and show in their chips. |
+| SH-25 | Later | Left sidebars still cover Home. This gets its own pass. It was tried once and dropped, so start by reading the sidebar commits. |
+| MN-11 | Fix | Add to Event is hidden for nodes that can't join one, and counts only those that can. |
+| EX-14 | Fix | Focus zooms toward the route, but keeps enough of the graph around it for context. |
+| EX-17 | Fix | Focus Top n clears filters, as Details' Focus does. |
+| DT-30 | Fix | The Subtasks pencil stays at the panel's edge however far the table scrolls. It still appears only on hover or keyboard focus. |
+| DT-34 | Keep | Subtasks rows have no remove button. An earlier x was unclear about whether it removed the link or the node. |
+| GL-4, EV-4 | Fix | Every search across names covers aliases. Goals search also covers descriptions. Goal and event cards show two-line descriptions. A match the card doesn't show gets one extra line, and matching words in a description are highlighted. |
+| GL-9 | Keep | Priority Goals stay pinned in every sort. |
+| GL-13 | Fix | A Goal holding a rank stays in the sidebar when its work is all Done, until you mark it Done or clear the rank. |
+| EV-19 | Fix | Leaving an event with unsaved edits asks first. |
+| EV-21 | Fix | A triggered event's panel offers Delete. Its trigger fields lock. Name and description stay editable. |
+| EV-43 | Fix | A loop of events that wake each other's triggers is refused, at any length. Loops already saved stay, and Trigger Now still works on them. |
+| RF-6 | Fix | Marking a Goal or a container Done opens a short form rather than the full one. |
+| SE-19 | Fix | A node can't keep a context that no longer exists. The migration dialog loses Skip and Keep existing, and a node already on one has to pick a real one before it saves. |
+| SE-29 | Fix | Home's bars and badges keep your curated palette at the default colors. A changed type color gets a muted version with the same perceptual treatment. Badge text is always white. |
+| SE-40 | At release | Add Settings > About for the first release. The update check and the bug form already exist, and `skilltree/features/settings/about.py` stays for it. |
+| DK-10 | Fix | DevTools is off in packaged builds. Sandbox and development runs keep it. |
+| HD-37 | Closed | `ERR_NO_BUFFER_SPACE` has only appeared under automated testing, never in real use. Treat it as a bug if "the server did not respond" ever shows up by hand. |
 
-Some code does nothing anymore, and could go: `ctx-obsidian-path-store`, `ctx-drive-path-store`, the `edge-resources` store, `details-filters-sidebar` and its `details-filter-*` controls, `details-simulate-trigger-input`, `event-status-badge`. `skilltree/features/settings/about.py` is used only by tests, which is the other half of SE-40.
+All the code that did nothing is removed: `ctx-obsidian-path-store`, `ctx-drive-path-store`, the `edge-resources` store, `details-filters-sidebar` and its `details-filter-*` controls, `details-simulate-trigger-input`, `event-status-badge`.
 
 ## What the first pass couldn't check
 
 Every item in sections 1 to 15 and 17 was exercised in a real browser against a real server, apart from these:
 
-- The desktop app (section 16, and every "(desktop)" item). The shell's unit tests pass, but no Electron window was opened. Its messages and exit codes were checked from the server's side.
+- The desktop app (section 16, and every "(desktop)" item). The shell's unit tests pass, but no Electron window was opened. Its messages and exit codes were checked from the server's side. DK-10 needs a packaged build to see.
 - Links really opening (ED-79, ED-81) and native pickers (ED-80, SE-26's browse button). The questions and refusals were checked, but nothing was launched on your computer.
 - A tooltip under a still pointer (SH-15). Headless Chrome sends no events when something slides under the pointer.
 - How it feels: animation, tooltip timing and canvas gestures at 240 Hz, and the look at 4K (SH-22, AN-21). The browser ran at 60 Hz in a 1600×1000 window.

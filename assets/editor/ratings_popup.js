@@ -80,8 +80,12 @@
 
         var editBtn = document.getElementById(cfg.editId);
         if (editBtn && !editBtn.__ratingsWired) {
+            // It steps aside for the edit table, and comes back when that
+            // closes (reopen_after_edit).
             editBtn.addEventListener('click', function () {
-                if (popup) popup.style.display = 'none';
+                if (!popup) return;
+                popup.style.display = 'none';
+                popup.__reopenAfterEdit = true;
             });
             editBtn.__ratingsWired = true;
         }
@@ -118,6 +122,18 @@
             });
         });
     }
+
+    window.dash_clientside = window.dash_clientside || {};
+    window.dash_clientside.ratings_popup = {
+        reopen_after_edit: function (isOpen, popupId) {
+            var popup = document.getElementById(popupId);
+            if (!isOpen && popup && popup.__reopenAfterEdit) {
+                popup.__reopenAfterEdit = false;
+                popup.style.display = 'flex';
+            }
+            return window.dash_clientside.no_update;
+        },
+    };
 
     var obs = new MutationObserver(wireAll);
     obs.observe(document.body, { childList: true, subtree: true });

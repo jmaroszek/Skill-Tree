@@ -15,7 +15,7 @@ from skilltree.ui.filters import (
     filter_chip_state,
     filter_chip_updates,
     filter_summary,
-    filters_from,
+    filters_with_community,
 )
 from skilltree.ui.prerender import prerendered
 
@@ -63,7 +63,7 @@ def register_event_graph_callbacks(app, services):
         neighbors = [node for node in map(graph_manager.get_node, neighbor_names)
                      if node]
         neighbors = graph_manager.filter_nodes(
-            neighbors, filters_from(sidebar_filters))
+            neighbors, filters_with_community(graph_manager, sidebar_filters))
         nodes = [node for node in map(graph_manager.get_node, dormant_names)
                  if node] + neighbors
         all_names = {node.name for node in nodes}
@@ -124,8 +124,8 @@ def register_event_graph_callbacks(app, services):
     )
 
     # --- Events Tab: Filtered chip ---
-    # As on Details: the filters that narrow this canvas, which leave out
-    # Community. They hide only the nodes outside the event.
+    # As on Details: the filters that narrow this canvas. They hide only the
+    # nodes outside the event.
     @app.callback(
         Output('events-filter-chip-text', 'children'),
         Output('events-filter-chip', 'data-hint'),
@@ -140,6 +140,8 @@ def register_event_graph_callbacks(app, services):
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         Input('filter-time-unit', 'value'),
+        Input('filter-community', 'value'),
+        Input('community-method', 'value'),
         State('events-filter-chip-text', 'children'),
         State('events-filter-chip', 'data-hint'),
         State('events-filter-chip', 'hidden'),
@@ -148,11 +150,13 @@ def register_event_graph_callbacks(app, services):
     @prerendered
     def update_events_filter_chip(f_type, f_ctx, f_sub, f_val, f_int, f_diff,
                                   f_time, f_time_min, f_search, f_time_unit,
+                                  f_comm, f_comm_method,
                                   chip_text, chip_title, chip_hidden):
         chip = filter_chip_state(filter_summary(
             node_type=f_type, context=f_ctx, subcontext=f_sub, value=f_val,
             interest=f_int, difficulty=f_diff, time=f_time,
-            time_min=f_time_min, search=f_search, time_unit=f_time_unit))
+            time_min=f_time_min, search=f_search, time_unit=f_time_unit,
+            community=f_comm, community_method=f_comm_method))
         return filter_chip_updates(chip, (chip_text, chip_title, chip_hidden))
 
     # --- Events Graph Layout: Toggle Panel ---

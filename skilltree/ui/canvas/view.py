@@ -304,6 +304,20 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
     )
 
 
-def node_options(nodes, exclude=None):
-    """Build dropdown options from a list of nodes, optionally excluding one by name."""
-    return [{'label': n.name, 'value': n.name} for n in nodes if n.name != exclude]
+def node_options(nodes, exclude=None, aliases=None):
+    """Build dropdown options from a list of nodes, optionally excluding one by name.
+
+    ``aliases`` is get_all_aliases()' {alias: name}. Typing one in the dropdown
+    finds its node, through the option's ``search``.
+    """
+    known = {}
+    for alias, owner in (aliases or {}).items():
+        known.setdefault(owner, []).append(alias)
+
+    def option(node):
+        found = {'label': node.name, 'value': node.name}
+        if node.name in known:
+            found['search'] = ' '.join([node.name, *known[node.name]])
+        return found
+
+    return [option(n) for n in nodes if n.name != exclude]

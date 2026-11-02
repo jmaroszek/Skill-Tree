@@ -17,7 +17,7 @@ from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS
 from skilltree.ui import kit as ui_kit
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
-from skilltree.ui.styles import BADGE_PALETTE, badge_style
+from skilltree.ui.styles import badge_style, palette_color
 
 
 def _trunc(name, max_len=25):
@@ -207,11 +207,11 @@ def render_overview(metrics):
     # stock Bootstrap hues, which made Done and Blocked here visibly different
     # from Done and Blocked on every node.
     cards = [
-        ('Goals', str(metrics['goal_count']), BADGE_PALETTE['Goal'][0]),
-        ('Milestones', str(metrics['milestone_count']), BADGE_PALETTE['Milestone'][0]),
-        ('Active Nodes', str(metrics['active_count']), BADGE_PALETTE[STATUS_OPEN][0]),
-        (STATUS_DONE, str(metrics['done_count']), BADGE_PALETTE[STATUS_DONE][0]),
-        (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", BADGE_PALETTE[STATUS_BLOCKED][0]),
+        ('Goals', str(metrics['goal_count']), palette_color('Goal')),
+        ('Milestones', str(metrics['milestone_count']), palette_color('Milestone')),
+        ('Active Nodes', str(metrics['active_count']), palette_color(STATUS_OPEN)),
+        (STATUS_DONE, str(metrics['done_count']), palette_color(STATUS_DONE)),
+        (STATUS_BLOCKED, f"{metrics['blocked_pct']}%", palette_color(STATUS_BLOCKED)),
     ]
     cols = []
     for label, value, color in cards:
@@ -647,7 +647,7 @@ def render_throughput_chart(quarter_rows,
     if by == 'type':
         keys = sorted(total_per_key, key=lambda t: (TYPE_ORDER.index(t)
                                                     if t in TYPE_ORDER else 99))
-        color = {t: BADGE_PALETTE.get(t, (_NO_SUBCONTEXT_COLOR,))[0] for t in keys}
+        color = {t: palette_color(t, _NO_SUBCONTEXT_COLOR) for t in keys}
     else:
         # Stable per-context colour, ordered by total throughput so the
         # largest context gets the first palette colour and the stacking
@@ -797,7 +797,7 @@ def _work_left_cell(row, area, scale):
         segments = [
             html.Div(className="rd-work-seg", style={
                 'width': f"max({width * by_type[t] / row['time']:.2f}%, 2px)",
-                'backgroundColor': BADGE_PALETTE.get(t, (_NO_SUBCONTEXT_COLOR,))[0],
+                'backgroundColor': palette_color(t, _NO_SUBCONTEXT_COLOR),
             })
             for t in TYPE_ORDER if by_type.get(t) and row['time']
         ]

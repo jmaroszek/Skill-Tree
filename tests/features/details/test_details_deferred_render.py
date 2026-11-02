@@ -354,13 +354,9 @@ def test_empty_suggestion_callback_keeps_priorities_pinned_and_filters_explore()
 
 
 def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
-    from types import SimpleNamespace
-    from skilltree.features.events import callbacks as event_callbacks
     from skilltree.domain.models import Event
 
     app = _app_with(register_events_callbacks)
-    monkeypatch.setattr(event_callbacks, 'ctx', SimpleNamespace(
-        triggered_id={'type': 'event-card', 'index': 'Music'}))
     monkeypatch.setattr(EventManager, 'get_event',
                         lambda self, name: Event(name=name))
     monkeypatch.setattr(EventManager, 'get_event_nodes',
@@ -369,14 +365,15 @@ def test_event_selection_does_not_refresh_unrelated_data(monkeypatch):
         if 'callback' not in spec:
             continue
         callback = _raw_callback(spec)
-        if callback.__name__ == 'select_event':
-            result = callback([1], 'tab-events')
-            assert result[0] == 'Music'
-            assert result[1] is dash.no_update
-        elif callback.__name__ == 'handle_event_context_action':
-            result = callback('Music|edit', 'tab-events')
-            assert result[0] == 'Music'
-            assert result[1] is dash.no_update
+        if callback.__name__ == 'open_event_detail':
+            for trigger, cards, action in (
+                    ('{"index":"Music","type":"event-card"}.n_clicks', [1], None),
+                    ('event-ctx-action-input.value', [], 'Music|edit|1')):
+                fire(trigger)
+                result = callback(None, None, cards, action, None, None, {}, None, None,
+                                  'tab-events')
+                assert result[0] == 'Music'
+                assert result[1] is dash.no_update
 
 
 def test_event_graph_nodes_carry_shared_tooltip_attributes(monkeypatch):

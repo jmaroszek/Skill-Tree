@@ -16,9 +16,11 @@ from skilltree.ui.canvas.elements import (
     build_node_element, build_edge_element, canvas_node_styles,
 )
 from skilltree.ui.filters import (
-    build_filters, FILTER_INPUTS, FILTER_STATES, filters_from, is_filters_active,
+    build_filters, FILTER_INPUTS, FILTER_STATES, filters_with_community, is_filters_active,
+    narrowed_to_community,
     filter_summary, filter_chip_state, filter_chip_updates,
 )
+from skilltree.ui.canvas.view import node_options
 from skilltree.ui.dash_tools import get_trigger_id
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.domain.goals import normalize_goal_scores, rank_goals
@@ -60,8 +62,8 @@ def register_details_callbacks(app, services):
         # Dormant nodes too: View Details reaches them, and a dropdown drops
         # a value it has no option for, so nothing would load.
         nodes = graph_manager.get_all_nodes(include_dormant=True)
-        return [{"label": n.name, "value": n.name}
-                for n in sorted(nodes, key=lambda n: n.name)]
+        return node_options(sorted(nodes, key=lambda n: n.name),
+                            aliases=graph_manager.get_all_aliases())
 
     # --- Navigation History: push new entries, handle back/forward ---
     # In the browser: it is pure bookkeeping, and as a server callback it was
@@ -298,7 +300,7 @@ def register_details_callbacks(app, services):
 
         # Subtasks use the same filter-aware dependency view as the graph and
         # simulation, so a hidden bridge cannot leave orphaned descendants.
-        global_filters = filters_from(sidebar_filters)
+        global_filters = filters_with_community(graph_manager, sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
@@ -424,7 +426,7 @@ def register_details_callbacks(app, services):
         # longer exists, so this keeps its graph too.
         if not graph_manager.get_node(selected_node):
             return no_update
-        global_filters = filters_from(sidebar_filters)
+        global_filters = filters_with_community(graph_manager, sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         return _build_graph_elements(graph_manager, services.events,
@@ -539,6 +541,8 @@ def register_details_callbacks(app, services):
         Input("settings-save-status", "children"),
         Input("filter-time-min", "value"),
         Input("filter-search-query", "data"),
+        Input("filter-community", "value"),
+        Input("community-method", "value"),
         prevent_initial_call=True,
     )
     @prerendered
@@ -546,7 +550,8 @@ def register_details_callbacks(app, services):
     def build_empty_state_suggestions(
             _refresh, _version, f_context, f_subcontext, f_done,
             f_value, f_interest, f_time, f_time_unit, f_difficulty,
-            f_node_types, f_show_dormant, _settings, f_time_min, f_search):
+            f_node_types, f_show_dormant, _settings, f_time_min, f_search,
+            f_community=None, community_method=None):
         # Priority Goals are explicit pins, so filters do not hide them. The
         # Explore section below is discovery-oriented and does honor the
         # active global filters.
@@ -573,6 +578,8 @@ def register_details_callbacks(app, services):
             f_difficulty, f_node_types, f_time_unit=f_time_unit,
             f_show_dormant=f_show_dormant, f_time_min=f_time_min,
             f_search=f_search)
+        global_filters = narrowed_to_community(
+            graph_manager, global_filters, f_community, community_method)
         eligible_names = {
             node.name for node in graph_manager.filter_nodes(
                 all_nodes, global_filters)
@@ -599,7 +606,7 @@ def register_details_callbacks(app, services):
             node_type=f_node_types, context=f_context,
             subcontext=f_subcontext, value=f_value, interest=f_interest,
             difficulty=f_difficulty, time=f_time, time_min=f_time_min,
-            search=f_search,
+            search=f_search, community=f_community, community_method=community_method,
         )
         return build_details_suggestions(
             goal_rows, explore_rows, filters_active=filters_active)
@@ -676,11 +683,9 @@ def register_details_callbacks(app, services):
         )
 
     # --- Details Tab: Filter Chip ---
-    # The Details canvas honors the global Context/Subcontext/Type/Done/
-    # ratings/time filters but ignores Goal and Community (those only narrow
-    # the main canvas), so the chip only lists the filters that actually
-    # affect the subtree being rendered here. Show Done is not among them —
-    # see is_filters_active on why a reveal is not a filter.
+    # The chip lists the filters that narrow the subtree rendered here. Show
+    # Done is not among them — see is_filters_active on why a reveal is not a
+    # filter.
     @app.callback(
         Output('details-filter-chip-text', 'children'),
         Output('details-filter-chip', 'data-hint'),
@@ -695,6 +700,8 @@ def register_details_callbacks(app, services):
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
         Input('filter-time-unit', 'value'),
+        Input('filter-community', 'value'),
+        Input('community-method', 'value'),
         State('details-filter-chip-text', 'children'),
         State('details-filter-chip', 'data-hint'),
         State('details-filter-chip', 'hidden'),
@@ -703,11 +710,12 @@ def register_details_callbacks(app, services):
     @prerendered
     def update_details_filter_chip(f_type, f_ctx, f_sub, f_val, f_int,
                                    f_diff, f_time, f_time_min, f_search,
-                                   f_time_unit, chip_text, chip_title,
-                                   chip_class):
+                                   f_time_unit, f_comm, f_comm_method,
+                                   chip_text, chip_title, chip_class):
         # The depth limit is a graph setting, not a filter: Clear Filters
         # leaves it, so the chip leaves it out and the node count shows it.
         shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                      community=f_comm, community_method=f_comm_method,
                       value=f_val, interest=f_int, difficulty=f_diff,
                       time=f_time, time_min=f_time_min, search=f_search)
         chip = filter_chip_state(filter_summary(time_unit=f_time_unit, **shared))

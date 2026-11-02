@@ -20,6 +20,7 @@ from skilltree.store.graph.state import revisions
 from skilltree.domain.models import ALL_STATUSES, EDGE_HELPS, EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT
 from skilltree.runtime.version import __version__
 from skilltree.store import schema
+from skilltree.store import settings
 from skilltree.store.events import MAX_DELAY_DAYS
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
 
@@ -279,6 +280,33 @@ def _validated_graph(tables) -> dict:
     return {**tables, "Edges": list(edges.values())}
 
 
+def _list_the_nodes_contexts(conn):
+    """A node can't keep a context that isn't listed, and an older export can
+    hold one. It joins the list, so importing loses nothing."""
+    def stored(key, default):
+        row = conn.execute("SELECT value FROM Settings WHERE key=?", (key,)).fetchone()
+        return json.loads(row[0]) if row else default
+
+    def store(key, value):
+        conn.execute("INSERT OR REPLACE INTO Settings (key, value) VALUES (?, ?)",
+                     (key, json.dumps(value)))
+
+    contexts = stored("CONTEXTS", list(settings.DEFAULT_CONTEXTS))
+    subcontexts = stored("SUBCONTEXTS", dict(settings.DEFAULT_SUBCONTEXTS))
+    listed = (list(contexts), {context: list(subs) for context, subs in subcontexts.items()})
+    for context, subcontext in conn.execute(
+            "SELECT DISTINCT context, subcontext FROM Nodes WHERE context IS NOT NULL").fetchall():
+        if context not in contexts:
+            contexts.append(context)
+        subs = subcontexts.setdefault(context, [])
+        if subcontext and subcontext not in subs:
+            subs.append(subcontext)
+    if contexts != listed[0]:
+        store("CONTEXTS", contexts)
+    if subcontexts != listed[1]:
+        store("SUBCONTEXTS", subcontexts)
+
+
 def import_data(graph, events, bundle) -> dict:
     """Load an export into this database, which must hold no graph yet.
 
@@ -329,6 +357,7 @@ def import_data(graph, events, bundle) -> dict:
                         [row[key] for key in keys])
                     inserted += 1
                 counts[table] = inserted
+            _list_the_nodes_contexts(conn)
             if local_backup_dir is not None:
                 conn.execute(
                     "INSERT INTO Settings (key, value) VALUES ('BACKUP_EXTRA_DIR', ?)",

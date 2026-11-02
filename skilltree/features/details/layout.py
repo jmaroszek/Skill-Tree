@@ -13,7 +13,6 @@ from skilltree.ui.kit import (
     cancel_action,
     filter_chip,
     nav_button,
-    panel_close_button,
     primary_action,
     quiet_action,
     split_handle)
@@ -23,7 +22,7 @@ import dash_cytoscape as cyto
 from skilltree.store import settings
 from skilltree.ui.styles import badge_style, BADGE_PALETTE
 from skilltree.ui.styles import stylesheet
-from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
+from skilltree.domain.models import STATUS_OPEN
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.canvas.settings_panel import (
     freeze_indicator, build_graph_settings_panel,
@@ -418,7 +417,6 @@ def build_details_tab_content():
     # ------------------------------------------------------------------ #
     #  MODALS & SIDEBARS                                                  #
     # ------------------------------------------------------------------ #
-    filters_sidebar = _build_filters_sidebar()
     link_node_modal = _build_link_node_modal()
 
     explain_legend_items = []
@@ -536,8 +534,6 @@ def build_details_tab_content():
         dcc.Store(id='details-nav-index', data=-1),
         dcc.Input(id='details-goal-drag-order-input', type='text', value='',
                   style={'display': 'none'}),
-        dcc.Input(id='details-simulate-trigger-input', type='text', value='',
-                  style={'display': 'none'}),
         # Set by details_deferred_subtasks.js after the newest Details graph
         # layout has stopped. The subtasks table uses it as its render gate.
         dcc.Input(id='details-layout-settled-trigger-input', type='text', value='',
@@ -564,7 +560,6 @@ def build_details_tab_content():
         ], style={"flex": "1", "display": "flex", "flexDirection": "column",
                   "overflow": "hidden"}),
 
-        filters_sidebar,
     ], style={
         "display": "flex",
         "height": "100%",
@@ -656,68 +651,6 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
         return html.P(message,
                       className="text-muted small text-center mt-3")
     return sections
-
-
-def _build_filters_sidebar():
-    """Builds the filters sidebar for the Details tab dependency graph."""
-    return html.Div(
-        id="details-filters-sidebar",
-        children=[
-            html.Div([
-                html.H5("Graph Filters", className="mb-0"),
-                panel_close_button("btn-details-filters-close", "Close graph filters"),
-            ], className="d-flex justify-content-between align-items-center mb-3 mt-3 px-3"),
-
-            html.Div([
-                dbc.Label("Node Types", className="text-muted small mb-1"),
-                dbc.Checklist(
-                    id="details-filter-types",
-                    options=[
-                        {"label": "Learn", "value": "Learn"},
-                        {"label": "Goal", "value": "Goal"},
-                        {"label": "Action", "value": "Action"},
-                        {"label": "Resource", "value": "Resource"},
-                    ],
-                    value=["Learn", "Goal", "Action", "Resource"],
-                    className="mb-3",
-                    style={"fontSize": tokens.FS_BASE},
-                ),
-
-                dbc.Label("Status", className="text-muted small mb-1"),
-                dbc.Checklist(
-                    id="details-filter-status",
-                    options=[
-                        {"label": STATUS_OPEN, "value": STATUS_OPEN},
-                        {"label": STATUS_BLOCKED, "value": STATUS_BLOCKED},
-                        {"label": STATUS_DONE, "value": STATUS_DONE},
-                    ],
-                    value=[STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE],
-                    className="mb-3",
-                    style={"fontSize": tokens.FS_BASE},
-                ),
-
-                quiet_action("Reset Filters", "btn-details-filters-reset",
-                             standalone=True, size="sm", className="w-100 mt-2"),
-            ], style={"padding": "0 16px"}),
-        ],
-        style={
-            "position": "absolute",
-            "top": "0",
-            "right": "0px",
-            "transform": "translateX(100%)",
-            "width": "280px",
-            "height": "100%",
-            "zIndex": 100,
-            "overflowX": "hidden",
-            "overflowY": "auto",
-            "borderLeft": f"1px solid {tokens.BORDER_PANEL}",
-            "transition": "transform 0.3s ease",
-            "willChange": "transform",
-            "backgroundColor": tokens.BG_PANEL,
-            "display": "flex",
-            "flexDirection": "column",
-        }
-    )
 
 
 def _build_link_node_modal():
@@ -946,7 +879,8 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             html.Td(str(node.difficulty),
                     style=tokens.CELL_MUTED),
             html.Td(_time_cell, style=tokens.CELL_MUTED),
-            html.Td(edit_btn, style=tokens.CELL_PRIMARY),
+            html.Td(edit_btn, className="details-subtask-actions-cell",
+                    style=tokens.CELL_PRIMARY),
         ], className="details-subtask-row"))
 
     return dbc.Table([

@@ -436,8 +436,6 @@ def build_app_layout(graph, env="production"):
         details_add_menu,
         *sort_menus,
         dcc.Input(id='event-ctx-action-input', type='text', value='', style={'display': 'none'}),
-        dcc.Store(id='ctx-obsidian-path-store', data=None),
-        dcc.Store(id='ctx-drive-path-store', data=None),
         dcc.Input(id='group-delete-input', type='text', value='', style={'display': 'none'}),
         dcc.Input(id='group-delete-request-input', type='text', value='', style={'display': 'none'}),
         dcc.Store(id='group-delete-pending-store', data=None),

@@ -28,6 +28,14 @@ def register_reflection_ratings_callbacks(app, services):
     # REFLECTION_RATINGS_DEFINITIONS so the Reflection modal's rubric can be
     # tuned independently of the node-editor/Add-Subtask rubric.
 
+    app.clientside_callback(
+        ClientsideFunction(namespace='ratings_popup', function_name='reopen_after_edit'),
+        Output('reflection-ratings-popup', 'data-reopened'),  # dummy output
+        Input('modal-reflection-ratings-editor', 'is_open'),
+        State('reflection-ratings-popup', 'id'),
+        prevent_initial_call=True,
+    )
+
     @app.callback(
         Output("modal-reflection-ratings-editor", "is_open"),
         Output("reflection-ratings-editor-body", "children"),

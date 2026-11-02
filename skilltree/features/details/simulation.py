@@ -15,9 +15,8 @@ from skilltree.features.details.layout import normalize_max_depth
 from skilltree.features.details.simulation_service import simulation_service
 from skilltree.store import database
 from skilltree.store import settings
-from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.components.duration import simulation_figure
-from skilltree.ui.filters import build_filters
+from skilltree.ui.filters import build_filters, narrowed_to_community
 
 
 def register_simulation_callbacks(app, services):
@@ -49,6 +48,8 @@ def register_simulation_callbacks(app, services):
         Input("main-tabs", "active_tab"),
         Input("filter-time-min", "value"),
         Input("filter-search-query", "data"),
+        Input("filter-community", "value"),
+        Input("community-method", "value"),
         State("details-freeze-rerender-store", "data"),
     )
 
@@ -70,6 +71,8 @@ def register_simulation_callbacks(app, services):
             request.get('difficulty'), request.get('types'),
             f_time_unit=request.get('timeUnit'), f_show_dormant=request.get('dormant'),
             f_time_min=request.get('timeMin'), f_search=request.get('search'))
+        filters = narrowed_to_community(graph, filters, request.get('community'),
+                                        request.get('communityMethod'))
         if 'hide_blocked' in (request.get('hideBlocked') or []):
             filters['hide_blocked'] = True
         try:
@@ -97,23 +100,6 @@ def register_simulation_callbacks(app, services):
         Output("details-sim-empty", "style"), Output("details-sim-status", "children"),
         Input("details-sim-result", "data"), Input("details-sim-request", "data"),
     )
-
-    # --- Run Simulation from context menu trigger ---
-    @app.callback(
-        Output("details-node-select", "value", allow_duplicate=True),
-        Input("details-simulate-trigger-input", "value"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
-    def context_menu_simulate_trigger(trigger_val, active_tab):
-        if not trigger_val:
-            return no_update
-        # Parse "nodeName|timestamp"; the name may itself contain "|".
-        node_name = bridge_payloads.strip_stamp(trigger_val).strip()
-        if not node_name:
-            return no_update
-        # Select the node — which will auto-run simulation
-        return node_name
 
 
 class NothingLeft(Exception):

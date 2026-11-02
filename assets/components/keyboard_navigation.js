@@ -73,7 +73,7 @@
         });
         // Changing how many suggestions show is rare. Leave the stepper to the
         // mouse so Tab goes from the Now cards straight to the Next list.
-        document.querySelectorAll('#btn-sugg-minus, #btn-sugg-plus').forEach(function (b) { b.tabIndex = -1; });
+        document.querySelectorAll('#btn-sugg-minus, #btn-sugg-plus, #suggestion-count-display').forEach(function (b) { b.tabIndex = -1; });
         associateHints();
         if (ST.describeSplitHandle) document.querySelectorAll('.split-handle').forEach(function (handle) {
             if (!handle.hasAttribute('aria-valuenow')) ST.describeSplitHandle(handle);

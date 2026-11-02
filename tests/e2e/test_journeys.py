@@ -300,6 +300,9 @@ def test_now_holds_what_is_in_progress_until_it_is_done(page, server):
     _welcome(page)
     _new_node(page, "Stretching", "Action")
     page.locator("#node-now input").click()
+    page.wait_for_timeout(500)
+    assert server.query("SELECT now FROM Nodes WHERE name = 'Stretching'") == [(0,)]
+    page.click("#btn-save")
     page.wait_for_function(
         "document.querySelector('#now-cards-container') !== null", timeout=15000)
     assert server.query("SELECT now > 0 FROM Nodes WHERE name = 'Stretching'") == [(1,)]
@@ -524,7 +527,7 @@ def test_settings_migration_cancel_preserves_the_complete_draft(page, server, di
     assert page.locator('.ctx-row-removed').count() == 1
     page.click('#btn-settings-close')
     page.wait_for_selector('#modal-migration', state='visible', timeout=20000)
-    page.click('#btn-migration-skip')
+    page.click('#btn-migration-apply')
     page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
     assert server.query("SELECT value FROM Settings WHERE key='NOW_NODE_CAP'") == [('7',)]
     assert 'Mind' not in json.loads(server.query("SELECT value FROM Settings WHERE key='CONTEXTS'")[0][0])

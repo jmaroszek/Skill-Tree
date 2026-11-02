@@ -6,6 +6,8 @@ redraws the canvas in the same response. The Dormant section's callbacks are
 in dormancy.py, the Resources section's in resources.py.
 """
 
+import time
+
 import dash
 from dash import ALL, ClientsideFunction, Input, Output, State, ctx, html, no_update
 
@@ -39,8 +41,7 @@ from skilltree.features.editor.layout import (
     update_alias_rows,
 )
 from skilltree.features.editor.values import reexpressed_estimate
-from skilltree.store import database
-from skilltree.store.commands import bridge_form, plan_bridge
+from skilltree.store.commands import bridge_form, node_with_alias, plan_bridge
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
@@ -74,6 +75,7 @@ EDITOR_FILL = dict(
     time_p=Output('node-time-p', 'value'),
     status_text=Output('auto-status-display', 'children'),
     status_done=Output('node-status-done', 'value'),
+    now=Output('node-now', 'value'),
     e_needs_h=Output('edge-needs-hard', 'value'),
     e_needs_s=Output('edge-needs-soft', 'value'),
     e_supp_h=Output('edge-supports-hard', 'value'),
@@ -92,6 +94,7 @@ EDITOR_FILL = dict(
     priority_rank=Output('node-priority-rank', 'value'),
     time_mode=Output('node-time-mode', 'value'),
     aliases=Output('aliases-store', 'data'),
+    aliases_open=Output('collapse-aliases', 'is_open'),
     pending_nav=Output('pending-navigation-store', 'data'),
     unsaved_open=Output('modal-unsaved-changes', 'is_open', allow_duplicate=True),
     snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
@@ -132,7 +135,8 @@ def _filled(snapshot, options, *, status, original_name, search=no_update, bridg
     out.update(_relationship_options(options))
     out.update(status_text=status, time_unit_prev=snapshot['time_unit'],
                original_name=original_name, search=search, pending_nav=None,
-               unsaved_open=False, snapshot=snapshot, bridge=bridge)
+               unsaved_open=False, snapshot=snapshot, bridge=bridge,
+               aliases_open=any((a or '').strip() for a in snapshot.get('aliases') or []))
     return out
 
 
@@ -142,8 +146,8 @@ def register_editor_callbacks(app, services):
     # --- Editor follows status changed elsewhere ---
     # Any mutation can change the open node's Done or Now from outside the
     # editor: the "Mark Done?" suggestion, an event putting it to sleep, a
-    # cascade. Its switches follow, unless the user has flipped Done and not
-    # saved. Only the snapshot's status key is patched, so a newer snapshot
+    # cascade. Its switches follow, unless the user has flipped them and not
+    # saved. Only the snapshot's status keys are patched, so a newer snapshot
     # written by a save in flight is never replaced by this older copy.
     @app.callback(
         Output('node-status-done', 'value', allow_duplicate=True),
@@ -167,14 +171,15 @@ def register_editor_callbacks(app, services):
         if followed is not no_update:
             snapshot_out = dash.Patch()
             snapshot_out['status_done'] = followed['status_done']
-        now = ["now"] if node.now else []
-        shown = switch if done is no_update else done
-        if node.status == STATUS_DONE and STATUS_DONE not in (shown or []):
-            # Done un-marked and not saved: a Now switch turned on waits for
-            # the Save (dispatch_now_toggle), so it isn't the database's yet.
-            now = no_update
-        elif now == (now_switch or []):
-            now = no_update
+        stored_now = ["now"] if node.now else []
+        loaded_now = snapshot.get('now') or []
+        now = no_update
+        if stored_now != loaded_now:
+            if followed is no_update:
+                snapshot_out = dash.Patch()
+            snapshot_out['now'] = stored_now
+            if (now_switch or []) == loaded_now:
+                now = stored_now
         return done, snapshot_out, now
 
     # --- Editor follows relationships changed elsewhere ---
@@ -371,7 +376,7 @@ def register_editor_callbacks(app, services):
         # Relationship pickers must include dormant nodes so active nodes can
         # be wired to work that has not triggered yet.
         all_nodes = manager.get_all_nodes(include_dormant=True)
-        options = node_options(all_nodes)
+        options = node_options(all_nodes, aliases=manager.get_all_aliases())
 
         # Opening Goals or Events slides the editor away with its form as it
         # was, so a closed editor can hold unsaved edits too.
@@ -553,7 +558,7 @@ def register_editor_callbacks(app, services):
         # when an Edit opens it.
         opened_by_edit = trigger_id in ('edit-trigger-input', 'details-edit-trigger-input')
         return _filled(build_editor_snapshot(manager, services.events, node.name),
-                       node_options(all_nodes, exclude=node.name),
+                       node_options(all_nodes, exclude=node.name, aliases=manager.get_all_aliases()),
                        status=node.status, original_name=node.name,
                        search=node.name if editor_open or opened_by_edit else no_update)
 
@@ -570,7 +575,8 @@ def register_editor_callbacks(app, services):
         [Output('node-original-name', 'data', allow_duplicate=True),
          Output('node-name', 'value', allow_duplicate=True),
          Output('aliases-store', 'data', allow_duplicate=True),
-         Output('editor-pristine-snapshot', 'data', allow_duplicate=True)],
+         Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
+         Output('node-now', 'value', allow_duplicate=True)],
         Input('editor-save-result-store', 'data'),
         [State('node-original-name', 'data'),
          EDITOR_FORM],
@@ -586,10 +592,10 @@ def register_editor_callbacks(app, services):
         # and populate_editor handles that.
         if (not isinstance(save_result, dict)
                 or save_result.get('via') != 'btn-save'):
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return (dash.no_update,) * 5
         linted = save_result.get('name')
         if not linted or manager.get_node(linted) is None:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return (dash.no_update,) * 5
         # Build the post-save snapshot from the form as it was saved, which
         # core_engine hands over, not from a DB round-trip. Not from the form
         # as it is now either: this runs after the save's whole response, and
@@ -607,12 +613,22 @@ def register_editor_callbacks(app, services):
             editor_form_values_from(save_result.get('form', form)), linted, linted_aliases)
         if 'status_done' in save_result:
             snapshot['status_done'] = save_result['status_done']
+        # A full list, or a Done that took the node off Now, can leave the
+        # switch saying what the save didn't do.
+        now = dash.no_update
+        if 'now' in save_result:
+            snapshot['now'] = save_result['now']
+            # A save that asked before reopening the node holds the switch:
+            # the answer decides (confirm_undo_done, close_undo_done_modal).
+            if (not save_result.get('reopen_asked')
+                    and save_result['now'] != (save_result.get('form', form).get('now') or [])):
+                now = save_result['now']
         # Rewrite node-original-name only when the save changed it (a rename
         # or a new node). Everything keyed off it reloads from the database,
         # and on a save that failed that reload would throw away what the
         # user had just entered, such as a Dormant switch the save refused.
         original_out = linted if linted != cur_original_name else dash.no_update
-        return original_out, linted, linted_aliases, snapshot
+        return original_out, linted, linted_aliases, snapshot, now
 
     # --- Type-adaptive field visibility ---
     @app.callback(
@@ -929,6 +945,9 @@ def register_editor_callbacks(app, services):
                 matches.append(node.name)
             elif typed_normalized and normalize_name_for_comparison(node.name) == typed_normalized:
                 matches.append(node.name)
+        owner = node_with_alias(manager, typed_stripped, original_name)
+        if owner and owner not in matches:
+            matches.append(owner)
 
         if matches:
             names_str = ", ".join(matches)
@@ -1116,12 +1135,24 @@ def register_editor_callbacks(app, services):
     )
     def modify_aliases(add_clicks, remove_clicks, current_values, store_data,
                        aliases_open):
+        # Each rebuilt row's remove button fires with no click. Taken for one, it
+        # emptied the store and closed the section on every load.
+        if isinstance(ctx.triggered_id, dict) and not ctx.triggered[0].get('value'):
+            return no_update, no_update
         return update_alias_rows(
             ctx.triggered_id, current_values, store_data, aliases_open,
             'btn-alias-add', 'btn-alias-remove',
         )
 
     # --- Ratings Editor ---
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='ratings_popup', function_name='reopen_after_edit'),
+        Output('ratings-popup', 'data-reopened'),  # dummy output
+        Input('modal-ratings-editor', 'is_open'),
+        State('ratings-popup', 'id'),
+        prevent_initial_call=True,
+    )
 
     @app.callback(
         Output("modal-ratings-editor", "is_open"),
@@ -1158,81 +1189,33 @@ def register_editor_callbacks(app, services):
         settings.RATINGS_DEFINITIONS.set(new_defs)
         return build_popup_table_rows(new_defs), False
 
-    # --- Editor Now Toggle: populate switch from DB on node change ---
-    # Mirrors the dormant-toggle population pattern (event_callbacks.py).
-    # The DB is the source of truth; the switch never holds a value the DB
-    # doesn't agree with.
+    # --- Editor Now switch: refuse what Save couldn't do ---
+    # The switch waits for Save like the rest of the form, so this writes
+    # nothing. It says at once what would otherwise wait for the Save: a full
+    # list bounces the switch and the toast explains. Save checks again.
     @app.callback(
-        Output("node-now", "value"),
-        Input("node-original-name", "data"),
-        Input("node-now-trigger-input", "value"),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def populate_node_now_state(node_name, _trigger):
-        if not node_name:
-            return []
-        node = manager.get_node(node_name)
-        if not node:
-            return []
-        return ["now"] if node.now else []
-
-    # --- Editor Now Toggle: dispatcher ---
-    # User flipped the switch — compare to the loaded node's DB state. On a
-    # real transition, write the new value directly to the DB and bump the
-    # node-now-trigger-input so core_engine re-renders the canvas with
-    # the new amber border. No modal: Now is a low-friction state flip,
-    # unlike dormant which involves event-attachment logic.
-    @app.callback(
-        Output("node-now-trigger-input", "value", allow_duplicate=True),
+        Output("node-now", "value", allow_duplicate=True),
         Output("now-cap-refused-trigger", "value", allow_duplicate=True),
         Input("node-now", "value"),
         State("node-original-name", "data"),
         State("node-status-done", "value"),
         prevent_initial_call=True,
     )
-    @database.serialized  # the cap check and the write, as one step
-    def dispatch_now_toggle(toggle_val, node_name, done_switch):
-        import time
-        if not node_name:
+    def refuse_now_switch(toggle_val, node_name, done_switch):
+        if "now" not in (toggle_val or []):
             return no_update, no_update
-        node = manager.get_node(node_name)
-        if not node:
-            return no_update, no_update
-        if (toggle_val and node.status == STATUS_DONE and not node.dormant
-                and STATUS_DONE not in (done_switch or [])):
-            # Done is un-marked but not saved yet. The switch stays on, and
-            # the Save that reopens the node adds it to Now.
-            return no_update, no_update
-        if toggle_val and (node.dormant or node.status == STATUS_DONE):
-            return f"ineligible|{int(time.time() * 1000)}", no_update
-        wants_now = bool(toggle_val and "now" in toggle_val)
-        is_now = bool(node.now)
-        if wants_now == is_now:
-            # Toggle already matches DB — this fire was the populate sync,
-            # not a user click. Don't bump the trigger.
-            return no_update, no_update
-        # Cap enforcement on setting Now only — clearing is always allowed.
-        # On refusal we bump node-now-trigger-input so populate re-syncs
-        # and bounces the switch back to off, AND bump the cap-refused
-        # trigger so the toast pops.
-        if wants_now and not is_now:
-            now_nodes = manager.get_now_nodes()
-            current_count = len(now_nodes)
-            if current_count >= settings.NOW_NODE_CAP.get():
-                ts = int(time.time() * 1000)
-                return f"refused|{ts}", f"refused|{ts}"
-            max_now = max([n.now for n in now_nodes]) if now_nodes else 0
-            node.now = max_now + 1
-        elif not wants_now and is_now:
-            node.now = 0
-        try:
-            manager.update_node(node)
-        except ValueError as e:
-            # A refusal (a node with no context, say) bounces the switch back
-            # and says why, instead of failing in silence.
-            ts = int(time.time() * 1000)
-            return f"refused|{ts}", f"error|{ts}|{e}"
-        return f"{node_name}|{int(time.time() * 1000)}", no_update
+        node = manager.get_node(node_name) if node_name else None
+        if node is not None:
+            if node.now:
+                return no_update, no_update
+            # Un-marking Done first is fine: the Save that reopens the node
+            # adds it to Now.
+            if node.dormant or (node.status == STATUS_DONE
+                                and STATUS_DONE in (done_switch or [])):
+                return [], no_update
+        if len(manager.get_now_nodes()) >= settings.NOW_NODE_CAP.get():
+            return [], f"refused|{int(time.time() * 1000)}"
+        return no_update, no_update
+
     register_resource_link_callbacks(app, services)
     register_dormancy_callbacks(app, services)

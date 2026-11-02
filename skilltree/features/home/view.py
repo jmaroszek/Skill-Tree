@@ -43,7 +43,7 @@ def initial_next_view(graph, template, sidebars):
     parts = _components_by_id(view)
     count = settings.NEXT_TABLE_ROWS.get()
     parts['suggestion-count-store'].data = count
-    parts['suggestion-count-display'].children = str(count)
+    parts['suggestion-count-display'].value = count
     next_rows = get_suggestions(graph, filters, count=count)
     parts['suggestions-table'].children = format_suggestions_table(
         next_rows.rows, graph, pinned_steps=next_rows.pinned_steps)

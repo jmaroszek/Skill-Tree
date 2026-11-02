@@ -12,6 +12,7 @@ import time
 
 from dash import html, ctx, Input, Output, State, ALL, no_update, ClientsideFunction
 
+from skilltree.ui.components.card_search import card_matches
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 from skilltree.store import settings
@@ -36,9 +37,11 @@ def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
             className="text-center py-5"
         )
 
-    if search_val and search_val.strip():
-        search_lower = search_val.strip().lower()
-        goals = [g for g in goals if search_lower in g.name.lower()]
+    aliases_of = {}
+    for alias, owner in graph.get_all_aliases().items():
+        aliases_of.setdefault(owner, []).append(alias)
+    goals = [g for g in goals if card_matches(search_val, g.name, g.description,
+                                              aliases_of.get(g.name, ()))]
 
     priority_goals = settings.PRIORITY_GOALS.get()
     completion_cache = {}
@@ -47,9 +50,11 @@ def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
 
     def _is_done(g):
         c = completion_cache[g.name]
-        return g.status == STATUS_DONE or (c.get("pct", 0) == 100 and c.get("total", 0) > 0)
+        return g.status == STATUS_DONE or (c.get("pct", 0) == 100 and c.get("total", 0) > 0
+                                           and g.name not in priority_goals)
 
-    # Done goals are hidden from the sidebar.
+    # Done goals are hidden from the sidebar. One whose work is all Done stays
+    # while it holds a rank, or its slot would be taken where nothing can clear it.
     goals = [g for g in goals if not _is_done(g)]
 
     if not goals:
@@ -128,6 +133,9 @@ def _goal_list(graph, search_val, sort_mode, manual_order, selected_node):
             show_order_buttons=is_manual,
             corner_text=corner_map.get(goal.name),
             menu_attributes=node_menu_attributes(goal),
+            description=goal.description,
+            search=search_val,
+            aliases=aliases_of.get(goal.name, ()),
         ))
     return cards
 

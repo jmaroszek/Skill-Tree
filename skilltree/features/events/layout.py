@@ -2,10 +2,11 @@
 Layout definitions for the Events tab.
 """
 
+from skilltree.ui.components.card_search import card_description
 from skilltree.ui.kit import hint
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import DURATION_UNITS, unit_select, format_duration_days
-from dash import html, dcc
+from dash import State, html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from typing import List, Any
@@ -83,15 +84,6 @@ def build_events_tab_content():
         # Event editor (hidden when no event selected)
         html.Div(id="event-detail-content", style={"display": "none"}, children=[
             html.Div([
-                # Hidden status badge — kept in the DOM so the three callbacks
-                # that still target its children/color/style Outputs keep
-                # working. It stays a dbc.Badge for the `color` prop those
-                # Outputs write; it is never shown, so that colour is inert.
-                # If it is ever un-hidden, move it to styles.badge_style like
-                # every other badge rather than trusting the stock palette.
-                dbc.Badge(id="event-status-badge", children="Pending", color="primary",
-                          style={"display": "none"}),
-
                 # --- Name + close ---
                 # The row is a title, not a control strip. Every verb now
                 # lives in the Actions section below, so the only thing left
@@ -128,11 +120,7 @@ def build_events_tab_content():
                 dbc.Label("Trigger Type", className="mt-3 mb-1"),
                 dbc.RadioItems(
                     id="event-trigger-type",
-                    options=[
-                        {"label": "Manual", "value": "manual"},
-                        {"label": "Date", "value": "date"},
-                        {"label": "Node Completion", "value": "node"},
-                    ],
+                    options=trigger_type_options(),
                     value="manual",
                     inline=True,
                     className="mb-0",
@@ -169,10 +157,7 @@ def build_events_tab_content():
                     # competing visually with the Trigger Type row above.
                     dbc.RadioItems(
                         id="event-trigger-mode",
-                        options=[
-                            {"label": "Any", "value": "any"},
-                            {"label": "All", "value": "all"},
-                        ],
+                        options=trigger_mode_options(),
                         value="any",
                         inline=True,
                         className="mt-2",
@@ -204,11 +189,12 @@ def build_events_tab_content():
                 # size="sm" rather than the style guide's default form-action
                 # size -- the pane is narrow and sits beside a dense table.
                 #
-                # Neither wrapper may carry a Bootstrap display utility --
+                # Delete is for any saved event, and Trigger for one that hasn't
+                # fired. Neither wrapper may carry a Bootstrap display utility --
                 # .d-flex and friends are `!important` and beat the inline
                 # `display: none` the callbacks write, which is how Delete
-                # stayed on screen for new and triggered events for as long as
-                # it shared a .d-flex box with Save.
+                # stayed on screen for new events for as long as it shared a
+                # .d-flex box with Save.
                 dbc.Label("Actions", className="mt-3 mb-1"),
                 html.Div([
                     primary_action("Save", "btn-event-save", size="sm",
@@ -313,6 +299,18 @@ def build_events_tab_content():
                 ], id="modal-delete-dormant-node", size="sm", is_open=False,
                    centered=True),
                 dcc.Store(id="delete-dormant-node-store", data=None),
+                dbc.Modal([
+                    dbc.ModalHeader(dbc.ModalTitle("Unsaved Changes"), close_button=False),
+                    dbc.ModalBody("You have unsaved changes. Please choose an action to continue."),
+                    dbc.ModalFooter([
+                        danger_action("Discard", "btn-event-unsaved-discard", className="me-auto"),
+                        cancel_action("Edit", "btn-event-unsaved-cancel", className="me-2"),
+                        primary_action("Save", "btn-event-unsaved-save"),
+                    ], className="flex-nowrap"),
+                ], id="modal-event-unsaved", size="sm", is_open=False, centered=True,
+                   backdrop="static", keyboard=False),
+                dcc.Store(id="event-leave-pending", data=None),
+                dcc.Store(id="event-leave-after-save", data=None),
                 dbc.Modal([
                     # Was the only delete confirm in the app opening as a naked
                     # body; the node-delete confirm in layout.py has carried a
@@ -435,6 +433,54 @@ def build_events_tab_content():
     })
 
 
+def trigger_type_options(disabled=False):
+    return [{"label": label, "value": value, "disabled": disabled}
+            for label, value in (("Manual", "manual"), ("Date", "date"),
+                                 ("Node Completion", "node"))]
+
+
+def trigger_mode_options(disabled=False):
+    return [{"label": label, "value": value, "disabled": disabled}
+            for label, value in (("Any", "any"), ("All", "all"))]
+
+
+# The event editor's form, for a callback that compares it with what is saved.
+EVENT_FORM = {
+    'name': State("event-name", "value"),
+    'description': State("event-description", "value"),
+    'trigger_type': State("event-trigger-type", "value"),
+    'trigger_date': State("event-trigger-date", "value"),
+    'trigger_nodes': State("event-trigger-node", "value"),
+    'trigger_mode': State("event-trigger-mode", "value"),
+}
+
+
+def _comparable_event_form(name, description, trigger_type, trigger_date, trigger_nodes,
+                           trigger_mode):
+    """A form's values as they would save: a trigger type's own fields only."""
+    trigger_type = trigger_type or "manual"
+    return (
+        (name or "").strip(),
+        (description or "").strip(),
+        trigger_type,
+        (trigger_date or "") if trigger_type == "date" else "",
+        sorted(trigger_nodes or []) if trigger_type == "node" else [],
+        (trigger_mode or "any") if trigger_type == "node" else "any",
+    )
+
+
+def event_form_is_dirty(form, event):
+    """Whether the form holds something ``event`` doesn't. With no event, that's
+    anything in a new event's blank form."""
+    form = form or {}
+    saved = (_comparable_event_form(event.name, event.description, event_trigger_type(event),
+                                    event.trigger_date, event.trigger_nodes, event.trigger_mode)
+             if event is not None else _comparable_event_form("", "", "manual", "", [], "any"))
+    return _comparable_event_form(form.get('name'), form.get('description'),
+                                  form.get('trigger_type'), form.get('trigger_date'),
+                                  form.get('trigger_nodes'), form.get('trigger_mode')) != saved
+
+
 def event_trigger_type(event):
     """Returns the trigger type string for an event."""
     if event.trigger_nodes:
@@ -478,8 +524,9 @@ def format_trigger_summary(trigger_nodes, trigger_mode="any"):
 
 def build_event_card(event_name, description, status, node_count, is_selected=False,
                      trigger_date=None, trigger_nodes=None, trigger_mode="any",
-                     show_drag_handle=True):
-    """Builds a single event card for the list."""
+                     show_drag_handle=True, search=None):
+    """Builds a single event card for the list. ``search`` is the list's search
+    text, for saying what it found on this card."""
     badge_text, badge_name = _event_badge(status, trigger_date, trigger_nodes)
     trigger_summary = format_trigger_summary(trigger_nodes, trigger_mode)
     border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
@@ -500,11 +547,9 @@ def build_event_card(event_name, description, status, node_count, is_selected=Fa
                       style=badge_style(badge_name, font_size=tokens.FS_XS)),
         ], className="d-flex align-items-center justify-content-between mb-1"),
     ]
-    if description:
-        children.append(html.Small(
-            description,
-            className="event-card-description text-muted mb-1"
-        ))
+    preview = card_description(description, search, event_name)
+    if preview is not None:
+        children.append(preview)
     if trigger_date and status != "Triggered":
         children.append(html.Small(
             f"Date: {trigger_date}",

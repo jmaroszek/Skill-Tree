@@ -98,12 +98,11 @@ def test_a_node_its_event_already_woke_says_so_and_nothing_is_saved(mgr, em):
     em.add_node_to_event("First", "Voice")
     em.trigger_event("First")
 
-    with pytest.raises(ValueError, match="already woke from 'First'"):
-        with database.transaction():
-            _apply(mgr, em, "Voice", _form(event="Second"), was_dormant=False)
+    with database.transaction():
+        _apply(mgr, em, "Voice", _form(event="Second"), was_dormant=False)
 
-    assert mgr.get_node("Voice").dormant == 0
-    assert em.get_event_for_node("Voice") == "First"
+    assert mgr.get_node("Voice").dormant == 1
+    assert em.get_event_for_node("Voice") == "Second"
 
 
 def test_sleeping_takes_the_node_off_now(mgr, em):
@@ -307,7 +306,7 @@ def _with_trigger(fn, prop_id, *args):
         context_value.reset(token)
 
 
-def test_existing_nodes_offers_only_nodes_without_an_event(mgr, em):
+def test_existing_nodes_offers_every_awake_node(mgr, em):
     mgr.add_node(_node("Free"))
     mgr.add_node(_node("Woken"))
     em.add_event(Event(name="Move"))
@@ -320,7 +319,7 @@ def test_existing_nodes_offers_only_nodes_without_an_event(mgr, em):
                            None, "existing|123", "Move")
 
     assert result[0] is True
-    assert [o["value"] for o in result[1]] == ["Free"]
+    assert [o["value"] for o in result[1]] == ["Free", "Woken"]
     assert result[4] == "Move"
 
 

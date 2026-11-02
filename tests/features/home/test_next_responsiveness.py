@@ -11,6 +11,7 @@ from skilltree.features.home.callbacks import register_home_callbacks
 from skilltree.features.home.view import initial_next_view, perf_stats_text, _components_by_id
 from skilltree.store import settings
 from support.callbacks import registered
+from support.triggers import fire
 from support.graphs import graph, make_node
 from support.paths import asset_file
 
@@ -166,7 +167,7 @@ def test_the_table_refresh_clears_the_caption_when_it_turns_off(services):
     fn = registered(register_home_callbacks, services=services)["populate_suggestions"]
     services.graph.last_perf_timings = {"total_ms": 12.4}
     settings.SHOW_SCORING_PERF.set(False)
-    args = [None] * 15
+    args = [None] * 17
 
     assert fn(*args, "0 nodes · 0 edges · 12ms")[1] is None
     assert fn(*args, None)[1] is dash.no_update
@@ -186,3 +187,29 @@ def test_the_now_cap_message_counts_properly():
     assert now_cap_message().startswith("1 Now node is the cap.")
     settings.NOW_NODE_CAP.set(3)
     assert now_cap_message().startswith("3 Now nodes is the cap.")
+
+
+@pytest.mark.parametrize("trigger, typed, current, stored, shown", [
+    ("btn-sugg-plus", None, 10, 11, 11),
+    ("btn-sugg-minus", None, 10, 9, 9),
+    ("btn-sugg-minus", None, 1, 1, 1),
+    ("suggestion-count-display.value", 20, 5, 20, 20),
+    ("suggestion-count-display.value", 5000, 5, 999, 999),
+])
+def test_the_row_count_is_saved(services, trigger, typed, current, stored, shown):
+    fn = registered(register_home_callbacks, services=services)["update_suggestion_count"]
+    settings.NEXT_TABLE_ROWS.set(current)
+    fire(trigger)
+    _, display = fn(1, 1, typed, current)
+    assert display == shown
+    assert settings.NEXT_TABLE_ROWS.get() == stored
+
+
+@pytest.mark.parametrize("typed", [None, 0, -3, 2.5, "abc"])
+def test_a_bad_row_count_puts_the_last_one_back(services, typed):
+    fn = registered(register_home_callbacks, services=services)["update_suggestion_count"]
+    settings.NEXT_TABLE_ROWS.set(7)
+    fire("suggestion-count-display.value")
+    store, display = fn(1, 1, typed, 7)
+    assert store is dash.no_update and display == 7
+    assert settings.NEXT_TABLE_ROWS.get() == 7

@@ -176,6 +176,7 @@ NEW_NODE_SNAPSHOT = {
     'name': '', 'n_type': '', 'desc': '',
     'context': '', 'subctx': '',
     'status_done': [],
+    'now': [],
     'val': 5, 'interest': 5, 'diff': 5,
     # Blank: an estimate is the user's own call, and Save requires one.
     'time_o': None, 'time_m': None, 'time_p': None, 'time_unit': NEW_NODE_TIME_UNIT,
@@ -231,6 +232,7 @@ def build_editor_snapshot(manager, events, node_name):
         'context': node.context or '',
         'subctx': node.subcontext or '',
         'status_done': [STATUS_DONE] if node.status == STATUS_DONE else [],
+        'now': ['now'] if node.now else [],
         'val': node.value or 5,
         'interest': node.interest or 5,
         'diff': node.difficulty or 5,
@@ -489,6 +491,7 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'context': form_values.get('context') or '',
         'subctx': form_values.get('subctx') or '',
         'status_done': form_values.get('status_done') or [],
+        'now': form_values.get('now') or [],
         'val': form_values.get('val', 5),
         'interest': form_values.get('interest', 5),
         'diff': form_values.get('diff', 5),
@@ -529,6 +532,7 @@ def editor_form_values(
     resource_links,
     time_mode, value_mode, priority_rank, aliases,
     dormancy,
+    now=None,
     time_habit_mode=None,
     habit_duration=0, habit_duration_unit='weeks',
     habit_intensity_o=0, habit_intensity_m=0, habit_intensity_p=0,
@@ -554,6 +558,7 @@ def editor_form_values(
         'name': name, 'n_type': n_type, 'desc': desc,
         'context': context, 'subctx': subctx,
         'status_done': status_done,
+        'now': now,
         'val': val, 'interest': interest, 'diff': diff,
         'time_o': time_o, 'time_m': time_m, 'time_p': time_p,
         'time_unit': time_unit,
@@ -590,6 +595,7 @@ EDITOR_FORM = {
     'context': State('node-context', 'value'),
     'subctx': State('node-subcontext', 'value'),
     'status_done': State('node-status-done', 'value'),
+    'now': State('node-now', 'value'),
     'val': State('node-value', 'value'),
     'interest': State('node-interest', 'value'),
     'diff': State('node-difficulty', 'value'),
@@ -678,7 +684,7 @@ def is_form_dirty_vs_snapshot(snapshot, form_values):
             return True
 
     # Checkbox-list fields — set comparison (weekday picker order-insensitive).
-    for k in ('status_done', 'time_mode', 'time_habit_mode', 'value_mode',
+    for k in ('status_done', 'now', 'time_mode', 'time_habit_mode', 'value_mode',
               'habit_days'):
         if set(form_values.get(k) or []) != set(snapshot.get(k) or []):
             return True

@@ -13,11 +13,12 @@ PROJECT_NOTES_PLACEHOLDER = "Anything worth remembering about this project?"
 def reflects_in_notes_only(node):
     """Whether the Reflection modal asks `node` for notes alone.
 
-    A Milestone holds no work of its own, so it has no actual time or
-    actual ratings to compare with an estimate. What's worth keeping is what
-    got you there, or how a test went.
+    A Milestone holds no work of its own, and a Goal or a container takes its
+    time from the work beneath it, which reflected for itself. So there's no
+    actual time or rating to compare with an estimate. What's worth keeping is
+    what got you there, or how a test went.
     """
-    return node is not None and node.type == 'Milestone'
+    return node is not None and (node.type == 'Milestone' or node.time_mode == 'inherited')
 
 
 def calibration_sections(node):
@@ -25,9 +26,9 @@ def calibration_sections(node):
 
     The ratings style carries the node's estimates as --est-value/-interest/
     -difficulty, and theme.css draws each slider's "estimated" tick from them;
-    a rating the node doesn't carry (an inherited container) gets no tick. A
-    Milestone reflects in notes alone, so both sections hide for it and the
-    notes ask about the result rather than a project. Every callback that
+    a rating the node doesn't carry gets no tick. A node that reflects in notes
+    alone has both sections hidden, and its notes ask about the result rather
+    than a project. Every callback that
     opens the modal on a node sends these with it, so the form never shows
     the wrong sections first.
     """

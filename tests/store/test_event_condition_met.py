@@ -195,7 +195,7 @@ def test_the_editor_says_the_save_fired_the_event(graph):
     result = _save_event()(1, "Ready", "Ready", "", "node", None, ["Draft"], "all")
 
     assert result[2] == "Saved. Its trigger condition was already met, so it fired."
-    assert result[3] == {"display": "none"}  # no Trigger button
+    assert result[3] != {"display": "none"}  # Delete stays
     assert _fired(manager, events)
 
 

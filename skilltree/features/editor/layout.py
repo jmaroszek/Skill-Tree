@@ -670,8 +670,6 @@ def build_node_editor_content():
                              className="mt-2"),
                 html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
 
-                dcc.Store(id='edge-resources', data=[]),
-
                 html.Hr(className="my-3"),
                 hover_label("Resources", "node-resources-heading", _EDITOR_HINTS["resources"],
                             component=html.H5, placement="right", className="mt-2 mb-1"),

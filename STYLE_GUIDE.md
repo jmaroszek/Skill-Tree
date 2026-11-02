@@ -74,13 +74,19 @@ a synonym for muted body text.
 The Next-tab priority bars, Node Editor priority strip, Details info
 pane, and subtasks-table tiles all share a single palette
 (`styles.BADGE_PALETTE`, accessed via `styles.badge_style(name)` for
-badges or read directly for the Next-tab bar fills). The palette is
-**deliberately decoupled from Settings → Type Colors** — the canvas
-needs vivid hues to keep the network readable; the bars/badges need the
-same hue identity at a quieter register, and frozen literals here are
-the single source of truth so future-you doesn't have to remember any
-derivation. **This file is the human-readable source of truth — keep
-`styles.BADGE_PALETTE` and the documentation here in sync.**
+badges and `styles.palette_color(name)` for bar fills). The canvas needs
+vivid hues to keep the network readable; the bars/badges need the same hue
+identity at a quieter register, so these are **curated by hand, not derived
+from Settings → Type Colors**. A color left at its default is exactly the
+value below. A color changed in Settings gets the treatment its default got,
+in OKLCH (`ui.color.muted_like`): the same lightness shift, chroma ratio and
+hue shift, capped so white text stays legible. Badge text never changes to
+suit the color, because a mix of dark and white text looks bad. **This file
+is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
+documentation here in sync.**
+
+The words a search found in a card's description use `.search-match`: a faint
+amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|

@@ -439,6 +439,10 @@ class TestMilestoneReflection:
         assert reflects_in_notes_only(make_node("M", type="Milestone", time_mode='inherited'))
         assert not reflects_in_notes_only(make_node("A", type="Action"))
         assert not reflects_in_notes_only(None)
+        # A Goal or a container takes its time from the work beneath it.
+        assert reflects_in_notes_only(make_node("G", type="Goal", time_mode="inherited"))
+        assert reflects_in_notes_only(make_node("C", type="Learn", time_mode="inherited"))
+        assert not reflects_in_notes_only(make_node("O", type="Learn", time_mode="manual"))
 
     def test_modal_hides_ratings_and_time_for_a_milestone(self, mgr):
         from skilltree.features.review.values import calibration_sections

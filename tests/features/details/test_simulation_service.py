@@ -127,11 +127,11 @@ function request(name, triggerId, settledRoot = null, frozen = false) {
     window.dash_clientside.callback_context.triggered = triggerId ? [{
         prop_id: `${triggerId}.data`
     }] : [];
-    const args = Array(22).fill(null);
+    const args = Array(24).fill(null);
     args[0] = name;
     args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
     args[18] = 'tab-details';
-    args[21] = frozen;
+    args[23] = frozen;
     return ui.request(...args);
 }
 const waitingA = request('A', 'details-selected-node-store');
@@ -179,7 +179,7 @@ assert(latest.sequence > old.sequence);
 // cancel. A selection's waiting request lands inside its layout animation.
 function pair(name, triggerId, settledRoot = null) {
     window.dash_clientside.callback_context.triggered = [{prop_id: `${triggerId}.data`}];
-    const args = Array(22).fill(null);
+    const args = Array(24).fill(null);
     args[0] = name;
     args[17] = settledRoot ? JSON.stringify({root: settledRoot}) : '';
     args[18] = 'tab-details';

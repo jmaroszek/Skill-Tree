@@ -90,7 +90,7 @@ A node's name is how you find it (using the search bar) and reference it from ot
 
 Unique doesn't have to mean singular, though. 
 
-**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* I actually created two separate projects for the same resource. But now that I have the alias feature, both names direct to the same project. You can add an alias using the **+** next to the name field.
+**Aliases** let a node answer to more than one name. This means you don't have to remember the exact title you saved it under. For example, I had a book in my graph called *4000 Weeks* that I'd sometimes search for as *Four Thousand Weeks.* I actually created two separate projects for the same resource. But now that I have the alias feature, both names direct to the same project. You can add an alias using the **+** next to the name field. A node's aliases show by themselves when it has any. An alias can't be another node's name, and a name can't be another node's alias.
 
 
 ### Node Type
@@ -134,7 +134,7 @@ The table below provides a brief overview of each status, but each will be cover
 
 | Toggle | What it does |
 |---|---|
-| Now | Flags the node as one of your currently-active projects. |
+| Now | Flags the node as one of your currently-active projects. It takes effect when you save, like the rest of the form. The right-click menu and the Now cards act at once, since they have no Save. |
 | Done | Marks the node complete. May unblock downstream work, depending on its [relationships](#relationships). |
 | Dormant | Puts the node into hibernation until an [event](#events) wakes it up. Turning it on opens an **Event** field below the toggles, where you choose the event. It takes effect when you save. |
 
@@ -361,7 +361,7 @@ Right-click any node — on this tab or anywhere else a node appears — to open
 | Set Priority | Goals only. Makes the goal Priority 1, 2 or 3, or clears its priority. |
 | Add to Now / Remove from Now | Moves the node into or out of your current-work list. Done and dormant nodes can't join it, so the item is hidden for them. |
 | Mark Done / Reopen | Marks the node complete, or reopens it if already Done. A dormant node has to wake first, so the item is hidden for it. |
-| Add to Event… | Puts the node, or every selected node, to sleep under an event. |
+| Add to Event… | Puts the node, or every selected node, to sleep under an event. Done and dormant nodes can't join one, so the item is hidden for them, and a selection counts only those that can. A node its event already woke can sleep again, and the new event replaces the old one. |
 | Add Soft Link / Add Hard Link | Only with exactly two nodes selected. Links them at once, with the node you picked first leading to the other. See [linking two nodes](#linking-two-nodes). |
 | Create Bridge… | Only with exactly two nodes selected. Opens the [bridge](#bridges) dialog. |
 | Delete… | Deletes the node (with confirmation). |
@@ -437,7 +437,7 @@ Internally, the scoring algorithm works with numbers that have no units. Their s
 
 ### Focus Top $n$
 
-The contributors chart tells you *what* is lifting a score. The **Focus Top $n$** button shows you *where* that value comes from on the graph. Choose how many routes to trace, then click **Focus**. The Nodes tab dims the rest of the network and highlights each route in its own color.
+The contributors chart tells you *what* is lifting a score. The **Focus Top $n$** button shows you *where* that value comes from on the graph. Choose how many routes to trace, then click **Focus**. The Nodes tab clears your filters, so no part of a route is hidden. It dims the rest of the network, highlights each route in its own color, and zooms toward the route while keeping the graph around it in view. **Clear Focus** puts the view back.
 
 A route follows the path the score actually credits. Top contributors often sit along the same line. A node's biggest contributor might be a Goal just past its second biggest. So Focus counts routes, not contributors. A contributor that already sits on a drawn route doesn't use up a slot. One just past the end of a route extends that route. Only a contributor that branches off somewhere new starts another. Each route is labeled at the contributor that started it.
 
@@ -603,7 +603,7 @@ The Communities section algorithmically groups related nodes together. Three det
 | Clusters | Densely connected groups. Useful for spotting cross-context clusters that don't fit your mental taxonomy. |
 | Orphans | Nodes with no edges at all. Almost always a missing link, or a candidate for deletion. |
 
-Pick a detection method, then a specific community from the list. Each name says what the community is built around. It names up to three hub nodes, usually the Goals the community leads into. When one context holds most of the community, the name starts with it, as in "Health: Exercise + Rhythms." A community that spans areas shows only its hubs, as in "Creativity + Literature + Frontend Development." A community of one or two nodes is named after them.
+Pick a detection method, then a specific community from the list. Each name says what the community is built around. It names up to three hub nodes, usually the Goals the community leads into. When one context holds most of the community, the name starts with it, as in "Health: Exercise + Rhythms." A community that spans areas shows only its hubs, as in "Creativity + Literature + Frontend Development." A community of one or two nodes is named after them. Like every other filter, a selection also narrows the Next list, the Details tab and the nodes outside an event on the Events tab.
 
 The list is ordered by importance: the summed priority of each community's nodes. It shows the top 20. Communities of one or two nodes aren't listed, except in Orphans mode. So a filter that shatters the graph into hundreds of pieces still gives a short list. Communities that aren't listed still appear under "All."
 
@@ -761,7 +761,7 @@ For now, we can just focus on using the Goals Sidebar. Open it with the star ico
   <em> Goal Sidebar </em>
 </p>
 
-The **+** next to "Goals" creates a new one. Search for existing goals in the field under it. The arrows button beside the search field sorts the list. Each sort gives the cards a distinct look, so you can tell which one is active. Hover the button to see its name.
+The **+** next to "Goals" creates a new one. Search for existing goals in the field under it. It covers names, aliases and descriptions. Each card shows the first two lines of its description. When a search finds a card through something it doesn't show, the card says so: an alias gets a line of its own, and matching words in a description are highlighted. The arrows button beside the search field sorts the list. Each sort gives the cards a distinct look, so you can tell which one is active. Hover the button to see its name.
 
 | Mode | Order |
 |---|---|
@@ -835,7 +835,7 @@ The Events tab is where you create, edit, and trigger events. Unlike the other t
 ### Events Sidebar
 Open the sidebar from the calendar icon in the top-left, or via the empty-state button on the Events Tab. 
 
-The sidebar lists every event as a card showing its name, description, trigger, and a node count. Search and sort work the same way as in the Goals sidebar. An event leaves the list once it is finished, meaning it has fired and has nothing left to wake. An event that fired but still has nodes on a delay stays in the list, and its card says so: *5 nodes · 2 waking later*. A line at the end of the list counts the finished ones, and its **Show** button lists them below it. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
+The sidebar lists every event as a card showing its name, description, trigger, and a node count. Search and sort work the same way as in the Goals sidebar, across names and descriptions, and cards show two lines of description. An event leaves the list once it is finished, meaning it has fired and has nothing left to wake. An event that fired but still has nodes on a delay stays in the list, and its card says so: *5 nodes · 2 waking later*. A line at the end of the list counts the finished ones, and its **Show** button lists them below it. Click any card to load it into the Events Tab. Right-click a card to edit, trigger, or delete that event.
 
 Once an event is loaded, the tab splits in two: the **Event Editor** on the left and the **Event Canvas** on the right.
 
@@ -897,7 +897,7 @@ The top of this tab is the queue. It shows how many completed nodes are waiting,
 
 Below the ratings is a notes box. Use it for what you learned, what was hard, and why your ratings or time estimates were off. The node's Description is for the plan you made before starting. The notes are for what happened.
 
-A Milestone's reflection is the notes box alone. It holds no work of its own, so there are no hours or ratings to compare.
+The reflection for a Milestone, a Goal or any node that inherits its time is the notes box alone. Its work is beneath it, so there are no hours or ratings to compare.
 
 <p align="center">
   <img src="images/reflection-focused-node.png" width=500>

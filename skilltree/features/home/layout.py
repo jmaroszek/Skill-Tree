@@ -15,6 +15,7 @@ NEXT_TABLE_MAX_WIDTH = 1500
 
 
 NEXT_TABLE_BASIS = 780
+MAX_NEXT_ROWS = 999
 
 
 def build_next_view():
@@ -34,10 +35,13 @@ def build_next_view():
             html.H6("Next", className="text-muted mb-0", style=tokens.SECTION_TITLE_STYLE),
             dbc.ButtonGroup([
                 step_button("btn-sugg-minus", "dash-lg", "Show fewer suggestions"),
-                html.Span(id="suggestion-count-display", children=str(settings.NEXT_TABLE_ROWS.get()),
-                           className="align-self-center mx-1",
-                           style={"fontSize": tokens.FS_LG, "fontWeight": "bold", "minWidth": "18px",
-                                  "textAlign": "center"}),
+                # Reads as the plain number it replaced until it is clicked.
+                dbc.Input(id="suggestion-count-display", type="number", min=1, max=MAX_NEXT_ROWS,
+                          step=1, debounce=True, value=settings.NEXT_TABLE_ROWS.get(),
+                          className="next-count-input align-self-center mx-1",
+                          style={"fontSize": tokens.FS_LG, "fontWeight": "bold"}),
+                html.Label("Suggestions to show", htmlFor="suggestion-count-display",
+                           className="visually-hidden"),
                 step_button("btn-sugg-plus", "plus-lg", "Show more suggestions"),
             ], className="align-middle"),
             filter_chip("next-filter-chip"),

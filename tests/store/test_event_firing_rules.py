@@ -76,9 +76,8 @@ def test_the_trigger_button_on_a_fired_event_says_so_and_announces_nothing():
 
     result = _callbacks()["trigger_event"](1, "Spring", [])
 
-    message, modal_open = result[6], result[7]
+    message, modal_open = result[3], result[4]
     assert "already been triggered" in message and modal_open is False
-    assert result[2] == "Triggered"
     assert len(settings.PENDING_EVENT_NOTIFICATIONS.get()) == announced
 
 

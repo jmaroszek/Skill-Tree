@@ -107,6 +107,11 @@ test('the macOS menu carries the Edit roles that make Cmd+C and Cmd+V work', () 
   assert.equal(menu[0].label, 'Skill Tree');
 });
 
+test('a packaged build has no DevTools in its macOS menu', () => {
+  assert.ok(JSON.stringify(macMenuTemplate('Skill Tree', false)).includes('toggleDevTools'));
+  assert.ok(!JSON.stringify(macMenuTemplate('Skill Tree', true)).includes('toggleDevTools'));
+});
+
 test('the cursor is placed in page pixels, from the content area and zoom', () => {
   const bounds = { x: 100, y: 50, width: 1400, height: 900 };
   assert.deepEqual(cursorInPage({ x: 300, y: 250 }, bounds, 1), { x: 200, y: 200 });

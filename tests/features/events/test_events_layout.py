@@ -281,22 +281,22 @@ def test_dormant_node_name_cell_clips_with_an_ellipsis():
     assert "white-space: nowrap;" in rule
 
 
-def test_event_card_description_keeps_full_text_and_clamps_to_three_lines():
+def test_event_card_description_clamps_to_two_lines():
     description = "A deliberately long description " * 12
     card = build_event_card(
         "Trip", description, "Pending", {"total": 1, "activated": 0}
     )
     description_node = card.children[1]
 
-    assert description_node.children == description
-    assert "event-card-description" in description_node.className
+    assert description.startswith(description_node.children)
+    assert "list-card-description" in description_node.className
     assert "d-block" not in description_node.className
 
     css = THEME_CSS.read_text(encoding="utf-8")
-    rule = _css_rule(css, ".event-card-description")
+    rule = _css_rule(css, ".list-card-description")
     assert "display: -webkit-box;" in rule
     assert "-webkit-box-orient: vertical;" in rule
-    assert "-webkit-line-clamp: 3;" in rule
+    assert "-webkit-line-clamp: 2;" in rule
     assert "overflow: hidden;" in rule
 
 

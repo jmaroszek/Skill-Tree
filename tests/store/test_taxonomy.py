@@ -92,21 +92,21 @@ class TestApplyPerNodeMigrations:
         assert nodes['B'].context == 'Body' and nodes['B'].subcontext == 'Strength'
         assert nodes['C'].context == 'Mind' and nodes['C'].subcontext == 'Focus'
 
-    def test_keep_sentinel_skips_dimension(self, mgr):
-        """`__keep__` must not call apply_node_migration for that field."""
+    def test_no_choice_skips_dimension(self, mgr):
+        """No choice must not call apply_node_migration for that field."""
         mgr.add_node(make_node('A', context='Social', subcontext='Dating'))
         entries = [self._entry('A')]
         # Change ctx but keep sub
-        self._apply(mgr, entries, ['Mind'], ['__keep__'],
+        self._apply(mgr, entries, ['Mind'], [None],
                     {'Mind': ['Dating', 'Other']})
         n = mgr.get_node('A')
         assert n.context == 'Mind'
         assert n.subcontext == 'Dating'  # preserved
 
-    def test_keep_for_ctx_only_changes_sub(self, mgr):
+    def test_no_choice_for_ctx_only_changes_sub(self, mgr):
         mgr.add_node(make_node('A', context='Social', subcontext='Dating'))
         entries = [self._entry('A')]
-        self._apply(mgr, entries, ['__keep__'], ['Morality'],
+        self._apply(mgr, entries, [None], ['Morality'],
                     {'Social': ['Morality']})
         n = mgr.get_node('A')
         assert n.context == 'Social'
@@ -115,14 +115,14 @@ class TestApplyPerNodeMigrations:
     def test_clear_sentinel_nullifies_field(self, mgr):
         mgr.add_node(make_node('A', context='Social', subcontext='Dating'))
         entries = [self._entry('A')]
-        self._apply(mgr, entries, ['__keep__'], ['__clear__'])
+        self._apply(mgr, entries, [None], ['__clear__'])
         n = mgr.get_node('A')
         assert n.subcontext is None
 
-    def test_both_keep_is_no_op(self, mgr):
+    def test_no_choice_at_all_is_no_op(self, mgr):
         mgr.add_node(make_node('A', context='Social', subcontext='Dating'))
         entries = [self._entry('A')]
-        self._apply(mgr, entries, ['__keep__'], ['__keep__'])
+        self._apply(mgr, entries, [None], [None])
         n = mgr.get_node('A')
         assert n.context == 'Social'
         assert n.subcontext == 'Dating'
@@ -134,7 +134,7 @@ class TestApplyPerNodeMigrations:
         entries = [self._entry('A')]
         # Mind has its own subs; Dating isn't one of them
         new_subs = {'Mind': ['Focus', 'Sleep']}
-        self._apply(mgr, entries, ['Mind'], ['__keep__'], new_subs)
+        self._apply(mgr, entries, ['Mind'], [None], new_subs)
         n = mgr.get_node('A')
         assert n.context == 'Mind'
         assert n.subcontext is None

@@ -5,6 +5,8 @@ from skilltree.domain.models import STATUS_BLOCKED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.domain.models import STATUS_OPEN
 from skilltree.store import settings
+from skilltree.store.settings import DEFAULT_NODE_COLORS
+from skilltree.ui.color import muted_like
 
 # Badge for nodes whose completion triggers an event: a gold lightning bolt in
 # a dark circle. Served from assets/ — Dash exposes this at /assets/ automatically.
@@ -252,19 +254,46 @@ BADGE_PALETTE = {
 }
 
 
-def _resolved_badge_colors(name: str) -> tuple[str, str]:
-    """Return (bg, fg) for a badge by direct lookup in BADGE_PALETTE.
+# The palette entries a color setting stands behind, and the setting. 'Priority'
+# suppresses the Goal type, so it shares Goal's.
+_SETTING_FOR_COLOR = {
+    **{name: name for name in ('Goal', 'Action', 'Learn', 'Resource', 'Milestone',
+                               STATUS_OPEN, STATUS_DONE, STATUS_BLOCKED)},
+    'Priority': 'Goal',
+}
 
-    Unknown names fall back to a neutral gray. The palette is the single
-    source of truth for all badges EXCEPT 'Now' — that one is
-    intentionally coupled to the user-configurable canvas color so the
-    border on the canvas and the badge in the Details panel stay visually
-    consistent under a custom color choice.
+
+def palette_color(name: str, fallback: str = '#444') -> str:
+    """The color of a bar or badge: its BADGE_PALETTE value, curated by hand.
+
+    The canvas colors would be too strong here. A color changed in Settings
+    gets the same treatment its default got (ui.color.muted_like), so these
+    follow it, and untouched colors are exactly the palette.
+    """
+    curated = BADGE_PALETTE.get(name)
+    if curated is None:
+        return fallback
+    key = _SETTING_FOR_COLOR.get(name)
+    if key is None:
+        return curated[0]
+    return muted_like(settings.NODE_COLORS.get().get(key), DEFAULT_NODE_COLORS[key],
+                      BADGE_PALETTE[key][0])
+
+
+def _resolved_badge_colors(name: str) -> tuple[str, str]:
+    """Return (bg, fg) for a badge from BADGE_PALETTE, through palette_color.
+
+    Unknown names fall back to a neutral gray. 'Now' is intentionally coupled
+    to the user-configurable canvas color so the border on the canvas and the
+    badge in the Details panel stay visually consistent under a custom color
+    choice. The text stays as listed: white on every color that can change.
     """
     if name == 'Now':
         bg = settings.NODE_COLORS.get().get('Now', '#ffd000')
         return (bg, '#ffffff')
-    return BADGE_PALETTE.get(name, ('#444', '#dee2e6'))
+    if name not in BADGE_PALETTE:
+        return ('#444', '#dee2e6')
+    return palette_color(name), BADGE_PALETTE[name][1]
 
 
 def badge_style(name: str, font_size: str = "0.75rem") -> dict:

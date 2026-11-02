@@ -20,6 +20,7 @@ from skilltree.features.editor.save import save_editor_form
 from skilltree.store import database
 from skilltree.store.commands import (
     ReopensDoneNodes, add_to_now, conflicting_node_name, handle_delete, handle_group_delete,
+    node_with_alias,
     handle_toggle_done,
 )
 from skilltree.store import settings
@@ -156,6 +157,11 @@ def save(request):
     if clash:
         return _refused(f"Error: A node named '{clash}' already exists. Choose a "
                         f"different name, or search for '{clash}' to edit it.",
+                        request, editor_style=_editor_kept_open(ed_style))
+    alias_owner = node_with_alias(request.graph, name, request.original_name)
+    if alias_owner:
+        return _refused(f"Error: '{name}' is an alias of '{alias_owner}'. Choose a "
+                        f"different name, or search for it to edit '{alias_owner}'.",
                         request, editor_style=_editor_kept_open(ed_style))
     try:
         saved = save_editor_form(

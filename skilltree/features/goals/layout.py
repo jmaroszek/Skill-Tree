@@ -6,6 +6,7 @@ from skilltree.domain.models import STATUS_OPEN
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.kit import goal_corner_badge
+from skilltree.ui.components.card_search import alias_line, card_description
 from skilltree.ui.styles import badge_style
 from typing import Any
 from typing import List
@@ -23,11 +24,13 @@ import dash_bootstrap_components as dbc
 
 def build_goal_card(name: str, status: str, completion: dict, subtask_count: int, is_selected: bool = False, priority_rank: Optional[int] = None,
                     show_order_buttons: bool = False, is_first: bool = False, is_last: bool = False,
-                    corner_text: Optional[str] = None, menu_attributes: Optional[dict] = None):
+                    corner_text: Optional[str] = None, menu_attributes: Optional[dict] = None,
+                    description: str = "", search: Optional[str] = None, aliases=()):
     """Builds a single goal card for the goal sidebar list.
 
     ``menu_attributes`` are the goal's ``node_menu_attributes``, which give the
-    card the shared node context menu on right-click.
+    card the shared node context menu on right-click. ``search`` is the list's
+    search text, for saying what it found on this card.
     """
     border_style = f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}"
 
@@ -86,6 +89,13 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
         # gap between two unrelated things.
         ], className="d-flex align-items-center justify-content-between mb-0"),
     ]
+
+    matched_alias = alias_line(search, name, aliases)
+    if matched_alias is not None:
+        children.append(matched_alias)
+    preview = card_description(description, search, name, aliases)
+    if preview is not None:
+        children.append(preview)
 
     # Stats line: progress as the share of estimated work done, so a Goal
     # with one big topic left doesn't look nearly finished; the remaining

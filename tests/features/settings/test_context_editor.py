@@ -512,22 +512,20 @@ class TestMigrationDialog:
     def _answer(self, fns, button, pending):
         return _with_trigger(
             fns["handle_migration"], f"{button}.n_clicks", 1,
-            None, 1, 1, 1, [], [], [], [], {"ctx_nodes": [], "sub_nodes": []},
+            None, 1, 1, [], [], [], [], {"ctx_nodes": [], "sub_nodes": []},
             pending)
 
-    def test_skip_still_makes_the_rename(self, seeded):
-        """Skipping declines to rehome stranded nodes, not to rename."""
+    def test_apply_makes_the_rename(self, seeded):
         fns = _callbacks()
         seeded.add_node(_node("Run", "Health", "Stress"))
         pending = self._pending(fns, seeded)
 
-        is_open, _body, _map, editor, error, cleared, status, settings_open = self._answer(fns, "btn-migration-skip", pending)
+        is_open, _body, _map, editor, error, cleared, status, settings_open = self._answer(fns, "btn-migration-apply", pending)
 
         assert is_open is False and error == ""
         assert settings_open is False and cleared is None and status == "Settings saved"
         assert settings.CONTEXTS.get() == ["Body", "People"]
         assert seeded.get_node("Run").context == "Body"
-        assert seeded.get_node("Kant").context == "Wisdom"  # left for the user
         assert [r["name"] for r in editor["rows"]] == ["Body", "People"]
 
     def test_cancel_writes_nothing_and_preserves_the_draft(self, seeded):

@@ -96,7 +96,7 @@ class TestBuildMigrationContent:
         assert sels[('migration-cgs-node', 0)]['value'] == 'Dating'
 
     def test_rename_with_no_subcontexts_under_new_context(self):
-        """Renamed-to has no subs at all → fallback is __keep__."""
+        """Renamed-to has no subs at all → fallback is no subcontext."""
         nodes = [self._ns('NoSub', subcontext=None)]
         children, _ = self._build(
             orphans_by_field={'context': {'Social': nodes}},
@@ -105,7 +105,7 @@ class TestBuildMigrationContent:
             rename_map={'Social': 'People'},
         )
         sels = self._walk(children)
-        assert sels[('migration-cgs-node', 0)]['value'] == '__keep__'
+        assert sels[('migration-cgs-node', 0)]['value'] == '__clear__'
 
     # --- No-rename fallback --------------------------------------------------
 
@@ -134,7 +134,7 @@ class TestBuildMigrationContent:
             rename_map={},
         )
         sels = self._walk(children)
-        assert sels[('migration-cgc-node', 0)]['value'] == '__keep__'
+        assert sels[('migration-cgc-node', 0)]['value'] is None
 
     # --- Subcontext-orphan smart default ------------------------------------
 
@@ -155,7 +155,8 @@ class TestBuildMigrationContent:
             assert sels[('migration-sgs-node', i)]['value'] == 'Psychology'
 
     def test_subcontext_orphan_falls_back_when_sub_under_multiple_parents(self):
-        """`Sub` under multiple new parents → can't auto-pick → __keep__."""
+        """`Sub` under multiple new parents → can't auto-pick → a real context,
+        and no subcontext."""
         nodes = [self._ns('A', context='STEM')]
         children, _ = self._build(
             orphans_by_field={'subcontext': {'STEM > Psychology': nodes}},
@@ -164,8 +165,8 @@ class TestBuildMigrationContent:
             rename_map={},
         )
         sels = self._walk(children)
-        assert sels[('migration-sgc-node', 0)]['value'] == '__keep__'
-        assert sels[('migration-sgs-node', 0)]['value'] == '__keep__'
+        assert sels[('migration-sgc-node', 0)]['value'] == 'Social'
+        assert sels[('migration-sgs-node', 0)]['value'] == '__clear__'
 
     def test_subcontext_orphan_falls_back_when_sub_under_no_new_parent(self):
         nodes = [self._ns('A', context='STEM')]
@@ -176,7 +177,8 @@ class TestBuildMigrationContent:
             rename_map={},
         )
         sels = self._walk(children)
-        assert sels[('migration-sgc-node', 0)]['value'] == '__keep__'
+        assert sels[('migration-sgc-node', 0)]['value'] == 'STEM'
+        assert sels[('migration-sgs-node', 0)]['value'] == '__clear__'
 
     # --- Mapping store shape -------------------------------------------------
 
@@ -278,3 +280,24 @@ class TestBuildMigrationContent:
         sels = self._walk(children)
         assert sels[('migration-bulk-sgc', 0)]['value'] == 'Social'
         assert ('migration-bulk-sg-apply', 0) in sels
+
+    def test_nothing_offers_a_context_that_no_longer_exists(self):
+        nodes = [self._ns('A', subcontext='Dating')]
+        children, _ = self._build(
+            orphans_by_field={'context': {'Social': nodes},
+                              'subcontext': {'Mind > Gone': [self._ns('B', context='Mind')]}},
+            new_values_by_field={'context': ['Mind'], 'subcontext': [], 'type': []},
+            subcontexts_by_context={'Mind': ['Sleep']},
+            rename_map={},
+        )
+        sels = self._walk(children)
+        assert sels
+        for (kind, _index), select in sels.items():
+            if select['options'] is None:
+                continue  # Apply to all
+            values = [option['value'] for option in select['options']]
+            assert '__keep__' not in values
+            if kind.endswith('gc') or kind.endswith('gc-node'):
+                assert values == ['Mind']  # and not cleared: a node needs a context
+            else:
+                assert values == ['Sleep', '__clear__']

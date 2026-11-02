@@ -9,7 +9,7 @@ from skilltree.domain.scoring import explain_score
 from skilltree.store import database
 from skilltree.store.resources import get_sections
 from skilltree.store import settings
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.styles import BADGE_PALETTE, palette_color
 from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.components.duration import format_time_friendly
@@ -109,7 +109,7 @@ def _relations_lookup(manager):
 
     def row(name, kind=''):
         node = by_name[name]
-        return [name, BADGE_PALETTE.get(node.type, ('#6c757d',))[0],  # literal: palette fallback
+        return [name, palette_color(node.type, '#6c757d'),  # literal: palette fallback
                 kind, node.status == STATUS_DONE]
 
     def visible(name):
@@ -209,8 +209,8 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
     max_priority = max(normalized_scores) if normalized_scores else 0
 
-    # Bar colors come from the static BADGE_PALETTE (in config.py), NOT the
-    # user-configurable canvas Type Colors. See the BADGE_PALETTE comment for
+    # Bar colors come from palette_color, NOT the canvas Type Colors as they
+    # stand. See the BADGE_PALETTE comment for
     # the rationale — short version: canvas needs vivid hues, bars need a
     # quieter register, and the two are decoupled by design.
     pinned_steps = pinned_steps or {}
@@ -237,7 +237,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             bar_width_pct = max(8.0, (priority_int / max_priority) * 100.0)
         else:
             bar_width_pct = 8.0
-        bar_color = step_color if step_target else BADGE_PALETTE.get(s.type, ('#6c757d', '#fff'))[0]  # literal: palette fallback
+        bar_color = step_color if step_target else palette_color(s.type, '#6c757d')  # literal: palette fallback
 
         # Column 1 — rank, or a turnstile for a pinned step so the ranking
         # below still reads 1, 2, 3 rather than starting partway down.
@@ -424,7 +424,7 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
     for n in now_nodes:
         is_selected = (n.name == selected_node_id)
         eff_time = manager.get_effective_time(n.name)
-        accent_color = BADGE_PALETTE.get(n.type, ('#6c757d', '#fff'))[0]  # literal: palette fallback
+        accent_color = palette_color(n.type, '#6c757d')  # literal: palette fallback
 
         # --- Context / subcontext line ---
         ctx_text = str(n.context) if n.context else ""

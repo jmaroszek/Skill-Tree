@@ -33,10 +33,11 @@ def register_filters_callbacks(app, services):
         Output('filter-text-scope', 'value'),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
+        Input('btn-details-explain-focus', 'n_clicks'),
         Input('locate-reveal-store', 'data'),
         prevent_initial_call=True,
     )
-    def clear_filters(_clear_clicks, _focus_clicks, reveal):
+    def clear_filters(_clear_clicks, _focus_clicks, _explain_focus_clicks, reveal):
         # Locate's hidden-node dialog clears the filters to show a node, and
         # turns Show Done or Show Dormant on with them when the node needs
         # it. Here, in the one write, so the reset can't land after the switch.
@@ -154,13 +155,13 @@ def register_filters_callbacks(app, services):
         Output('filter-subcontext', 'value', allow_duplicate=True),
         Input('btn-clear-filters', 'n_clicks'),
         Input('btn-details-focus', 'n_clicks'),
+        Input('btn-details-explain-focus', 'n_clicks'),
         Input('locate-reveal-store', 'data'),
         prevent_initial_call=True,
     )
 
     # Whether any filter narrows the Nodes canvas, for the top bar's funnel,
-    # and each chip's summary. Next ignores Community and Orphans, so they don't
-    # mark it filtered. Each writes only when its answer changes: a filter
+    # and each chip's summary. Each writes only when its answer changes: a filter
     # change starts the Nodes layout, and each write would land inside it.
     @app.callback(
         Output('canvas-filters-active-store', 'data'),
@@ -198,17 +199,14 @@ def register_filters_callbacks(app, services):
                                      current, chip_text, chip_title, chip_class,
                                      nodes_text, nodes_title, nodes_hidden):
         shared = dict(node_type=f_type, context=f_ctx, subcontext=f_sub,
+                      community=f_comm, community_method=f_comm_method,
                       value=f_val, interest=f_int, difficulty=f_diff,
                       time=f_time, time_min=f_time_min, search=f_search)
-        active = is_filters_active(community=f_comm,
-                                   community_method=f_comm_method, **shared)
+        active = is_filters_active(**shared)
         chip = filter_chip_state(filter_summary(time_unit=f_time_unit, **shared))
-        nodes_chip = filter_chip_state(filter_summary(
-            time_unit=f_time_unit, community=f_comm,
-            community_method=f_comm_method, **shared))
         return (no_update if active == bool(current) else active,
                 *filter_chip_updates(chip, (chip_text, chip_title, chip_class)),
-                *filter_chip_updates(nodes_chip, (nodes_text, nodes_title, nodes_hidden)))
+                *filter_chip_updates(chip, (nodes_text, nodes_title, nodes_hidden)))
 
     # The top bar's funnel fills in while any filter is narrowing the app.
     app.clientside_callback(

@@ -48,6 +48,7 @@ def _rich_graph():
     events.add_node_to_event("Winter", "Dream", delay_days=3)
     settings.PRIORITY_GOALS.set(["Sleep"])
     settings.CONTEXTS.set(["Mind", "Body"])
+    settings.SUBCONTEXTS.set({"Mind": ["Rational"], "Body": []})
     return manager
 
 
@@ -363,3 +364,18 @@ class TestRestore:
 
         with pytest.raises(data_transfer.TransferRefused, match="newer version"):
             data_transfer.restore_backup(services.graph, services.events, saved)
+
+
+def test_an_import_lists_the_contexts_its_nodes_use(monkeypatch, tmp_path):
+    _rich_graph()
+    bundle = data_transfer.export_data()
+    for row in bundle["tables"]["Nodes"]:
+        if row["name"] == "Nap":
+            row["context"], row["subcontext"] = "Old Area", "Old Sub"
+    _fresh_database(monkeypatch, tmp_path)
+
+    data_transfer.import_data(GraphManager(), EventManager(GraphManager()), bundle)
+
+    assert "Old Area" in settings.CONTEXTS.get()
+    assert settings.SUBCONTEXTS.get()["Old Area"] == ["Old Sub"]
+    assert settings.CONTEXTS.get()[:2] == ["Mind", "Body"]

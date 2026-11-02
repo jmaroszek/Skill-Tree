@@ -30,7 +30,7 @@ import dash_bootstrap_components as dbc
 
 from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_NODE_COLORS
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.styles import palette_color
 from skilltree.domain.models import STATUS_DONE, STATUS_OPEN
 from skilltree.ui import tokens
 from skilltree.ui.styles import badge_style
@@ -418,8 +418,7 @@ def progress_bar_color(pct):
     Both the Home tab and the Details goal-progress bar computed this with
     their own literals.
     """
-    return (BADGE_PALETTE[STATUS_DONE][0] if pct == 100
-            else BADGE_PALETTE[STATUS_OPEN][0])
+    return palette_color(STATUS_DONE if pct == 100 else STATUS_OPEN)
 
 
 def goal_corner_badge(text, palette_name, class_name="badge"):

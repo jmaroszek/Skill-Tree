@@ -4,14 +4,15 @@ Callback definitions for the Home tab (priority suggestions).
 
 from skilltree.features.home.view import get_suggestions, perf_stats_text
 
-from skilltree.store import database
+from skilltree.store import database, settings
 
 from dash import Input, Output, State, ALL, ClientsideFunction, no_update
 from skilltree.features.home.table import (
     format_now_nodes_section, format_suggestions_table,
 )
-from skilltree.ui.filters import build_filters
+from skilltree.ui.filters import build_filters, narrowed_to_community
 from skilltree.ui.dash_tools import get_trigger_id
+from skilltree.features.home.layout import MAX_NEXT_ROWS
 from skilltree.features.home.now import register_now_callbacks
 
 
@@ -21,20 +22,30 @@ def register_home_callbacks(app, services):
     # --- Suggestion Count +/- ---
     @app.callback(
         Output('suggestion-count-store', 'data'),
-        Output('suggestion-count-display', 'children'),
+        Output('suggestion-count-display', 'value'),
         Input('btn-sugg-plus', 'n_clicks'),
         Input('btn-sugg-minus', 'n_clicks'),
+        Input('suggestion-count-display', 'value'),
         State('suggestion-count-store', 'data'),
         prevent_initial_call=True
     )
-    def update_suggestion_count(plus, minus, current_count):
+    def update_suggestion_count(plus, minus, typed, current_count):
         trigger_id = get_trigger_id()
-        count = current_count or 10
+        current = current_count or settings.NEXT_TABLE_ROWS.get()
+        count = current
         if trigger_id == 'btn-sugg-plus':
             count = count + 1
         elif trigger_id == 'btn-sugg-minus':
-            count = max(1, count - 1)
-        return count, str(count)
+            count = count - 1
+        elif trigger_id == 'suggestion-count-display':
+            # Anything that isn't a whole number in range puts the last one back.
+            if not isinstance(typed, (int, float)) or typed != int(typed) or typed < 1:
+                return no_update, current
+            count = int(typed)
+        count = max(1, min(MAX_NEXT_ROWS, count))
+        if count != current:
+            settings.NEXT_TABLE_ROWS.set(count)
+        return (no_update if count == current else count), count
 
     # Selection uses descriptions already shipped with the visible rows.
     # No Python request or graph/table refresh is needed for a click.
@@ -87,17 +98,19 @@ def register_home_callbacks(app, services):
         Input('settings-save-status', 'children'),
         Input('filter-time-min', 'value'),
         Input('filter-search-query', 'data'),
+        Input('filter-community', 'value'), Input('community-method', 'value'),
         State('next-perf-stats', 'children'),
         prevent_initial_call=True,
     )
     @database.snapshot_read
     def populate_suggestions(_version, count, context, subcontext, done, value,
                              interest, time, time_unit, difficulty, types, dormant, _settings,
-                             time_min, search, perf_caption):
+                             time_min, search, community, community_method, perf_caption):
         filters = build_filters(context, subcontext, done, value, interest, time,
                                 difficulty, types, f_time_unit=time_unit,
                                 f_show_dormant=dormant, f_time_min=time_min,
                                 f_search=search)
+        filters = narrowed_to_community(manager, filters, community, community_method)
         next_rows = get_suggestions(manager, filters, count=count or 10)
         caption = perf_stats_text(manager)
         return (format_suggestions_table(next_rows.rows, manager,
@@ -107,15 +120,17 @@ def register_home_callbacks(app, services):
     # --- Now Section: populate now-nodes-table ---
     # Listens to graph-version-store so the section refreshes whenever any
     # node mutates (including a flip of the Now flag, which goes through
-    # update_node and bumps graph_version). Not on page load, for the same
+    # update_node and bumps graph_version), and when Settings saves, since a card
+    # shows its type's color. Not on page load, for the same
     # reason as the table above: the layout already carries it.
     @app.callback(
         Output('now-nodes-table', 'children'),
         Input('graph-version-store', 'data'),
+        Input('settings-save-status', 'children'),
         State('selected-suggestion-store', 'data'),
         prevent_initial_call=True,
     )
-    def populate_now_section(_version, selected_node_id):
+    def populate_now_section(_version, _settings, selected_node_id):
         now_nodes = manager.get_now_nodes()
         return format_now_nodes_section(
             now_nodes,

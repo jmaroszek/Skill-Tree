@@ -584,6 +584,12 @@ class GraphManager:
                     owner = cursor.execute("SELECT node_name FROM Aliases WHERE alias=?", (clean,)).fetchone()
                     if owner and owner[0] != node_name:
                         raise ValueError(f"Alias '{clean}' already belongs to '{owner[0]}'.")
+                    named = cursor.execute(
+                        "SELECT name FROM Nodes WHERE name=? COLLATE NOCASE AND name<>?",
+                        (clean, node_name)).fetchone()
+                    if named:
+                        raise ValueError(f"Alias '{clean}' is the name of another node, "
+                                         f"'{named[0]}'.")
                     cursor.execute(
                         "INSERT OR IGNORE INTO Aliases (alias, node_name) VALUES (?, ?)",
                         (clean, node_name))

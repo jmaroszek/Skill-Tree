@@ -281,8 +281,6 @@
     register({id: 'sidebar-filters-container', triggerId: 'btn-filters-toggle', closeId: 'btn-close-filters',
         initial: '#filter-text', hideWhenClosed: true,
         isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
-    register({id: 'details-filters-sidebar', closeId: 'btn-details-filters-close', hideWhenClosed: true,
-        isOpen: function (el) { return el.style.transform === 'translateX(0px)'; }});
     // Analyze's gear popovers render at the end of the page, out of Tab reach
     // from their gear. Opening one from the keyboard moves focus into it.
     [['popover-analyze-goals', 'btn-analyze-goals-limit'],

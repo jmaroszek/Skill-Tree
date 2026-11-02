@@ -243,3 +243,45 @@ def test_analyze_does_not_render_at_startup(services):
     analyze_callbacks.register_analyze_callbacks(app, services)
     assert not any(c["output"].startswith("analyze-prewarm-store")
                    for c in app._callback_list)
+
+
+def _listed(cards):
+    return [card.id["index"] for card in cards] if isinstance(cards, list) else []
+
+
+def test_a_goal_with_all_its_work_done_stays_while_it_holds_a_rank():
+    from skilltree.domain.models import EDGE_NEEDS_HARD, STATUS_DONE
+    from skilltree.features.goals.callbacks import _goal_list
+    from skilltree.store import settings
+    from skilltree.store.graph.manager import GraphManager
+    from support.graphs import make_node
+
+    manager = GraphManager()
+    for name, kind in (("Ranked", "Goal"), ("Plain", "Goal"), ("Work A", "Learn"), ("Work B", "Learn")):
+        manager.add_node(make_node(name, type=kind))
+    manager.add_edge("Work A", "Ranked", EDGE_NEEDS_HARD)
+    manager.add_edge("Work B", "Plain", EDGE_NEEDS_HARD)
+    for name in ("Work A", "Work B"):
+        node = manager.get_node(name)
+        node.status = STATUS_DONE
+        manager.update_node(node)
+    settings.PRIORITY_GOALS.set(["Ranked"])
+
+    assert _listed(_goal_list(manager, "", "priority", [], None)) == ["Ranked"]
+
+    settings.PRIORITY_GOALS.set([])
+    assert _listed(_goal_list(manager, "", "priority", [], None)) == []
+
+
+def test_the_goals_search_covers_aliases_and_descriptions():
+    from skilltree.features.goals.callbacks import _goal_list
+    from skilltree.store.graph.manager import GraphManager
+    from support.graphs import make_node
+
+    manager = GraphManager()
+    manager.add_node(make_node("Sleep", type="Goal", description="Rest well"))
+    manager.add_node(make_node("Cooking", type="Goal", description="Food"))
+    manager.set_aliases("Sleep", ["Shuteye"])
+    assert _listed(_goal_list(manager, "shut", "priority", [], None)) == ["Sleep"]
+    assert _listed(_goal_list(manager, "rest", "priority", [], None)) == ["Sleep"]
+    assert _listed(_goal_list(manager, "food", "priority", [], None)) == ["Cooking"]

@@ -140,8 +140,10 @@
                 : (allDone ? 'Reopen' : 'Mark Done');
             toggleNowItem.querySelector('.ctx-menu-icon').className =
                 'bi bi-' + (allNow ? 'pause-circle' : 'play-circle') + ' ctx-menu-icon';
-            addToEventLabel.textContent = targetCount > 1
-                ? 'Add ' + targetCount + ' to Event…'
+            var eventCount = targets.filter(canJoinEvent).length;
+            addToEventItem.style.display = targets.length > 0 && eventCount === 0 ? 'none' : '';
+            addToEventLabel.textContent = eventCount > 1
+                ? 'Add ' + eventCount + ' to Event…'
                 : 'Add to Event…';
             deleteLabel.textContent = targetCount > 1
                 ? 'Delete ' + targetCount + '…'
@@ -233,6 +235,10 @@
             _setHiddenInput('toggle-done-trigger-input', JSON.stringify(targetIds) + '|' + Date.now());
         }
 
+        function canJoinEvent(node) {
+            return node.status !== 'Done' && !(Number(node.dormant) > 0);
+        }
+
         function triggerToggleNow() {
             if (!_currentNodeData || !_currentNodeData.id) return;
             var targetIds = _currentTargetIds();
@@ -241,7 +247,9 @@
 
         function triggerAddToEvent() {
             if (!_currentNodeData || !_currentNodeData.id) return;
-            var targetIds = _currentTargetIds();
+            // Done and sleeping nodes sit out, as the label counted them.
+            var targetIds = _currentTargetNodes().filter(canJoinEvent)
+                .map(function (node) { return node.id; });
             _setHiddenInput('dormant-existing-trigger-input', JSON.stringify(targetIds));
         }
 

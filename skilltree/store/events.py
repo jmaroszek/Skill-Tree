@@ -214,6 +214,7 @@ class EventManager:
                              "was saved. Pick a trigger node that isn't finished.")
         with self.get_connection() as conn:
             cursor = conn.cursor()
+            stuck_before = self._events_that_cant_fire(cursor)
             try:
                 cursor.execute(
                     "INSERT INTO Events (name, description, status, trigger_date, trigger_mode) "
@@ -223,6 +224,7 @@ class EventManager:
                      self._normalize_mode(event.trigger_mode))
                 )
                 self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
+                self._refuse_new_loop(cursor, stuck_before)
                 conn.commit()
             except sqlite3.IntegrityError as exc:
                 raise ValueError(f"Event with name '{event.name}' already exists.") from exc
@@ -249,6 +251,9 @@ class EventManager:
                     (old_name, *event.trigger_nodes)).fetchone()
                 if asleep is not None:
                     raise ValueError(self._own_trigger_message(asleep[0], event.name))
+            # Under its new name if this renames it: a rename is no new loop.
+            stuck_before = {event.name if name == old_name else name
+                            for name in self._events_that_cant_fire(cursor)}
             if old_name != event.name:
                 try:
                     cursor.execute(
@@ -277,6 +282,7 @@ class EventManager:
                      self._normalize_mode(event.trigger_mode), old_name)
                 )
             self._write_trigger_nodes(cursor, event.name, event.trigger_nodes)
+            self._refuse_new_loop(cursor, stuck_before)
             conn.commit()
         if old_name != event.name:
             settings.EVENT_ORDER.rename(old_name, event.name)
@@ -368,9 +374,10 @@ class EventManager:
         to Pending events, but they are built once and never re-checked, so
         the rule is enforced here where it cannot be raced.
 
-        Also refuses a node that already has an event. A node belongs to one
-        event; `move_node_to_event` re-homes it. A node its event has already
-        woken keeps that row, so it can never go back to sleep.
+        Also refuses a node waiting on an event. A node belongs to one event;
+        `move_node_to_event` re-homes it. A node its event has already woken can
+        sleep again: this event's row replaces that one, so the old event no
+        longer lists it.
         """
         gm = self.graph
         node = gm.get_node(node_name)
@@ -391,6 +398,7 @@ class EventManager:
                     "added to it would never wake."
                 )
             self._check_not_own_trigger(cursor, event_name, node_name)
+            stuck_before = self._events_that_cant_fire(cursor)
             cursor.execute(
                 "SELECT event_name, activated FROM EventNodes WHERE node_name=?",
                 (node_name,),
@@ -398,18 +406,21 @@ class EventManager:
             existing = cursor.fetchone()
             if existing is not None:
                 current, activated = existing
-                if activated:
-                    raise ValueError(
-                        f"'{node_name}' already woke from '{current}', so it "
-                        "can't go back to sleep."
-                    )
-                raise ValueError(f"'{node_name}' is already in '{current}'.")
+                if not activated:
+                    raise ValueError(f"'{node_name}' is already in '{current}'.")
+                # An activated row keeps a node awake (_sync_dormant_flag), and
+                # would wake it again at the next launch, so it has to go.
+                cursor.execute(
+                    "DELETE FROM EventNodes WHERE event_name=? AND node_name=?",
+                    (current, node_name),
+                )
             cursor.execute(
                 "INSERT INTO EventNodes (event_name, node_name, delay_days, "
                 "now_on_trigger) VALUES (?, ?, ?, ?)",
                 (event_name, node_name, delay_days,
                  1 if now_on_trigger else 0)
             )
+            self._refuse_new_loop(cursor, stuck_before)
             # Sleeping ends current work through the same lifecycle writer
             # as the editor. A later wake can only pin via now_on_trigger.
             node.dormant = 1
@@ -508,6 +519,7 @@ class EventManager:
                 )
 
             self._check_not_own_trigger(cursor, to_event, node_name)
+            stuck_before = self._events_that_cant_fire(cursor)
             new_delay = (source_delay if delay_days is None
                          else self._checked_delay(delay_days))
             new_now = source_now if now_on_trigger is None else int(bool(now_on_trigger))
@@ -519,6 +531,7 @@ class EventManager:
                 "WHERE event_name=? AND node_name=?",
                 (to_event, new_delay, new_now, from_event, node_name),
             )
+            self._refuse_new_loop(cursor, stuck_before)
             self._sync_dormant_flag(cursor, node_name)
             conn.commit()
 
@@ -734,13 +747,6 @@ class EventManager:
             )
             row = cursor.fetchone()
             return row[0] if row else None
-
-    def get_nodes_in_events(self) -> set:
-        """Every node that has an event, waiting or already woken."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT node_name FROM EventNodes")
-            return {row[0] for row in cursor.fetchall()}
 
     def woke_from(self, node_name: str) -> Optional[str]:
         """The event that woke the node, while it still holds the row; or None."""
@@ -1047,6 +1053,51 @@ class EventManager:
         if days > MAX_DELAY_DAYS:
             raise ValueError("A delay can be at most 100 years.")
         return days
+
+    @staticmethod
+    def _events_that_cant_fire(cursor) -> set:
+        """Pending events nothing but Trigger Now could ever fire.
+
+        A trigger node asleep in an event can't be finished until that event
+        fires, so events can end up waiting on each other. One with a date or
+        with no trigger nodes can always fire, and so can whatever waits only
+        on those: what's left is held by a loop.
+        """
+        pending = {name: (date, mode) for name, date, mode in cursor.execute(
+            "SELECT name, trigger_date, trigger_mode FROM Events WHERE status='Pending'")}
+        triggers = {}
+        for event_name, node_name in cursor.execute(
+                "SELECT event_name, node_name FROM EventTriggerNodes"):
+            triggers.setdefault(event_name, []).append(node_name)
+        asleep_in = dict(cursor.execute(
+            "SELECT node_name, event_name FROM EventNodes WHERE activated=0").fetchall())
+
+        stuck = {name for name, (date, _) in pending.items()
+                 if not date and triggers.get(name)}
+        changed = True
+        while changed:
+            changed = False
+            for name in sorted(stuck):
+                free = [asleep_in.get(node) not in stuck for node in triggers[name]]
+                needs_all = pending[name][1] == TRIGGER_MODE_ALL
+                if all(free) if needs_all else any(free):
+                    stuck.discard(name)
+                    changed = True
+        return stuck
+
+    def _refuse_new_loop(self, cursor, stuck_before: set) -> None:
+        """Refuse a change that leaves more events unable to fire than it found.
+
+        A loop saved before this check stays, and doesn't hold up other saves.
+        """
+        new = self._events_that_cant_fire(cursor) - stuck_before
+        if new:
+            names = sorted(new)
+            listed = (f"'{names[0]}'" if len(names) == 1
+                      else ", ".join(f"'{n}'" for n in names[:-1]) + f" and '{names[-1]}'")
+            raise ValueError(
+                f"That would leave {listed} waiting on each other: a node that triggers "
+                "each one is asleep until another of them fires, so none could ever fire.")
 
     @staticmethod
     def _own_trigger_message(node_name: str, event_name: str) -> str:

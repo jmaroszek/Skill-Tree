@@ -24,7 +24,8 @@ from skilltree.store.graph.queries import DIRECTION_NEEDS
 from skilltree.store.commands import change_link, link_change_reopens
 from skilltree.ui.components.confirm import reopen_body
 from skilltree.ui.dash_tools import get_trigger_id
-from skilltree.ui.filters import FILTER_INPUTS, filters_from
+from skilltree.ui.canvas.view import node_options
+from skilltree.ui.filters import FILTER_INPUTS, filters_with_community
 
 
 def register_subtask_callbacks(app, services):
@@ -81,7 +82,7 @@ def register_subtask_callbacks(app, services):
         include_synergies = bool(
             include_synergies_val and "include" in include_synergies_val)
         max_depth = normalize_max_depth(max_depth_val)
-        global_filters = filters_from(sidebar_filters)
+        global_filters = filters_with_community(graph_manager, sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters["hide_blocked"] = True
 
@@ -123,7 +124,7 @@ def register_subtask_callbacks(app, services):
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
         max_depth = normalize_max_depth(max_depth_val)
 
-        global_filters = filters_from(sidebar_filters)
+        global_filters = filters_with_community(graph_manager, sidebar_filters)
         if hide_blocked_val and "hide_blocked" in hide_blocked_val:
             global_filters['hide_blocked'] = True
         subtask_nodes, edges = collect_details_subtasks(
@@ -225,9 +226,9 @@ def register_subtask_callbacks(app, services):
         all_nodes = graph_manager.get_all_nodes(include_dormant=True)
         subtree = graph_manager.get_goal_subtree(selected_node)
         excluded = subtree | {selected_node}
-        options = [{"label": n.name, "value": n.name}
-                   for n in sorted(all_nodes, key=lambda n: n.name)
-                   if n.name not in excluded]
+        options = node_options(
+            [n for n in sorted(all_nodes, key=lambda n: n.name) if n.name not in excluded],
+            aliases=graph_manager.get_all_aliases())
         return True, options, None, "hard", ""
 
     @app.callback(

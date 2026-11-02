@@ -19,6 +19,7 @@ from skilltree.features.editor.form import (
 from skilltree.store import database
 from skilltree.store.commands import (
     ReopensDoneNodes, add_to_now, apply_dormancy, done_names, finish_bridge, handle_save,
+    remove_from_now,
     prior_node_for_completion,
 )
 from skilltree.store import settings
@@ -76,6 +77,11 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
             _prior_for_completion, status_done, pristine_snapshot)
         context, subctx = resolve_context_intent(
             _prior_for_completion, context, subctx, pristine_snapshot)
+        if context and context not in settings.CONTEXTS.get():
+            raise ValueError(f"'{context}' is no longer a context. Pick another one.")
+        if subctx and subctx not in settings.SUBCONTEXTS.get().get(context, []):
+            raise ValueError(f"'{subctx}' is no longer a subcontext of '{context}'. "
+                             "Pick another one, or none.")
         woke_from = woke_during_edit(
             events, (original_name or name).strip(), dormancy,
             pristine_snapshot)
@@ -211,11 +217,16 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
                 _saved.status = STATUS_OPEN
                 graph.update_node(_saved)
 
-        # The Now switch writes as it flips, but not on a node that is still
-        # Done: un-marking Done waits for Save. The save that reopens it, or
-        # creates it, adds it to Now. A full list doesn't refuse the save.
-        if now and not add_to_now(graph, name):
-            msg += ". Now is at its cap, so it wasn't added to Now"
+        # The Now switch counts only when it changed, so a change made from
+        # the menu while the form was open stands. A full list doesn't refuse
+        # the save.
+        loaded_now = bool(isinstance(pristine_snapshot, dict)
+                          and pristine_snapshot.get('now'))
+        if now and not loaded_now:
+            if not add_to_now(graph, name):
+                msg += ". Now is at its cap, so it wasn't added to Now"
+        elif loaded_now and not now:
+            remove_from_now(graph, name)
 
         # A new Hard prerequisite that isn't Done reopens the
         # Done node it leads to, and the Done nodes after it. The
@@ -244,6 +255,8 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
     # unsaved-changes check (sync_original_name_after_save).
     result = {"name": name, "via": via,
               "status_done": [STATUS_DONE] if _committed.status == STATUS_DONE else [],
+              "now": ["now"] if _committed.now else [],
+              "reopen_asked": bool(undo_pending),
               "form": form,
               "ts": int(time.time() * 1000)}
     if woke_from:

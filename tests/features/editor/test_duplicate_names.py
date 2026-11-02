@@ -115,3 +115,18 @@ def test_rename_cannot_take_another_nodes_name(monkeypatch, manager):
     assert "'Sleep' already exists" in response.message
     assert manager.get_node("Rest") is not None
     assert manager.get_node("Sleep").description == "keep me"
+
+
+def test_a_name_cant_be_another_nodes_alias(manager):
+    from skilltree.store.commands import node_with_alias
+    assert node_with_alias(manager, "shuteye") == "Sleep"
+    assert node_with_alias(manager, "Shuteye", original_name="Other") == "Sleep"
+    # A node may take its own alias as its name.
+    assert node_with_alias(manager, "Shuteye", original_name="Sleep") is None
+    assert node_with_alias(manager, "Nap") is None
+
+
+def test_an_alias_cant_be_another_nodes_name(manager):
+    with pytest.raises(ValueError, match="is the name of another node, 'Rest'"):
+        manager.set_aliases("Sleep", ["rest"])
+    assert manager.get_aliases("Sleep") == ["Shuteye"]

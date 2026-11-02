@@ -473,9 +473,7 @@ def register_settings_callbacks(app, services):
                             'context': new_contexts,
                             'subcontext': new_sub_flat,
                         },
-                        # Applied by handle_migration on Apply *and* on Skip:
-                        # skipping declines to rehome the orphans, not to make the
-                        # rename the user asked for.
+                        # Applied by handle_migration on Apply.
                         'ctx_renames': plan['ctx_renames'],
                         'pair_moves': plan['pair_moves'],
                 }

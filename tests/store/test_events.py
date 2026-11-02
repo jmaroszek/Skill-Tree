@@ -513,19 +513,22 @@ class TestDormantInvariant:
     """`Nodes.dormant` is one bit and lives apart from the node's event row,
     so nothing keeps them agreeing unless every writer says so."""
 
-    def test_a_node_its_event_woke_cannot_join_another(self, mgr, em):
+    def test_a_node_its_event_woke_can_sleep_in_another(self, mgr, em):
         mgr.add_node(make_node("Woken"))
         em.add_event(Event(name="First"))
         em.add_event(Event(name="Second"))
         em.add_node_to_event("First", "Woken")
         em.trigger_event("First")
 
-        with pytest.raises(ValueError, match="already woke from 'First'"):
-            em.add_node_to_event("Second", "Woken")
+        em.add_node_to_event("Second", "Woken")
 
-        assert mgr.get_node("Woken").dormant == 0
-        assert em.get_event_for_node("Woken") == "First"
+        assert mgr.get_node("Woken").dormant == 1
+        assert em.get_event_for_node("Woken") == "Second"
+        assert em.get_event_nodes("First") == []
         assert_invariant(em)
+        # The next launch's safety net has no old row to wake it from.
+        assert em.reconcile_dormant_flags() == 0
+        assert mgr.get_node("Woken").dormant == 1
 
     def test_adding_a_plain_node_to_an_event_still_sleeps_it(self, mgr, em):
         mgr.add_node(make_node("Fresh"))

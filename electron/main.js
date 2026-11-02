@@ -224,6 +224,7 @@ function createWindow(url) {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      devTools: !app.isPackaged,
     },
   });
   guardWindow(mainWindow.webContents);
@@ -238,10 +239,13 @@ function createWindow(url) {
   mainWindow.loadURL(url);
   mainWindow.on('closed', () => { mainWindow = null; });
   // F12 / Ctrl+Shift+I toggles DevTools (Windows and Linux have no menu to provide it).
-  mainWindow.webContents.on('before-input-event', (e, input) => {
-    const ctrlShiftI = input.control && input.shift && input.key.toLowerCase() === 'i';
-    if (input.key === 'F12' || ctrlShiftI) mainWindow.webContents.toggleDevTools();
-  });
+  // A packaged build has none.
+  if (!app.isPackaged) {
+    mainWindow.webContents.on('before-input-event', (e, input) => {
+      const ctrlShiftI = input.control && input.shift && input.key.toLowerCase() === 'i';
+      if (input.key === 'F12' || ctrlShiftI) mainWindow.webContents.toggleDevTools();
+    });
+  }
 }
 
 // The window shows the app and nothing else. Web and mail links open in the
@@ -294,7 +298,7 @@ if (!gotLock) {
     // macOS takes its clipboard shortcuts from the menu. Elsewhere the toolbar
     // is the whole title bar, and the shortcuts work without one.
     Menu.setApplicationMenu(process.platform === 'darwin'
-      ? Menu.buildFromTemplate(macMenuTemplate(app.name))
+      ? Menu.buildFromTemplate(macMenuTemplate(app.name, app.isPackaged))
       : null);
     launch();
   });

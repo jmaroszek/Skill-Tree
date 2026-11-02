@@ -116,20 +116,16 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     new_ctx_vals = new_values_by_field.get('context', [])
     subcontexts_map = subcontexts_by_context or {}
 
+    # Every node ends on a context that exists, so these are the only choices.
+    # Having no subcontext is fine, so that one can be cleared.
     ctx_options = [{"label": v, "value": v} for v in new_ctx_vals]
-    ctx_options += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
 
     def _sub_options_for(ctx_val):
         mode = settings.SUBCONTEXT_SORT_MODE.get()
-        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
-        else:
-            subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss], mode
-            )
+        subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         opts = [{"label": s, "value": s} for s in subs]
-        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
-        return opts, (subs[0] if subs else "__keep__")
+        opts.append({"label": "Clear (set to none)", "value": "__clear__"})
+        return opts, (subs[0] if subs else "__clear__")
 
     def _bulk_row(group_i, ctx_dd_type, sub_dd_type, btn_type, ctx_default, sub_opts, sub_default):
         return dbc.Row([
@@ -181,10 +177,10 @@ def build_migration_content(orphans_by_field, new_values_by_field,
         children.append(html.H5("Context Changes", className="mt-3 mb-2"))
         for group_i, (old_val, nodes) in enumerate(ctx_orphans.items()):
             renamed_to = rename_map.get(old_val)
-            bulk_ctx_default = renamed_to or (new_ctx_vals[0] if new_ctx_vals else "__keep__")
+            bulk_ctx_default = renamed_to or (new_ctx_vals[0] if new_ctx_vals else None)
             bulk_sub_opts, bulk_sub_default = _sub_options_for(bulk_ctx_default)
             if renamed_to:
-                bulk_sub_default = "__keep__"
+                bulk_sub_default = "__clear__"
 
             node_rows = []
             for n in nodes:
@@ -238,16 +234,17 @@ def build_migration_content(orphans_by_field, new_values_by_field,
     if sub_orphans:
         children.append(html.H5("Subcontext Changes", className="mt-3 mb-2"))
         for group_i, (old_val, nodes) in enumerate(sub_orphans.items()):
-            # Smart default: if old label is "ctx > sub" and `sub` now lives
-            # under exactly one new parent, pre-pick that (parent, sub).
-            default_ctx = "__keep__"
-            default_sub = "__keep__"
-            if " > " in old_val:
-                _, sub_name = old_val.split(" > ", 1)
-                candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
-                if len(candidates) == 1:
-                    default_ctx = candidates[0]
-                    default_sub = sub_name
+            # The node stays in its context, with no subcontext. Smart default:
+            # if old label is "ctx > sub" and `sub` now lives under exactly one
+            # new parent, pre-pick that (parent, sub).
+            parent, _, sub_name = old_val.partition(" > ")
+            default_ctx = (parent if parent in new_ctx_vals
+                           else new_ctx_vals[0] if new_ctx_vals else None)
+            default_sub = "__clear__"
+            candidates = [c for c, ss in subcontexts_map.items() if sub_name in ss]
+            if len(candidates) == 1:
+                default_ctx = candidates[0]
+                default_sub = sub_name
             sub_opts, _ = _sub_options_for(default_ctx)
 
             node_rows = []
@@ -293,10 +290,9 @@ def build_migration_modal():
         dbc.ModalBody(id="migration-modal-body"),
         dbc.ModalFooter([
             cancel_action("Cancel", "btn-migration-cancel", className="me-auto"),
-            # A refused Apply or Skip says why here. The choices above stay put
+            # A refused Apply says why here. The choices above stay put
             # for another try, and nothing has been saved.
             html.Span(id="migration-error", className="text-danger me-2"),
-            cancel_action("Skip (keep old values)", "btn-migration-skip", className="me-2"),
             primary_action("Apply Migrations", "btn-migration-apply"),
         ])
     ], id="modal-migration", size="xl", is_open=False, centered=True, backdrop="static")
@@ -308,16 +304,16 @@ def _apply_per_node_migrations(manager, entries: list, ctx_vals: list, sub_vals:
 
     Each `entries[i]` carries a 'node_name' field; ctx_vals[i] and sub_vals[i]
     are the chosen new values from the modal's per-node dropdowns.
-    `__keep__` is a no-op; `__clear__` clears the field (handled inside
-    `apply_node_migration` via the sentinel).
+    `__clear__` clears the field (handled inside `apply_node_migration` via the
+    sentinel).
     """
     for i, entry in enumerate(entries):
         ctx_val = ctx_vals[i] if i < len(ctx_vals) else None
         sub_val = sub_vals[i] if i < len(sub_vals) else None
-        if ctx_val and ctx_val != '__keep__':
+        if ctx_val:
             manager.apply_node_migration(entry['node_name'], 'context',
                                          ctx_val, new_subcontexts)
-        if sub_val and sub_val != '__keep__':
+        if sub_val:
             manager.apply_node_migration(entry['node_name'], 'subcontext',
                                          sub_val, new_subcontexts)
 
@@ -337,7 +333,6 @@ def register_migration_callbacks(app, services):
         Output('settings-modal', 'is_open', allow_duplicate=True),
         Input('pending-settings-store', 'data'),
         Input('btn-migration-apply', 'n_clicks'),
-        Input('btn-migration-skip', 'n_clicks'),
         Input('btn-migration-cancel', 'n_clicks'),
         State({"type": "migration-cgc-node", "index": dash.ALL}, "value"),
         State({"type": "migration-cgs-node", "index": dash.ALL}, "value"),
@@ -347,9 +342,9 @@ def register_migration_callbacks(app, services):
         State('pending-settings-store', 'data'),
         prevent_initial_call=True,
         running=[(Output(button, 'disabled'), True, False)
-                 for button in ('btn-migration-apply', 'btn-migration-skip', 'btn-migration-cancel')],
+                 for button in ('btn-migration-apply', 'btn-migration-cancel')],
     )
-    def handle_migration(pending_data, apply_clicks, skip_clicks, cancel_clicks,
+    def handle_migration(pending_data, apply_clicks, cancel_clicks,
                          cgc_node_values, cgs_node_values,
                          sgc_node_values, sgs_node_values,
                          mapping_data, pending_state):
@@ -381,16 +376,14 @@ def register_migration_callbacks(app, services):
             # context removals, so the user can correct it without losing edits.
             return False, [], None, dash.no_update, "", None, "", dash.no_update
 
-        if trigger_id in ('btn-migration-apply', 'btn-migration-skip') and pending_state:
+        if trigger_id == 'btn-migration-apply' and pending_state:
             try:
                 # One transaction: the renames, the settings and any rehoming
                 # are saved together or not at all.
                 with database.transaction():
                     # The renames and moves the editor already resolved go on
-                    # first, on Skip as well as Apply: skipping declines to rehome
-                    # the stranded nodes, not to make the rename that was asked
-                    # for. Doing it here rather than at Save is what makes Cancel
-                    # leave the graph untouched.
+                    # first. Doing it here rather than at Save is what makes
+                    # Cancel leave the graph untouched.
                     manager.apply_taxonomy_migration(
                         pending_state.get('ctx_renames', {}),
                         pending_state.get('pair_moves', []),
@@ -398,7 +391,7 @@ def register_migration_callbacks(app, services):
 
                     apply_settings(pending_state)
 
-                    if trigger_id == 'btn-migration-apply' and mapping_data:
+                    if mapping_data:
                         new_subcontexts = pending_state.get('subcontexts', {})
 
                         ctx_nodes = mapping_data.get('ctx_nodes', []) if isinstance(mapping_data, dict) else []
@@ -423,16 +416,10 @@ def register_migration_callbacks(app, services):
 
     def _filtered_sub_options(ctx_val, subcontexts_map):
         mode = settings.SUBCONTEXT_SORT_MODE.get()
-        if ctx_val and ctx_val not in ('__keep__', '__clear__'):
-            subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
-        else:
-            subs = sort_subcontexts(
-                [s for ss in subcontexts_map.values() for s in ss], mode
-            )
+        subs = sort_subcontexts(subcontexts_map.get(ctx_val, []), mode)
         opts = [{"label": s, "value": s} for s in subs]
-        opts += [{"label": "Keep existing", "value": "__keep__"}, {"label": "Clear (set to none)", "value": "__clear__"}]
-        default = subs[0] if subs else "__keep__"
-        return opts, default
+        opts.append({"label": "Clear (set to none)", "value": "__clear__"})
+        return opts, (subs[0] if subs else "__clear__")
 
     def _per_row_filter(ctx_vals, sub_vals, pending_data):
         """Shared body for per-node ctx→sub cascading callbacks.

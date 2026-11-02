@@ -1595,15 +1595,23 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     border-color: var(--st-text-dim) !important;
 }
 
-/* Event descriptions use rendered lines rather than a character estimate, so
-   proportional glyph widths cannot make nominally equal excerpts vary from
-   one to four lines. The app targets Chromium/Electron, where this specified
-   legacy form of line clamping is stable. */
-.event-card-description {
+/* Goal and event descriptions use rendered lines rather than a character
+   estimate, so proportional glyph widths cannot make nominally equal excerpts
+   vary from one to four lines. The app targets Chromium/Electron, where this
+   specified legacy form of line clamping is stable. */
+.list-card-description {
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 2;
     overflow: hidden;
+}
+
+/* The words a search found in text the card shows. */
+.search-match {
+    padding: 0;
+    border-radius: 2px;
+    background-color: rgba(243, 156, 18, 0.25);
+    color: inherit;
 }
 
 /* --- Type-adaptive editor section transitions --- */
@@ -2023,6 +2031,19 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 .review-history-table .review-history-actions:focus-within {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* The table can be wider than its panel, so the pencil's cell stays at the
+   panel's edge. It covers what scrolls beneath it only while the pencil shows. */
+.details-subtasks-table .details-subtask-actions-cell {
+    position: sticky;
+    right: 0;
+}
+
+.details-subtasks-table .details-subtask-row:hover .details-subtask-actions-cell,
+.details-subtasks-table .details-subtask-actions-cell:focus-within {
+    background-color: var(--st-bg-panel);
+    z-index: 1;
 }
 
 /* Keep long node names from dictating the whole Details table grid. The
@@ -2502,6 +2523,9 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     --bs-btn-hover-border-color: transparent;
     --bs-btn-hover-color: var(--st-text-strong);
     --bs-btn-active-bg: var(--st-ghost-active-dark);
+    --bs-btn-active-border-color: transparent;
+    /* btn-link's active color is the theme's green link color. */
+    --bs-btn-active-color: var(--st-text-strong);
     --bs-btn-focus-shadow-rgb: 108, 117, 125;
     box-shadow: none;
     border: 0;
@@ -2514,6 +2538,29 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+/* The count between a stepper's buttons: plain text that can be typed over. */
+.form-control.next-count-input {
+    field-sizing: content;
+    width: auto;
+    min-width: 18px;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: inherit;
+    line-height: inherit;
+    text-align: center;
+}
+
+.form-control.next-count-input:focus {
+    background: transparent;
+    box-shadow: 0 1px 0 var(--st-text-dim);
+    color: inherit;
 }
 
 /* Swaps a pair, such as the bridge dialog's Start and End: a stepper in the

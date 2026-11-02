@@ -36,6 +36,8 @@
         'details-max-depth',
         'filter-context',
         'filter-subcontext',
+        'filter-community',
+        'community-method',
         'filter-done',
         'filter-value',
         'filter-interest',
@@ -70,7 +72,8 @@
         request: function (node, soft, helps, depth, context, subcontext, done,
                            value, interest, time, difficulty, types, dormant,
                            hideBlocked, timeUnit, version, settings,
-                           settledToken, activeTab, timeMin, search, freezeOn) {
+                           settledToken, activeTab, timeMin, search, community,
+                           communityMethod, freezeOn) {
             var activeNode = activeTab === 'tab-details' ? node : null;
             var triggered = triggeredIds();
             var layoutChanged = triggered.some(function (id) {
@@ -113,7 +116,7 @@
                 value: value, interest: interest, time: time,
                 difficulty: difficulty, types: types, dormant: dormant,
                 hideBlocked: hideBlocked, timeUnit: timeUnit, timeMin: timeMin,
-                search: search
+                search: search, community: community, communityMethod: communityMethod
             };
         },
         // The registered callback: the chart's request, and the server's.

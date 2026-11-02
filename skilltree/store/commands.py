@@ -58,9 +58,8 @@ def handle_save(manager, name, n_type, desc, val, time_o, time_m, time_p, intere
         node.actual_time_point = existing.actual_time_point
         node.actual_time_unit = existing.actual_time_unit
         node.calibration_dismissed = existing.calibration_dismissed
-        # The Now flag is mutated by dispatch_now_toggle (a direct DB
-        # write outside this form), so preserve the latest DB value. Same
-        # for the lifecycle dates and reflection columns — set elsewhere or
+        # The save applies the Now switch after this, so this keeps the
+        # latest DB value until then. Same for the lifecycle dates and reflection columns — set elsewhere or
         # not yet wired into the editor.
         node.now = existing.now
         node.start_date = existing.start_date
@@ -107,6 +106,14 @@ def add_to_now(manager, name):
 
 
 @database.atomic
+def remove_from_now(manager, name):
+    """Take `name` off the Now list, if it is there."""
+    node = manager.get_node(name)
+    if node is not None and node.now:
+        node.now = 0
+        manager.update_node(node)
+
+
 def apply_dormancy(manager, events, name, dormancy, was_dormant):
     """Write the editor's Dormant switch and Event section for a saved node.
 
@@ -135,8 +142,8 @@ def apply_dormancy(manager, events, name, dormancy, was_dormant):
     delay_days = d.get('delay_days') or 0
     current = events.get_node_membership(name) if was_dormant else None
     if current is None:
-        # Refuses a node that already has an event, including one its event
-        # already woke: that row keeps it awake for good.
+        # Refuses a node waiting on an event. One its event already woke sleeps
+        # again, and this row replaces that one.
         events.add_node_to_event(event, name, delay_days, now_on_trigger=now)
     elif current['event'] != event:
         events.move_node_to_event(current['event'], name, event,
@@ -417,6 +424,16 @@ def conflicting_node_name(manager, name, original_name=None):
     for node in manager.get_all_nodes(include_dormant=True):
         if node.name != own and node.name.casefold() == wanted:
             return node.name
+    return None
+
+
+def node_with_alias(manager, name, original_name=None):
+    """The other node that answers to ``name`` as an alias, or None."""
+    wanted = (name or "").strip().casefold()
+    own = (original_name or "").strip()
+    for alias, owner in manager.get_all_aliases().items():
+        if owner != own and alias.casefold() == wanted:
+            return owner
     return None
 
 

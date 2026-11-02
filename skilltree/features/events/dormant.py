@@ -11,6 +11,7 @@ from skilltree.features.events.layout import (
 )
 from skilltree.store import database
 from skilltree.ui import payloads as bridge_payloads
+from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.duration import duration_to_days, format_duration_days
 from skilltree.ui.prerender import prerendered
 
@@ -133,21 +134,19 @@ def register_dormant_callbacks(app, services):
         else:
             return (no_update,) * _N
 
-        # A node belongs to one event, and one its event already woke can't
-        # sleep again, so only nodes with no event at all are offered. A
-        # finished node has nothing to wait for; the editor won't make a Done
-        # node dormant either.
-        taken = event_manager.get_nodes_in_events()
-        live = [n.name for n in graph_manager.get_all_nodes()
-                if not n.dormant and n.name not in taken and n.status != STATUS_DONE]
-        live_set = set(live)
+        # A node belongs to one event, so only awake nodes are offered, including
+        # one its event already woke. A finished node has nothing to wait for;
+        # the editor won't make a Done node dormant either.
+        live = [n for n in graph_manager.get_all_nodes()
+                if not n.dormant and n.status != STATUS_DONE]
+        live_set = {n.name for n in live}
         events = [{"label": e.name, "value": e.name}
                   for e in event_manager.get_all_events() if e.status == "Pending"]
         if target not in {e["value"] for e in events}:
             target = None
         return (
             True,
-            [{"label": n, "value": n} for n in live],
+            node_options(live, aliases=graph_manager.get_all_aliases()),
             [n for n in picked if n in live_set],
             events,
             target,

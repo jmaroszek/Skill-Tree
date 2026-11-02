@@ -91,11 +91,11 @@ def test_the_editor_adopts_only_a_name_that_was_saved(manager):
 
     # No committed save (the refused duplicate): the editor stays a new node,
     # even though a node called "Sleep" exists.
-    assert run(None) == (dash.no_update,) * 4
+    assert run(None) == (dash.no_update,) * 5
     # The unsaved dialog's save moves on to another node instead.
-    assert run({"name": "Sleep", "via": "btn-unsaved-save", "ts": 1}) == (dash.no_update,) * 4
+    assert run({"name": "Sleep", "via": "btn-unsaved-save", "ts": 1}) == (dash.no_update,) * 5
 
-    original, name, _aliases, snapshot = run({"name": "Sleep", "via": "btn-save", "ts": 2})
+    original, name, _aliases, snapshot, _now = run({"name": "Sleep", "via": "btn-save", "ts": 2})
     assert original == "Sleep" and name == "Sleep" and snapshot
 
 
@@ -107,5 +107,5 @@ def test_the_new_baseline_is_the_form_that_was_saved(manager):
     sync = _registered()["sync_original_name_after_save"]
     saved = editor_form(name="Sleep", desc="as saved")
     result = {"name": "Sleep", "via": "btn-save", "form": saved, "ts": 3}
-    *_, snapshot = call(sync, save_result=result, name="Sleep", desc="typed since")
+    *_, snapshot, _now = call(sync, save_result=result, name="Sleep", desc="typed since")
     assert snapshot["desc"] == "as saved"
