@@ -1,5 +1,7 @@
 'use strict';
 
+const path = require('path');
+
 // Do not let an imported UNC root make a native dialog visit another host.
 // Import also clears device-local roots, so a newly selected local root is
 // still a convenient starting folder for later Browse clicks.
@@ -14,6 +16,9 @@ function localStartingPath(value) {
 
 // getPort returns the server's port, which is only known once it is ready.
 function registerResourceDialog(ipcMain, dialog, getWindow, getPort) {
+  // Dialogs with no defaultPath open in Downloads, not where the user last
+  // was. A pick with no root of its own starts where the last pick ended.
+  let lastFolder;
   ipcMain.handle('skilltree:pick-file', async (event, options) => {
     const senderUrl = new URL(event.senderFrame.url);
     const port = getPort();
@@ -24,10 +29,12 @@ function registerResourceDialog(ipcMain, dialog, getWindow, getPort) {
     const opts = options && typeof options === 'object' ? options : {};
     const result = await dialog.showOpenDialog(getWindow(), {
       title: typeof opts.title === 'string' ? opts.title.slice(0, 100) : 'Select file',
-      defaultPath: localStartingPath(opts.defaultPath),
+      defaultPath: localStartingPath(opts.defaultPath) || lastFolder,
       properties: [opts.directory ? 'openDirectory' : 'openFile'],
     });
-    return result.canceled ? '' : result.filePaths[0] || '';
+    const picked = result.canceled ? '' : result.filePaths[0] || '';
+    if (picked) lastFolder = localStartingPath(opts.directory ? picked : path.dirname(picked));
+    return picked;
   });
 }
 
