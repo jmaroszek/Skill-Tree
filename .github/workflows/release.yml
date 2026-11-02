@@ -117,6 +117,13 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: npx electron-builder ${{ matrix.target }} --publish never
 
+      # A copy keeps the publisher names it was built with, so a wrong one
+      # can't be fixed by a later release.
+      - name: Installed copies accept this installer
+        if: runner.os == 'Windows' && env.TAGGED == 'true'
+        working-directory: electron
+        run: node build/check-update-signature.js dist
+
       - name: Install Windows package and inspect shortcuts
         if: runner.os == 'Windows'
         shell: pwsh
