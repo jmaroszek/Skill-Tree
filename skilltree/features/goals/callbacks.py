@@ -333,7 +333,6 @@ def register_goals_callbacks(app, services):
     # Feedback expires in the browser, including while the editor is closed.
     app.clientside_callback(
         ClientsideFunction(namespace='editor', function_name='expire_feedback'),
-        Output('editor-feedback-timer-store', 'data'),
         Input('save-output', 'children'),
         prevent_initial_call=True,
     )
