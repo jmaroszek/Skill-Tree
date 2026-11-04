@@ -65,7 +65,6 @@ FS_2XL = "var(--st-fs-2xl)"
 FS_HEADING = "var(--st-fs-heading)"
 FS_DISPLAY = "var(--st-fs-display)"
 
-FONT_MONO = "var(--st-font-mono)"
 
 # --- Spacing ----------------------------------------------------------------
 # Bootstrap utility classes carry almost all spacing. These two name the

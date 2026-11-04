@@ -30,6 +30,20 @@
     --st-bg-panel: #212529;       /* sidebars, list panels, unselected cards */
     --st-bg-raised: #2b3035;      /* cards, tooltips, selected states, menus */
     --st-bg-sunken: #343a40;      /* pressed states, table rules */
+    /* Modals, popovers and toasts. A step above bg-raised, so a raised card
+       or a selected row still shows on one. */
+    --st-bg-modal: #2f343a;
+
+    /* DARKLY's surfaces are neutral greys (#222, #303030), which clash with
+       the cool ones above. Its stylesheet loads first, so these win. The
+       -rgb values have to be literal: Bootstrap builds rgba() from them. */
+    --bs-body-bg: var(--st-bg-panel);
+    --bs-body-bg-rgb: 33, 37, 41;
+    --bs-secondary-bg: var(--st-bg-modal);
+    --bs-secondary-bg-rgb: 47, 52, 58;
+    --bs-tertiary-bg: var(--st-bg-raised);
+    --bs-tertiary-bg-rgb: 43, 48, 53;
+    --bs-border-color: var(--st-border-panel);
 
     --st-border-panel: #495057;   /* panel dividers, card borders, hr */
     --st-sidebar-width: 350px;    /* editor, Goals, Events, Filters */
@@ -123,8 +137,6 @@
     --st-fs-2xl: 1.4rem;     /* sidebar-header adders */
     --st-fs-heading: 1.6rem; /* Details empty-state heading */
     --st-fs-display: 2.4rem; /* the one celebratory glyph */
-
-    --st-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
     /* ---- Geometry -------------------------------------------------------- */
     --st-radius-sm: 4px;

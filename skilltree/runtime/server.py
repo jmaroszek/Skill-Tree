@@ -244,13 +244,13 @@ def hand_over(lock: InstanceLock, options: LaunchOptions) -> int:
 
 _REFUSED_PAGE = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Skill Tree</title></head>
-<body style="background:#222;color:#dee2e6;font-family:sans-serif;margin:3rem">
+<body style="background:#212529;color:#dee2e6;font-family:sans-serif;margin:3rem">
 <h1 style="font-weight:400">Skill Tree</h1>
 <p>{message}</p></body></html>"""
 
 _SESSION_BOOTSTRAP = """<!doctype html>
 <html><head><meta charset="utf-8"><title>Skill Tree</title></head>
-<body style="background:#222;color:#dee2e6;font-family:sans-serif;margin:3rem">
+<body style="background:#212529;color:#dee2e6;font-family:sans-serif;margin:3rem">
 <p id="message">Opening Skill Tree&hellip;</p>
 <script>
 try {

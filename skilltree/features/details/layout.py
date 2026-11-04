@@ -629,7 +629,6 @@ def build_details_suggestions(goal_rows, explore_rows, filters_active=False):
         return html.Div([
             html.H6(title, className="text-muted mb-2",
                     style={"fontSize": tokens.FS_CAP, "fontWeight": "500",
-                           "letterSpacing": "1px", "textTransform": "uppercase",
                            "marginTop": "20px" if sections else "12px"}),
             html.Div(rows),
         ])

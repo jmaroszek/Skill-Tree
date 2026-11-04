@@ -42,6 +42,14 @@ naming the reason, so it stays visible rather than hiding in a list.
 
 Bootstrap DARKLY (Bootswatch 5.3.6) via `dash-bootstrap-components`.
 
+### Surfaces
+
+Every dark surface is the same cool grey family, from `--st-bg-canvas` up to
+`--st-bg-modal`. DARKLY's own surfaces are neutral (`#222`, `#303030`), and beside
+cool panels they read as a mistake, so `tokens.css` and the end of `theme.css`
+replace them. The page and a sidebar are the same colour, and a border separates
+them. A new Bootstrap component that shows a neutral grey gets the same override.
+
 ### App icon
 
 `assets/skill_tree_logo.svg` is the editable source for the app icon. Its flat,
@@ -279,9 +287,16 @@ Dividers are focusable separators and resize with their axis's arrow keys.
 
 **Never use `html.Div` with a manual fontSize/fontWeight for a section header.**
 
+Headings and labels use normal capitalization, never small spaced-out capitals.
+
 Headings keep Bootstrap's heading weight (500). The vendored Lato has only
 400 and 700, so 500 renders regular and anything from 600 up renders bold. A
 heading set to 600 looks like a different font beside the app's others.
+
+### One typeface
+
+Everything is Lato. There is no monospace, not for captions and not for numbers.
+Lato's digits all share one width, so number columns line up without one.
 
 ### The type scale
 
@@ -372,7 +387,6 @@ stay calendar.
 | Compact inline label | `dbc.Label("Name", className="small text-muted mb-0")` | Grouped inputs in a Row (Lower, Expected, Upper) |
 | Settings help | `html.Small("…", className="settings-help")`, or `_switch_help` under a switch | Under a field in Settings |
 | Helper text (paragraph) | `html.P("description", className="text-muted small")` | After textarea inputs in settings |
-| Formula | `html.Small("formula", className="text-muted d-block mb-1", style={"fontFamily": "monospace"})` | Algorithm formulas |
 
 ## Buttons
 
@@ -687,7 +701,7 @@ surface performs one action. Reset its browser chrome in a scoped class, retain
 the standard card colors above, and provide a visible `:focus-visible` outline.
 
 The Details empty-state pattern is `.details-suggestion-row`: the name, with
-the context alone on a muted mono line below. Every suggestion is a Goal, so the
+the context alone on a muted line below. Every suggestion is a Goal, so the
 card has no type strip or type label. The subcontext is left out, since a Goal's
 subcontext often repeats its own name. The corner badge matches the Goal's card in the
 Goals sidebar, and both come from `_goal_corner_badge`. Priority Goals show
@@ -971,8 +985,7 @@ instead of a delete plus an add. The Contexts tab is the example; its model is
 in `skilltree/domain/contexts.py` and its rows in `build_context_editor_rows`.
 
 - **One row, one centre line.** The rows sit straight on the page, unboxed
-  and unfilled, divided by hairlines like the page's sections. `--st-bg-panel`
-  is a cool grey that clashes with the modal's neutral `#303030`. The name,
+  and unfilled, divided by hairlines like the page's sections. The name,
   priority and row buttons share one 30px control height, and chips are 26px.
   Chip text is one step smaller (`--st-fs-cap`) than the name, and the name
   column carries extra trailing space (`--ctx-name-gap`), so a name reads as

@@ -87,8 +87,6 @@ def _explain_summary_table(breakdown: dict, normalized):
 
     header_style = {
         "fontWeight": "700",
-        "letterSpacing": "0.06em",
-        "textTransform": "uppercase",
         "fontSize": tokens.FS_LG,
         "color": "#fff",  # literal: on a coloured tile
         "backgroundColor": tokens.BG_PANEL,

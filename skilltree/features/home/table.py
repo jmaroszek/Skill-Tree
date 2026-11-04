@@ -14,7 +14,6 @@ from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.components.duration import format_time_friendly
 
-_MONO_FONT = tokens.FONT_MONO
 
 
 # The Next priority bar: a tinted fill with a solid edge at its end. The edge
@@ -160,7 +159,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     """Render the top-scored nodes as bar-chart rows with normalized priority scores (0-100).
 
     Each row encodes:
-      - rank (two-digit monospace label, leftmost)
+      - rank (two-digit label, leftmost)
       - name + context line
       - priority bar (color = type, or the Unblocking accent for a step; length = priority/maxPriority)
       - time + V/I/E micro-chart + Obsidian/Drive/Website link dots
@@ -244,7 +243,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
         rank_col = html.Div(
             "↳" if step_target else str(rank),
             style={
-                "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XL,
+                "fontSize": tokens.FS_XL,
                 "color": step_color if step_target else tokens.TEXT_DIM,
                 "textAlign": "center",
                 "lineHeight": "1",
@@ -295,7 +294,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             ),
             html.Div(ctx_children, style={
                 "fontSize": tokens.FS_SM, "color": tokens.TEXT_DIM,
-                "fontFamily": _MONO_FONT,
                 "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
                 "lineHeight": "1.35",
             }),
@@ -306,7 +304,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
             html.Span(
                 str(priority_int),
                 style={
-                    "fontFamily": _MONO_FONT, "fontSize": tokens.FS_BASE,
+                    "fontSize": tokens.FS_BASE,
                     "fontWeight": "600", "color": "#fff",  # literal: on a coloured tile
                     "textShadow": "0 1px 1px rgba(0,0,0,0.5)",
                 },
@@ -358,7 +356,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
 
         meta_col = html.Div([time_label, micro_chart, dots], style={
             "display": "flex", "alignItems": "center", "gap": f"{META_GAP}px",
-            "fontFamily": _MONO_FONT, "fontSize": tokens.FS_XS,
+            "fontSize": tokens.FS_XS,
         })
 
         row_style = {
@@ -446,7 +444,7 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
         time_label = html.Span(
             format_time_friendly(eff_time, force_one_decimal=True),
             style={"color": tokens.TEXT_SOFT, "fontSize": tokens.FS_ROW_META,
-                   "fontFamily": _MONO_FONT, "fontWeight": "500",
+                   "fontWeight": "500",
                    "flexShrink": "0"},
         )
 
@@ -469,7 +467,7 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
 
         # --- Context subtitle ---
         ctx_line = html.Div(ctx_children, style={
-            "fontSize": tokens.FS_BASE, "color": tokens.TEXT_DIM, "fontFamily": _MONO_FONT,
+            "fontSize": tokens.FS_BASE, "color": tokens.TEXT_DIM,
             "whiteSpace": "nowrap", "overflow": "hidden", "textOverflow": "ellipsis",
             "lineHeight": "1.35",
             "minHeight": "17px",

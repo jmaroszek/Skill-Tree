@@ -130,6 +130,40 @@ def test_every_css_variable_used_in_a_stylesheet_is_defined():
     assert not missing, f"Undefined CSS variables referenced: {missing}"
 
 
+def _app_sources():
+    for path in [*app_asset_files(".css"), *app_asset_files(".js"),
+                 *(ROOT / name for name in UI_MODULES)]:
+        yield path, path.read_text(encoding="utf-8")
+
+
+def test_the_app_has_one_typeface():
+    """Monospace captions and numbers read as decoration. Lato's digits share
+    one width, so a number column does not need them to line up."""
+    found = [path.name for path, source in _app_sources()
+             if re.search(r"monospace|--st-font-mono|FONT_MONO", source)]
+    assert not found, f"Monospace is back in: {found}"
+
+
+def test_labels_use_normal_capitalization():
+    """Small spaced-out capitals sat beside headings written normally."""
+    pattern = r"text-?transform[\"']?\s*:\s*[\"']?uppercase"
+    found = [path.name for path, source in _app_sources()
+             if re.search(pattern, source, re.I)]
+    assert not found, f"Uppercase labels are back in: {found}"
+
+
+def test_bootstrap_surfaces_stay_in_the_cool_family():
+    """DARKLY's neutral page sat beside cool panels, and nobody chose that.
+    Bootstrap builds rgba() from the -rgb twin, so it must match its colour."""
+    css = TOKENS_CSS.read_text(encoding="utf-8")
+    for bs_name, token in [("body", "--st-bg-panel"), ("secondary", "--st-bg-modal"),
+                           ("tertiary", "--st-bg-raised")]:
+        assert re.search(rf"--bs-{bs_name}-bg:\s*var\({token}\)", css)
+        value = re.search(rf"{token}:\s*#([0-9a-f]{{6}})", css).group(1)
+        twin = re.search(rf"--bs-{bs_name}-bg-rgb:\s*(\d+), (\d+), (\d+)", css).groups()
+        assert [int(n) for n in twin] == [int(value[i:i + 2], 16) for i in (0, 2, 4)]
+
+
 def test_text_secondary_matches_what_bootstraps_text_muted_resolves_to():
     """The collision that started this.
 

@@ -28,7 +28,7 @@
             if (!items.length) continue;
             const children = [el('Div', {
                 children: title + '  ' + items.length,
-                style: {fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
+                style: {fontSize: 'var(--st-fs-sm)',
                         color: 'var(--st-text-dim)', margin: '1.25rem 0 0.4rem',
                         whiteSpace: 'pre', gridColumn: '1 / -1'},
             })];
@@ -41,7 +41,7 @@
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             color: done ? 'var(--st-text-dim)' : 'var(--st-text-primary)'}}),
                         el('Span', {children: tag, style: {
-                            fontFamily: 'var(--st-font-mono)', fontSize: 'var(--st-fs-sm)',
+                            fontSize: 'var(--st-fs-sm)',
                             color: 'var(--st-text-dim)', flexShrink: 0}}),
                     ],
                     style: {display: 'grid', gridTemplateColumns: 'subgrid', gridColumn: '1 / -1',
