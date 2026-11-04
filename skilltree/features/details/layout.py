@@ -692,7 +692,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                                   direction=DIRECTION_NEEDS):
     """Builds the subtasks table for any node's detail view.
 
-    Columns: Name | Status | Relationship | Type | Context | Subcontext |
+    Columns: Name | Status | Link | Type | Context | Subcontext |
              Priority | Value | Interest | Effort | Time | Edit
 
     Priority is computed via the same ROI scoring algorithm used in the
@@ -709,7 +709,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
             Milestones shown in the strip above, so the empty table says that.
         direction: ``"needs"`` for the prerequisites leading into
             ``parent_name``, ``"supports"`` for the nodes it leads to. It
-            decides which way the Relationship column looks.
+            decides which way the Link column looks.
     """
     supports = direction == DIRECTION_SUPPORTS
     if not subtask_nodes:
@@ -866,7 +866,7 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         html.Thead(html.Tr([
             html.Th("Name", className="details-subtask-name-heading"),
             html.Th("Status"),
-            html.Th("Relationship"),
+            html.Th("Link"),
             html.Th("Type"),
             html.Th("Context"),
             html.Th("Subcontext"),

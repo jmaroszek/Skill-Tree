@@ -1080,9 +1080,9 @@ column.
 
 The Details subtasks Name column is fixed at 360px. Its link is a single-line
 ellipsis and its `title` contains the complete node name; long names must not
-move or crowd the Status, Relationship, and classification columns.
+move or crowd the Status, Link, and classification columns.
 
-Its Status and Relationship columns are muted text, like the columns beside
+Its Status and Link columns are muted text, like the columns beside
 them. A badge on every row flags nothing. The table's sort order and its
 toggles already separate these values.
 
