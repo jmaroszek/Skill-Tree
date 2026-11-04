@@ -848,10 +848,16 @@ always-visible field when it is commonly used.
 
 A mutually-exclusive choice is a `dbc.RadioItems` with `inline=True` when the
 options are short (`event-trigger-type`, `event-trigger-mode`) and stacked when
-the labels run long. Every radio group in the app is currently inline; the
-stacked variant lost its last example when the priority override was retired,
-so match the inline ones unless your labels genuinely won't fit. Use a
-`dbc.Checklist` only for independent toggles — see the pill group below.
+the labels run long. Options that each need a sentence of explanation are a
+choice-card list instead (`settings-choice-list`, Scoring Profile). Otherwise
+match the inline groups. Use a `dbc.Checklist` only for independent toggles —
+see the pill group below.
+
+Every radio is the same control, drawn once in `theme.css`: a hollow ring in
+the dim border color, which fills with an accent ring and dot when chosen. It
+takes the accent, not Darkly's slate, so it matches the choice cards' border.
+Don't restyle a radio per feature. Checkboxes and switches are separate
+controls and keep Bootstrap's look.
 
 Once a choice grows past two or three options, switch to a `dbc.Select`
 instead of letting radios wrap or crowd a shared row. A choice that only
@@ -863,8 +869,9 @@ sort criterion stays visible in a dropdown.
 Size carries the nesting. A radio that *is* the section's question runs at the
 default size. A radio that refines a choice already made above it drops to
 `style={"fontSize": "0.85rem"}`, so it reads as a detail rather than competing
-with its parent. The Any/All selector inside the Node Completion trigger sits
-at this second level.
+with its parent. The Any/All selector inside the Node Completion trigger is
+meant to sit at this second level, but it currently runs at `FS_BASE`, the
+same as Trigger Type above it.
 
 Help text under either sits in `html.Small(className="text-muted d-block mb-2",
 style={"fontSize": "0.8rem"})`.

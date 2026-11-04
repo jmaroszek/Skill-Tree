@@ -913,6 +913,39 @@
     margin-right: 0;
 }
 
+/* --- Radio buttons: one control everywhere --- */
+/* Darkly paints a radio as a white disc with a slate dot. On this theme that
+   disc outshouts its label, and the slate is not the accent the choice cards
+   use. A radio is a hollow ring that fills with the accent when chosen. The
+   selectors match Bootstrap's own specificity (`:checked[type=radio]`) so its
+   dot image and fill are replaced rather than layered under. Checkboxes and
+   switches are not touched. */
+.form-check-input[type="radio"] {
+    background-color: transparent;
+    background-image: none;
+    border: 1.5px solid var(--st-text-dim);
+    transition: border-color var(--st-transition-fast), background-color var(--st-transition-fast);
+}
+.form-check-input[type="radio"]:hover:not(:checked):not(:disabled) {
+    border-color: var(--st-text-soft);
+}
+.form-check-input[type="radio"]:checked {
+    background-color: transparent;
+    background-image: radial-gradient(circle, var(--st-accent) 0 42%, transparent 46%);
+    border-color: var(--st-accent);
+}
+.form-check-input[type="radio"]:focus-visible {
+    border-color: var(--st-accent);
+    box-shadow: var(--st-field-focus-ring);
+    outline: 0;
+}
+.form-check-input[type="radio"]:focus:not(:focus-visible) {
+    box-shadow: none;
+}
+.form-check-input[type="radio"]:active {
+    filter: none;
+}
+
 /* --- Settings: choice cards (Scoring Profile) --- */
 /* A radio list whose every option says what it does, so choosing needs no
    reference. The whole card is the click target; the checked card takes the
