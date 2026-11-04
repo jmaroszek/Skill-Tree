@@ -2073,6 +2073,11 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 .details-subtasks-table .details-subtask-row:hover .details-subtask-actions-cell,
 .details-subtasks-table .details-subtask-actions-cell:focus-within {
     background-color: var(--st-bg-panel);
+    /* Bootstrap paints row hover as an inset shadow, which the opaque panel
+       color above would hide, so the pencil's cell layers the same hover tint
+       over the panel color instead. */
+    background-image: linear-gradient(var(--bs-table-hover-bg), var(--bs-table-hover-bg));
+    box-shadow: none;
     z-index: 1;
 }
 
