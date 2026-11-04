@@ -72,7 +72,7 @@ a synonym for muted body text.
 ### Node-info badge palette (muted)
 
 The Next-tab priority bars, Node Editor priority strip, Details info
-pane, and subtasks-table tiles all share a single palette
+pane, and Milestone tiles all share a single palette
 (`styles.BADGE_PALETTE`, accessed via `styles.badge_style(name)` for
 badges and `styles.palette_color(name)` for bar fills). The canvas needs
 vivid hues to keep the network readable; the bars/badges need the same hue
@@ -101,7 +101,7 @@ amber wash over the text's own color.
 | Open         | `#3e61a0` | `#ffffff` | Status tile — solid blue.                                 |
 | Done         | `#148a68` | `#ffffff` | Status tile.                                              |
 | Blocked      | `#9e3838` | `#ffffff` | Status tile.                                              |
-| HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches subtasks-table Hard. |
+| HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 
 The type-color values were originally derived by HSL-desaturating the
@@ -161,10 +161,8 @@ at similar lightness and are told apart by hue alone. `EdgeHard` shares
 priority goal via a Hard edge. `EdgeSelf` is a warm sand, deliberately off the
 cool Hard/Soft/Synergy axis so the node itself cannot be mistaken for an edge.
 
-These four values previously existed in **three** places — the subtasks table's
-own `_REL_BADGE_STYLES`, the explain modal's `_VIA_COLORS`, and its legend —
-kept in step by comments claiming they matched. They all read from the palette
-now.
+The explain modal's `_VIA_COLORS` and its legend both read these values from
+the palette.
 
 Explain speaks in the reader's units, not the scorer's. Value is a share of
 total value, cost is the time and effort behind it, and an adjustment is the
@@ -1064,6 +1062,10 @@ The Details subtasks Name column is fixed at 360px. Its link is a single-line
 ellipsis and its `title` contains the complete node name; long names must not
 move or crowd the Status, Relationship, and classification columns.
 
+Its Status and Relationship columns are muted text, like the columns beside
+them. A badge on every row flags nothing. The table's sort order and its
+toggles already separate these values.
+
 Reflection History uses the same table tokens inside a 940px modal. Its
 summary columns are Name, estimated time, actual time, time difference, and
 rating difference. The name truncates to one line; focusable name and rating
@@ -1094,7 +1096,7 @@ from config import badge_style
 # Standard size (0.75rem) — Node Editor + Details info-pane stack
 html.Span(node.status, className="badge", style=badge_style(node.status))
 
-# Compact size (0.7rem) — subtasks-table cells, goal cards
+# Compact size (0.7rem) — Milestone tiles, goal cards
 html.Span(rel, className="badge",
           style=badge_style('HardRelPri', font_size="0.7rem"))
 ```

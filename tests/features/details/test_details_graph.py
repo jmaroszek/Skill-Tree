@@ -567,7 +567,7 @@ class TestSupportsDirection:
             include_soft=True, include_synergies=True, direction="supports")
 
         names = [r.children[0].id["index"] for r in table.children[1].children]
-        rel = {r.children[0].id["index"]: r.children[2].children.children
+        rel = {r.children[0].id["index"]: r.children[2].children
                for r in table.children[1].children}
         assert set(names) == {"Next", "Later", "Side", "Partner"}
         assert rel == {"Next": "Hard", "Later": "Hard", "Side": "Soft",

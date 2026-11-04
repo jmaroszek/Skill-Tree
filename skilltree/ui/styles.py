@@ -193,7 +193,7 @@ LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "#1e90ff"}
 
 # Static palette for every non-canvas surface that needs a type/status/
 # relationship color: Next-tab priority bars, Details info-pane badges,
-# Editor priority strip, subtasks-table tiles. Each entry is (background,
+# Editor priority strip, Milestone tiles. Each entry is (background,
 # foreground).
 #
 # These colors are intentionally DECOUPLED from Settings → Type Colors
@@ -224,11 +224,11 @@ BADGE_PALETTE = {
     'Milestone':  ('#2f909d', '#ffffff'),
     'Unblocking': ('#c516a5', '#ffffff'),  # steps pinned toward a blocked Now node
     # Status badges (Open / Done / Blocked) — tuned independently for the
-    # subtasks-table status pills and node-info status indicators.
+    # Milestone tile status pills and node-info status indicators.
     STATUS_OPEN:       ('#3e61a0', '#ffffff'),
     STATUS_DONE:       ('#148a68', '#ffffff'),
     STATUS_BLOCKED:    ('#9e3838', '#ffffff'),
-    # Relationship-priority badges — match the subtasks-table relationship tiles.
+    # Relationship-priority badges.
     'HardRelPri': ('#2a4d6e', '#d6e0ee'),
     'SoftRelPri': ('#414f5c', '#d0d6dc'),
     # Event-card badges. The three trigger-type labels (Manual, Scheduled,
@@ -239,14 +239,11 @@ BADGE_PALETTE = {
     # speaks one vocabulary across the app.
     'EventTrigger':   ('#56575a', '#dcdcdd'),
     'EventTriggered': ('#148a68', '#ffffff'),
-    # Edge-relationship tiles — the subtasks-table relationship column and the
-    # explain modal's contributor chart. All three sit at similar lightness and
-    # are told apart by hue alone. EdgeHard shares HardRelPri's value so the
-    # same blue means the same thing app-wide: related to a priority goal via a
+    # Edge-relationship colors — the explain modal's contributor chart and
+    # its legend. All three sit at similar lightness and are told apart by
+    # hue alone. EdgeHard shares HardRelPri's value so the same
+    # blue means the same thing app-wide: related to a priority goal via a
     # Hard edge. 'EdgeSelf' is the node itself, off the edge axis entirely.
-    #
-    # These were previously duplicated as details_layout._REL_BADGE_STYLES and
-    # details/explain._VIA_COLORS, kept in sync by comments alone.
     'EdgeHard':    ('#2a4d6e', '#d6e0ee'),
     'EdgeSoft':    ('#576068', '#dde0e5'),
     'EdgeSynergy': ('#466a78', '#d8e6e9'),

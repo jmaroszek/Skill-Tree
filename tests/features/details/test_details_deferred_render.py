@@ -163,6 +163,28 @@ def test_every_subtask_row_has_edit_action_and_no_remove_action():
         assert action_group.children[0].children[0].className == "bi bi-pencil"
 
 
+def test_subtask_status_and_relationship_read_like_the_columns_beside_them():
+    from skilltree.features.details.layout import build_details_subtasks_table
+
+    manager = GraphManager()
+    manager.add_node(_suggestion_node(name="Parent"))
+    child = _suggestion_node(name="Child", type="Learn")
+    manager.add_node(child)
+    manager.add_edge("Child", "Parent", EDGE_NEEDS_HARD)
+
+    table = build_details_subtasks_table(
+        [child], manager, manager.get_edges(), "Parent")
+    headings = [th.children for th in table.children[0].children.children]
+    cells = table.children[1].children[0].children
+    status = cells[headings.index("Status")]
+    relationship = cells[headings.index("Relationship")]
+    node_type = cells[headings.index("Type")]
+
+    assert status.children == child.status
+    assert relationship.children == "Hard"
+    assert status.style == relationship.style == node_type.style
+
+
 def test_subtask_name_column_is_capped_and_keeps_full_name_on_hover():
     from skilltree.features.details.layout import build_details_subtasks_table
 
