@@ -63,7 +63,8 @@
                     style: {fontSize: 'var(--st-fs-sm)', color: 'var(--st-text-dim)',
                             padding: '0 0 0 13px', gridColumn: '1 / -1',
                             background: 'none', border: 'none', textAlign: 'left',
-                            justifySelf: 'start'}}));
+                            justifySelf: 'start'},
+                    className: 'hand-toggle'}));
             }
             // One grid per section: the tags line up in a column that starts
             // just after the longest name, not at the edge of the panel.

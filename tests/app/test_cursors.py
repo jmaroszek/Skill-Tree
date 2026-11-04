@@ -13,12 +13,17 @@ _JS_CURSOR = re.compile(r"cursor['\"]?\s*:\s*['\"](pointer|help|move|crosshair)[
 _PY_CURSOR = re.compile(r"['\"]cursor['\"]\s*:\s*['\"](pointer|help|move|crosshair)['\"]")
 
 
+# The hand is for hyperlink-like text and for rows that open or close content.
+_HAND_SELECTORS = (".link-like", ".hand-toggle", ".rd-group > summary")
+
+
 def _css_offenders():
     for path in app_asset_files(".css"):
         text = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
         for selector, body in _CSS_RULE.findall(text):
             for match in _CSS_CURSOR.finditer(body):
-                if match.group(1) == "pointer" and ".link-like" in selector:
+                if match.group(1) == "pointer" and any(
+                        ok in selector for ok in _HAND_SELECTORS):
                     continue
                 yield f"{path.name}: {selector.strip()} -> {match.group(0)}"
 

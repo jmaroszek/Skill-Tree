@@ -263,6 +263,12 @@ html .form-range::-webkit-slider-runnable-track {
 html .link-like {
     cursor: pointer;
 }
+/* A row or button that opens or closes more content ("+3 more", a context row
+   in the rating plot). The hand says it is clickable; no underline. */
+html .hand-toggle,
+html .rd-group > summary {
+    cursor: pointer;
+}
 .link-like:hover {
     text-decoration: underline;
 }
