@@ -1,6 +1,6 @@
 /**
  * The node editor form's clientside callbacks: links changed elsewhere, and
- * the Inherit locks. features/editor/callbacks.py registers them.
+ * the Inherit locks. features/editor/follows.py and fields.py register them.
  */
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.editor_form = window.dash_clientside.editor_form || {};

@@ -165,7 +165,7 @@ def test_delete_of_a_node_already_gone_does_not_report_success(handlers, monkeyp
 
 
 def test_delete_confirmation_names_the_loaded_node(handlers, monkeypatch):
-    toggle = handlers['register_editor_callbacks.<locals>.toggle_delete_modal']
+    toggle = handlers['register_dialog_callbacks.<locals>.toggle_delete_modal']
     fire('btn-delete')
     is_open, body = toggle(1, None, None, 'A')
     assert is_open and '"A"' in body
