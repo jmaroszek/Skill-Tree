@@ -722,7 +722,7 @@ Check on Nodes, Details and Events unless an item names one.
 
 ## Contexts
 
-- [ ] SE-12. One row per context, with subcontext chips and priority. Add, remove, rename and drag all work.
+- [ ] SE-12. One row per context, with subcontext chips and weight. Add, remove, rename and drag all work.
 - [ ] SE-13. Typing never loses the caret. Bad names flag live, with one summary line.
 - [ ] SE-14. Renaming a context or subcontext carries onto its nodes, including dormant ones.
 - [ ] SE-15. Swapping two context names, or chaining renames, doesn't merge them.
@@ -834,7 +834,7 @@ Read [scoring.md](scoring.md) alongside these.
 - [ ] HD-14. Value flows forward along links. Hard counts more than Soft, and Milestones pass it on free.
 - [ ] HD-15. Synergy reinforces, and is bounded: many partners approach twice one Done partner's effect.
 - [ ] HD-16. A Priority Goal lifts its subtree. Rank 1 lifts most.
-- [ ] HD-17. Context priority scales its tasks.
+- [ ] HD-17. Context weight scales its tasks.
 - [ ] HD-18. Each profile visibly changes the ranking in the direction its description says.
 - [ ] HD-19. Inherited nodes behave as documented: no own value, and no recommendation when time is inherited.
 - [ ] HD-20. Scores update after an edit and stay cached otherwise. A cosmetic edit doesn't reorder anything.

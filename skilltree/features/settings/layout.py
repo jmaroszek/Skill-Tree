@@ -31,9 +31,8 @@ _PAGE_DESCRIPTIONS = {
     "tab-recommendations": "How Skill Tree decides what to suggest next.",
     "tab-editing": "Name formatting, time units, and what happens when you "
                    "finish a node.",
-    "tab-contexts": "Contexts sort your nodes into areas of your life, and "
-                    "subcontexts divide each area. Drag a row or a chip to "
-                    "reorder it.",
+    "tab-contexts": "A context's weight scales how strongly its tasks rank: "
+                    "1 is normal, 2 doubles them, 0.5 halves them.",
     "tab-resources": "Links to your notes and materials: files on this computer "
                      "or web pages. Each resource gets its own field in the Node "
                      "Editor, a labeled dot on Home, and an Open item in the "
@@ -253,13 +252,13 @@ def _build_contexts_tab():
     return dbc.Tab(label="Contexts", tab_id="tab-contexts", children=[
         html.Section([
             # Column headings. The trailing spacer stands in for each row's
-            # remove button, so "Priority" sits over its input.
+            # remove button, so "Weight" sits over its input.
             html.Div([
                 html.Span("Context", className="ctx-head-name"),
                 html.Span("Subcontexts", className="ctx-head-subs"),
                 html.Span(hover_label(
-                    "Priority", "ctx-head-priority",
-                    "Priority scales a context's tasks in the rankings: 1 is "
+                    "Weight", "ctx-head-priority",
+                    "Weight scales a context's tasks in the rankings: 1 is "
                     "normal, 2 doubles, 0.5 halves.",
                     component=html.Span), className="ctx-head-weight"),
                 html.Span(className="ctx-head-btn"),

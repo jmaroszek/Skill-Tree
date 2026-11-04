@@ -89,7 +89,7 @@ def _structure_key(rows):
 def build_context_editor_rows(rows, ctx_counts=None, pair_counts=None, errors=None):
     """Build the Contexts tab's row editor.
 
-    One row per context: drag handle, name, subcontext chips, its priority,
+    One row per context: drag handle, name, subcontext chips, its weight,
     and remove. How many nodes sit in a context or subcontext today is its
     hover title (on the name or chip) rather than a column. Counts are looked up by the names the
     nodes currently carry (each row's and chip's origin), so a pending rename
@@ -156,7 +156,7 @@ def fold_live_values(rows, name_vals, name_ids, weight_vals, weight_ids,
                       sub_vals, sub_ids):
     """Copy what is currently typed in the editor back into the stored rows.
 
-    The name, priority and chip inputs are deliberately not callback Inputs —
+    The name, weight and chip inputs are deliberately not callback Inputs —
     re-rendering the container on every keystroke would take the caret with
     it. They are read here instead, just before a structural edit (add,
     remove, drag) rebuilds the rows, and again on save.
