@@ -1199,7 +1199,9 @@ element's look does not. The global rules are the Cursors section of
   button, card or row, in CSS or in an inline style.
 - **Hand**: only text that navigates like a hyperlink, such as a subtask name
   that opens it in Details. Give it the `link-like` class, which also
-  underlines it on hover.
+  underlines it on hover. Also a control that opens or closes more content,
+  such as a "+3 more" button or a context row in the rating plot. Give it
+  the `hand-toggle` class (no underline).
 - **I-beam**: only where you can type, plus read-only text worth copying.
   The page sets `user-select: none`. Inputs, textareas and contenteditable
   regions select as usual. Mark copyable read-only text, such as a node's
