@@ -567,6 +567,36 @@ def test_hour_equivalent_preference_saves_on_close(page, server):
     assert page.console_errors == []
 
 
+def test_a_new_hours_per_week_reaches_the_open_editor(page, server):
+    """The same days and weeks mean other hours now, so the fields follow, and a
+    later save keeps the hours."""
+    _welcome(page)
+    _new_node(page, "Essay", "Action", expected_hours="4")  # a new node's unit is weeks
+    _new_node(page, "Other", "Learn")
+    _open_in_editor(page, "Essay")
+    _idle(page)
+    assert (page.input_value('#node-time-m'), page.input_value('#node-time-unit')) == ('4', 'weeks')
+
+    page.click('#btn-settings-toggle')
+    page.get_by_role('tab', name='Editing', exact=True).click()
+    _idle(page)
+    page.fill('#setting-hpw', '20')
+    _idle(page)
+    page.click('#btn-settings-close')
+    page.wait_for_selector('#settings-modal', state='hidden', timeout=20000)
+    page.wait_for_function("document.querySelector('#node-time-m').value === '2'", timeout=15000)
+
+    _idle(page)
+    page.fill('#node-desc', 'a later edit')
+    page.click('#btn-save')
+    page.wait_for_function(
+        "document.querySelector('#save-output')?.innerText.includes('Updated node')",
+        timeout=15000)
+    assert server.query("SELECT time_m, description FROM Nodes WHERE name = 'Essay'") == [
+        (40.0, 'a later edit')]
+    assert page.console_errors == []
+
+
 def test_invalid_settings_close_keeps_the_draft_until_corrected(page, server):
     _welcome(page)
     page.click('#btn-settings-toggle')

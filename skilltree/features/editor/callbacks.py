@@ -15,7 +15,6 @@ from skilltree.features.editor.checks import register_check_callbacks
 from skilltree.features.editor.dialogs import register_dialog_callbacks
 from skilltree.features.editor.dormancy import register_dormancy_callbacks
 from skilltree.features.editor.fields import register_field_callbacks
-from skilltree.features.editor.follows import register_follow_callbacks
 from skilltree.features.editor.form import (
     EDITOR_FORM,
     NEW_NODE_SNAPSHOT,
@@ -432,6 +431,8 @@ def register_editor_callbacks(app, services):
             editor_form_values_from(save_result.get('form', form)), linted, linted_aliases)
         if 'status_done' in save_result:
             snapshot['status_done'] = save_result['status_done']
+        if 'rates' in save_result:
+            snapshot['rates'] = save_result['rates']
         # A full list, or a Done that took the node off Now, can leave the
         # switch saying what the save didn't do.
         now = dash.no_update
@@ -450,7 +451,6 @@ def register_editor_callbacks(app, services):
         return original_out, linted, linted_aliases, snapshot, now
 
     register_merge_callbacks(app, services)
-    register_follow_callbacks(app, services)
     register_field_callbacks(app, services)
     register_check_callbacks(app, services)
     register_dialog_callbacks(app, services)

@@ -381,7 +381,7 @@ class TestEditorFormValues:
                           time_o=40, time_m=80, time_p=160, context='Mind'))
         snap = build_editor_snapshot(mgr, services.events, 'Alpha')
         produced = editor_form_values(**self._full_kwargs())
-        assert set(produced.keys()) == set(snap.keys())
+        assert set(produced.keys()) == set(snap.keys()) - {'rates'}  # not a field
 
     def test_blank_form_not_dirty_vs_new_node_snapshot(self):
         """A blank new-node form (component defaults) built through the helper

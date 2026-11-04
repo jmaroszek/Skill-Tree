@@ -16,6 +16,7 @@ from skilltree.features.editor.form import (
     resolve_done_intent, resolve_relationship_intent, resolve_time_intent,
     resource_link_values, stored_relationships, woke_during_edit,
 )
+from skilltree.features.editor.values import estimate_rates
 from skilltree.store import database
 from skilltree.store.commands import (
     ReopensDoneNodes, add_to_now, apply_dormancy, done_names, finish_bridge, handle_save,
@@ -258,6 +259,11 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
               "now": ["now"] if _committed.now else [],
               "reopen_asked": bool(undo_pending),
               "form": form,
+              # The rates the form was shown at, not today's: a form left
+              # untouched still shows the old days and weeks, and the merge
+              # takes them to the new rates once the save has landed.
+              "rates": ((pristine_snapshot or {}).get('rates') if isinstance(pristine_snapshot, dict)
+                        else None) or estimate_rates(),
               "ts": int(time.time() * 1000)}
     if woke_from:
         # The node is awake, whatever the form said: that is the

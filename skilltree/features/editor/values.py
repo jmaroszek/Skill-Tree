@@ -17,6 +17,13 @@ def estimate_in_unit(time_o, time_m, time_p, unit):
     return _convert(time_o), _convert(time_m), _convert(time_p)
 
 
+def estimate_rates():
+    """The Settings an estimate's days and weeks are read at. A baseline keeps
+    what it was shown at, which says when they have changed since."""
+    time_settings = settings.TIME_SETTINGS.get()
+    return {key: time_settings[key] for key in ('hours_per_week', 'hours_per_month')}
+
+
 def reexpressed_estimate(value):
     """An estimate field's number after a change of unit: two decimals, or
     four significant digits when it is smaller than that can hold, and whole

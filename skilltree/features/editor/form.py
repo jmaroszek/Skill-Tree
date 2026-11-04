@@ -17,7 +17,11 @@ from skilltree.domain.time import (
     habit_to_hours,
     parse_habit_days,
 )
-from skilltree.features.editor.values import estimate_in_unit, friendly_time_estimates
+from skilltree.features.editor.values import (
+    estimate_in_unit,
+    estimate_rates,
+    friendly_time_estimates,
+)
 from skilltree.store import database
 from skilltree.store import settings
 from skilltree.ui.components.duration import (
@@ -240,6 +244,7 @@ def build_editor_snapshot(manager, events, node_name):
         'time_m': friendly_m,
         'time_p': friendly_p,
         'time_unit': friendly_unit,
+        'rates': estimate_rates(),
         **relationships,
         'resource_links': node.resource_links,
         'time_mode': ['inherited'] if node.time_mode == 'inherited' else [],
@@ -306,6 +311,9 @@ def follow_now(node, switch, snapshot):
     if loaded == stored:
         return dash.no_update, dash.no_update
     return (stored if (switch or []) == loaded else dash.no_update), stored
+
+
+_CONTEXT_FIELDS = ('context', 'subctx')
 
 
 def _loaded_context(node, snapshot):
@@ -517,6 +525,19 @@ def rebase(node, stored_links, form, snapshot):
     now, stored_now = follow_now(node, form.get('now'), snapshot)
     if stored_now is not dash.no_update:
         groups.append(_moved_to_stored('now', now, stored_now, form, snapshot))
+    pair, stored_pair = follow_context(node, form.get('context'), form.get('subctx'), snapshot)
+    if stored_pair is not None:
+        groups.append(_moved(dict(zip(_CONTEXT_FIELDS, pair)) if pair else {},
+                             dict(zip(_CONTEXT_FIELDS, stored_pair)), form, snapshot))
+    # A form's numbers can differ from the stored hours for good reasons, on a
+    # habit or an inherited node. So the estimate is only judged when the rates
+    # it was shown at have changed, and the baseline takes the new ones.
+    rates = estimate_rates()
+    if 'rates' in snapshot and snapshot['rates'] != rates:
+        estimate, stored_estimate = follow_estimate(node, form, snapshot)
+        groups.append(_moved(dict(zip(_ESTIMATE_FIELDS, estimate)) if estimate else {},
+                             {'rates': rates, **dict(zip(_ESTIMATE_FIELDS, stored_estimate or ()))},
+                             form, snapshot))
     return groups
 
 

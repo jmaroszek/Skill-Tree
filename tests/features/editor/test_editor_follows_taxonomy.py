@@ -12,12 +12,12 @@ import pytest
 from skilltree.domain.models import Node, STATUS_OPEN
 from skilltree.engine import callbacks
 from skilltree.features.editor.callbacks import register_editor_callbacks
-from skilltree.features.editor.form import EDITOR_FORM, build_editor_snapshot
+from skilltree.features.editor.form import EDITOR_FORM, build_editor_snapshot, rebase
 from skilltree.store import settings
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from support.callbacks import registered
-from support.editor_forms import call
+from support.editor_forms import call, merged
 from support.triggers import fire
 
 
@@ -101,43 +101,35 @@ def test_a_context_the_user_picked_is_saved(manager, handlers):
     assert _stored(manager) == ("Mind", "Habits")
 
 
-def test_the_open_editor_shows_the_new_names(manager, handlers):
+def _merge(manager, form, snapshot):
+    return merged(rebase(manager.get_node("Sleep Theory"), {}, form, snapshot))
+
+
+def test_the_open_editor_shows_the_new_names(manager):
     form, snapshot = _loaded(manager)
     _rename_context(manager, "Health", "Body")
 
-    context, subctx, patch = handlers["follow_editor_taxonomy"](
-        [], snapshot, "Sleep Theory", form["context"], form["subctx"])
-
-    assert (context, subctx) == ("Body", "Sleep")
-    patched = {**snapshot}
-    for operation in patch.to_plotly_json()["operations"]:
-        patched[operation["location"][0]] = operation["params"]["value"]
-    assert (patched["context"], patched["subctx"]) == ("Body", "Sleep")
+    assert _merge(manager, form, snapshot) == ({"context": "Body", "subctx": "Sleep"},
+                                               {"context": "Body", "subctx": "Sleep"})
 
 
-def test_a_context_being_edited_stays_while_the_baseline_follows(manager, handlers):
-    _, snapshot = _loaded(manager)
+def test_a_context_being_edited_stays_while_the_baseline_follows(manager):
+    form, snapshot = _loaded(manager)
     _rename_context(manager, "Health", "Body")
 
-    context, subctx, patch = handlers["follow_editor_taxonomy"](
-        [], snapshot, "Sleep Theory", "Mind", "Habits")
-
-    assert (context, subctx) == (dash.no_update, dash.no_update)
-    assert patch is not dash.no_update
+    assert _merge(manager, {**form, "context": "Mind", "subctx": "Habits"}, snapshot) == (
+        {}, {"context": "Body", "subctx": "Sleep"})
 
 
-def test_nothing_changes_when_the_editor_already_agrees(manager, handlers):
+def test_nothing_changes_when_the_editor_already_agrees(manager):
     form, snapshot = _loaded(manager)
 
-    assert handlers["follow_editor_taxonomy"](
-        [], snapshot, "Sleep Theory", form["context"], form["subctx"]) == (
-        dash.no_update,) * 3
+    assert _merge(manager, form, snapshot) == ({}, {})
 
 
 def test_another_nodes_snapshot_is_left_alone(manager, handlers):
     form, snapshot = _loaded(manager)
     _rename_context(manager, "Health", "Body")
 
-    assert handlers["follow_editor_taxonomy"](
-        [], {**snapshot, "name": "Another"}, "Sleep Theory", form["context"],
-        form["subctx"]) == (dash.no_update,) * 3
+    assert call(handlers["merge_outside_changes"], snapshot={**snapshot, "name": "Another"},
+                original_name="Sleep Theory", **form) is dash.no_update
