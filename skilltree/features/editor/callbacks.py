@@ -25,6 +25,7 @@ from skilltree.features.editor.form import (
     is_form_dirty_vs_snapshot,
     snapshot_from_form_state,
 )
+from skilltree.features.editor.merge import register_merge_callbacks
 from skilltree.features.editor.navigation import ASK, CLOSE, KEEP, next_step
 from skilltree.features.editor.ratings import register_ratings_callbacks
 from skilltree.features.editor.resources import register_resource_link_callbacks
@@ -448,6 +449,7 @@ def register_editor_callbacks(app, services):
         original_out = linted if linted != cur_original_name else dash.no_update
         return original_out, linted, linted_aliases, snapshot, now
 
+    register_merge_callbacks(app, services)
     register_follow_callbacks(app, services)
     register_field_callbacks(app, services)
     register_check_callbacks(app, services)

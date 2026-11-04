@@ -156,28 +156,42 @@ def test_nothing_follows_when_the_snapshot_already_matches(manager, services):
     assert follow_relationships(stored, form, {"name": "Basics"}) == ({}, {})
 
 
-def test_the_follow_callback_reports_what_changed(handlers, manager):
-    follow = handlers["follow_editor_relationships"]
+def test_the_merge_reports_what_changed(handlers, manager):
+    merge = handlers["merge_outside_changes"]
     form, snapshot = _loaded(manager, "Basics")
-    assert call(follow, snapshot=snapshot, original_name="Basics", **form) is dash.no_update
+    assert call(merge, snapshot=snapshot, original_name="Basics", **form) is dash.no_update
 
     change_link(manager, "Basics", "Advanced", EDGE_NEEDS_HARD, "remove")
-    result = call(follow, snapshot=snapshot, original_name="Basics", **form)
+    result = call(merge, snapshot=snapshot, original_name="Basics", **form)
 
     assert result["name"] == "Basics"
-    assert result["values"] == {"e_supp_h": ["Applied"]}
-    assert result["snapshot"] == {"e_supp_h": ["Applied"]}
-    # What it worked from, so the browser can drop it if the editor moved on.
-    assert result["seen"] == {"e_supp_h": {"snapshot": ["Advanced", "Applied"],
-                                           "form": ["Advanced", "Applied"]}}
+    # Worked out against the form as it was, so the browser can drop it.
+    assert result["groups"] == [{
+        "fields": {"e_supp_h": ["Applied"]},
+        "baseline": {"e_supp_h": ["Applied"]},
+        "seen_form": {"e_supp_h": ["Advanced", "Applied"]},
+        "seen_baseline": {"e_supp_h": ["Advanced", "Applied"]},
+    }]
 
 
-def test_the_follow_callback_leaves_another_nodes_form_alone(handlers, manager):
+def test_the_merge_leaves_another_nodes_form_alone(handlers, manager):
     """The snapshot is still the previous node's while the next one loads."""
-    follow = handlers["follow_editor_relationships"]
+    merge = handlers["merge_outside_changes"]
     form, snapshot = _loaded(manager, "Basics")
     change_link(manager, "Basics", "Advanced", EDGE_NEEDS_HARD, "remove")
-    assert call(follow, snapshot=snapshot, original_name="Advanced", **form) is dash.no_update
+    assert call(merge, snapshot=snapshot, original_name="Advanced", **form) is dash.no_update
+
+
+def test_an_edited_list_moves_only_its_baseline(handlers, manager):
+    merge = handlers["merge_outside_changes"]
+    form, snapshot = _loaded(manager, "Basics")
+    form["e_supp_h"] = ["Advanced", "Applied", "Extra"]
+    change_link(manager, "Basics", "Advanced", EDGE_NEEDS_HARD, "remove")
+
+    [group] = call(merge, snapshot=snapshot, original_name="Basics", **form)["groups"]
+
+    assert group["fields"] == {"e_supp_h": ["Applied", "Extra"]}
+    assert group["baseline"] == {"e_supp_h": ["Applied"]}
 
 
 # --- The merge ------------------------------------------------------------------------

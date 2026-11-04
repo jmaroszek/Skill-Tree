@@ -472,6 +472,31 @@ def follow_relationships(stored, form, snapshot):
     return values, followed
 
 
+def _moved(fields, baseline, form, snapshot):
+    """One group of a rebase. ``fields`` are the form's new values and
+    ``baseline`` the snapshot's. The rest is what they were worked out against,
+    so the browser can drop the group if the editor has moved on."""
+    return {'fields': fields, 'baseline': baseline,
+            'seen_form': {key: form.get(key) for key in baseline},
+            'seen_baseline': {key: snapshot.get(key) for key in baseline}}
+
+
+def rebase(stored_links, form, snapshot):
+    """What changed outside the editor, as groups for the browser to apply.
+
+    An untouched field takes what is stored, an edited one stays, and the
+    baseline moves to what is stored, so the unsaved-changes check compares the
+    form with what is really there. Empty when the editor already agrees.
+
+    Dash throws away a run's answer if the callback fires again first, so this
+    judges by what is stored, never by what fired. Any run gives the whole answer.
+    """
+    values, followed = follow_relationships(stored_links, form, snapshot)
+    return [_moved({key: values[key]} if key in values else {}, {key: followed[key]},
+                   form, snapshot)
+            for key in followed]
+
+
 def snapshot_from_form_state(form_values, linted_name, linted_aliases):
     """Build a pristine snapshot directly from the form State just saved.
 

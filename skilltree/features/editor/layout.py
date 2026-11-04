@@ -352,10 +352,9 @@ def build_node_editor_content():
                 # The Nodes canvas taps the editor loads: held ones are left
                 # out (callbacks.py, relay_editor_tap).
                 dcc.Store(id='editor-tap-store', data=None),
-                # Relationship lists the open node's edges now call for, with
-                # the form they were worked out against (callbacks.py,
-                # follow_editor_relationships).
-                dcc.Store(id='editor-relationships-follow', data=None),
+                # What changed outside the editor, with the form it was worked
+                # out against (merge.py).
+                dcc.Store(id='editor-merge-store', data=None),
 
                 hover_label("Type", "node-type-label", _EDITOR_HINTS["type"],
                              className="mt-2"),

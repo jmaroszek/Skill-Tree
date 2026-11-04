@@ -1,36 +1,50 @@
 /**
- * The node editor form's clientside callbacks: links changed elsewhere, and
- * the Inherit locks. features/editor/follows.py and fields.py register them.
+ * The node editor form's clientside callbacks: what changed elsewhere, and
+ * the Inherit locks. features/editor/merge.py and fields.py register them.
  */
 window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.editor_form = window.dash_clientside.editor_form || {};
 
-// The answer is applied against the editor as it is when it lands. If another
-// node has loaded, or the user has changed a picker since, it is stale and
-// is dropped rather than written into the form.
-window.dash_clientside.editor_form.follow_relationships = function (follow, name, snapshot, needsHard, needsSoft, suppHard, suppSoft, helps) {
-    var NO = window.dash_clientside.no_update;
-    var keys = ['e_needs_h', 'e_needs_s', 'e_supp_h', 'e_supp_s', 'e_helps'];
-    var form = {e_needs_h: needsHard, e_needs_s: needsSoft, e_supp_h: suppHard,
-                e_supp_s: suppSoft, e_helps: helps};
-    var unchanged = [NO, NO, NO, NO, NO, NO];
-    if (!follow || !snapshot || follow.name !== name || snapshot.name !== name) {
-        return unchanged;
-    }
-    var same = function (a, b) {
-        return JSON.stringify(a || []) === JSON.stringify(b || []);
-    };
-    for (var key in follow.seen) {
-        if (!same(follow.seen[key].snapshot, snapshot[key])
-                || !same(follow.seen[key].form, form[key])) {
-            return unchanged;
+// An answer from merge_outside_changes, applied against the editor as it is
+// when it lands. If another node has loaded, all of it is stale. A group whose
+// field or baseline has changed since is dropped whole, and the others land.
+// Moving only its baseline would read what the user hasn't seen as their edit:
+// a link added elsewhere would look removed by them, and Save would remove it.
+window.dash_clientside.editor_form.apply_merge = function (answer, name, snapshot) {
+    var dc = window.dash_clientside;
+    if (!answer) throw dc.PreventUpdate;
+    // A dict's keys can come back from the server in another order.
+    var comparable = function (value) {
+        if (Array.isArray(value)) return value.map(comparable);
+        if (value && typeof value === 'object') {
+            var sorted = {};
+            Object.keys(value).sort().forEach(function (key) { sorted[key] = comparable(value[key]); });
+            return sorted;
         }
+        return value === undefined ? null : value;
+    };
+    var same = function (a, b) {
+        return JSON.stringify(comparable(a)) === JSON.stringify(comparable(b));
+    };
+    var form = {};
+    var values = arguments;
+    answer.reads.forEach(function (key, i) { form[key] = values[3 + i]; });
+    var fields = {};
+    var baseline = null;
+    if (snapshot && answer.name === name && snapshot.name === name) {
+        answer.groups.forEach(function (group) {
+            var stale = Object.keys(group.baseline).some(function (key) {
+                return !same(group.seen_form[key], form[key])
+                    || !same(group.seen_baseline[key], snapshot[key]);
+            });
+            if (stale) return;
+            Object.assign(fields, group.fields);
+            baseline = Object.assign(baseline || Object.assign({}, snapshot), group.baseline);
+        });
     }
-    var out = keys.map(function (key) {
-        return key in follow.values ? follow.values[key] : NO;
-    });
-    out.push(Object.assign({}, snapshot, follow.snapshot));
-    return out;
+    return answer.writes.map(function (key) {
+        return key in fields ? fields[key] : dc.no_update;
+    }).concat([baseline || dc.no_update]);
 };
 
 // A Goal's or Milestone's time is the sum of its children's, so Inherit stays

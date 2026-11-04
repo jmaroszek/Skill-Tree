@@ -1,18 +1,15 @@
-"""The node editor following what changes outside it: a status, the links, a
+"""The node editor following what changes outside it: a status, a
 context renamed in Settings, a new hours per week. What it leaves alone is
 the user's unsaved edits.
 """
 import dash
-from dash import ClientsideFunction, Input, Output, State, no_update
+from dash import Input, Output, State, no_update
 
 from skilltree.features.editor.form import (
     EDITOR_FORM,
-    RELATIONSHIP_FIELDS,
     follow_context,
     follow_done_status,
     follow_estimate,
-    follow_relationships,
-    stored_relationships,
 )
 
 
@@ -57,57 +54,6 @@ def register_follow_callbacks(app, services):
             if (now_switch or []) == loaded_now:
                 now = stored_now
         return done, snapshot_out, now
-
-    # --- Editor follows relationships changed elsewhere ---
-    # The link menu, the Details tab and a bridge change the open node's links
-    # without the editor, whose pickers were filled when it loaded. A picker
-    # the user hasn't touched takes the stored links; an edited one keeps the
-    # edits on top of them (editor form.follow_relationships). Save
-    # merges the same way, so it never depends on this having run. A changed
-    # snapshot also checks again: after a save that merged in an outside
-    # change, the snapshot holds the form's lists rather than what was stored.
-    @app.callback(
-        Output('editor-relationships-follow', 'data'),
-        Input('graph-version-store', 'data'),
-        Input('editor-pristine-snapshot', 'data'),
-        [State('node-original-name', 'data'),
-         {key: EDITOR_FORM[key] for key in RELATIONSHIP_FIELDS}],
-        prevent_initial_call=True,
-    )
-    def follow_editor_relationships(_version, snapshot, original_name, form):
-        if (not original_name or not isinstance(snapshot, dict)
-                or snapshot.get('name') != original_name
-                or manager.get_node(original_name) is None):
-            return no_update
-        stored = stored_relationships(manager.get_edges(), original_name)
-        values, followed = follow_relationships(stored, form, snapshot)
-        if not followed:
-            return no_update
-        return {'name': original_name, 'values': values, 'snapshot': followed,
-                'seen': {key: {'snapshot': snapshot.get(key), 'form': form.get(key)}
-                         for key in followed}}
-
-    # Applied in the browser, against the editor as it is when the answer
-    # lands: if another node has loaded, or the user has changed a picker
-    # since, the answer is stale and is dropped rather than written into it.
-    app.clientside_callback(
-        ClientsideFunction(namespace='editor_form', function_name='follow_relationships'),
-        Output('edge-needs-hard', 'value', allow_duplicate=True),
-        Output('edge-needs-soft', 'value', allow_duplicate=True),
-        Output('edge-supports-hard', 'value', allow_duplicate=True),
-        Output('edge-supports-soft', 'value', allow_duplicate=True),
-        Output('edge-helps', 'value', allow_duplicate=True),
-        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
-        Input('editor-relationships-follow', 'data'),
-        State('node-original-name', 'data'),
-        State('editor-pristine-snapshot', 'data'),
-        State('edge-needs-hard', 'value'),
-        State('edge-needs-soft', 'value'),
-        State('edge-supports-hard', 'value'),
-        State('edge-supports-soft', 'value'),
-        State('edge-helps', 'value'),
-        prevent_initial_call=True,
-    )
 
     # --- Editor follows a context renamed or moved in Settings ---
     # A Settings save carries a renamed context, or a subcontext moved to
