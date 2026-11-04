@@ -177,7 +177,7 @@ def test_subtask_status_and_relationship_read_like_the_columns_beside_them():
     headings = [th.children for th in table.children[0].children.children]
     cells = table.children[1].children[0].children
     status = cells[headings.index("Status")]
-    relationship = cells[headings.index("Relationship")]
+    relationship = cells[headings.index("Link")]
     node_type = cells[headings.index("Type")]
 
     assert status.children == child.status
