@@ -478,9 +478,6 @@ def build_node_editor_content():
                     # The whole Event section as one dict, collected clientside
                     # (event_callbacks.py). Save and the dirty check read this.
                     dcc.Store(id="node-dormancy-form", data=None),
-                    # Whether the loaded node was asleep when the section was
-                    # last filled from the database.
-                    dcc.Store(id="node-dormant-loaded", data=False),
                     # Set by the Events tab's "+": {event, ts}. The next blank
                     # form opens with Dormant on under that event.
                     dcc.Store(id="editor-dormant-preset", data=None),

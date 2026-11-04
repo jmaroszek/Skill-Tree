@@ -121,6 +121,45 @@ def build_dormancy_snapshot(node, events):
     }
 
 
+# The Dormant section's widgets, by the keys EDITOR_FILL and the merge write them
+# under. dormancy_fill says what they show for a section.
+DORMANT_WIDGETS = {
+    'dormant_switch': 'node-dormant',
+    'dormant_event': 'node-dormant-event',
+    'dormant_event_name': 'node-dormant-event-name',
+    'dormant_delay_on': 'node-dormant-delay-on',
+    'dormant_delay_value': 'node-dormant-delay-value',
+    'dormant_delay_unit': 'node-dormant-delay-unit',
+    'dormant_wake_date': 'node-dormant-wake-date',
+    'dormant_now': 'node-dormant-now',
+}
+
+
+def dormancy_fill(dormancy):
+    """What the Dormant section's widgets show for a build_dormancy_snapshot dict."""
+    delayed = bool(dormancy['delay_value'])
+    return {
+        'dormant_switch': ['dormant'] if dormancy['dormant'] else [],
+        'dormant_event': dormancy['event'],
+        'dormant_event_name': '',
+        'dormant_delay_on': ['on'] if delayed else [],
+        'dormant_delay_value': dormancy['delay_value'] if delayed else 0,
+        'dormant_delay_unit': dormancy['delay_unit'] if delayed else 'days',
+        'dormant_wake_date': dormancy['wake_date'] or '',
+        'dormant_now': ['on'] if dormancy['now'] else [],
+    }
+
+
+def dormant_event_options(events, current=None):
+    """Pending events, plus the node's own event when that one has fired and
+    still holds it on a wake date."""
+    options = [{'label': e.name, 'value': e.name}
+               for e in events.get_all_events() if e.status == 'Pending']
+    if current and current != NEW_EVENT_OPTION and current not in {o['value'] for o in options}:
+        options.insert(0, {'label': current, 'value': current})
+    return options + [{'label': 'New event…', 'value': NEW_EVENT_OPTION}]
+
+
 def norm_dormancy(dormancy):
     """Comparable form of a dormancy dict. Delays compare in days, so
     "1 week" and "7 days" are the same setting. The rest of the section
@@ -298,6 +337,18 @@ def follow_done_status(node, switch, snapshot):
         return dash.no_update, dash.no_update
     new_switch = stored if (switch or []) == loaded else dash.no_update
     return new_switch, {**snapshot, 'status_done': stored}
+
+
+def follow_dormancy(stored, section, snapshot):
+    """(fields, stored) for an editor whose node's Dormant section changed
+    elsewhere: an event fired, a date woke it, the Events tab moved it, or a save
+    made a new event of what the form called one. Both are None when the snapshot
+    already agrees. ``fields`` is None when the user has changed the section.
+    """
+    loaded = snapshot.get('dormancy')
+    if norm_dormancy(loaded) == norm_dormancy(stored):
+        return None, None
+    return (dormancy_fill(stored) if norm_dormancy(section) == norm_dormancy(loaded) else None), stored
 
 
 def follow_now(node, switch, snapshot):
@@ -506,7 +557,7 @@ def _moved_to_stored(key, field, stored, form, snapshot):
     return _moved({} if field is dash.no_update else {key: field}, {key: stored}, form, snapshot)
 
 
-def rebase(node, stored_links, form, snapshot):
+def rebase(node, stored_links, form, snapshot, stored_dormancy=None):
     """What changed outside the editor, as groups for the browser to apply.
 
     An untouched field takes what is stored, an edited one stays, and the
@@ -538,6 +589,10 @@ def rebase(node, stored_links, form, snapshot):
         groups.append(_moved(dict(zip(_ESTIMATE_FIELDS, estimate)) if estimate else {},
                              {'rates': rates, **dict(zip(_ESTIMATE_FIELDS, stored_estimate or ()))},
                              form, snapshot))
+    if stored_dormancy is not None and 'dormancy' in snapshot:
+        fill, stored = follow_dormancy(stored_dormancy, form.get('dormancy'), snapshot)
+        if stored is not None:
+            groups.append(_moved(fill or {}, {'dormancy': stored}, form, snapshot))
     return groups
 
 
@@ -586,8 +641,8 @@ def snapshot_from_form_state(form_values, linted_name, linted_aliases):
         'value_mode': form_values.get('value_mode') or [],
         'priority_rank': form_values.get('priority_rank') or 'none',
         'aliases': linted_aliases or [''],
-        # The Event section is refreshed from the database after any save
-        # that touches dormancy, and that refresh re-baselines this key.
+        # A save can make an event of what the form called a new one, or find
+        # the node already woken. The merge takes this key from there.
         'dormancy': form_values.get('dormancy') or NEW_NODE_DORMANCY,
     }
 

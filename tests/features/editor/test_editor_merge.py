@@ -10,8 +10,22 @@ import subprocess
 import dash
 import pytest
 
+from skilltree.domain.models import EDGE_NEEDS_HARD, Event, Node, STATUS_DONE, STATUS_OPEN
+from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.editor.form import (
+    EDITOR_FORM,
+    NEW_EVENT_OPTION,
+    NEW_NODE_DORMANCY,
+    build_dormancy_snapshot,
+    build_editor_snapshot,
+    editor_form_values_from,
+    rebase,
+    stored_relationships,
+)
 from skilltree.features.editor.merge import MERGE_READS, MERGE_WRITES, register_merge_callbacks
+from skilltree.features.editor.save import save_editor_form
 from skilltree.services import AppServices
+from support.callbacks import registered
 from support.clientside import clientside_source
 
 _RUN = """
@@ -115,3 +129,120 @@ def test_a_dict_compares_the_same_whatever_order_its_keys_came_back_in():
                         form={"e_helps": {"b": 2, "a": 1}})
 
     assert written == {"e_helps": ["B"]}
+
+
+# --- A form the merge has no business touching ----------------------------------------
+
+def _plain(graph, _events):
+    graph.add_node(_node("It"))
+
+
+def _habit(graph, _events):
+    graph.add_node(_node("It", time_mode="habit", habit_duration=6, habit_duration_unit="weeks",
+                         habit_intensity_o=20, habit_intensity_m=30, habit_intensity_p=45,
+                         habit_intensity_unit="min_per_session", habit_days="0,2"))
+
+
+def _rounded(graph, _events):
+    """Hours that no number of weeks shows exactly."""
+    graph.add_node(_node("It", time_o=7.0, time_m=13.0, time_p=29.0))
+
+
+def _goal_with_inherited_time(graph, _events):
+    graph.add_node(_node("Child"))
+    graph.add_node(_node("It", type="Goal", time_mode="inherited"))
+    graph.add_edge("Child", "It", EDGE_NEEDS_HARD)
+
+
+def _inherited_ratings(graph, _events):
+    graph.add_node(_node("It", value_mode="inherited"))
+
+
+def _milestone(graph, _events):
+    graph.add_node(_node("It", type="Milestone"))
+
+
+def _done(graph, _events):
+    graph.add_node(_node("It", status=STATUS_DONE))
+
+
+def _in_now(graph, _events):
+    graph.add_node(_node("It", now=1))
+
+
+def _asleep(graph, events):
+    graph.add_node(_node("It"))
+    events.add_event(Event(name="Later"))
+    events.add_node_to_event("Later", "It")
+
+
+def _asleep_with_a_delay(graph, events):
+    graph.add_node(_node("It"))
+    events.add_event(Event(name="Later"))
+    events.add_node_to_event("Later", "It", delay_days=10, now_on_trigger=True)
+
+
+def _waiting_on_a_wake_date(graph, events):
+    graph.add_node(_node("It"))
+    events.add_event(Event(name="Later"))
+    events.add_node_to_event("Later", "It", delay_days=10)
+    events.trigger_event_manually("Later")
+
+
+SHAPES = (_plain, _habit, _rounded, _goal_with_inherited_time, _inherited_ratings, _milestone,
+          _done, _in_now, _asleep, _asleep_with_a_delay, _waiting_on_a_wake_date)
+
+
+def _node(name, **fields):
+    return Node(**{**dict(name=name, type="Action", description="", value=5, time_o=1.0,
+                          time_m=2.0, time_p=4.0, interest=5, difficulty=5, status=STATUS_OPEN,
+                          context="Mind"), **fields})
+
+
+def _what_moves(services, form, snapshot):
+    node = services.graph.get_node("It")
+    return rebase(node, stored_relationships(services.graph.get_edges(), "It"), form, snapshot,
+                  stored_dormancy=build_dormancy_snapshot(node, services.events))
+
+
+def _saved(services, form, snapshot):
+    """The baseline and form a committed save leaves, as the post-save sync makes it."""
+    saved = save_editor_form(services.graph, services.events, form, "It", original_name="It",
+                             pristine_snapshot=snapshot, bridge_pending=None,
+                             reopen_confirmed=False, via="btn-save", now=bool(form.get("now")))
+    sync = registered(register_editor_callbacks)["sync_original_name_after_save"]
+    *_, baseline, _ = sync(saved.result, "It", None)
+    return editor_form_values_from(saved.result["form"]), baseline
+
+
+def _loaded_form(services):
+    snapshot = build_editor_snapshot(services.graph, services.events, "It")
+    return {**{key: snapshot[key] for key in EDITOR_FORM if key in snapshot},
+            "link_values": [], "link_ids": []}, snapshot
+
+
+@pytest.mark.parametrize("shape", SHAPES, ids=lambda shape: shape.__name__)
+def test_a_loaded_form_and_a_saved_one_leave_the_merge_nothing_to_do(services, shape):
+    """It runs on every change, so anything here would rewrite the form for no
+    reason, or write a baseline that sets it off again."""
+    shape(services.graph, services.events)
+    form, snapshot = _loaded_form(services)
+    assert _what_moves(services, form, snapshot) == []
+
+    form, baseline = _saved(services, form, snapshot)
+
+    assert _what_moves(services, form, baseline) == []
+
+
+def test_a_new_event_saved_from_the_form_settles_after_one_answer(services):
+    services.graph.add_node(_node("It"))
+    form, snapshot = _loaded_form(services)
+    form["dormancy"] = {**NEW_NODE_DORMANCY, "dormant": True, "event": NEW_EVENT_OPTION,
+                        "event_name": "Fresh"}
+
+    form, baseline = _saved(services, form, snapshot)
+    [group] = _what_moves(services, form, baseline)
+
+    assert group["fields"]["dormant_event"] == "Fresh"
+    settled = {**baseline, **group["baseline"]}
+    assert _what_moves(services, {**form, "dormancy": group["baseline"]["dormancy"]}, settled) == []

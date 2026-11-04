@@ -12,7 +12,7 @@ from skilltree.domain.time import (
     resolve_time_mode, resolve_value_mode, time_estimate_problem,
 )
 from skilltree.features.editor.form import (
-    NEW_NODE_DORMANCY, RELATIONSHIP_FIELDS, dormancy_for_save, resolve_context_intent,
+    RELATIONSHIP_FIELDS, dormancy_for_save, resolve_context_intent,
     resolve_done_intent, resolve_relationship_intent, resolve_time_intent,
     resource_link_values, stored_relationships, woke_during_edit,
 )
@@ -262,12 +262,10 @@ def save_editor_form(graph, events, form, name, *, original_name, pristine_snaps
               # The rates the form was shown at, not today's: a form left
               # untouched still shows the old days and weeks, and the merge
               # takes them to the new rates once the save has landed.
-              "rates": ((pristine_snapshot or {}).get('rates') if isinstance(pristine_snapshot, dict)
+              "rates": (pristine_snapshot.get('rates') if isinstance(pristine_snapshot, dict)
                         else None) or estimate_rates(),
+              # Whether the Events tab has anything to catch up on.
+              "sleeps_or_slept": bool((form.get('dormancy') or {}).get('dormant')
+                                      or (_prior_for_completion and _prior_for_completion.dormant)),
               "ts": int(time.time() * 1000)}
-    if woke_from:
-        # The node is awake, whatever the form said: that is the
-        # baseline, and populate_node_dormancy redraws the section.
-        result["form"] = {**form, "dormancy": dict(NEW_NODE_DORMANCY)}
-        result["woke"] = woke_from
     return SavedForm(msg, completed, undo_pending, undo_downstream, result)

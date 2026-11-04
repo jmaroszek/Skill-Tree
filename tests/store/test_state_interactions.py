@@ -502,8 +502,13 @@ def test_a_node_that_woke_while_its_editor_was_open_saves_the_rest(handlers, mon
     saved = manager.get_node('A')
     assert saved.description == 'notes' and not saved.dormant
     assert "woke from 'Later' while you were editing" in result.notice["text"]
-    assert result.save_result['woke'] == 'Later'
-    assert result.save_result['form']['dormancy']['dormant'] is False
+    # The baseline stays what the form shows, and the merge takes both to awake.
+    assert result.save_result['form']['dormancy'] == loaded
+    baseline = {'name': 'A', 'status_done': [], 'dormancy': loaded}
+    stored = build_dormancy_snapshot(saved, services.events)
+    fields, moved = merged(rebase(saved, {}, {'status_done': [], 'dormancy': loaded}, baseline,
+                                  stored_dormancy=stored))
+    assert fields['dormant_switch'] == [] and moved['dormancy']['dormant'] is False
 
 
 def test_a_changed_dormant_section_still_counts_after_a_wake(handlers, monkeypatch, services):

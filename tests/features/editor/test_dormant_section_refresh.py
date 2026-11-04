@@ -1,21 +1,22 @@
-"""The editor's Dormant section and the events it reloads for.
+"""The editor's Dormant section and the events it follows.
 
-Every event change (a save, a trigger, the clock waking a node) reloads the
-open editor's Dormant section. It used to replace whatever the user had
-changed there and reset the baseline, so the unsaved-changes guard never saw
-the loss. A save that found the node woken from under the editor also left
-the section saying Dormant.
+Every event change (a save, a trigger, the clock waking a node) can change what is
+stored for the open node. It used to replace whatever the user had changed there
+and reset the baseline, so the unsaved-changes guard never saw the loss. A save
+that found the node woken from under the editor also left the section saying
+Dormant.
 """
-import types
-
 import dash
 import pytest
 
-from skilltree.features.editor import dormancy
-from skilltree.features.editor.form import NEW_NODE_DORMANCY, build_dormancy_snapshot
+from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.editor.form import NEW_EVENT_OPTION, build_dormancy_snapshot, rebase
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event, Node
+from support.callbacks import registered
+from support.editor_forms import call, merged
+from support.triggers import fire
 
 
 def _node(name):
@@ -25,20 +26,8 @@ def _node(name):
 
 
 @pytest.fixture
-def populate(monkeypatch, services):
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    dormancy.register_dormancy_callbacks(app, services)
-    fn = next(spec["callback"] for spec in app.callback_map.values()
-              if getattr(spec.get("callback"), "__name__", "") == "populate_node_dormancy")
-    while hasattr(fn, "__wrapped__"):
-        fn = fn.__wrapped__
-
-    def run(trigger, snapshot, form, save_result=None):
-        monkeypatch.setattr(dormancy, "ctx",
-                            types.SimpleNamespace(triggered_id=trigger))
-        return fn("A", 1, save_result, None, snapshot, form)
-    return run
+def handlers():
+    return registered(register_editor_callbacks)
 
 
 @pytest.fixture
@@ -51,34 +40,63 @@ def events():
     return events
 
 
-def test_an_event_change_keeps_unsaved_dormant_edits(populate, events, services):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
+def _section(services):
+    return build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
+
+
+def _merge(services, form, loaded):
+    return merged(rebase(GraphManager().get_node("A"), {}, {"dormancy": form},
+                         {"name": "A", "dormancy": loaded},
+                         stored_dormancy=_section(services)))
+
+
+def test_an_event_change_keeps_unsaved_dormant_edits(handlers, events, services):
+    loaded = _section(services)
     edited = {**loaded, "event": "Other"}
-    snapshot = {"name": "A", "desc": "", "dormancy": loaded}
     events.set_node_delay("Later", "A", 7)  # elsewhere: the Events tab
-    out = populate("events-refresh-trigger", snapshot, edited)
-    dormant, options, event_value = out[0], out[1], out[2]
-    assert dormant is dash.no_update and event_value is dash.no_update
-    assert "Other" in [o["value"] for o in options]
+
+    fields, baseline = _merge(services, edited, loaded)
+
+    assert fields == {}
     # The baseline moves to what is stored, so the edit still counts as unsaved.
-    assert out[10]["dormancy"]["delay_value"] == 1 and out[10]["dormancy"]["delay_unit"] == "weeks"
-    assert out[10]["dormancy"]["event"] == "Later"
+    assert baseline["dormancy"]["delay_value"] == 1 and baseline["dormancy"]["delay_unit"] == "weeks"
+    assert baseline["dormancy"]["event"] == "Later"
+    # The list keeps the user's choice on it.
+    fire("events-refresh-trigger")
+    options = handlers["refresh_dormant_event_options"](["dormant"], 1, "Other")
+    assert "Other" in [o["value"] for o in options]
 
 
-def test_an_event_change_reloads_an_untouched_section(populate, events, services):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
-    snapshot = {"name": "A", "dormancy": loaded}
+def test_an_event_change_reloads_an_untouched_section(handlers, events, services):
+    loaded = _section(services)
     events.trigger_event_manually("Later")
-    out = populate("events-refresh-trigger", snapshot, loaded)
-    assert out[0] == [] and out[10]["dormancy"]["dormant"] is False
+
+    fields, baseline = _merge(services, loaded, loaded)
+
+    assert fields["dormant_switch"] == [] and baseline["dormancy"]["dormant"] is False
 
 
-def test_a_save_that_found_the_node_awake_redraws_the_section(populate, events, services):
-    loaded = build_dormancy_snapshot(GraphManager().get_node("A"), services.events)
-    events.trigger_event_manually("Later")
-    out = populate("editor-save-result-store", {"name": "A", "dormancy": loaded}, loaded,
-                   save_result={"name": "A", "via": "btn-save", "woke": "Later"})
-    assert out[0] == []
-    assert out[10] is dash.no_update  # the post-save sync owns the baseline
-    assert populate("editor-save-result-store", {"name": "A"}, NEW_NODE_DORMANCY,
-                    save_result={"name": "A", "via": "btn-save"}) == (dash.no_update,) * 12
+def test_the_section_stays_when_nothing_changed(events, services):
+    loaded = _section(services)
+    assert _merge(services, loaded, loaded) == ({}, {})
+
+
+def test_a_new_event_saved_from_the_form_takes_its_name_onto_the_list(handlers, events, services):
+    """The form said "New event…" with a name. Now it's an event like any other,
+    and the picker can't hold a value its list doesn't."""
+    typed = {**_section(services), "event": NEW_EVENT_OPTION, "event_name": "Fresh"}
+    events.add_event(Event(name="Fresh"))
+    events.move_node_to_event("Later", "A", "Fresh")
+
+    result = call(handlers["merge_outside_changes"], snapshot={"name": "A", "dormancy": typed},
+                  original_name="A", dormancy=typed)
+
+    [group] = result["groups"]
+    assert group["fields"]["dormant_event"] == "Fresh"
+    assert group["fields"]["dormant_event_name"] == ""
+    assert "Fresh" in [o["value"] for o in group["fields"]["dormant_event_options"]]
+
+
+def test_switching_dormant_off_leaves_the_list_alone(handlers):
+    fire("node-dormant")
+    assert handlers["refresh_dormant_event_options"]([], None, None) is dash.no_update

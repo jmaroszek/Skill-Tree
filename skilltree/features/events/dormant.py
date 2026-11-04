@@ -56,7 +56,7 @@ def register_dormant_callbacks(app, services):
     # unsaved-changes prompt behaves exactly as it does there. That button
     # lives inside the editor and never has to open it, so left_panel.js opens
     # the sidebar on this same choice. The preset rides alongside and
-    # populate_node_dormancy applies it.
+    # populate_editor applies it.
     app.clientside_callback(
         """
         function(choice, selectedEvent) {

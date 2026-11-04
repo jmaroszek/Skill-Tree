@@ -15,8 +15,10 @@ from support.callbacks import unwrapped
 from support.layout import walk
 from support.paths import ROOT
 
-# Outputs that two or more callbacks write.
-MOST_SHARED_OUTPUTS = 121
+# Outputs that two or more callbacks write. Up from 121 once: the Dormant section's
+# 8 widgets became form fields like any other, which a load fills and the merge
+# follows, and that took 6 writers off the baseline.
+MOST_SHARED_OUTPUTS = 129
 
 # Callbacks allowed to write each output.
 MOST_WRITERS = {
@@ -27,7 +29,7 @@ MOST_WRITERS = {
     'events-sidebar-container.className': 1,
     'events-tab-inner.className': 1,
     'sidebar-filters-container.className': 1,
-    'editor-pristine-snapshot.data': 4,
+    'editor-pristine-snapshot.data': 3,
     # Everything else writes a notice, and notices.js shows it.
     'save-output.children': 1,
     'modal-error.is_open': 1,

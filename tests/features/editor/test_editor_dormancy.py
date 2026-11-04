@@ -15,12 +15,14 @@ from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.features.editor import dormancy
 from skilltree.features.editor.form import (
-    NEW_EVENT_OPTION, NEW_NODE_SNAPSHOT, build_dormancy_snapshot,
+    NEW_EVENT_OPTION, NEW_NODE_DORMANCY, NEW_NODE_SNAPSHOT, build_dormancy_snapshot,
     build_editor_snapshot, dormancy_for_save, is_form_dirty_vs_snapshot,
 )
 from skilltree.domain.models import Event, Node
 from skilltree.store.commands import apply_dormancy, handle_save
+from skilltree.features.editor.save import save_editor_form
 from support.callbacks import registered
+from support.editor_forms import editor_form
 
 
 @pytest.fixture
@@ -368,11 +370,33 @@ def _refresh_after_save():
 
 def test_a_save_refreshes_events_when_the_node_sleeps_or_slept():
     refresh = _refresh_after_save()
-    saved = {"name": "A", "via": "btn-save", "ts": 1}
-    assert refresh(saved, {"dormant": True}, False) is not dash.no_update
-    assert refresh(saved, {"dormant": False}, True) is not dash.no_update
-    assert refresh(saved, {"dormant": False}, False) is dash.no_update
+    assert refresh({"name": "A", "sleeps_or_slept": True}) is not dash.no_update
+    assert refresh({"name": "A", "sleeps_or_slept": False}) is dash.no_update
 
 
 def test_no_committed_save_refreshes_nothing():
-    assert _refresh_after_save()(None, {"dormant": True}, True) is dash.no_update
+    assert _refresh_after_save()(None) is dash.no_update
+
+
+@pytest.mark.parametrize("loaded, asleep, says", [
+    (False, True, True),     # put to sleep
+    (True, False, True),     # woken
+    (True, True, True),      # moved to another event
+    (False, False, False),   # nothing to do with events
+])
+def test_a_save_says_whether_it_touched_an_event(mgr, em, loaded, asleep, says):
+    mgr.add_node(_node("Voice"))
+    if loaded:
+        em.add_event(Event(name="Later"))
+        em.add_node_to_event("Later", "Voice")
+    section = {**NEW_NODE_DORMANCY, "dormant": asleep, "event": "Later2" if asleep else None}
+    if asleep:
+        em.add_event(Event(name="Later2"))
+    form = editor_form(name="Voice", n_type="Learn", desc="", context="Mind", status_done=[],
+                       val=5, interest=5, diff=5, time_o=1, time_m=2, time_p=4,
+                       time_unit="hours", link_values=[], link_ids=[], aliases=[],
+                       dormancy=section)
+    saved = save_editor_form(mgr, em, form, "Voice", original_name="Voice",
+                             pristine_snapshot={"name": "Voice"}, bridge_pending=None,
+                             reopen_confirmed=False, via="btn-save")
+    assert saved.result["sleeps_or_slept"] is says

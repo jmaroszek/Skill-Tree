@@ -6,6 +6,8 @@ The save itself is the core engine's (engine/callbacks.py), since a save
 redraws the canvas in the same response.
 """
 
+import time
+
 import dash
 from dash import Input, Output, State, no_update
 
@@ -16,10 +18,14 @@ from skilltree.features.editor.dialogs import register_dialog_callbacks
 from skilltree.features.editor.dormancy import register_dormancy_callbacks
 from skilltree.features.editor.fields import register_field_callbacks
 from skilltree.features.editor.form import (
+    DORMANT_WIDGETS,
     EDITOR_FORM,
+    NEW_NODE_DORMANCY,
     NEW_NODE_SNAPSHOT,
     RELATIONSHIP_FIELDS,
     build_editor_snapshot,
+    dormancy_fill,
+    dormant_event_options,
     editor_form_values_from,
     is_form_dirty_vs_snapshot,
     snapshot_from_form_state,
@@ -89,6 +95,10 @@ EDITOR_FILL = dict(
     # The bridge this editor was opened for, if any. Every load of the
     # editor replaces it, so a bridge never outlives its form.
     bridge=Output('bridge-pending-store', 'data'),
+    # The Dormant section, filled from the snapshot's one dict.
+    **{key: Output(component, 'value') for key, component in DORMANT_WIDGETS.items()},
+    dormant_event_options=Output('node-dormant-event', 'options'),
+    dormant_preset=Output('editor-dormant-preset', 'data', allow_duplicate=True),
 )
 
 
@@ -101,16 +111,20 @@ def _untouched(**changes):
     return {**dict.fromkeys(EDITOR_FILL, no_update), **changes}
 
 
-def _filled(snapshot, options, *, status, original_name, search=no_update, bridge=None):
+def _filled(snapshot, options, *, status, original_name, search=no_update, bridge=None,
+            event_options=no_update, preset=no_update):
     """populate_editor's outputs for a form that shows ``snapshot``.
 
     A load closes the unsaved-changes dialog and forgets where it was going.
     ``search`` is what the node picker shows. Leaving it alone avoids
     triggering core_engine again. The relationship options only go out with a
     form: at about 230 KB, nothing else that happens here should pay for them.
+    ``preset`` is what the Events tab's "+" left waiting, once a form has used it.
     """
     out = {key: snapshot[key] for key in EDITOR_FILL if key in snapshot}
     out.update(_relationship_options(options))
+    out.update(dormancy_fill(snapshot.get('dormancy') or NEW_NODE_DORMANCY))
+    out.update(dormant_event_options=event_options, dormant_preset=preset)
     out.update(status_text=status, time_unit_prev=snapshot['time_unit'],
                original_name=original_name, search=search, pending_nav=None,
                unsaved_open=False, close_request=no_update, snapshot=snapshot, bridge=bridge,
@@ -180,6 +194,7 @@ def register_editor_callbacks(app, services):
             original_name=State('node-original-name', 'data'),
             pending_nav=State('pending-navigation-store', 'data'),
             pristine_snapshot=State('editor-pristine-snapshot', 'data'),
+            dormant_preset=State('editor-dormant-preset', 'data'),
             details_selected_node=State('details-selected-node-store', 'data'),
             bridge_ends=State('bridge-modal-store', 'data'),
             bridge_kind=State('bridge-type', 'value'),
@@ -197,8 +212,8 @@ def register_editor_callbacks(app, services):
                         _bg_click, editor_new_clicks, goal_new_clicks, edit_trigger_val,
                         details_edit_trigger_val, details_add_choice, bridge_clicks,
                         revert_clicks, left_panel, original_name, pending_nav,
-                        pristine_snapshot, details_selected_node, bridge_ends,
-                        bridge_kind, form):
+                        pristine_snapshot, dormant_preset, details_selected_node,
+                        bridge_ends, bridge_kind, form):
         """What the editor shows and does next, whatever asked (editor navigation).
 
         `form` is what the editor holds now (editor form.EDITOR_FORM),
@@ -215,9 +230,11 @@ def register_editor_callbacks(app, services):
                                 exclude=exclude, aliases=manager.get_all_aliases())
 
         def _load(node, search):
-            return _filled(build_editor_snapshot(manager, services.events, node.name),
-                           _options(exclude=node.name), status=node.status,
-                           original_name=node.name, search=search)
+            snapshot = build_editor_snapshot(manager, services.events, node.name)
+            return _filled(snapshot, _options(exclude=node.name), status=node.status,
+                           original_name=node.name, search=search,
+                           event_options=dormant_event_options(
+                               services.events, snapshot['dormancy']['event']))
 
         def _new_node(search=None, bridge=None, **fields):
             """A blank form, with `fields` filled in. Clearing the search bar
@@ -226,9 +243,20 @@ def register_editor_callbacks(app, services):
             node-type starts empty, so the "Choose node type..." placeholder
             survives until the user picks one. Defaulting it to Learn meant a
             new node silently claimed a type nobody chose; saving without one
-            is refused ("Node type is required")."""
-            return _filled({**NEW_NODE_SNAPSHOT, **fields}, _options(), status=STATUS_OPEN,
-                           original_name=None, search=search, bridge=bridge)
+            is refused ("Node type is required").
+
+            The Events tab's "+" opens one with Dormant already on and the event
+            chosen. Its preset is used once, by the next blank form, and only
+            while it is fresh."""
+            dormancy, preset = NEW_NODE_DORMANCY, no_update
+            if dormant_preset and dormant_preset.get('event'):
+                preset = None
+                if time.time() * 1000 - (dormant_preset.get('ts') or 0) < 30_000:
+                    dormancy = {**dormancy, 'dormant': True, 'event': dormant_preset['event']}
+            return _filled({**NEW_NODE_SNAPSHOT, 'dormancy': dormancy, **fields}, _options(),
+                           status=STATUS_OPEN, original_name=None, search=search, bridge=bridge,
+                           event_options=dormant_event_options(services.events, dormancy['event']),
+                           preset=preset)
 
         def _bridge_form():
             """A new node between the bridge dialog's two nodes, with the
@@ -308,8 +336,9 @@ def register_editor_callbacks(app, services):
                 return _untouched()
         if trigger_id == 'btn-unsaved-cancel':
             # Keep editing forgets where it was going, or a later Discard would
-            # load the node a cancelled tap was heading for.
-            return _untouched(pending_nav=None, unsaved_open=False)
+            # load the node a cancelled tap was heading for. A "+" that never got
+            # its blank form doesn't leave its preset waiting for the next one.
+            return _untouched(pending_nav=None, unsaved_open=False, dormant_preset=None)
         if trigger_id == 'btn-unsaved-save':
             # Its save may be refused, which keeps the form and the edits. It
             # moves on once core_engine reports the commit, above.
