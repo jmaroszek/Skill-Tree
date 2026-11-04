@@ -420,7 +420,6 @@ def build_details_tab_content():
     link_node_modal = _build_link_node_modal()
 
     explain_legend_items = []
-    # Third copy of the same four values; now the one in the palette.
     for label in ('Self', 'Hard', 'Soft', 'Synergy'):
         color = BADGE_PALETTE[f'Edge{label}'][0]
         explain_legend_items.append(html.Span([
@@ -809,23 +808,9 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
         ),
     )
 
-    # Cool & quiet palette: Hard a darker rugged blue (the same value as the
-    # HardRelPri badge, so one hue means one thing app-wide); Soft a neutral
-    # slate; Synergy a cyan-teal, categorically off the Hard/Soft necessity
-    # axis. These used to be written out here AND in details/explain.py as
-    # _VIA_COLORS, kept in step by a comment saying they matched.
-    _REL_BADGE_STYLES = {
-        rel: {"backgroundColor": BADGE_PALETTE[f"Edge{rel}"][0],
-              "color": BADGE_PALETTE[f"Edge{rel}"][1]}
-        for rel in ("Hard", "Soft", "Synergy")
-    }
-
     rows = []
     for node in subtask_nodes:
-        # Status badge uses the centralized BADGE_PALETTE so the muted
-        # Done/Blocked values match the Details info pane.
         rel = relationship_types.get(node.name, "Hard")
-        rel_style = _REL_BADGE_STYLES.get(rel, _REL_BADGE_STYLES["Hard"])
         edit_id = {"type": "details-subtask-edit", "index": node.name}
         edit_btn = html.Div([
             dbc.Button(
@@ -858,13 +843,8 @@ def build_details_subtasks_table(subtask_nodes, graph_manager=None, edges=None,
                 className="details-subtask-name-cell",
                 style=tokens.CELL_PRIMARY,
             ),
-            html.Td(html.Span(node.status, className="badge",
-                              style=badge_style(node.status, font_size=tokens.FS_XS)),
-                    style=tokens.CELL_PRIMARY),
-            html.Td(html.Span(rel, className="badge",
-                              style={**rel_style, "fontSize": tokens.FS_XS,
-                                     "padding": "4px 8px", "borderRadius": "4px"}),
-                    style=tokens.CELL_PRIMARY),
+            html.Td(node.status, style=tokens.CELL_MUTED),
+            html.Td(rel, style=tokens.CELL_MUTED),
             html.Td(node.type, style=tokens.CELL_MUTED),
             html.Td(str(node.context) if node.context else "—",
                     style=tokens.CELL_MUTED),

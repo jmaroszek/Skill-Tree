@@ -22,8 +22,8 @@ from skilltree.ui.styles import BADGE_PALETTE
 # neutral slate; Synergy cyan-teal (categorically different — mutual,
 # multiplicative reinforcement, not a weaker prereq). Self is a warm
 # sand off the cool axis entirely so it can't be confused with Soft.
-# Values come from styles.BADGE_PALETTE so the chart, the subtasks-table
-# relationship column and the node-info badges cannot drift apart.
+# Values come from styles.BADGE_PALETTE so the chart, its legend and the
+# node-info badges cannot drift apart.
 _VIA_COLORS = {
     'Self':    BADGE_PALETTE['EdgeSelf'][0],     # warm sand — off the edge axis
     'Hard':    BADGE_PALETTE['EdgeHard'][0],     # darker rugged blue (must-have)

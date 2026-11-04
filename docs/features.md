@@ -693,7 +693,7 @@ Hit **Clear Focus** at the top of the canvas to exit.
 ## Subtasks Panel
 The Subtasks table in the lower-left lists every node related to the selected one. 
 
-Two columns stand out: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The priority score is the same one the Home tab shows. 100 is the Home tab's top recommendation, so the best subtask here can read lower. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
+Two columns matter most: the **relationship** to the selected node — Hard, Soft, or Synergy — and the **priority score**. The priority score is the same one the Home tab shows. 100 is the Home tab's top recommendation, so the best subtask here can read lower. Blocked and Done nodes have no priority since they're not [eligible](scoring.md#eligibility-and-the-status-cascade) for ranking.
 
 <p align="center">
   <img src="images/details-stoicism.png">
