@@ -522,6 +522,12 @@ tasks to match, in a run of either version. So compare two versions side by side
 with nothing else running. A single slower row said nothing about the code it
 was run on.
 
+Bringing the editor's baseline down to three writers (2026-11-03) left the slides
+where they were: side by side, two rounds each, every row is within a few
+milliseconds. Loading a node went from 30 server calls to 25 on the sandbox's
+graph, and a save from 29 to 26, since one merge replaces the callbacks that each
+followed one thing.
+
 Two versions of this measured worse, and each cost shows up anywhere else a
 slide could start late:
 

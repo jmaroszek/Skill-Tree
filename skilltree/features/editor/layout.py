@@ -476,7 +476,7 @@ def build_node_editor_content():
                         ]),
                     ]),
                     # The whole Event section as one dict, collected clientside
-                    # (event_callbacks.py). Save and the dirty check read this.
+                    # (dormancy.py). Save and the dirty check read this.
                     dcc.Store(id="node-dormancy-form", data=None),
                     # Set by the Events tab's "+": {event, ts}. The next blank
                     # form opens with Dormant on under that event.

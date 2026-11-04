@@ -44,7 +44,7 @@ skilltree/
 assets/         boot scripts at the top, feature folders, css/, vendor/
 ```
 
-A feature package has a `layout.py` and a `callbacks.py`. `callbacks.py` exposes `register_<feature>_callbacks(app, services)`, which also registers the feature's other modules. Larger features split by panel: the editor has `form.py`, `save.py`, `dormancy.py` and `resources.py`, and Details has `explain.py`, `simulation.py` and `subtasks.py`.
+A feature package has a `layout.py` and a `callbacks.py`. `callbacks.py` exposes `register_<feature>_callbacks(app, services)`, which also registers the feature's other modules. Larger features split by panel: the editor has `form.py`, `save.py`, `merge.py`, `fields.py`, `checks.py`, `dialogs.py`, `aliases.py`, `ratings.py`, `dormancy.py` and `resources.py`, and Details has `explain.py`, `simulation.py` and `subtasks.py`.
 
 Some store modules carry most of the weight:
 
@@ -81,6 +81,8 @@ Its inputs, state and outputs are dicts keyed by name. The outputs are `CoreResp
 
 The function is registered twice, because of how Dash treats a callback that fires again before its last run has answered. It throws that answer away, though the run still finishes on the server. Renders can replace each other, since the newest reads the newest data. An action's answer can't be lost: it's how the page learns that a save committed. So `CORE_ACTIONS` have one callback and `CORE_RENDERS` the other. Each reads the other's inputs as State. A render only draws: it never touches a modal or a message, because an action may have just opened one.
 
+The Events form's `open_event_detail` has two doors for the same reason. The dialog's Save goes on once it has committed, and that save rebuilds the event list, whose new cards fire the callback again.
+
 Two quick clicks on Save are the same problem from one door. The second sends the same form from the same baseline, and the first answer is thrown away. So `handlers.save` remembers the last commit, and a repeat gets that answer without writing again. Saves run one at a time, so a repeat always sees what the first did.
 
 The editor's save transaction is `save_editor_form` in `features/editor/save.py`. It doesn't touch Dash, and it raises `ReopensDoneNodes`, `ValueError` or `TypeError` for the handler to report.
@@ -93,7 +95,8 @@ The editor's save transaction is `save_editor_form` in `features/editor/save.py`
 - `elements-pending-store`, and its `details-` and `events-` variants, take each canvas's new elements. Callbacks never write Cytoscape's `elements` directly.
 - `canvas-payload-stamp` records each Nodes render: whether the canvas has loaded, its node count, and when. Server callbacks listen to it instead of to the elements, which as an Input would send the whole canvas back.
 - `freeze-rerender-store` and its variants hold each canvas's freeze switch.
-- `editor-pristine-snapshot` holds the form as it loaded, for the unsaved-changes check.
+- `editor-pristine-snapshot` is the editor's baseline: what the unsaved-changes check and Save compare the form with. Three things write it: a load, a save and the merge (see The node editor).
+- `editor-merge-store` carries what changed outside the editor from the server to the browser.
 - `editor-save-result-store` is written once a save commits (`{name, via, ts}`). Every follow-up to a save acts on it, never on the click.
 - The `*-pending-store`s, `focus-goal-store` and `selected-suggestion-store` carry state across the steps of confirm flows.
 
@@ -141,10 +144,24 @@ There is one node editor, and every way of opening it runs `populate_editor`.
 
 - `EDITOR_FORM` (`features/editor/form.py`) declares the form's fields once. A callback that reads the form takes it as one grouped State and receives a dict.
 - `populate_editor` returns `EDITOR_FILL`'s outputs by name. It fills the form from a snapshot, `build_editor_snapshot` for a node or `NEW_NODE_SNAPSHOT` for a blank form, and keeps that snapshot as the pristine copy. So a node that was only loaded never counts as edited.
-- Loading another node asks before dropping unsaved edits. The dialog stores where it was going in `pending-navigation-store`: a node's name, or a sentinel (`__new_node__`, `__new_subtask__|<parent>`, `__bridge__`, `__background__`).
+- Loading another node asks before dropping unsaved edits. `next_step` (`features/editor/navigation.py`) decides whether to go, ask, keep or close. The dialog stores where it was going in `pending-navigation-store`, as a dict.
 - The dialog's Save moves on only after its own save commits. `sync_original_name_after_save` adopts a saved name only after Save.
 - `bridge-pending-store` holds the link a bridge replaces. Every load of the editor rewrites it, and the save removes the link only for a new node that really sits between the two ends.
-- Dormant is a field of the editor, saved with Save. `features/editor/dormancy.py` fills the section from the database and collects it into `node-dormancy-form`. A refusal rolls back the whole save.
+- Dormant is a field of the editor, saved with Save. `populate_editor` fills the section, and `features/editor/dormancy.py` collects it into `node-dormancy-form`. A refusal rolls back the whole save.
+
+### What changed outside the editor
+
+The editor's baseline has three writers: `populate_editor` for a load, `sync_original_name_after_save` for a save, and the merge for everything else. The merge takes in what changes while a node is open: links, Done, Now, a renamed context, a new hours per week, an event waking the node.
+
+- `form.rebase` is pure and holds the rules. An untouched field takes what's stored, an edited one stays, and the baseline moves to what's stored. So an edit still counts as unsaved, and it's compared with what is really there.
+- `merge_outside_changes` (`features/editor/merge.py`) asks it, on any change to the graph, the baseline, the contexts, Settings or an event. It sends its answer through `editor-merge-store`.
+- `editor_form.apply_merge` in the browser applies the answer to the form as it is by then. An answer for another node is dropped. So is any group whose field or baseline has changed since, and the other groups land. Moving only the baseline would read what the user hasn't seen as their edit: a link added elsewhere would look removed by them, and Save would remove it.
+
+Every run checks every group, judged by what's stored and not by what fired, so no group depends on which run's answer survives. The estimate is the one exception. A form's numbers can differ from the stored hours for good reasons, as on a habit. So the baseline keeps the `rates` it was shown at, and the estimate is only judged when they've changed.
+
+Save never depends on the merge having run. It judges an untouched field against what's stored (`form.resolve_*`).
+
+A new editor field that something outside the editor can change gets a `follow_*` in `form.py`, a group in `rebase`, and a place in `MERGE_READS` and `MERGE_WRITES`.
 
 ## The browser
 
@@ -164,6 +181,7 @@ Page scripts talk to Python through hidden inputs and stores.
 - Dash loads the files at the top of `assets/` first, then each folder in name order. Only the boot scripts sit at the top: the `00_` and `01_` files, `native_builtins.js`, `store_mount.js`, `startup_cover.js`, `window_chrome.js` and the dev-only `hard_reload_on_restart.js`.
 - Feature scripts sit in their folders: `analyze`, `canvas`, `components`, `details`, `editor`, `events`, `home`, `menus`, `settings`, `sidebars`.
 - A script that calls another's `SkillTree` function as it loads must load after it. `tests/app/test_asset_order.py` runs every script in Dash's order against a stand-in for the browser, and fails on any that throws.
+- A script writes only to elements it created, or through `set_props`, so Dash always knows what a component holds. Menu scripts that toggle elements no callback styles are the exception, since nothing can disagree with them.
 - Stylesheets sit in `assets/css/`, so they load in name order, the order their cascade was written for.
 - Dash skips any folder whose name contains "vendor". `assets/vendor/` holds the third-party files, each with its license. `app.VENDOR_STYLESHEETS` loads their CSS ahead of the app's own.
 - The canvas list reaches the page before any asset runs, in an inline script from `ui/canvas/registry.py`: `window.SkillTree.canvases`.
