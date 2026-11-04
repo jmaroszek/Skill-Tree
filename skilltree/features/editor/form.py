@@ -295,6 +295,19 @@ def follow_done_status(node, switch, snapshot):
     return new_switch, {**snapshot, 'status_done': stored}
 
 
+def follow_now(node, switch, snapshot):
+    """(switch, stored) for an editor showing ``node`` after the menu, a Done or
+    an event may have changed whether it is in Now. Both are no_update when the
+    snapshot already agrees. The switch follows only while it shows what was
+    loaded, so a flip the user hasn't saved stays.
+    """
+    stored = ['now'] if node.now else []
+    loaded = snapshot.get('now') or []
+    if loaded == stored:
+        return dash.no_update, dash.no_update
+    return (stored if (switch or []) == loaded else dash.no_update), stored
+
+
 def _loaded_context(node, snapshot):
     """The (context, subcontext) the editor loaded for ``node``, or None when
     the snapshot is another node's or holds no context."""
@@ -481,7 +494,11 @@ def _moved(fields, baseline, form, snapshot):
             'seen_baseline': {key: snapshot.get(key) for key in baseline}}
 
 
-def rebase(stored_links, form, snapshot):
+def _moved_to_stored(key, field, stored, form, snapshot):
+    return _moved({} if field is dash.no_update else {key: field}, {key: stored}, form, snapshot)
+
+
+def rebase(node, stored_links, form, snapshot):
     """What changed outside the editor, as groups for the browser to apply.
 
     An untouched field takes what is stored, an edited one stays, and the
@@ -492,9 +509,15 @@ def rebase(stored_links, form, snapshot):
     judges by what is stored, never by what fired. Any run gives the whole answer.
     """
     values, followed = follow_relationships(stored_links, form, snapshot)
-    return [_moved({key: values[key]} if key in values else {}, {key: followed[key]},
-                   form, snapshot)
-            for key in followed]
+    groups = [_moved_to_stored(key, values.get(key, dash.no_update), followed[key], form, snapshot)
+              for key in followed]
+    done, baseline = follow_done_status(node, form.get('status_done'), snapshot)
+    if baseline is not dash.no_update:
+        groups.append(_moved_to_stored('status_done', done, baseline['status_done'], form, snapshot))
+    now, stored_now = follow_now(node, form.get('now'), snapshot)
+    if stored_now is not dash.no_update:
+        groups.append(_moved_to_stored('now', now, stored_now, form, snapshot))
+    return groups
 
 
 def snapshot_from_form_state(form_values, linted_name, linted_aliases):

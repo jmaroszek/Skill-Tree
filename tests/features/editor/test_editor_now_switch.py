@@ -4,13 +4,13 @@ import pytest
 
 from skilltree.features.editor.callbacks import register_editor_callbacks
 from skilltree.features.editor.form import (
-    NEW_NODE_SNAPSHOT, editor_form_values_from, is_form_dirty_vs_snapshot,
+    NEW_NODE_SNAPSHOT, editor_form_values_from, is_form_dirty_vs_snapshot, rebase,
 )
 from skilltree.features.editor.save import save_editor_form
 from skilltree.store import settings
 from skilltree.store.events import EventManager
 from support.callbacks import registered
-from support.editor_forms import editor_form
+from support.editor_forms import editor_form, merged
 from support.graphs import graph as plain_graph
 
 
@@ -117,24 +117,22 @@ def test_a_save_that_asked_before_reopening_holds_the_switch(graph, handlers):
     assert now is dash.no_update and snapshot["now"] == []
 
 
-def test_the_switch_follows_a_change_from_the_menu(graph, handlers):
-    _put_on_now(graph, "A")
-    _, snapshot, now = handlers["sync_editor_status"](
-        1, "A", [], {"name": "A", "status_done": [], "now": []}, [])
-    assert now == ["now"]
-    ops = snapshot.to_plotly_json()["operations"]
-    assert [(op["location"], op["params"]["value"]) for op in ops] == [(["now"], ["now"])]
+def _merge(graph, *, switch, loaded):
+    return merged(rebase(graph.get_node("A"), {}, {"status_done": [], "now": switch},
+                         {"name": "A", "status_done": [], "now": loaded}))
 
 
-def test_the_switch_keeps_an_unsaved_flip_when_the_menu_changes_it(graph, handlers):
-    # Loaded on, flipped off, and then a save elsewhere takes it off too.
-    _, _, now = handlers["sync_editor_status"](
-        1, "A", ["now"], {"name": "A", "status_done": [], "now": ["now"]}, ["now"])
-    assert now == []
+def test_the_switch_follows_a_change_from_the_menu(graph):
     _put_on_now(graph, "A")
-    _, _, now = handlers["sync_editor_status"](
-        2, "A", [], {"name": "A", "status_done": [], "now": []}, ["now"])
-    assert now is dash.no_update
+    assert _merge(graph, switch=[], loaded=[]) == ({"now": ["now"]}, {"now": ["now"]})
+
+
+def test_the_switch_keeps_an_unsaved_flip_when_the_menu_changes_it(graph):
+    # Loaded on, and then a save elsewhere takes it off.
+    assert _merge(graph, switch=["now"], loaded=["now"]) == ({"now": []}, {"now": []})
+    # Loaded off, flipped on, and then the menu adds it too.
+    _put_on_now(graph, "A")
+    assert _merge(graph, switch=["now"], loaded=[]) == ({}, {"now": ["now"]})
 
 
 def test_a_node_cant_save_onto_a_context_that_no_longer_exists(graph):

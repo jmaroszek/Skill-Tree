@@ -17,6 +17,15 @@ def editor_form(**fields):
     return {key: fields.get(key) for key in EDITOR_FORM}
 
 
+def merged(groups):
+    """(fields, baseline) a rebase's groups write when all of them land."""
+    fields, baseline = {}, {}
+    for group in groups:
+        fields.update(group['fields'])
+        baseline.update(group['baseline'])
+    return fields, baseline
+
+
 def call(fn, **values):
     """Call an editor callback by parameter name, every other one None.
 

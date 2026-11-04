@@ -43,7 +43,6 @@ class CoreResponse(NamedTuple):
     # The editor's Done switch and saved-form snapshot, when the node it shows
     # changed status outside the editor (editor form.follow_done_status).
     editor_done: object = no_update
-    editor_snapshot: object = no_update
     # A save that would reopen Done nodes waits: the confirmation, what it
     # says, and which Save button to finish with once the user agrees.
     reopen_open: object = no_update
@@ -81,7 +80,6 @@ CORE_OUTPUTS = dict(
     calibration_notes_placeholder=Output('calibration-notes', 'placeholder', allow_duplicate=True),
     save_result=Output('editor-save-result-store', 'data'),
     editor_done=Output('node-status-done', 'value', allow_duplicate=True),
-    editor_snapshot=Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
     reopen_open=Output('modal-editor-reopen-confirm', 'is_open', allow_duplicate=True),
     reopen_body=Output('editor-reopen-confirm-body', 'children'),
     reopen_pending=Output('editor-reopen-pending-store', 'data'),

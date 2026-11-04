@@ -141,14 +141,20 @@ def test_putting_it_to_sleep_asks_too(monkeypatch, manager):
 def test_cancel_puts_the_editor_switch_back(monkeypatch):
     close = _registered()["close_undo_done_modal"]
     fire("btn-undo-done-cancel")
-    snapshot = {"name": "Basics", "status_done": [], "desc": "new notes"}
 
-    is_open, pending, switch, kept, now = close(1, None, ["Basics"], "Basics", snapshot)
+    is_open, pending, switch, now = close(1, None, ["Basics"], "Basics")
 
     assert (is_open, pending) == (False, None)
     assert switch == [STATUS_DONE]
     assert now == []  # it stays Done, and a Done node can't be in Now
-    assert kept == {**snapshot, "status_done": [STATUS_DONE]}
+
+
+def test_cancel_finds_the_baseline_already_done(monkeypatch, manager):
+    """The save that asked kept the node Done and says so, and the post-save sync
+    takes that into the baseline, so there's nothing left for Cancel to move."""
+    response = _save(monkeypatch, "Basics", status_done=[])
+
+    assert response.save_result["status_done"] == [STATUS_DONE]
 
 
 @pytest.mark.parametrize("trigger, editing", [
@@ -159,6 +165,4 @@ def test_the_switch_is_left_alone_otherwise(monkeypatch, trigger, editing):
     close = _registered()["close_undo_done_modal"]
     fire(trigger)
 
-    result = close(1, 1, ["Basics"], editing, {"status_done": []})
-
-    assert result == (False, None, dash.no_update, dash.no_update, dash.no_update)
+    assert close(1, 1, ["Basics"], editing) == (False, None, dash.no_update, dash.no_update)

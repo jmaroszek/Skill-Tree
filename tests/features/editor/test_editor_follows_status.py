@@ -9,8 +9,9 @@ import dash
 import pytest
 
 from skilltree.engine import callbacks
-from skilltree.features.editor.form import follow_done_status
-from support.editor_forms import call
+from skilltree.features.editor.form import follow_done_status, rebase
+from skilltree.store.graph.state import revisions
+from support.editor_forms import call, merged
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import EDGE_NEEDS_HARD, Node, STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.services import AppServices
@@ -72,24 +73,31 @@ def _mark_done(manager, *names):
         manager.update_node(node)
 
 
+def _merge(manager, state):
+    """What the merge does for the editor as ``state`` left it."""
+    form = {"status_done": state["status_done"], "now": []}
+    return merged(rebase(manager.get_node(state["original_name"]), {}, form,
+                         state["pristine_snapshot"]))
+
+
 def test_done_from_the_menu_shows_in_the_open_editor(monkeypatch, manager):
-    response = _run(monkeypatch, "toggle-done-trigger-input",
-                    toggle_done_trigger_data='["Basics"]|1',
-                    **_editing("Basics", done=False))
+    state = _editing("Basics", done=False)
+    _run(monkeypatch, "toggle-done-trigger-input",
+         toggle_done_trigger_data='["Basics"]|1', **state)
 
     assert manager.get_node("Basics").status == STATUS_DONE
-    assert response.editor_done == [STATUS_DONE]
-    assert response.editor_snapshot == {"name": "Basics", "desc": "",
-                                        "status_done": [STATUS_DONE]}
+    assert _merge(manager, state) == ({"status_done": [STATUS_DONE]},
+                                      {"status_done": [STATUS_DONE]})
 
 
 def test_a_save_after_that_keeps_it_done(monkeypatch, manager):
-    response = _run(monkeypatch, "toggle-done-trigger-input",
-                    toggle_done_trigger_data='["Basics"]|1',
-                    **_editing("Basics", done=False))
+    state = _editing("Basics", done=False)
+    _run(monkeypatch, "toggle-done-trigger-input",
+         toggle_done_trigger_data='["Basics"]|1', **state)
+    fields, _ = _merge(manager, state)
 
     _run(monkeypatch, "btn-save", name="Basics", original_name="Basics",
-         desc="an unrelated edit", status_done=response.editor_done,
+         desc="an unrelated edit", status_done=fields["status_done"],
          e_supp_h=["Advanced"])
 
     assert manager.get_node("Basics").status == STATUS_DONE
@@ -98,33 +106,43 @@ def test_a_save_after_that_keeps_it_done(monkeypatch, manager):
 
 def test_a_cascade_re_blocking_it_shows_too(monkeypatch, manager):
     _mark_done(manager, "Basics", "Advanced")
+    state = _editing("Advanced", done=True)
 
-    response = _run(monkeypatch, "btn-undo-done-confirm",
-                    pending_undo_done=["Basics"], **_editing("Advanced", done=True))
+    _run(monkeypatch, "btn-undo-done-confirm", pending_undo_done=["Basics"], **state)
 
     assert manager.get_node("Advanced").status == STATUS_BLOCKED
-    assert response.editor_done == []
-    assert response.editor_snapshot["status_done"] == []
+    assert _merge(manager, state) == ({"status_done": []}, {"status_done": []})
 
 
 def test_the_users_own_unsaved_flip_stays(monkeypatch, manager):
     state = _editing("Basics", done=False)
     state["status_done"] = [STATUS_DONE]      # flipped on, not saved yet
 
-    response = _run(monkeypatch, "toggle-done-trigger-input",
-                    toggle_done_trigger_data='["Basics"]|1', **state)
+    _run(monkeypatch, "toggle-done-trigger-input",
+         toggle_done_trigger_data='["Basics"]|1', **state)
 
-    assert response.editor_done is dash.no_update
-    assert response.editor_snapshot["status_done"] == [STATUS_DONE]
+    assert _merge(manager, state) == ({}, {"status_done": [STATUS_DONE]})
 
 
 def test_nothing_changes_when_the_editor_already_agrees(monkeypatch, manager):
+    state = _editing("Basics", done=False)
+    _run(monkeypatch, "toggle-done-trigger-input",
+         toggle_done_trigger_data='["Advanced"]|1', **state)
+
+    assert _merge(manager, state) == ({}, {})
+
+
+def test_done_on_a_canvas_not_loaded_yet_still_moves_the_graph_version(monkeypatch, manager):
+    """The merge hears of a change through the graph version, which a render's
+    stamp moves. A render the canvas defers has to stamp as well."""
+    before = revisions.graph
+
     response = _run(monkeypatch, "toggle-done-trigger-input",
-                    toggle_done_trigger_data='["Advanced"]|1',
+                    toggle_done_trigger_data='["Basics"]|1', active_tab="tab-next",
                     **_editing("Basics", done=False))
 
-    assert (response.editor_done, response.editor_snapshot) == (
-        dash.no_update, dash.no_update)
+    assert revisions.graph != before
+    assert response.elements == {"deferred": True, "revision": revisions.graph}
 
 
 @pytest.mark.parametrize("trigger", ["btn-save", "btn-unsaved-save"])
@@ -136,8 +154,7 @@ def test_an_editor_save_keeps_its_own_form(monkeypatch, manager, trigger):
     response = _run(monkeypatch, trigger, e_supp_h=["Advanced"], **state)
 
     assert manager.get_node("Basics").status == STATUS_DONE
-    assert (response.editor_done, response.editor_snapshot) == (
-        dash.no_update, dash.no_update)
+    assert response.editor_done is dash.no_update
 
 
 def test_loading_another_node_leaves_the_switch_to_the_loader(monkeypatch, manager):
@@ -149,8 +166,7 @@ def test_loading_another_node_leaves_the_switch_to_the_loader(monkeypatch, manag
 
     response = _run(monkeypatch, "search-node", search_val="Advanced", **stale)
 
-    assert (response.editor_done, response.editor_snapshot) == (
-        dash.no_update, dash.no_update)
+    assert response.editor_done is dash.no_update
 
 
 @pytest.mark.parametrize("node, snapshot", [

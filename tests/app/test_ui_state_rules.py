@@ -27,7 +27,7 @@ MOST_WRITERS = {
     'events-sidebar-container.className': 1,
     'events-tab-inner.className': 1,
     'sidebar-filters-container.className': 1,
-    'editor-pristine-snapshot.data': 9,
+    'editor-pristine-snapshot.data': 6,
     # Everything else writes a notice, and notices.js shows it.
     'save-output.children': 1,
     'modal-error.is_open': 1,

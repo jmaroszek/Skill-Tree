@@ -1,4 +1,4 @@
-"""The node editor following what changes outside it: a status, a
+"""The node editor following what changes outside it: a
 context renamed in Settings, a new hours per week. What it leaves alone is
 the user's unsaved edits.
 """
@@ -8,52 +8,12 @@ from dash import Input, Output, State, no_update
 from skilltree.features.editor.form import (
     EDITOR_FORM,
     follow_context,
-    follow_done_status,
     follow_estimate,
 )
 
 
 def register_follow_callbacks(app, services):
     manager = services.graph
-
-    # --- Editor follows status changed elsewhere ---
-    # Any mutation can change the open node's Done or Now from outside the
-    # editor: the "Mark Done?" suggestion, an event putting it to sleep, a
-    # cascade. Its switches follow, unless the user has flipped them and not
-    # saved. Only the snapshot's status keys are patched, so a newer snapshot
-    # written by a save in flight is never replaced by this older copy.
-    @app.callback(
-        Output('node-status-done', 'value', allow_duplicate=True),
-        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
-        Output('node-now', 'value', allow_duplicate=True),
-        Input('graph-version-store', 'data'),
-        State('node-original-name', 'data'),
-        State('node-status-done', 'value'),
-        State('editor-pristine-snapshot', 'data'),
-        State('node-now', 'value'),
-        prevent_initial_call=True,
-    )
-    def sync_editor_status(_version, name, switch, snapshot, now_switch):
-        if not name or not isinstance(snapshot, dict) or snapshot.get('name') != name:
-            return (no_update,) * 3
-        node = manager.get_node(name)
-        if node is None:
-            return (no_update,) * 3
-        done, followed = follow_done_status(node, switch, snapshot)
-        snapshot_out = no_update
-        if followed is not no_update:
-            snapshot_out = dash.Patch()
-            snapshot_out['status_done'] = followed['status_done']
-        stored_now = ["now"] if node.now else []
-        loaded_now = snapshot.get('now') or []
-        now = no_update
-        if stored_now != loaded_now:
-            if followed is no_update:
-                snapshot_out = dash.Patch()
-            snapshot_out['now'] = stored_now
-            if (now_switch or []) == loaded_now:
-                now = stored_now
-        return done, snapshot_out, now
 
     # --- Editor follows a context renamed or moved in Settings ---
     # A Settings save carries a renamed context, or a subcontext moved to

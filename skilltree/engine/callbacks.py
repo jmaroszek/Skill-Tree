@@ -30,9 +30,7 @@ from skilltree.store import settings
 from skilltree.domain.models import STATUS_DONE
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.notices import error, info
-from skilltree.features.editor.form import (
-    EDITOR_FORM, follow_done_status,
-)
+from skilltree.features.editor.form import EDITOR_FORM
 from skilltree.ui.filters import (
     build_filters,
 )
@@ -62,14 +60,6 @@ _FILTER_TRIGGERS = frozenset({
     'filter-time', 'filter-time-unit', 'filter-difficulty', 'filter-node-type',
     'filter-time-min', 'filter-search-query',
 })
-
-
-# What changes a node's Done status outside the editor: the node menu's
-# toggles, and the undo-Done confirmation, which also re-blocks the Done
-# nodes after the one it reopens. None of them loads another node into the
-# editor, which populate_editor would be doing at the same moment.
-_STATUS_CHANGING_TRIGGERS = ('btn-toggle-done-node', 'toggle-done-trigger-input',
-                             'btn-undo-done-confirm')
 
 
 # The core callback's inputs and state, under the names core_engine takes them
@@ -329,12 +319,8 @@ def register_engine_callbacks(app, services):
             # modals here could close one that an action has just opened.
             return view
 
-        # The editor may be showing a node whose status just changed from
-        # the node menu or a cascade; its Done switch follows.
-        editor_done = editor_snapshot = no_update
-        if trigger_id in _STATUS_CHANGING_TRIGGERS and original_name:
-            editor_done, editor_snapshot = follow_done_status(
-                manager.get_node(original_name), form.get('status_done'), pristine_snapshot)
+        # A save can commit another status than the switch said.
+        editor_done = no_update
         save_result = outcome.save_result
         if (isinstance(save_result, dict)
                 and save_result['status_done'] != (form.get('status_done') or [])):
@@ -365,7 +351,6 @@ def register_engine_callbacks(app, services):
             calibration_notes_placeholder=tc_sections[2],
             save_result=save_result,
             editor_done=editor_done,
-            editor_snapshot=editor_snapshot,
         )
 
     # One function with two doors (CORE_ACTIONS says why). Each door reads the
@@ -388,32 +373,28 @@ def register_engine_callbacks(app, services):
         Output('modal-undo-done-confirm', 'is_open', allow_duplicate=True),
         Output('pending-undo-done-store', 'data', allow_duplicate=True),
         Output('node-status-done', 'value', allow_duplicate=True),
-        Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
         Output('node-now', 'value', allow_duplicate=True),
         Input('btn-undo-done-cancel', 'n_clicks'),
         Input('btn-undo-done-confirm', 'n_clicks'),
         State('pending-undo-done-store', 'data'),
         State('node-original-name', 'data'),
-        State('editor-pristine-snapshot', 'data'),
         prevent_initial_call=True,
     )
-    def close_undo_done_modal(_cancel, _confirm, pending, editing, snapshot):
+    def close_undo_done_modal(_cancel, _confirm, pending, editing):
         """Close the undo-Done modal and clear the pending store on either
         button. The actual toggle (on confirm) is performed by core_engine
         listening to btn-undo-done-confirm; this callback only manages the
         modal/store cleanup so the next toggle starts fresh.
 
-        An editor save that un-marked a node kept it Done and asked. Cancel
-        leaves it Done, so the editor's switch, and the saved-form snapshot
-        the unsaved-changes check compares against, go back on. A Done node
-        can't be in Now, so the Now switch that save held goes off.
+        An editor save that un-marked a node kept it Done and asked, and the
+        baseline already says so. Cancel leaves it Done, so the editor's switch
+        goes back on. A Done node can't be in Now, so the Now switch that save
+        held goes off.
         """
         if (get_trigger_id() == 'btn-undo-done-cancel'
                 and editing and editing in (pending or [])):
-            kept = ({**snapshot, 'status_done': [STATUS_DONE]}
-                    if isinstance(snapshot, dict) else no_update)
-            return False, None, [STATUS_DONE], kept, []
-        return False, None, no_update, no_update, no_update
+            return False, None, [STATUS_DONE], []
+        return False, None, no_update, no_update
 
     # --- Auto-Done Suggestion Modal ---
     # Single orchestrator that drains GraphManager's auto-done candidate queue

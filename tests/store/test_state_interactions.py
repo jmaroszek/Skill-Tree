@@ -11,7 +11,7 @@ from skilltree.store import database
 from skilltree.features.events import callbacks as event_callbacks
 from skilltree.store import events as event_manager
 from skilltree.store import settings
-from support.editor_forms import call
+from support.editor_forms import call, merged
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from skilltree.domain.models import Event
@@ -19,6 +19,7 @@ from support.graphs import graph, make_node, save
 from support.triggers import fire
 from skilltree.store import schema
 from skilltree.features.editor.callbacks import register_editor_callbacks
+from skilltree.features.editor.form import rebase
 from skilltree.features.home.now import register_now_callbacks
 
 
@@ -69,13 +70,10 @@ def test_auto_completion_reaches_the_open_editor(handlers):
     manager.add_edge('Child', 'Goal', 'Needs_Hard')
     complete(manager, 'Child')
     assert manager.complete_suggested_node('Goal')
-    switch, snapshot, now = handlers['sync_editor_status'](
-        1, 'Goal', [], {'name': 'Goal', 'desc': 'unsaved notes', 'status_done': []}, [])
-    assert switch == ['Done'] and now is dash.no_update
-    # Only the status key is patched: the rest may be newer than this copy.
-    ops = snapshot.to_plotly_json()['operations']
-    assert [(op['operation'], op['location'], op['params']['value']) for op in ops] == [
-        ('Assign', ['status_done'], ['Done'])]
+    groups = rebase(manager.get_node('Goal'), {}, {'status_done': [], 'now': []},
+                    {'name': 'Goal', 'desc': 'unsaved notes', 'status_done': []})
+    # Only the status moves: the rest of the baseline may be newer than this copy.
+    assert merged(groups) == ({'status_done': ['Done']}, {'status_done': ['Done']})
 
 
 def test_editor_keeps_a_deliberate_unsaved_flip_but_follows_now(handlers):
@@ -84,14 +82,14 @@ def test_editor_keeps_a_deliberate_unsaved_flip_but_follows_now(handlers):
     item.now = 1
     manager.update_node(item)
     complete(manager, 'A')
-    switch, snapshot, now = handlers['sync_editor_status'](
-        1, 'A', ['Done'], {'name': 'A', 'status_done': [], 'now': ['now']}, ['now'])
-    assert switch is dash.no_update  # already shows what is stored
-    assert now == []
+    fields, _ = merged(rebase(manager.get_node('A'), {}, {'status_done': ['Done'], 'now': ['now']},
+                              {'name': 'A', 'status_done': [], 'now': ['now']}))
+    assert 'status_done' not in fields  # already shows what is stored
+    assert fields['now'] == []
     # The user flipped Done off after loading a Done node: their flip stays.
-    switch, _, _ = handlers['sync_editor_status'](
-        2, 'A', [], {'name': 'A', 'status_done': ['Done']}, [])
-    assert switch is dash.no_update
+    fields, _ = merged(rebase(manager.get_node('A'), {}, {'status_done': [], 'now': []},
+                              {'name': 'A', 'status_done': ['Done']}))
+    assert 'status_done' not in fields
 
 
 def test_now_waits_for_the_save_that_reopens_a_done_node(handlers):
@@ -102,9 +100,9 @@ def test_now_waits_for_the_save_that_reopens_a_done_node(handlers):
         dash.no_update, dash.no_update)
     assert manager.get_node('A').now == 0
     # Another change elsewhere doesn't turn the held switch back off.
-    _, _, now = handlers['sync_editor_status'](
-        1, 'A', [], {'name': 'A', 'status_done': ['Done']}, ['now'])
-    assert now is dash.no_update
+    fields, _ = merged(rebase(manager.get_node('A'), {}, {'status_done': [], 'now': ['now']},
+                              {'name': 'A', 'status_done': ['Done']}))
+    assert 'now' not in fields
 
 
 def test_save_preserves_completion_even_before_editor_refresh(handlers, monkeypatch):
