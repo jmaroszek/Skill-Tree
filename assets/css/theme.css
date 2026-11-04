@@ -2109,10 +2109,19 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* The Events form is what the dormant table is sized against, not the window:
    the sidebar and the divider both take room from it. Below a roomy width the
    fixed metadata columns slim down so Name keeps a readable share, and below
-   the table's own minimum the form scrolls sideways rather than hiding names. */
+   the table's own minimum the form scrolls sideways rather than hiding names.
+
+   The container is the table's wrapper, not the panel. A container-type
+   ancestor makes Radix (floating-ui) place a position: fixed popup relative to
+   that ancestor, while Chromium still places it from the viewport, so every
+   dcc.Dropdown menu in the panel opened offset by the panel's own origin: the
+   node-completion picker landed left of its input. Keep container-type off
+   anything that holds a dropdown. */
 #events-detail-panel {
-    container: events-form / inline-size;
     overflow-x: auto;
+}
+#dormant-nodes-table-container {
+    container: events-form / inline-size;
 }
 .dormant-nodes-table { min-width: 440px; }
 @container events-form (max-width: 600px) {

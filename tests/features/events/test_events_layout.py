@@ -340,7 +340,10 @@ def test_the_dormant_table_keeps_name_readable_in_a_narrow_form():
     take its room, not the window's."""
     css = THEME_CSS.read_text(encoding="utf-8")
 
-    assert "container: events-form / inline-size;" in _css_rule(css, "#events-detail-panel")
+    assert "container: events-form / inline-size;" in _css_rule(css, "#dormant-nodes-table-container")
+    # The panel holds the dropdowns, and a container-type ancestor misplaces
+    # their fixed-position menus (the node-completion picker opened to the left).
+    assert "container" not in _css_rule(css, "#events-detail-panel")
     assert "min-width: 440px;" in _css_rule(css, ".dormant-nodes-table")
     assert "@container events-form (max-width: 600px)" in css
 
