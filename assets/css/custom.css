@@ -221,8 +221,24 @@ body:has(#editor-drive-resources[style*="display: none"]) .resource-dot-drive {
     z-index: var(--st-z-tooltip);
     pointer-events: none;
 }
+.tooltip.hover-tip {
+    --bs-tooltip-opacity: 1;
+}
+/* The same surface as the node card and the Analyze data tips: a step above
+   the raised panels it floats over, with a rule and shadow to lift it off
+   them. The arrow is dropped, since a border can't follow its point. */
+.tooltip.hover-tip .tooltip-inner {
+    padding: 0.35rem 0.6rem;
+    font-size: var(--st-fs-base);
+    line-height: 1.4;
+    color: var(--st-text-primary);
+    background-color: var(--st-bg-modal);
+    border: 1px solid var(--st-border-hairline-strong);
+    border-radius: var(--st-radius);
+    box-shadow: var(--st-shadow-panel);
+}
 .tooltip.hover-tip .tooltip-arrow {
-    position: absolute;
+    display: none;
 }
 /* A data-hint keeps the line breaks in its text. */
 .tooltip.hover-tip.is-text .tooltip-inner {
