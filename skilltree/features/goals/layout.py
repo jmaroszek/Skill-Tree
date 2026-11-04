@@ -67,6 +67,9 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     else:
         corner_badge = None
 
+    matched_alias = alias_line(search, name, aliases)
+    preview = card_description(description, search, name, aliases)
+
     children: List[Any] = [
         html.Div([
             html.Div([
@@ -82,16 +85,16 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
                 ) if priority_rank is not None else None,
                 corner_badge,
             ], className="d-flex align-items-center ms-2 gap-1"),
-        # mb-0, not mb-1: the name and its stats line are one block, and the
-        # Small below already carries its own leading. The extra 4px read as a
-        # gap between two unrelated things.
-        ], className="d-flex align-items-center justify-content-between mb-0"),
+        # mb-0 when the stats line follows directly: the name and that line
+        # are one block, and the Small already carries its own leading. With a
+        # description or alias line below, mb-1 matches the Events card.
+        ], className=("d-flex align-items-center justify-content-between "
+                      + ("mb-1" if (matched_alias is not None or preview is not None)
+                         else "mb-0"))),
     ]
 
-    matched_alias = alias_line(search, name, aliases)
     if matched_alias is not None:
         children.append(matched_alias)
-    preview = card_description(description, search, name, aliases)
     if preview is not None:
         children.append(preview)
 
