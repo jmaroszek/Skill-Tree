@@ -288,10 +288,14 @@ def build_node_editor_content():
             html.Div([
                 html.Div([
                     html.H5("Search", className="mb-0"),
-                    dbc.Button(html.I(className="bi bi-crosshair"),
-                               id="btn-locate-node", color="link",
-                               className="p-0 ms-2 text-decoration-none text-muted",
-                               style={"fontSize": tokens.FS_LG, "lineHeight": "1"}, disabled=True),
+                    # The tooltip targets this span: a disabled button gets no
+                    # hover events, so it could never show the hint.
+                    html.Span(
+                        dbc.Button(html.I(className="bi bi-crosshair"),
+                                   id="btn-locate-node", color="link",
+                                   className="p-0 text-decoration-none text-muted",
+                                   style={"fontSize": tokens.FS_LG, "lineHeight": "1"}, disabled=True),
+                        id="locate-node-wrap", className="ms-2 d-inline-flex"),
                 ], className="d-flex align-items-center mt-3", style={"marginBottom": "0.75rem"}),
                 html.Div(dcc.Dropdown(
                     id="search-node",
@@ -301,8 +305,8 @@ def build_node_editor_content():
                     searchable=True,
                     clearable=True,
                 ), className="text-dark"),
-                Tooltip("Find this node on the canvas",
-                            target="btn-locate-node", placement="right"),
+                Tooltip("Find a node on the canvas. Load a node first.",
+                            target="locate-node-wrap", placement="right"),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
                 dcc.Store(id='locate-animate-trigger', data=None),
                 dcc.Store(id='locate-request-store', data=None),
