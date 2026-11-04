@@ -425,27 +425,9 @@ def register_events_callbacks(app, services):
         return None
 
     # --- Opening and leaving an event ---
-    # One callback, so that nothing can throw edits away without asking. The
+    # One function, so that nothing can throw edits away without asking. The
     # dialog's Discard, and its Save once that has committed, come back here
     # with the place the first click was going.
-    @app.callback(
-        *_DETAIL_OUTPUTS,
-        Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
-        Output("modal-confirm-delete", "is_open", allow_duplicate=True),
-        Output("modal-event-unsaved", "is_open", allow_duplicate=True),
-        Output("event-leave-pending", "data", allow_duplicate=True),
-        Input("btn-new-event", "n_clicks"),
-        Input("btn-event-close", "n_clicks"),
-        Input({"type": "event-card", "index": ALL}, "n_clicks"),
-        Input("event-ctx-action-input", "value"),
-        Input("btn-event-unsaved-discard", "n_clicks"),
-        Input("event-leave-after-save", "data"),
-        EVENT_FORM,
-        State("selected-event-store", "data"),
-        State("event-leave-pending", "data"),
-        State("main-tabs", "active_tab"),
-        prevent_initial_call=True,
-    )
     def open_event_detail(_new, _close, card_clicks, ctx_action, _discard, after_save,
                           form, selected_event, pending, active_tab):
         nothing = (no_update,) * (_N_DETAIL + 4)
@@ -477,6 +459,49 @@ def register_events_callbacks(app, services):
         return (*_event_detail(event, active_tab),
                 action == "trigger" and event.status != "Triggered",
                 action == "delete", False, None)
+
+    # The dialog's Save comes in by its own door. That save rebuilds the list, each
+    # new card fires the other door, and Dash throws away a run's answer if its
+    # callback fires again first. In one callback, that left the event saved and the
+    # form where it was. Each door reads the other's inputs as State.
+    _LEAVE_OUTPUTS = [
+        *_DETAIL_OUTPUTS,
+        Output("modal-confirm-trigger", "is_open", allow_duplicate=True),
+        Output("modal-confirm-delete", "is_open", allow_duplicate=True),
+        Output("modal-event-unsaved", "is_open", allow_duplicate=True),
+        Output("event-leave-pending", "data", allow_duplicate=True),
+    ]
+    _LEAVE_STATE = dict(
+        form=EVENT_FORM,
+        selected_event=State("selected-event-store", "data"),
+        pending=State("event-leave-pending", "data"),
+        active_tab=State("main-tabs", "active_tab"),
+    )
+    app.callback(
+        output=_LEAVE_OUTPUTS,
+        inputs=dict(
+            _new=Input("btn-new-event", "n_clicks"),
+            _close=Input("btn-event-close", "n_clicks"),
+            card_clicks=Input({"type": "event-card", "index": ALL}, "n_clicks"),
+            ctx_action=Input("event-ctx-action-input", "value"),
+            _discard=Input("btn-event-unsaved-discard", "n_clicks"),
+        ),
+        state=dict(after_save=State("event-leave-after-save", "data"), **_LEAVE_STATE),
+        prevent_initial_call=True,
+    )(open_event_detail)
+    app.callback(
+        output=_LEAVE_OUTPUTS,
+        inputs=dict(after_save=Input("event-leave-after-save", "data")),
+        state=dict(
+            _new=State("btn-new-event", "n_clicks"),
+            _close=State("btn-event-close", "n_clicks"),
+            card_clicks=State({"type": "event-card", "index": ALL}, "n_clicks"),
+            ctx_action=State("event-ctx-action-input", "value"),
+            _discard=State("btn-event-unsaved-discard", "n_clicks"),
+            **_LEAVE_STATE,
+        ),
+        prevent_initial_call=True,
+    )(open_event_detail)
 
     @app.callback(
         Output("modal-event-unsaved", "is_open", allow_duplicate=True),

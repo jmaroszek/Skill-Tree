@@ -7,7 +7,7 @@ from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.features.events.layout import event_form_is_dirty
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
-from support.callbacks import registered
+from support.callbacks import app_with, registered
 from support.graphs import make_node
 from support.triggers import fire
 
@@ -117,6 +117,24 @@ def test_the_dialogs_save_goes_on_only_after_it_saved(handlers, events):
     refused = save(None, "Trip", " ", "Edited", "manual", "", [], "any", 2, pending)
     assert refused[-1] is dash.no_update
     assert refused[4] is False  # the dialog closes, so the refusal can be read
+
+
+def test_the_dialogs_save_goes_where_the_click_was_going(handlers):
+    result = _open(handlers, "event-leave-after-save",
+                   after_save={"kind": "event", "event": "Move", "action": "edit", "saved": 1})
+    assert result[0] == "Move" and result[4] == "Move"
+    assert result[-2:] == (False, None)
+
+
+def test_going_on_comes_in_apart_from_the_cards(events):
+    """The save rebuilds the list, and each new card fires its callback. Dash
+    throws away a run's answer if the callback fires again first, which left the
+    event saved and the form where it was."""
+    app = app_with(register_events_callbacks)
+    going_on = [spec for spec in app._callback_list
+                if any(i["id"] == "event-leave-after-save" for i in spec["inputs"])]
+    assert len(going_on) == 1
+    assert not any("event-card" in str(i["id"]) for i in going_on[0]["inputs"])
 
 
 def test_edit_in_the_dialog_keeps_the_form(handlers):
