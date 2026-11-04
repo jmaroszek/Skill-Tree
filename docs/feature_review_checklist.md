@@ -519,7 +519,7 @@ Check on Nodes, Details and Events unless an item names one.
 
 - [ ] DT-27. The table arrives once the graph settles, with a "Loading subtasks…" line before it.
 - [ ] DT-28. Scores match Home. Blocked, Done and Goal rows show a dash and sort below.
-- [ ] DT-29. Relationship reads Hard, Soft or Synergy, in both directions.
+- [ ] DT-29. Link reads Hard, Soft or Synergy, in both directions.
 - [ ] DT-30. A name click navigates. The pencil opens the editor. When the table is wider than its panel, the pencil stays at the panel's edge on hover or keyboard focus, over what scrolls beneath it.
 - [ ] DT-31. **+ → New node** preselects Hard under Supports.
 - [ ] DT-32. **+ → Existing node** offers nodes not already beneath it. Hard or Soft. A cycle is refused with a message in the dialog.
