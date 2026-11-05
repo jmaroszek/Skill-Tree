@@ -37,7 +37,7 @@ function serverCommand({ isPackaged, platform, resourcesPath, repo, env, exists,
 // dim them. The page reports when a modal is open (assets/window_chrome.js)
 // and the shell repaints the overlay as the backdrop would: black at
 // Bootstrap's backdrop opacity over the toolbar's colors.
-const OVERLAY = { color: '#1a1d21', symbolColor: '#dee2e6', height: 40 };
+const OVERLAY = { color: '#212121', symbolColor: '#d1d1d1', height: 40 };
 const BACKDROP_OPACITY = 0.5;
 const BACKDROP_FADE_MS = 150;   // Bootstrap's .fade transition
 
@@ -56,12 +56,17 @@ function cursorInPage(point, bounds, zoom) {
   return { x: (point.x - bounds.x) / zoom, y: (point.y - bounds.y) / zoom };
 }
 
-function titleBarOverlay(level) {
+// `colors` are the toolbar's, which the page reports for its theme.
+function titleBarOverlay(level, colors = OVERLAY) {
   return {
     ...OVERLAY,
-    color: dimHex(OVERLAY.color, level),
-    symbolColor: dimHex(OVERLAY.symbolColor, level),
+    color: dimHex(colors.color, level),
+    symbolColor: dimHex(colors.symbolColor, level),
   };
+}
+
+function isHexColor(value) {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value);
 }
 
 // The title bar. On Windows and macOS the app's toolbar is the title bar, with
@@ -136,4 +141,4 @@ function macMenuTemplate(appName, isPackaged = false) {
   ];
 }
 
-module.exports = { isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome, BACKDROP_FADE_MS, cursorInPage };
+module.exports = { isAppUrl, isHexColor, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome, BACKDROP_FADE_MS, cursorInPage };

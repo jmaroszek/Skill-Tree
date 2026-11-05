@@ -21,9 +21,7 @@ place any of them appear.
 **Two rules that keep it working:**
 
 1. **Tokens are named by role, never by appearance** — `--st-field-bg`, not
-   `--st-gray-100`. The app's form layer is light (DARKLY renders
-   `.form-control` white) while its chrome is dark. If those are ever unified,
-   that should be a value edit in one file rather than another sweep.
+   `--st-gray-100`.
 2. **Python holds references, not copies.** Dash passes `var()` straight to the
    DOM, so an inline style dict and a stylesheet rule resolve to the same
    definition. This works in clientside-callback JavaScript too.
@@ -42,13 +40,47 @@ naming the reason, so it stays visible rather than hiding in a list.
 
 Bootstrap DARKLY (Bootswatch 5.3.6) via `dash-bootstrap-components`.
 
+### Themes
+
+Settings > Appearance picks a theme, Minimal or Steel. The server writes it as
+`data-theme` on `<html>`, so the first paint has it. `tokens.css` holds Minimal,
+and `theme_steel.css` overrides what differs. Add a color as a token whenever
+CSS or an inline style can take it, and give Steel a value if it should differ.
+
+Choosing a theme previews it through those tokens. Closing Settings saves it and
+reloads the page, because some colors come from the server:
+
+- Canvas colors, in `styles.py`'s `_CANVAS_COLORS`.
+- Bars and badges, in `styles.badge_palette()`.
+- Node colors. `settings.NODE_COLORS` reads the current theme's, so each theme
+  keeps its own picks.
+
+Nodes on a canvas use Steel's colors, softened slightly in OKLCH. More than that
+reads as washed out on neutral grey. Bars use the badge palette at 70% over their
+track, and badges use it solid. A simulation's bars take the theme's accent. A
+progress bar does too, with the Done green at 100%.
+
+A Plotly chart has no surface of its own, and its rules are translucent, so one
+set of chart colors holds on every theme.
+
 ### Surfaces
 
-Every dark surface is the same cool grey family, from `--st-bg-canvas` up to
-`--st-bg-modal`. DARKLY's own surfaces are neutral (`#222`, `#303030`), and beside
-cool panels they read as a mistake, so `tokens.css` and the end of `theme.css`
-replace them. The page and a sidebar are the same colour, and a border separates
-them. A new Bootstrap component that shows a neutral grey gets the same override.
+Every dark surface is a pure neutral grey, computed from Obsidian's Minimal dark
+theme. Its `--base-l` of 15% gives `bg1` and `bg2`, the values below. Take theme
+values from its `theme.css`, not from a screenshot: captures on this display come
+out lighter than the real colours.
+
+| Surface | Token | Value |
+|---|---|---|
+| The page, modals | `--st-bg-panel`, `--st-bg-modal` | `#262626` |
+| Sidebars, Now cards, canvases, the tab bar | `--st-bg-recessed`, `--st-bg-canvas` | `#212121` |
+| Menus and popovers | `--st-menu-bg` | `#212121` |
+| Fields | `--st-field-bg` | `#262626`, on a `#363636` border |
+| Selected and raised | `--st-bg-raised` | `#323232` |
+
+A menu sits below the page, not above it, and a border and shadow lift it. The
+accent is Minimal's muted blue, `--st-accent` (`#889eaa`). A chosen pill or switch
+fills with the darker `--st-accent-fill`, which holds white text.
 
 ### App icon
 
@@ -64,7 +96,7 @@ from this SVG together when changing the icon.
 
 Bootstrap has a `.text-muted` class. This guide used to define a *token* called
 `text-muted` as `#6c757d`. They are not the same colour: under DARKLY the class
-resolves to `var(--bs-secondary-color)`, i.e. `rgba(255,255,255,.75)`. The app
+resolves to `var(--bs-secondary-color)`, which `tokens.css` sets to `--st-text-secondary`. The app
 used both believing they were interchangeable, which is exactly why adjacent
 cells of one table disagreed.
 
@@ -91,26 +123,27 @@ in OKLCH (`ui.color.muted_like`): the same lightness shift, chroma ratio and
 hue shift, capped so white text stays legible. Badge text never changes to
 suit the color, because a mix of dark and white text looks bad. **This file
 is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
-documentation here in sync.**
+documentation here in sync.** The tables list Minimal's values. Steel's are in
+`styles.py`, unchanged from before themes.
 
 The words a search found in a card's description use `.search-match`: a faint
 amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Unblocking   | `#c516a5` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| Goal         | `#cdbe23` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
-| Priority     | `#cdbe23` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
-| PriorityRank | `#f39c12` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. Darkly's warning orange, deliberately warmer than the Goal yellow. |
-| Action       | `#bb6823` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
-| Learn        | `#1d5cba` | `#ffffff` | Type tile.                                                |
-| Resource     | `#814d9e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
-| Milestone    | `#2f909d` | `#ffffff` | Type tile.                                                |
-| Open         | `#3e61a0` | `#ffffff` | Status tile — solid blue.                                 |
-| Done         | `#148a68` | `#ffffff` | Status tile.                                              |
-| Blocked      | `#9e3838` | `#ffffff` | Status tile.                                              |
-| HardRelPri   | `#2a4d6e` | `#d6e0ee` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
-| SoftRelPri   | `#414f5c` | `#d0d6dc` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
+| Unblocking   | `#b734a0` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
+| Goal         | `#beae2c` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
+| Priority     | `#beae2c` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
+| PriorityRank | `#dc9428` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. Darkly's warning orange, deliberately warmer than the Goal yellow. |
+| Action       | `#b4692c` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
+| Learn        | `#2962b3` | `#ffffff` | Type tile.                                                |
+| Resource     | `#7f529e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
+| Milestone    | `#348d97` | `#ffffff` | Type tile.                                                |
+| Open         | `#41649b` | `#ffffff` | Status tile — solid blue.                                 |
+| Done         | `#298965` | `#ffffff` | Status tile.                                              |
+| Blocked      | `#9d3f3f` | `#ffffff` | Status tile.                                              |
+| HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
+| SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 
 The type-color values were originally derived by HSL-desaturating the
 saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
@@ -199,8 +232,8 @@ different numbers of lines.
 
 | Tile           | Background | Text      | Notes                                                              |
 |----------------|-----------|-----------|--------------------------------------------------------------------|
-| EventTrigger   | `#56575a` | `#dcdcdd` | Pewter — used for Manual / Date / Completion uniformly.           |
-| EventTriggered | `#148a68` | `#ffffff` | Matches `Done`. Used once the event has fired.                     |
+| EventTrigger   | `#4d4d4d` | `#d1d1d1` | Pewter — used for Manual / Date / Completion uniformly.           |
+| EventTriggered | `#298965` | `#ffffff` | Matches `Done`. Used once the event has fired.                     |
 
 ### Selection (Cytoscape)
 
@@ -539,7 +572,7 @@ dark theme. The classes are background-aware:
 
 | Class | Background | Used for |
 |-------|-----------|----------|
-| `.btn.editor-icon-btn` | inside a white field | trailing actions in an `.editor-field-group` |
+| `.btn.editor-icon-btn` | inside a field | trailing actions in an `.editor-field-group` |
 | `.btn.panel-close-btn`, `.adder-btn`, `.info-btn`, `.restore-btn`, `.edit-btn`, `.step-btn` | dark panel | the `kit` affordances above |
 | `#main-toolbar .btn-secondary`, `.btn-canvas-overlay.btn-secondary`, `.details-header-btn.btn-secondary` | dark panel/canvas | toolbar, canvas overlay, details header |
 
@@ -725,12 +758,15 @@ Scrollbars) shows that more cards sit below.
 
 ## Inputs
 
-- Standard: `dbc.Input(type="text")` — DARKLY defaults
+- Standard: `dbc.Input(type="text")`. `assets/css/fields.css` draws every field
+  dark: Bootstrap's over DARKLY's white, and Dash's through its `--Dash-*`
+  variables. Don't wrap a control in `.text-dark`: its `!important` leaves dark
+  text in a dark field.
 - Textarea: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
 - Placeholders end in `...` (three dots, not the single ellipsis character) and
   describe the action: `Name node...`, `Choose node type...`. Every light
-  control renders them in `--st-text-placeholder`. The filter sidebar keeps its
-  dark `All` placeholders, since there they read as a value.
+  control renders them in `--st-text-placeholder`. The filter sidebar draws its
+  `All` placeholders in the value color, since there they read as a value.
 
 ### Search field with suggestions (filters sidebar)
 
@@ -841,7 +877,7 @@ once, so they are not ordinary context assignment or filtering controls.
 When a text input needs a **per-row trailing action** (browse, open, remove a
 repeatable row), wrap the input and its ghost icon button(s) in a single
 `.editor-field-group` rather than placing a separate filled button beside it.
-The group carries the border, white background, radius, and focus ring
+The group carries the border, field background, radius, and focus ring
 (mirroring DARKLY's `.form-control`), and the inner input drops its own chrome —
 so the whole control spans full width and lines up with standalone fields like
 Type and Description. A separate beside-button leaves the input ending one
@@ -876,8 +912,8 @@ see the pill group below.
 Every radio is the same control, drawn once in `theme.css`: a hollow ring in
 the dim border color, which fills with an accent ring and dot when chosen. It
 takes the accent, not Darkly's slate, so it matches the choice cards' border.
-Don't restyle a radio per feature. Checkboxes and switches are separate
-controls and keep Bootstrap's look.
+Don't restyle a radio per feature. Checkboxes and switches are drawn in
+`fields.css`. A slider stays neutral, so it never outshouts what it adjusts.
 
 Once a choice grows past two or three options, switch to a `dbc.Select`
 instead of letting radios wrap or crowd a shared row. A choice that only

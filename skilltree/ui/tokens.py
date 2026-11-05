@@ -19,13 +19,15 @@ for structural color and typography.
 # --- Surfaces: dark chrome layer -------------------------------------------
 BG_CANVAS = "var(--st-bg-canvas)"
 BG_PANEL = "var(--st-bg-panel)"
+BG_RECESSED = "var(--st-bg-recessed)"
 BG_RAISED = "var(--st-bg-raised)"
 BG_SUNKEN = "var(--st-bg-sunken)"
 
 BORDER_PANEL = "var(--st-border-panel)"
+BORDER_CARD = "var(--st-border-card)"
 BORDER_SUBTLE = "var(--st-border-subtle)"
 
-# --- Surfaces: light form layer --------------------------------------------
+# --- Surfaces: form layer --------------------------------------------------
 FIELD_BG = "var(--st-field-bg)"
 FIELD_FG = "var(--st-field-fg)"
 MENU_BG = "var(--st-menu-bg)"

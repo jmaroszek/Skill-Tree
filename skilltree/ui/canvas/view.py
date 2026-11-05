@@ -8,7 +8,7 @@ from skilltree.store import settings
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.domain.contexts import sort_contexts
 from skilltree.ui.canvas.registry import CANVASES
-from skilltree.ui.styles import stylesheet as base_stylesheet
+from skilltree.ui.styles import focus_path_colors, stylesheet as base_stylesheet
 
 _NODES_TAB = next(canvas.tab for canvas in CANVASES if canvas.key == 'main')
 
@@ -161,7 +161,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
         f_type_list = [{"label": t, "value": t} for t in base_types]
 
         # Focus mode stylesheet: highlight subtree, dim others
-        active_stylesheet = list(base_stylesheet)
+        active_stylesheet = base_stylesheet()
         if focus_goal:
             if focus_subtree_override is not None:
                 focus_subtree = focus_subtree_override
@@ -238,15 +238,7 @@ def build_canvas_view(manager, generate_elements, trigger_id, active_node_id, co
             # Populated only when focus_goal_store carries path_info;
             # the existing mini-graph Focus button leaves it None.
             if focus_path_info:
-                # Saturated hues (Material Design A-accent shades) so
-                # paths stay punchy against the dimmed background.
-                PATH_COLORS = {
-                    1: '#ff1744',  # vivid red  # literal: Cytoscape
-                    2: '#1de9b6',  # bright teal  # literal: Cytoscape
-                    3: '#d500f9',  # electric purple  # literal: Cytoscape
-                    4: '#ff6d00',  # deep orange  # literal: Cytoscape
-                    5: '#f50057',  # hot pink  # literal: Cytoscape
-                }
+                PATH_COLORS = focus_path_colors()
                 for name, rank in (focus_path_info.get('node_rank') or {}).items():
                     color = PATH_COLORS.get(int(rank))
                     if color is None:

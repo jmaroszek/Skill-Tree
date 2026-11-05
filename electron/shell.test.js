@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
-  cursorInPage, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
+  cursorInPage, isAppUrl, isHexColor, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay, windowChrome,
 } = require('./shell');
 
 const none = () => false;
@@ -71,10 +71,18 @@ test('each platform gets its own window chrome', () => {
 test('a modal dims the window buttons like the rest of the page', () => {
   assert.deepEqual(titleBarOverlay(0), windowChrome('win32').titleBarOverlay);
   const dimmed = titleBarOverlay(1);
-  assert.equal(dimmed.color, '#0d0f11');
-  assert.equal(dimmed.symbolColor, '#6f7173');
+  assert.equal(dimmed.color, '#111111');
+  assert.equal(dimmed.symbolColor, '#696969');
   assert.equal(dimmed.height, 40);
-  assert.equal(titleBarOverlay(0.5).color, '#141619');   // halfway through the fade
+  assert.equal(titleBarOverlay(0.5).color, '#191919');   // halfway through the fade
+});
+
+test('the window buttons take the colors the page reports', () => {
+  const colors = { color: '#1a1d21', symbolColor: '#dee2e6' };
+  assert.equal(titleBarOverlay(0, colors).color, '#1a1d21');
+  assert.equal(titleBarOverlay(1, colors).color, '#0d0f11');
+  assert.ok(isHexColor('#1a1d21'));
+  assert.ok(!isHexColor('red') && !isHexColor('#fff') && !isHexColor(null));
 });
 
 test('only the app itself may load in the window', () => {

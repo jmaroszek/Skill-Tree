@@ -283,7 +283,7 @@ def build_node_editor_content():
             ], id="node-editor-header",
                className="d-flex justify-content-between align-items-center",
                style={"position": "sticky", "top": "0", "zIndex": 3,
-                      "backgroundColor": tokens.BG_PANEL,
+                      "backgroundColor": tokens.BG_RECESSED,
                       "paddingTop": "0.5rem", "paddingBottom": "0.25rem"}),
             html.Div([
                 html.Div([
@@ -304,7 +304,7 @@ def build_node_editor_content():
                     placeholder="Search by names and aliases...",
                     searchable=True,
                     clearable=True,
-                ), className="text-dark"),
+                )),
                 Tooltip("Find a node on the canvas. Load a node first.",
                             target="locate-node-wrap", placement="right"),
                 html.Div(id="locate-message", className="text-warning small mt-1"),
@@ -638,18 +638,18 @@ def build_node_editor_content():
                 html.Div([
                     dcc.Dropdown(id="edge-needs-hard", multi=True, placeholder="Hard..."),
                     dcc.Dropdown(id="edge-needs-soft", multi=True, placeholder="Soft...", className="mt-1"),
-                ], className="text-dark"),
+                ]),
 
                 hover_label("Supports", "node-supports-label", _EDITOR_HINTS["supports"],
                              className="mt-2"),
                 html.Div([
                     dcc.Dropdown(id="edge-supports-hard", multi=True, placeholder="Hard..."),
                     dcc.Dropdown(id="edge-supports-soft", multi=True, placeholder="Soft...", className="mt-1"),
-                ], className="text-dark"),
+                ]),
 
                 hover_label("Helps", "node-helps-label", _EDITOR_HINTS["helps"],
                              className="mt-2"),
-                html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies..."), className="text-dark"),
+                html.Div(dcc.Dropdown(id="edge-helps", multi=True, placeholder="Synergies...")),
 
                 html.Hr(className="my-3"),
                 hover_label("Resources", "node-resources-heading", _EDITOR_HINTS["resources"],
@@ -687,7 +687,7 @@ def build_node_editor_content():
                     "position": "sticky",
                     "bottom": "0",
                     "zIndex": 3,
-                    "backgroundColor": tokens.BG_PANEL,
+                    "backgroundColor": tokens.BG_RECESSED,
                     "paddingBottom": "10px",
                 }),
                 Tooltip("Discard unsaved changes", id="editor-revert-tooltip", target="btn-revert", placement="top"),

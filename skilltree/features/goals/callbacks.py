@@ -270,7 +270,7 @@ def register_goals_callbacks(app, services):
             return (ids || []).map(function(id, index) {
                 var style = Object.assign({}, (styles || [])[index] || {});
                 var active = id.index === selected;
-                style.border = active ? '2px solid #0d6efd' : '1px solid #495057';
+                style.border = active ? '2px solid var(--st-accent)' : '1px solid var(--st-border-panel)';
                 style.backgroundColor = active ? 'var(--st-bg-raised)' : 'var(--st-bg-panel)';
                 return style;
             });

@@ -16,6 +16,7 @@ from skilltree.store.database import get_connection
 from skilltree.store.graph.state import revisions
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
+from skilltree.domain.themes import DEFAULT_THEME, THEME_MINIMAL, THEME_STEEL, THEMES
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
 from skilltree.domain.profiles import (
     DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES,
@@ -50,7 +51,22 @@ DEFAULT_SUBCONTEXTS = {
 }
 
 
+# Minimal's canvas colors: Steel's, softened slightly in OKLCH. More than this
+# reads as washed out on neutral grey. Bars and badges have their own palette,
+# styles.badge_palette(). default_node_colors() is the current theme's.
 DEFAULT_NODE_COLORS = {
+    STATUS_BLOCKED: '#d84750',
+    STATUS_OPEN: '#277cf3',
+    STATUS_DONE: '#358f5c',
+    'Goal': '#d2c134',
+    'Action': '#f1822d',
+    'Learn': '#277cf3',
+    'Resource': '#9558bd',
+    'Milestone': '#30a6b5',
+    'Now': '#f8ca28',
+}
+
+STEEL_NODE_COLORS = {
     STATUS_BLOCKED: '#dc3545',
     STATUS_OPEN: '#0d6efd',
     STATUS_DONE: '#198754',
@@ -411,8 +427,44 @@ CONTEXT_WEIGHTS = Setting("CONTEXT_WEIGHTS", {}, refreshes_graph=True)
 
 # --- Appearance -----------------------------------------------------------------
 
-NODE_COLORS = Setting("NODE_COLORS", DEFAULT_NODE_COLORS,
-                      merge_defaults=True, refreshes_graph=True)
+THEME = Setting("THEME", DEFAULT_THEME, **_one_of(THEMES, DEFAULT_THEME))
+
+
+class _ColorsPerTheme:
+    """Node colors, kept per theme: a palette tuned on one theme is wrong on
+    another. It reads and writes the current theme's. The NODE_COLORS key
+    predates themes and holds Steel's, so a user's picks stay with the theme
+    they were picked on."""
+
+    def __init__(self, by_theme):
+        self.by_theme = by_theme
+
+    def for_theme(self, theme):
+        return self.by_theme[theme].get()
+
+    def get(self):
+        return self.for_theme(THEME.get())
+
+    def set(self, value):
+        self.by_theme[THEME.get()].set(value)
+
+    def clear(self):
+        self.by_theme[THEME.get()].clear()
+
+
+NODE_COLORS = _ColorsPerTheme({
+    THEME_MINIMAL: Setting("NODE_COLORS_MINIMAL", DEFAULT_NODE_COLORS,
+                           merge_defaults=True, refreshes_graph=True),
+    THEME_STEEL: Setting("NODE_COLORS", STEEL_NODE_COLORS,
+                         merge_defaults=True, refreshes_graph=True),
+})
+
+
+def default_node_colors(theme=None):
+    """The default canvas colors of ``theme``, or of the current theme."""
+    return NODE_COLORS.by_theme[theme or THEME.get()].default
+
+
 NODE_SHAPES = Setting("NODE_SHAPES", DEFAULT_NODE_SHAPES, refreshes_graph=True)
 GRAPH_LAYOUT_DEFAULTS = Setting("GRAPH_LAYOUT_DEFAULTS", DEFAULT_GRAPH_LAYOUT)
 DETAILS_GRAPH_LAYOUT_DEFAULTS = Setting("DETAILS_GRAPH_LAYOUT_DEFAULTS",

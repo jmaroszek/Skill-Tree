@@ -13,7 +13,7 @@ from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import format_time_friendly
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.styles import badge_palette
 
 
 # Maps the `via` field from scoring.explain_score to a bar color.
@@ -24,12 +24,14 @@ from skilltree.ui.styles import BADGE_PALETTE
 # sand off the cool axis entirely so it can't be confused with Soft.
 # Values come from styles.BADGE_PALETTE so the chart, its legend and the
 # node-info badges cannot drift apart.
-_VIA_COLORS = {
-    'Self':    BADGE_PALETTE['EdgeSelf'][0],     # warm sand — off the edge axis
-    'Hard':    BADGE_PALETTE['EdgeHard'][0],     # darker rugged blue (must-have)
-    'Soft':    BADGE_PALETTE['EdgeSoft'][0],     # neutral slate (should-have)
-    'Synergy': BADGE_PALETTE['EdgeSynergy'][0],  # cyan-teal (mutual, multiplicative)
-}
+def _via_colors():
+    palette = badge_palette()
+    return {
+        'Self':    palette['EdgeSelf'][0],     # warm sand — off the edge axis
+        'Hard':    palette['EdgeHard'][0],     # darker rugged blue (must-have)
+        'Soft':    palette['EdgeSoft'][0],     # neutral slate (should-have)
+        'Synergy': palette['EdgeSynergy'][0],  # cyan-teal (mutual, multiplicative)
+    }
 
 
 def _trunc(name: str, max_len: int = 25) -> str:
@@ -254,11 +256,13 @@ def _explain_bar_chart(contributors: list, top_n: int):
     rows = list(reversed(contributors[:top_n]))  # Plotly stacks bottom-up
     shares = [r.get('pct_of_tv', 0.0) for r in rows]
 
+    palette = badge_palette()
+    via_colors = _via_colors()
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=shares, y=[_trunc(r['name']) for r in rows],
         orientation='h',
-        marker_color=[_VIA_COLORS.get(r['via'], BADGE_PALETTE['SoftRelPri'][0]) for r in rows],
+        marker_color=[via_colors.get(r['via'], palette['SoftRelPri'][0]) for r in rows],
         text=[_format_share(s) for s in shares],
         textposition='outside',
         cliponaxis=False,
@@ -267,8 +271,8 @@ def _explain_bar_chart(contributors: list, top_n: int):
     ))
     fig.update_layout(
         template="plotly_dark",
-        paper_bgcolor='#1a1d21',  # literal: Plotly cannot resolve var()
-        plot_bgcolor='#1a1d21',  # literal: Plotly cannot resolve var()
+        paper_bgcolor='rgba(0,0,0,0)',  # the surface shows through, in any theme
+        plot_bgcolor='rgba(0,0,0,0)',
         margin=dict(l=10, r=40, t=10, b=40),
         xaxis=dict(title="Share of total value", ticksuffix="%"),
         yaxis=dict(automargin=True, ticksuffix="  "),
@@ -445,11 +449,11 @@ def register_explain_callbacks(app, services):
         # The count resets to the default only when the modal opens, not
         # when the user selects a different node while it's already open.
         top_n = 10 if opening else _top_n(count)
-        title, subtitle, summary, contributors = _build_explain_content(node_name)
+        title, subtitle, summary, contributors, chart = _content_and_chart(node_name, top_n)
         return (select_out, True if opening else no_update,
                 title, subtitle, summary, contributors,
                 10 if opening else no_update, node_name,
-                *_chart_outputs(contributors, top_n))
+                *chart)
 
     app.clientside_callback(
         "function(){ return false; }",
@@ -477,6 +481,10 @@ def register_explain_callbacks(app, services):
     )
 
     @database.snapshot_read
+    def _content_and_chart(node_name, top_n):
+        title, subtitle, summary, contributors = _build_explain_content(node_name)
+        return title, subtitle, summary, contributors, _chart_outputs(contributors, top_n)
+
     def _build_explain_content(node_name):
         # Explanation and both ranking pools reuse one set of normalized rows.
         all_nodes = graph_manager.get_all_nodes()

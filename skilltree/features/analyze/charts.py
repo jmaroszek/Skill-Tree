@@ -26,22 +26,19 @@ def _trunc(name, max_len=25):
     return name if len(name) <= max_len else name[:max_len - 1] + '\u2026'
 
 
-# Plotly reads computed values, not CSS variables, so these chart-only
-# constants stay literal. Keep them equal to the matching tokens in
-# assets/css/tokens.css (--st-bg-canvas, --st-bg-raised).
-_BG = '#1a1d21'
+# Plotly reads computed values, not CSS variables. A chart has no surface of its
+# own, so the theme's shows through, and its rules are translucent, so they sit on
+# any of them.
+_BG = 'rgba(0,0,0,0)'
 
 
-_CARD_BG = '#2b3035'
+_TEXT = '#d1d1d1'  # --st-text-primary
 
 
-_TEXT = '#dee2e6'  # --st-text-primary
+_SOFT = '#999999'  # --st-text-soft: tick labels and axis titles
 
 
-_SOFT = '#adb5bd'  # --st-text-soft: tick labels and axis titles
-
-
-_GRID = '#2b3035'  # --st-bg-raised: gridlines, a step above the canvas
+_GRID = 'rgba(255,255,255,0.07)'
 
 
 # Lato is loaded by assets/vendor/lato; Plotly's default stack would not use it.
@@ -106,7 +103,7 @@ def _card(children, fill=False, class_name=None):
     ``fill`` stretches it to its column's height, so two cards side by side
     end level however tall their contents are."""
     return html.Div(children, className=class_name, style={
-        "backgroundColor": _BG,
+        "backgroundColor": tokens.BG_CANVAS,
         "borderRadius": "6px",
         "padding": "12px 16px",
         **({"height": "100%"} if fill else {}),
@@ -224,7 +221,7 @@ def render_overview(metrics):
                 html.Div(label, className="text-muted small"),
             ], style={
                 "padding": "14px 18px", "borderRadius": "6px",
-                "backgroundColor": _CARD_BG,
+                "backgroundColor": tokens.BG_RAISED,
                 "textAlign": "center",
             }),
             style={"flex": "1 1 0", "minWidth": "0"},
@@ -362,7 +359,7 @@ def render_estimation_accuracy(rows):
     # y = x reference line \u2014 perfect estimation.
     fig.add_trace(go.Scatter(
         x=[lo, hi], y=[lo, hi], mode='lines',
-        line=dict(color='#6c757d', dash='dash', width=1),
+        line=dict(color='#7a7a7a', dash='dash', width=1),
         hoverinfo='skip', showlegend=False,
     ))
     # One marker trace per node type so the legend doubles as a colour key.
@@ -384,7 +381,7 @@ def render_estimation_accuracy(rows):
             y=[r['actual'] for r in trows],
             mode='markers', name=ntype,
             marker=dict(size=9, color=colors.get(ntype, '#0d6efd'),
-                        line=dict(width=1, color=_BG)),
+                        line=dict(width=1, color='#1e1e1e')),
             customdata=hover, hoverinfo='none',
         ))
 
@@ -466,7 +463,7 @@ def render_context_accuracy_boxplot(rows):
 
     # Soft filled boxes in a single blue; the 1× reference line conveys
     # over- vs. under-estimation by position.
-    line_c = '#4f9ed9'
+    line_c = '#5d9ed0'
     fill_c = 'rgba(79,158,217,0.22)'
 
     # Two traces per context. The first draws every point. The box goes over
@@ -485,7 +482,7 @@ def render_context_accuracy_boxplot(rows):
             # Light dots that shrink and soften as a context collects them, so
             # a pile-up between 1/2× and 2× doesn't become a white bar. No
             # halo: halos cut a crowd into separate discs.
-            marker=dict(color='#dee2e6', size=dot_size, opacity=dot_opacity),
+            marker=dict(color='#d1d1d1', size=dot_size, opacity=dot_opacity),
             line=dict(width=0), fillcolor='rgba(0,0,0,0)', whiskerwidth=0,
             hoveron='points', hoverinfo='none',
             customdata=[f"{r['name']}\n{_ratio(r):.2f}× estimate"
@@ -537,17 +534,17 @@ def render_context_accuracy_boxplot(rows):
                    range=xrange),
         yaxis=dict(tickfont=dict(size=12, color=_TEXT)),
     ))
-    fig.add_vline(x=1, line=dict(color='#6c757d', dash='dash', width=1))
+    fig.add_vline(x=1, line=dict(color='#7a7a7a', dash='dash', width=1))
 
     # No footnote for contexts below the minimum: it made this card taller
     # than the scatter beside it.
     return _card(_graph(fig, zoom=True), fill=True)
 
 
-_DRIFT_UNDER = '#c0392b'  # overrated going in: the reflection came in lower
+_DRIFT_UNDER = '#be473f'  # overrated going in: the reflection came in lower
 
 
-_DRIFT_OVER = '#2185d0'   # underrated going in
+_DRIFT_OVER = '#3989ca'   # underrated going in
 
 
 def render_reflection_drift_chart(rows):
@@ -734,7 +731,7 @@ _SUBCONTEXT_PALETTE = [
 ]
 
 
-_NO_SUBCONTEXT_COLOR = '#495057'
+_NO_SUBCONTEXT_COLOR = '#404040'
 
 
 _RATING_METRICS = (('value', 'Value'), ('interest', 'Interest'),

@@ -79,14 +79,14 @@ click('A');
 let result = select([1,0],[0],[a,b],[c],null);
 assert.equal(result[0], 'A');
 assert.equal(result[1], a.props['data-description']);
-assert.equal(result[2][0].backgroundColor, '#2b3035');
+assert.equal(result[2][0].backgroundColor, 'var(--st-bg-raised)');
 assert.equal(result[2][1].backgroundColor, undefined);
 click('B'); result = select([1,1],[0],[a,b],[c],result[0]);
 assert.equal(result[1], 'No description');
 assert.equal(result[2][0].backgroundColor, undefined);
 click('C','now-row'); result = select([1,1],[1],[a,b],[c],result[0]);
 assert.equal(result[1], 'Now description');
-assert.equal(result[3][0].border, '2px solid #0d6efd');
+assert.equal(result[3][0].border, '2px solid var(--st-accent)');
 window.dash_clientside.callback_context.triggered = [{prop_id:'now-nodes-table.children'}];
 result = select([0,0],[0],[a,b],[row('C','Edited','now-row')],result[0]);
 assert.equal(result[1], 'Edited');
@@ -103,9 +103,9 @@ window.dash_clientside.callback_context.outputs_list =
     [null, null, out(['A', 'B']), out(['N3', 'N1', 'N2']), null];
 click('N2', 'now-row'); result = select([0,0],[0,1,0],[a,b],[n1,n2,n3],null);
 assert.equal(result[0], 'N2');
-assert.equal(result[3][0].border, '1px solid #495057');  // N3
-assert.equal(result[3][1].border, '1px solid #495057');  // N1
-assert.equal(result[3][2].border, '2px solid #0d6efd');  // N2
+assert.equal(result[3][0].border, '1px solid var(--st-border-card)');  // N3
+assert.equal(result[3][1].border, '1px solid var(--st-border-card)');  // N1
+assert.equal(result[3][2].border, '2px solid var(--st-accent)');  // N2
 '''.replace('SOURCE', source)
     subprocess.run([node, '-e', script], check=True, capture_output=True, text=True)
 

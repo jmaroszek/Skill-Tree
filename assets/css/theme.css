@@ -306,7 +306,7 @@
     display: flex;
     justify-content: space-between;
     margin-top: 4px;
-    color: #9ca3aa;
+    color: var(--st-text-soft);
     font-size: 0.7rem;
     line-height: 1.1;
 }
@@ -351,7 +351,7 @@
 
 .canvas-container #cytoscape-graph {
     box-shadow: var(--st-shadow-canvas);
-    border: 1px solid #2c3034;
+    border: 1px solid var(--st-border-subtle);
     transition: box-shadow 0.3s ease;
 }
 
@@ -362,7 +362,7 @@
 .canvas-container.cyto-frozen #cytoscape-graph,
 .cyto-frozen #details-mini-graph,
 .cyto-frozen #events-detail-graph {
-    box-shadow: inset 0 0 0 2px rgba(126, 200, 227, 0.6),
+    box-shadow: inset 0 0 0 2px var(--st-frozen-ring),
                 var(--st-shadow-canvas);
     transition: box-shadow 200ms ease;
 }
@@ -420,7 +420,7 @@
    assumes the strip's 2px gap. */
 
 .rating-dist {
-    --rd-heat: #6da7ec;
+    --rd-heat: #70a5de;
     container-type: inline-size;
     position: relative;
     font-size: var(--st-fs-cap);
@@ -531,8 +531,8 @@
     box-shadow: 0 0 0 1px var(--st-bg-canvas);
     pointer-events: none;
 }
-.rd-gap.above { background-color: #f0a050; }
-.rd-gap.below { background-color: #c58af0; }
+.rd-gap.above { background-color: #e59f58; }
+.rd-gap.below { background-color: #bd8be5; }
 :root:not(.rd-guides-on) .rd-guide, :root:not(.rd-guides-on) .rd-gap { display: none; }
 /* The guide toggle reads as on (brighter) while the guide shows. */
 .rd-guides-on .btn.guide-toggle-btn { --bs-btn-color: var(--st-text-primary); }
@@ -562,8 +562,8 @@
    so a stalled Goal shows only the darker one. HTML rather than Plotly, like
    the Contexts table, and the same tooltip. */
 .goal-progress {
-    --gp-done: #148a68;    /* BADGE_PALETTE Done */
-    --gp-recent: #3fd19b;
+    --gp-done: #238c69;
+    --gp-recent: #51c896;
     font-size: var(--st-fs-cap);
     font-variant-numeric: tabular-nums;
 }
@@ -595,8 +595,8 @@
    the muted blue of the subcontext palette. Its own time is a gray stub in
    front: cost is context for the bar, not the bar. */
 .bottlenecks {
-    --bn-own: #868e96;
-    --bn-unlocks: #3a6ba6;
+    --bn-own: #8a8a8a;
+    --bn-unlocks: #4270a4;
 }
 .bn-own, .bn-unlocks { flex: none; height: 100%; }
 .bn-own { background-color: var(--bn-own); }
@@ -637,8 +637,8 @@
 /* Rating Drift: a name, then three diverging tracks on one shared scale.
    A bar left of the centre line is red (overrated going in), right is blue. */
 .drift-chart {
-    --dr-under: #c0392b;
-    --dr-over: #2185d0;
+    --dr-under: #be473f;
+    --dr-over: #3989ca;
 }
 .dr-row { grid-template-columns: minmax(7rem, 0.9fr) repeat(3, minmax(4rem, 1fr)); }
 .dr-head:hover, .dr-foot:hover { background-color: transparent; }
@@ -660,7 +660,7 @@
     top: -2px;
     bottom: -2px;
     width: 1px;
-    background-color: #6c757d;
+    background-color: var(--st-text-dim);
 }
 .dr-axis { position: relative; height: 1.1em; color: var(--st-text-soft); }
 .dr-axis > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
@@ -1285,18 +1285,26 @@
 
 /* --- Slider dark-mode fixes (Dash Radix UI sliders) --- */
 
-/* Dash fills the track and rings the focused thumb with its own purple. Scoped to
-   sliders: the same variable also colors Dash's dropdowns and date pickers. */
+/* Dash uses these variables for the fill, the focus ring and the thumb's rim. */
 .dash-slider-root {
-    --Dash-Fill-Interactive-Strong: var(--st-accent-soft);
+    --Dash-Fill-Interactive-Strong: var(--st-slider-fill);
+    --Dash-Fill-Inverse-Strong: var(--st-slider-thumb);
+    --Dash-Fill-Disabled: var(--st-control-rail);
+}
+.dash-slider-root .dash-slider-thumb {
+    background-color: var(--st-slider-thumb);
+}
+/* The little tick over each number: the rail is enough to read a position from. */
+.dash-slider-root .dash-slider-mark::before {
+    content: none;
 }
 
 /* Value input box next to slider */
 .dash-range-slider-input,
 .dash-input-container input[type="number"] {
-    color: var(--st-text-strong) !important;
-    background-color: var(--st-bg-raised) !important;
-    border: 1px solid var(--st-border-panel) !important;
+    color: var(--st-field-fg) !important;
+    background-color: var(--st-field-bg) !important;
+    border: 1px solid var(--st-field-border) !important;
 }
 
 /* Mark labels (1–10 numbers below slider) */
@@ -1309,7 +1317,7 @@
 /* Catch-all: any text inside the slider wrapper */
 .dash-slider-wrapper span,
 .dash-slider-wrapper div {
-    color: var(--st-text-primary) !important;
+    color: var(--st-text-soft) !important;
 }
 
 /* Slider container text */
@@ -1499,15 +1507,15 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 
 .ctx-menu-item-danger:hover {
-    background-color: #5a2828;
-    color: #e08585;
+    background-color: var(--st-danger-row-hover);
+    color: var(--st-danger-row-hover-text);
 }
 
 /* A muted caption at the top of a menu that isn't obviously about one thing,
    like the sort menus behind an icon button. Lines up with the check glyphs. */
 .ctx-menu-heading {
     padding: 4px 16px 2px 10px;
-    color: #888;
+    color: var(--st-text-placeholder);
     font-size: 0.75rem;
 }
 
@@ -1538,7 +1546,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     gap: 10px;
     margin: 10px 0 8px;
     font-size: 0.8rem;
-    color: #888;
+    color: var(--st-text-placeholder);
     white-space: nowrap;
 }
 
@@ -1652,7 +1660,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 .search-match {
     padding: 0;
     border-radius: 2px;
-    background-color: rgba(243, 156, 18, 0.25);
+    background-color: var(--st-search-match);
     color: inherit;
 }
 
@@ -1673,8 +1681,8 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
    to flag it as the more serious (permanent) choice. --- */
 
 #btn-time-calibration-dismiss:hover {
-    background-color: #8c4a4a;
-    border-color: #8c4a4a;
+    background-color: var(--st-danger);
+    border-color: var(--st-danger);
     color: #fff;
 }
 
@@ -1718,7 +1726,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     align-self: stretch;
     width: 1px;
     margin: 7px -0.5rem 7px 1.25rem;
-    background-color: rgba(173, 181, 189, 0.28);
+    background-color: var(--st-border-hairline-strong);
 }
 
 /* macOS draws its traffic lights on the left, so the toolbar starts after
@@ -1924,13 +1932,13 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 
 #node-editor-header::after {
     top: 100%;
-    background: linear-gradient(to bottom, var(--st-bg-panel), transparent);
+    background: linear-gradient(to bottom, var(--st-bg-recessed), transparent);
     animation-range: 0 24px;
 }
 
 #node-editor-actions::before {
     bottom: 100%;
-    background: linear-gradient(to top, var(--st-bg-panel), transparent);
+    background: linear-gradient(to top, var(--st-bg-recessed), transparent);
     animation-direction: reverse;
     animation-range: calc(100% - 24px) 100%;
 }
@@ -2123,12 +2131,12 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     --bs-btn-bg: transparent;
     --bs-btn-border-color: transparent;
     --bs-btn-color: var(--st-text-dim);
-    --bs-btn-hover-bg: var(--st-ghost-hover-light);
+    --bs-btn-hover-bg: var(--st-ghost-hover-dark);
     --bs-btn-hover-border-color: transparent;
     --bs-btn-hover-color: var(--st-field-fg);
-    --bs-btn-active-bg: var(--st-ghost-active-light);
+    --bs-btn-active-bg: var(--st-ghost-active-dark);
     --bs-btn-active-border-color: transparent;
-    --bs-btn-active-color: #1a1a1a;
+    --bs-btn-active-color: var(--st-text-strong);
     --bs-btn-focus-shadow-rgb: 0, 0, 0;
     box-shadow: none;
     border: none;
@@ -2250,16 +2258,16 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* The bordered shell that fuses a text field with its trailing icon button(s)
    into one control. Border/bg/radius live on the group so the whole thing
    spans full width and lines up with the standalone Type/Description fields;
-   the inner input drops its own chrome. Values mirror DARKLY's .form-control
-   (bg #fff, border #222, focus ring var(--st-field-focus-border)). overflow:hidden clips the
+   the inner input drops its own chrome. Values mirror .form-control in fields.css
+   (focus ring var(--st-field-focus-border)). overflow:hidden clips the
    buttons' hover fill to the rounded corners (it does not clip the focus
    box-shadow, which sits outside the border box). */
 .editor-field-group {
     display: flex;
     align-items: stretch;
-    border: 1px solid #222;
+    border: 1px solid var(--st-field-border);
     border-radius: 0.375rem;
-    background-color: #fff;
+    background-color: var(--st-field-bg);
     overflow: hidden;
 }
 .editor-field-group .form-control {
@@ -2721,7 +2729,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     z-index: 100;
     overflow-x: hidden;
     overflow-y: auto;
-    background-color: var(--st-bg-panel);
+    background-color: var(--st-bg-recessed);
     transition: transform 0.3s ease;
     will-change: transform;
 }
@@ -2799,4 +2807,9 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 .progress {
     --bs-progress-bg: var(--st-bg-sunken);
+    --bs-progress-bar-bg: var(--st-accent);
+}
+/* This one carries white words. */
+#calibration-review-progress {
+    --bs-progress-bar-bg: var(--st-accent-fill);
 }

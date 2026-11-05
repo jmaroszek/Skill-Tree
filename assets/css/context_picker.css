@@ -38,7 +38,7 @@
     white-space: nowrap;
 }
 
-/* Same gray as every other light control's placeholder. */
+/* Same gray as every other field's placeholder. */
 .context-picker-value.is-placeholder {
     color: var(--st-text-placeholder);
 }

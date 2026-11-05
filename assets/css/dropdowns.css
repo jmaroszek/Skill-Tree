@@ -33,7 +33,7 @@
     min-height: var(--st-control-height);
 }
 
-/* One placeholder gray for every light control. Dash's dropdown ships a
+/* One placeholder gray for every field. Dash's dropdown ships a
    blue-tinted gray; a dbc.Select placeholder is a hidden option that would
    otherwise render in full text color. */
 .dash-dropdown .dash-dropdown-placeholder,
@@ -57,13 +57,9 @@ select.form-select:has(> option[value=""][hidden]:checked) {
     stroke-linejoin: round !important;
 }
 
-/* The `.text-dark` wrapper on a dcc.Dropdown's container carries the dark
-   value text; every call site now uses that one idiom rather than the three
-   that were here before (the wrapper, an inline colour, and an inline
-   white-bg-plus-black-text pair). Do NOT add a blanket colour rule for
-   `.dash-dropdown-value` here: it also catches the placeholder, which turns
-   the "Hard..." / "Soft..." hints black instead of the placeholder grey every
-   other field uses. */
+/* Do NOT add a blanket colour rule for `.dash-dropdown-value` here: it also
+   catches the placeholder, which would turn the "Hard..." / "Soft..." hints
+   the same colour as a value, not the grey every other field uses. */
 
 /* The Details selector puts its clear action beside the chevron. Keep the
    visible x at native size but grow its hit target into the dead space on its
@@ -156,7 +152,7 @@ select::picker(select) {
     font-size: 1rem;
 }
 
-/* The search field is the picker's: a light field on the grey panel, with no
+/* The search field is the picker's: a field on the grey panel, with no
    magnifier. */
 .dash-dropdown-search-container {
     /* Input, then the clear button; the hidden magnifier leaves no column. */
@@ -366,10 +362,10 @@ span.dash-dropdown-option {
    3. Deliberate exceptions
    ===================================================================== */
 
-/* The filter sidebar keeps dark "All" placeholders, because there they read as
-   a value ("all types") rather than as absent input. */
+/* The filter sidebar keeps value-colored "All" placeholders, because there they
+   read as a value ("all types") rather than as absent input. */
 #sidebar-filters-container [class$="-placeholder"],
 #sidebar-filters-container .dash-dropdown-placeholder,
 #sidebar-filters-container .context-picker-value.is-placeholder {
-    color: var(--st-bg-panel) !important;
+    color: var(--st-field-fg) !important;
 }

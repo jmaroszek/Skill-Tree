@@ -50,7 +50,7 @@ def test_a_changed_color_gets_its_defaults_treatment(name):
 
 def test_a_color_near_the_default_stays_near_the_palette():
     default, curated = DEFAULT_NODE_COLORS["Learn"], BADGE_PALETTE["Learn"][0]
-    near = muted_like("#0d70fd", default, curated)
+    near = muted_like(f"{default[:3]}{int(default[3:5], 16) + 1:02x}{default[5:]}", default, curated)
     distance = [a - b for a, b in zip(hex_to_oklch(near), hex_to_oklch(curated))]
     assert all(abs(d) < 0.02 for d in distance)
 

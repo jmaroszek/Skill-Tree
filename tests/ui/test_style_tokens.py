@@ -178,10 +178,10 @@ def test_text_secondary_matches_what_bootstraps_text_muted_resolves_to():
     m = re.search(r"--st-text-secondary:\s*([^;]+);", css)
     assert m, "--st-text-secondary is missing from tokens.css"
     value = m.group(1).strip().replace(" ", "")
-    assert value == "rgba(255,255,255,0.75)", (
+    assert value == "rgba(255,255,255,0.55)", (
         f"--st-text-secondary is {m.group(1).strip()!r}. It must equal what "
         f"Bootstrap's .text-muted computes to under DARKLY "
-        f"(rgba(255, 255, 255, 0.75)); otherwise a cell using the token and a "
+        f"(rgba(255, 255, 255, 0.55)); otherwise a cell using the token and a "
         f"cell using the class render differently again.")
 
 
@@ -195,10 +195,7 @@ def test_plotly_chart_colours_match_their_tokens():
     from skilltree.features.analyze import charts as analyze_charts
 
     css = TOKENS_CSS.read_text(encoding="utf-8")
-    for const, token in [("_BG", "--st-bg-canvas"),
-                         ("_CARD_BG", "--st-bg-raised"),
-                         ("_GRID", "--st-bg-raised"),
-                         ("_SOFT", "--st-text-soft"),
+    for const, token in [("_SOFT", "--st-text-soft"),
                          ("_TEXT", "--st-text-primary")]:
         expected = re.search(rf"{token}:\s*([^;]+);", css).group(1).strip()
         assert getattr(analyze_charts, const) == expected, (

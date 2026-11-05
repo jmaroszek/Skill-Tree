@@ -13,7 +13,7 @@ from typing import List, Any
 from datetime import date, timedelta
 from skilltree.store import settings
 from skilltree.ui.styles import badge_style
-from skilltree.ui.styles import events_graph_stylesheet
+from skilltree.ui.styles import stylesheet
 from skilltree.ui.canvas.settings_panel import (
     build_graph_settings_panel, freeze_indicator,
 )
@@ -147,7 +147,7 @@ def build_events_tab_content():
                             placeholder="Select one or more nodes...",
                             multi=True,
                         ),
-                        className="text-dark mt-2",
+                        className="mt-2",
                         style={"maxWidth": "350px"},
                     ),
                     # Sub-choice of the Node Completion trigger, so it takes the
@@ -349,7 +349,7 @@ def build_events_tab_content():
                     'nodeRepulsion': gl.get('repulsion', 4500),
                     'gravity': gl.get('gravity', 0.25),
                 },
-                stylesheet=events_graph_stylesheet,
+                stylesheet=stylesheet(),
                 style={"width": "100%", "height": "100%",
                        "backgroundColor": tokens.BG_CANVAS},
                 userZoomingEnabled=False,
@@ -894,8 +894,7 @@ def build_add_to_event_modal():
         dbc.ModalBody([
             dbc.Label("Nodes", className="mb-1"),
             html.Div(dcc.Dropdown(id="add-to-event-nodes", multi=True, options=[],
-                                  placeholder="Select nodes..."),
-                     className="text-dark"),
+                                  placeholder="Select nodes...")),
             dbc.Label("Event", className="mt-3 mb-1"),
             dbc.Select(id="add-to-event-target", options=[], value=None,
                        placeholder="Select an event..."),

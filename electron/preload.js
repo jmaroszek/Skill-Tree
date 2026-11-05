@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld('skillTreeDesktop', {
   // The window buttons are drawn by the OS, so the page asks the shell to dim
   // them while a modal is open (assets/window_chrome.js).
   setModalOpen: open => ipcRenderer.send('skilltree:modal-open', !!open),
+  // And paint them in the toolbar's colors, which depend on the theme.
+  setTitleBarColors: (color, symbolColor) =>
+    ipcRenderer.send('skilltree:title-bar-colors', { color, symbolColor }),
   // Where the cursor is, in page pixels. The OS takes the pointer over the
   // title bar without telling the page (assets/components/hover_tips.js).
   cursorPoint: () => ipcRenderer.invoke('skilltree:cursor-point'),

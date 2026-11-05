@@ -20,7 +20,7 @@ const {
   appUrl, exitMessage, newToken, restorePrompt, startServer, stopServer,
 } = require('./server_process');
 const {
-  BACKDROP_FADE_MS, cursorInPage, isAppUrl, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay,
+  BACKDROP_FADE_MS, cursorInPage, isAppUrl, isHexColor, isExternalUrl, macMenuTemplate, serverCommand, titleBarOverlay,
   windowChrome,
 } = require('./shell');
 const {
@@ -40,6 +40,7 @@ let quitting = false;
 registerResourceDialog(ipcMain, dialog, () => mainWindow, () => server && server.port);
 registerUpdateSettings();
 registerModalDimming();
+registerTitleBarColors();
 registerCursorPoint();
 
 app.setAppUserModelId('com.skilltree.app');
@@ -162,6 +163,8 @@ function registerUpdateSettings() {
 let dimLevel = 0;
 let dimTimer = null;
 
+let overlayColors;   // undefined until the page reports them: shell.js's own
+
 function fadeOverlayTo(target) {
   clearInterval(dimTimer);
   const from = dimLevel;
@@ -170,11 +173,22 @@ function fadeOverlayTo(target) {
     if (!mainWindow) return clearInterval(dimTimer);
     const t = Math.min(1, (Date.now() - start) / BACKDROP_FADE_MS);
     dimLevel = from + (target - from) * t;
-    mainWindow.setTitleBarOverlay(titleBarOverlay(dimLevel));
+    mainWindow.setTitleBarOverlay(titleBarOverlay(dimLevel, overlayColors));
     if (t === 1) clearInterval(dimTimer);
   };
   step();
   dimTimer = setInterval(step, 16);
+}
+
+function registerTitleBarColors() {
+  ipcMain.on('skilltree:title-bar-colors', (event, colors) => {
+    const url = event.senderFrame && event.senderFrame.url;
+    if (!isAppUrl(url, server && server.port)) return;
+    if (process.platform !== 'win32' || !mainWindow) return;
+    if (!colors || !isHexColor(colors.color) || !isHexColor(colors.symbolColor)) return;
+    overlayColors = { color: colors.color, symbolColor: colors.symbolColor };
+    mainWindow.setTitleBarOverlay(titleBarOverlay(dimLevel, overlayColors));
+  });
 }
 
 function registerModalDimming() {
@@ -213,7 +227,7 @@ function createWindow(url) {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#1a1d21',   // matches the app; avoids a white flash
+    backgroundColor: '#212121',   // matches the app; avoids a white flash
     // Packaged builds carry their icon in the executable.
     icon: process.platform === 'win32' && !app.isPackaged ? ICON : undefined,
     show: false,

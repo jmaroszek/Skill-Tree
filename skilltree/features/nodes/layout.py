@@ -57,7 +57,7 @@ def create_graph_view():
                 style={'width': '100%', 'height': '100%',
                        'backgroundColor': tokens.BG_CANVAS, 'borderRadius': '8px'},
                 elements=[],
-                stylesheet=stylesheet,
+                stylesheet=stylesheet(),
                 userZoomingEnabled=False,
                 boxSelectionEnabled=True,
                 userPanningEnabled=False,

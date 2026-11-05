@@ -11,9 +11,7 @@
    Rules
    -----
    1. Tokens are named by ROLE, never by appearance. `--st-field-bg`, not
-      `--st-gray-100`. The app's form layer is currently light (DARKLY renders
-      .form-control white) while its chrome is dark; if that is ever unified,
-      it should be a value edit in this file rather than another sweep.
+      `--st-gray-100`.
    2. Python reads these through style_tokens.py, which exports `var(--...)`
       reference strings — never copies of the values. Dash passes `var()`
       through to the DOM unchanged.
@@ -25,91 +23,125 @@
 
 :root {
     /* ---- Surfaces: the dark chrome layer ---------------------------------
-       Panels, cards, canvases, context menus. */
-    --st-bg-canvas: #1a1d21;      /* graph/canvas containers */
-    --st-bg-panel: #212529;       /* sidebars, list panels, unselected cards */
-    --st-bg-raised: #2b3035;      /* cards, tooltips, selected states, menus */
-    --st-bg-sunken: #343a40;      /* pressed states, table rules */
-    /* Modals, popovers and toasts. A step above bg-raised, so a raised card
-       or a selected row still shows on one. */
-    --st-bg-modal: #2f343a;
+       Pure neutral greys, computed from Obsidian's Minimal dark theme (its
+       --base-l is 15%, so bg1 and bg2 are the page and canvas below). Read the
+       theme's values, not a screenshot: captures on this display come out
+       lighter. */
+    --st-bg-canvas: #212121;      /* graph containers, the tab bar */
+    --st-bg-panel: #262626;       /* the page, list panels, cards in a sidebar */
+    /* One step darker than the page: sidebars and the Now cards. */
+    --st-bg-recessed: var(--st-bg-canvas);
+    --st-bg-raised: #323232;      /* cards, tooltips, selected states, menus */
+    --st-bg-sunken: #363636;      /* pressed states, table rules */
+    /* Modals and toasts: the page's surface, set apart by the backdrop and a
+       border. A raised card or a selected row still shows on one. */
+    --st-bg-modal: #262626;
 
     /* DARKLY's surfaces are neutral greys (#222, #303030), which clash with
        the cool ones above. Its stylesheet loads first, so these win. The
        -rgb values have to be literal: Bootstrap builds rgba() from them. */
     --bs-body-bg: var(--st-bg-panel);
-    --bs-body-bg-rgb: 33, 37, 41;
+    --bs-body-bg-rgb: 38, 38, 38;
     --bs-secondary-bg: var(--st-bg-modal);
-    --bs-secondary-bg-rgb: 47, 52, 58;
+    --bs-secondary-bg-rgb: 38, 38, 38;
     --bs-tertiary-bg: var(--st-bg-raised);
-    --bs-tertiary-bg-rgb: 43, 48, 53;
+    --bs-tertiary-bg-rgb: 50, 50, 50;
     --bs-border-color: var(--st-border-panel);
+    /* DARKLY's body text is pure white, too hard on these greys. */
+    --bs-body-color: var(--st-text-primary);
+    --bs-body-color-rgb: 209, 209, 209;
+    --bs-secondary-color: var(--st-text-secondary);
+    /* DARKLY's status text and links are vivid. -rgb, because Bootstrap builds
+       rgba() from them. */
+    --bs-success-rgb: 57, 183, 133;
+    --bs-warning-rgb: 232, 159, 47;
+    --bs-link-color-rgb: 136, 158, 170;
+    --bs-link-hover-color-rgb: 160, 179, 189;
 
-    --st-border-panel: #495057;   /* panel dividers, card borders, hr */
+    --st-border-card: #4a4a4a;    /* the outline that is a card's whole shape */
+    --st-border-panel: #363636;   /* panel dividers, card borders, hr */
     --st-sidebar-width: 350px;    /* editor, Goals, Events, Filters */
-    --st-border-subtle: #343a40;  /* in-table cell rules */
+    --st-border-subtle: #2e2e2e;  /* in-table cell rules */
     /* Translucent rules that sit lightly on any surface: section dividers
        and row rules inside a modal, where a solid grey reads as a box. */
     --st-border-hairline: rgba(255, 255, 255, 0.08);
     --st-border-hairline-strong: rgba(255, 255, 255, 0.14);
 
-    /* ---- Surfaces: the light form layer ----------------------------------
-       DARKLY renders .form-control white, so fields and the menus that belong
-       to them are light. Deliberate two-layer system; see rule 1 above. */
-    --st-field-bg: #fff;
-    --st-field-fg: #303030;
-    --st-field-border: #222;           /* mirrors DARKLY .form-control */
+    /* ---- Surfaces: the form layer ----------------------------------------
+       Minimal's own form field: bg1 on a ui1 border. It's the page's color, so
+       a field is a quiet step up in a sidebar and only an outline on the page.
+       fields.css applies these over DARKLY's white .form-control and Dash's own
+       controls. */
+    --st-field-bg: #262626;
+    --st-field-fg: #d1d1d1;
+    --st-field-border: #363636;
+    --st-field-disabled-bg: rgba(255, 255, 255, 0.03);
     /* Strong enough to find again at a glance after looking away. */
-    --st-field-focus-border: #0d6efd;
+    --st-field-focus-border: var(--st-accent);
     --st-field-focus-ring: 0 0 0 3px var(--st-accent), 0 0 0 5px var(--st-accent-ring);
 
-    --st-menu-bg: #e9ecef;             /* the context picker panel, which is
-                                          the app's reference "good" menu */
-    --st-menu-fg: #303030;
-    --st-menu-border: #adb5bd;
-    --st-menu-row-hover: #d7dadd;
-    --st-menu-selected: #0a58ca;
+    /* A menu sits below the page, not above it: Minimal's bg2, with a border
+       and a shadow to lift it. */
+    --st-menu-bg: #212121;
+    --st-menu-fg: #d1d1d1;
+    --st-menu-border: #404040;
+    --st-menu-row-hover: #2e2e2e;
+    --st-menu-selected: var(--st-accent-soft);
+
+    /* ---- Controls: sliders, radios, switches ------------------------------
+       Neutral at rest. A filled slider and a chosen radio take the accent. */
+    --st-control-rail: rgba(255, 255, 255, 0.10);
+    --st-control-fill: #595959;
+    --st-control-on: #a6a6a6;
+    --st-slider-fill: var(--st-accent);
+    --st-slider-thumb: var(--st-accent-soft);
     --st-menu-row-height: 36px;
 
     /* ---- Text -----------------------------------------------------------
        NOTE: --st-text-secondary is deliberately pinned to what Bootstrap's
        .text-muted class actually resolves to under DARKLY
-       (var(--bs-secondary-color) === rgba(255,255,255,.75)), NOT to #6c757d.
+       (var(--bs-secondary-color), set above), NOT to #6c757d.
        The old style guide called #6c757d "text-muted", which collided with the
        framework class of the same name and is why one table rendered its Type
        column darker than its Delay and Status columns. Use this token or the
        .text-muted class interchangeably — they are now the same color. */
-    --st-text-primary: #dee2e6;
-    --st-text-secondary: rgba(255, 255, 255, 0.75);
-    --st-text-strong: #f1f3f5;
-    --st-text-soft: #adb5bd;      /* subtle indicators, ghost icon strokes */
-    --st-text-dim: #6c757d;       /* genuinely recessive: captions, rest-state
+    --st-text-primary: #d1d1d1;
+    --st-text-secondary: rgba(255, 255, 255, 0.55);
+    --st-text-strong: #e6e6e6;
+    --st-text-soft: #999999;      /* subtle indicators, ghost icon strokes */
+    --st-text-dim: #7a7a7a;       /* genuinely recessive: captions, rest-state
                                      icon strokes, disabled affordances */
-    --st-text-faint: #495057;     /* disabled */
-    --st-text-placeholder: #888;  /* every light control's placeholder */
-    --st-text-on-field: #303030;  /* text inside a light field */
+    --st-text-faint: #595959;     /* disabled */
+    --st-text-placeholder: #7a7a7a;  /* every field's placeholder */
+    --st-text-on-field: #d1d1d1;  /* text inside a field */
 
     /* ---- Accents --------------------------------------------------------- */
-    --st-accent: #0d6efd;
-    --st-accent-ring: rgba(13, 110, 253, 0.28);
-    --st-accent-wash: rgba(13, 110, 253, 0.10);  /* a chosen card's fill */
-    --st-accent-soft: #7ec8e3;    /* Details empty-state heading */
-    --st-danger: #c94c4c;         /* tamed red; see custom.css */
-    --st-danger-text: #ee6666;
-    --st-danger-wash: rgba(201, 76, 76, 0.12);
-    --st-danger-wash-strong: rgba(201, 76, 76, 0.18);
+    /* Minimal's accent: hsl(201, 17%, 60%), and 68% for the soft one. */
+    --st-accent: #889eaa;
+    --st-accent-ring: rgba(136, 158, 170, 0.28);
+    --st-accent-wash: rgba(136, 158, 170, 0.10);  /* a chosen card's fill */
+    --st-accent-soft: #a0b3bd;    /* Details empty-state heading, a menu's chosen row */
+    /* A chosen pill's fill: dark enough to hold its white text. */
+    --st-accent-fill: #59717d;
+    --st-spinner: var(--st-accent);
+    --st-frozen-ring: rgba(136, 158, 170, 0.6);   /* a frozen canvas's outline */
+    --st-search-match: rgba(205, 185, 92, 0.22);  /* words a search found */
+    --st-danger: #c55150;         /* tamed red; see custom.css */
+    --st-danger-text: #e96d6d;
+    --st-danger-wash: rgba(197, 81, 80, 0.12);
+    --st-danger-wash-strong: rgba(197, 81, 80, 0.18);
+    --st-danger-row-hover: #4a2c2c;
+    --st-danger-row-hover-text: #d98a8a;
 
     /* ---- Ghost-button washes --------------------------------------------- */
     --st-ghost-hover-dark: rgba(255, 255, 255, 0.07);
     --st-ghost-active-dark: rgba(255, 255, 255, 0.12);
-    --st-ghost-hover-light: rgba(0, 0, 0, 0.06);
-    --st-ghost-active-light: rgba(0, 0, 0, 0.10);
 
     /* ---- Text actions (.st-action, ui/kit.py) ---------------------------- */
     /* The commit's soft fill: a neutral step above bg-raised. */
-    --st-action-fill: #3a4047;
-    --st-action-fill-hover: #454c54;
-    --st-action-fill-active: #4f5760;
+    --st-action-fill: #3d3d3d;
+    --st-action-fill-hover: #454545;
+    --st-action-fill-active: #4f4f4f;
     --st-commit-bg: var(--st-action-fill);
     --st-commit-bg-hover: var(--st-action-fill-hover);
     --st-commit-bg-active: var(--st-action-fill-active);
@@ -119,7 +151,9 @@
     --st-standalone-bg: rgba(255, 255, 255, 0.05);
     --st-standalone-bg-hover: rgba(255, 255, 255, 0.09);
     --st-standalone-bg-active: rgba(255, 255, 255, 0.13);
-    --st-warning-text: #e8b04a;
+    --st-warning-text: #e0ad50;
+    --st-warning-fill: #dc9428;
+    --st-warning-fill-hover: #bc7f22;
 
     /* ---- Type scale ------------------------------------------------------
        Eight steps replacing 28 ad-hoc literals. The old near-duplicates

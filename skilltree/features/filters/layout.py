@@ -89,7 +89,6 @@ def build_filters_content():
             value=[],
             multi=True,
             placeholder="All",
-            className="text-dark",
         ),
 
         html.Hr(className="my-3"),

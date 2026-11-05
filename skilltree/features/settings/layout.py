@@ -7,6 +7,7 @@ then sections, each with its own title and description, divided by hairlines.
 live under `.settings-body` in theme.css.
 """
 
+from skilltree.domain.themes import DEFAULT_THEME, THEME_MINIMAL, THEME_STEEL
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from skilltree.ui.kit import hint
@@ -37,7 +38,7 @@ _PAGE_DESCRIPTIONS = {
                      "or web pages. Each resource gets its own field in the Node "
                      "Editor, a labeled dot on Home, and an Open item in the "
                      "right-click menu.",
-    "tab-appearance": "How nodes look on every canvas.",
+    "tab-appearance": "The app's theme, and how nodes look on every canvas.",
     "tab-data": "Updates, backups, and moving your graph to another computer.",
 }
 
@@ -213,8 +214,34 @@ def _build_editing_tab():
     ])
 
 
+# The themes, with what each looks like. Choosing one previews it at once.
+_THEMES = [
+    (THEME_MINIMAL, "Minimal",
+     "Neutral greys and a muted blue accent, with softer node colors. Easy on "
+     "the eyes over a long session."),
+    (THEME_STEEL, "Steel",
+     "Cool blue-grey surfaces, a bright blue accent, and vivid node colors."),
+]
+
+
 def _build_appearance_tab():
     return dbc.Tab(label="Appearance", tab_id="tab-appearance", children=[
+        _section(
+            "Theme",
+            "Each theme keeps its own node colors.",
+            dbc.RadioItems(
+                id="setting-theme",
+                options=[{
+                    "label": html.Div([
+                        html.Span(name, className="settings-choice-name"),
+                        html.Span(text, className="settings-choice-desc"),
+                    ]),
+                    "value": value,
+                } for value, name, text in _THEMES],
+                value=DEFAULT_THEME,
+                className="settings-choice-list",
+            ),
+        ),
         # Shapes and colors are separate callback outputs, so they stay two
         # columns; their rows share one height and line up across.
         _section(
@@ -394,8 +421,7 @@ def _build_data_tab():
             "is backed up first, so a restore can itself be undone.",
             html.Div([
                 html.Div(dcc.Dropdown(id="restore-backup-select", options=[],
-                                      clearable=False, placeholder="Choose a backup"),
-                         className="text-dark", style={"minWidth": "340px"}),
+                                      clearable=False, placeholder="Choose a backup"), style={"minWidth": "340px"}),
                 danger_action("Restore…", "btn-restore-backup", size="sm",
                               className="ms-2"),
             ], className="d-flex align-items-center"),
@@ -539,5 +565,7 @@ def build_settings_modal():
         dcc.Store(id="settings-close-request"),
         dcc.Store(id="settings-close-result"),
         dcc.Store(id="settings-close-sink"),
+        dcc.Store(id="theme-preview-sink"),
+        dcc.Store(id="theme-reload-sink"),
     ], id="settings-modal", dialog_class_name="settings-dialog",
        is_open=False, centered=True, scrollable=True, backdrop="static", keyboard=False)

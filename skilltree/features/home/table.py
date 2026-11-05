@@ -9,7 +9,7 @@ from skilltree.domain.scoring import explain_score
 from skilltree.store import database
 from skilltree.store.resources import get_sections
 from skilltree.store import settings
-from skilltree.ui.styles import BADGE_PALETTE, palette_color
+from skilltree.ui.styles import badge_palette, palette_color
 from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.components.duration import format_time_friendly
@@ -213,7 +213,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     # the rationale — short version: canvas needs vivid hues, bars need a
     # quieter register, and the two are decoupled by design.
     pinned_steps = pinned_steps or {}
-    step_color = BADGE_PALETTE['Unblocking'][0]
+    step_color = badge_palette()['Unblocking'][0]
     # One target per blocked Now node, repeated across its steps — resolve each
     # once so the context trimming below can compare against it.
     step_targets = {name: manager.get_node(name)
@@ -495,7 +495,7 @@ def format_now_nodes_section(now_nodes, manager, selected_node_id=None):
             "padding": "16px 20px",
             "borderRadius": "6px",
             "backgroundColor": tokens.BG_RAISED if is_selected else tokens.BG_PANEL,
-            "border": f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_PANEL}",
+            "border": f"2px solid {tokens.ACCENT}" if is_selected else f"1px solid {tokens.BORDER_CARD}",
             "transition": "background-color 0.2s, border-color 0.2s",
             "flex": "0 0 310px",
             "width": "310px",

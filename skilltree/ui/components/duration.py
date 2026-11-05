@@ -1,5 +1,6 @@
 """Shared estimate guidance, the Time Simulation forecast chart, and worked hours
 in the user's units."""
+from skilltree.ui.styles import accent_color
 import math
 
 import dash_bootstrap_components as dbc
@@ -205,7 +206,7 @@ _UNIT_TITLES = {"y": "Work years", "m": "Work months", "w": "Work weeks",
 # share a muted gray. P50 is the headline, so it is brighter. Status colours
 # would read as good and bad, and Details already uses them for Done and
 # Blocked.
-_RANGE_COLOR = "#adb5bd"  # literal: Plotly
+_RANGE_COLOR = "#999999"  # literal: Plotly
 _PERCENTILE_LINES = (("P10", "p10", _RANGE_COLOR),
                      ("P50", "p50", "#f8f9fa"),  # literal: Plotly
                      ("P90", "p90", _RANGE_COLOR))
@@ -258,7 +259,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
 
     fig = go.Figure(go.Bar(
         x=centers, y=counts, width=width,
-        marker_color="#0d6efd", opacity=0.85,  # literal: Plotly
+        marker_color=accent_color(),
         customdata=hover,
         hovertemplate="%{customdata}<extra></extra>",
     ))
@@ -276,8 +277,8 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         meta={"trials": summary["trials"], "requested_trials": requested_trials,
               "chain_size": summary["chain_size"]},
         template="plotly_dark",
-        paper_bgcolor="#1a1d21",  # literal: Plotly
-        plot_bgcolor="#1a1d21",  # literal: Plotly
+        paper_bgcolor="rgba(0,0,0,0)",  # the surface shows through, in any theme
+        plot_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=40, r=20, t=20, b=40),
         xaxis_title=_UNIT_TITLES[suffix],
         yaxis_title="Frequency",
@@ -288,8 +289,8 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
         # 'closest' answers only with the pointer inside a bar, and unlike 'x'
         # it pins no raw value to the axis.
         hovermode="closest",
-        hoverlabel=dict(bgcolor="#2b3035", bordercolor="#495057",  # literal: Plotly
-                        font=dict(color="#dee2e6", size=13)),  # literal: Plotly
+        hoverlabel=dict(bgcolor="#2c2c2c", bordercolor="#484848",  # literal: Plotly
+                        font=dict(color="#d1d1d1", size=13)),  # literal: Plotly
         bargap=0,
     )
     return fig

@@ -9,6 +9,8 @@ _DRAFT_SETTINGS = {
     'hp_profile': settings.HP_PROFILE, 'ts': settings.TIME_SETTINGS,
     'contexts': settings.CONTEXTS, 'subcontexts': settings.SUBCONTEXTS,
     'context_weights': settings.CONTEXT_WEIGHTS, 'shapes': settings.NODE_SHAPES,
+    # Before 'colors', which are saved for the theme the draft chose.
+    'theme': settings.THEME,
     'colors': settings.NODE_COLORS, 'name_formatting': settings.NAME_FORMATTING,
     'show_scoring_perf': settings.SHOW_SCORING_PERF,
     'time_calibration_enabled': settings.TIME_CALIBRATION_ENABLED,
@@ -25,6 +27,8 @@ def changed_settings(draft):
         if key not in draft:
             continue
         current = setting.get()
+        if key == 'colors':
+            current = setting.for_theme(draft.get('theme') or settings.THEME.get())
         if key == 'context_weights':
             # Missing weights already mean 1. Opening/closing the modal must
             # not turn those defaults into an edit or clear profile overrides.

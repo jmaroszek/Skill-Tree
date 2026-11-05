@@ -1,9 +1,8 @@
 """Every dropdown's chosen value is readable.
 
-A dcc.Dropdown draws a white field, and DARKLY's body text is white, so a
-chosen value vanished unless something darkened it. The app's one idiom for
-that is a `.text-dark` wrapper (assets/css/dropdowns.css). The Data tab's restore
-dropdown shipped without one: picking a backup left the field looking empty.
+A dcc.Dropdown draws a dark field in assets/css/fields.css, and its value takes
+the field's light text from there. A `.text-dark` wrapper's `!important` would
+beat that and leave a dark value in a dark field, so none may remain.
 """
 from dash import dcc
 
@@ -27,9 +26,9 @@ def _is_dark(component):
     return "text-dark" in (getattr(component, "className", None) or "").split()
 
 
-def test_every_dropdown_sits_in_a_text_dark_wrapper():
+def test_no_dropdown_sits_in_a_text_dark_wrapper():
     found = list(_dropdowns(build_app_layout(GraphManager(), env="sandbox")))
     assert found, "the layout should have dropdowns"
     unreadable = [dropdown.id for dropdown, ancestors in found
-                  if not any(_is_dark(a) for a in ancestors) and not _is_dark(dropdown)]
+                  if any(_is_dark(a) for a in ancestors) or _is_dark(dropdown)]
     assert unreadable == []

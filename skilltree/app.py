@@ -172,7 +172,8 @@ def create_app(app_settings=None, services=None):
 
     import dash
     import dash_cytoscape as cyto
-    from skilltree.shell import build_app_layout, build_index_string
+    from skilltree.shell import build_app_layout, build_index_string, with_theme
+    from skilltree.store import settings as stored_settings
     from skilltree.ui.canvas.registry import install_client_registry
     from skilltree.ui.prerender import prerender_layout, prerendered_specs
     from skilltree.engine.callbacks import register_engine_callbacks
@@ -207,6 +208,9 @@ def create_app(app_settings=None, services=None):
                     on_error=report_callback_error)
     app.title = "Skill Tree (Sandbox)" if environment == "sandbox" else "Skill Tree"
     app.index_string = build_index_string()
+    render_index = app.interpolate_index
+    app.interpolate_index = lambda **parts: with_theme(render_index(**parts),
+                                                       stored_settings.THEME.get())
     install_client_registry(app)
     # Built per request, after registration below. prerender_layout runs the
     # @prerendered callbacks' initial calls into the layout, so the browser

@@ -118,10 +118,10 @@
             function style(row, card) {
                 const active = row.id.index === selected;
                 const result = Object.assign({}, row.style);
-                if (active || card) result.backgroundColor = active ? '#2b3035' : '#212529';
+                if (active || card) result.backgroundColor = active ? 'var(--st-bg-raised)' : 'var(--st-bg-panel)';
                 else delete result.backgroundColor;
                 if (card) {
-                    result.border = active ? '2px solid #0d6efd' : '1px solid #495057';
+                    result.border = active ? '2px solid var(--st-accent)' : '1px solid var(--st-border-card)';
                     result.transition = 'none';
                 }
                 return result;
@@ -140,7 +140,7 @@
             const outputs = window.dash_clientside.callback_context.outputs_list || [];
             return [selected, description, styles(suggestions, outputs[2], false),
                 styles(now, outputs[3], true),
-                {color: row ? '#dee2e6' : '#6c757d', whiteSpace: 'pre-wrap', fontSize: '0.95rem'},
+                {color: row ? 'var(--st-text-primary)' : 'var(--st-text-dim)', whiteSpace: 'pre-wrap', fontSize: '0.95rem'},
                 relations(row)];
         }
     };

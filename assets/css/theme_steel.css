@@ -1,0 +1,81 @@
+/* The Steel theme: cool blue-grey surfaces and a bright blue accent. tokens.css
+   holds the default theme, Minimal, and this replaces what differs. The server
+   puts data-theme on <html> before first paint (skilltree/shell.py).
+
+   Colors that can't read a CSS variable have their Steel values in
+   skilltree/ui/styles.py and skilltree/store/settings.py. */
+
+:root[data-theme="steel"] {
+    --st-bg-canvas: #1a1d21;
+    --st-bg-panel: #212529;
+    --st-bg-raised: #2b3035;
+    --st-bg-sunken: #343a40;
+    --st-bg-modal: #2f343a;
+
+    --bs-body-bg-rgb: 33, 37, 41;
+    --bs-secondary-bg-rgb: 47, 52, 58;
+    --bs-tertiary-bg-rgb: 43, 48, 53;
+    --bs-body-color-rgb: 222, 226, 230;
+    --bs-success-rgb: 0, 188, 140;
+    --bs-warning-rgb: 243, 156, 18;
+    --bs-link-color-rgb: 126, 200, 227;
+    --bs-link-hover-color-rgb: 170, 220, 238;
+
+    --st-border-panel: #495057;
+    --st-border-card: #495057;
+    --st-border-subtle: #343a40;
+
+    --st-field-bg: #212529;
+    --st-field-fg: #dee2e6;
+    --st-field-border: #343a40;
+
+    --st-menu-bg: #1a1d21;
+    --st-menu-fg: #dee2e6;
+    --st-menu-border: #495057;
+    --st-menu-row-hover: #2b3035;
+
+    --st-control-fill: #6c757d;
+    --st-control-on: #adb5bd;
+    --st-slider-fill: #5c88b8;
+    --st-slider-thumb: #9fc0e0;
+
+    --st-text-primary: #dee2e6;
+    --st-text-secondary: rgba(255, 255, 255, 0.75);
+    --st-text-strong: #f1f3f5;
+    --st-text-soft: #adb5bd;
+    --st-text-dim: #6c757d;
+    --st-text-faint: #495057;
+    --st-text-placeholder: #888;
+    --st-text-on-field: #dee2e6;
+
+    --st-accent: #0d6efd;
+    --st-accent-ring: rgba(13, 110, 253, 0.28);
+    --st-accent-wash: rgba(13, 110, 253, 0.10);
+    --st-accent-soft: #7ec8e3;
+    --st-accent-fill: #0d6efd;
+    --st-spinner: #1e90ff;
+    --st-frozen-ring: rgba(126, 200, 227, 0.6);
+    --st-search-match: rgba(243, 156, 18, 0.25);
+
+    --st-danger: #c94c4c;
+    --st-danger-text: #ee6666;
+    --st-danger-wash: rgba(201, 76, 76, 0.12);
+    --st-danger-wash-strong: rgba(201, 76, 76, 0.18);
+    --st-danger-row-hover: #5a2828;
+    --st-danger-row-hover-text: #e08585;
+    --st-warning-text: #e8b04a;
+    --st-warning-fill: #f39c12;
+    --st-warning-fill-hover: #cf8510;
+
+    --st-action-fill: #3a4047;
+    --st-action-fill-hover: #454c54;
+    --st-action-fill-active: #4f5760;
+}
+
+/* A dialog is lighter than the page, so the page's field color would read as a
+   dark hole in it. There a field is the dialog's own color with an outline, as
+   in Minimal. */
+:root[data-theme="steel"] .modal {
+    --st-field-bg: var(--st-bg-modal);
+    --st-field-border: #495057;
+}

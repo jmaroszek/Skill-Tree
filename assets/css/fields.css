@@ -1,0 +1,110 @@
+/* Every field in the app, dark.
+
+   DARKLY compiles a white .form-control into its stylesheet, and its variables
+   don't reach it. Dash 4 ships a second, light set of controls, drawn from
+   --Dash-* variables on :root. So a field's look has to be set in both places.
+   All values come from assets/css/tokens.css. */
+
+/* A variable set on body wins over the same one on :root for everything inside,
+   including Radix menus, which portal to body, whichever stylesheet loads last. */
+body {
+    --Dash-Fill-Inverse-Strong: var(--st-field-bg);
+    --Dash-Fill-Interactive-Strong: var(--st-accent);
+    --Dash-Fill-Interactive-Weak: var(--st-ghost-hover-dark);
+    --Dash-Fill-Primary-Hover: var(--st-ghost-hover-dark);
+    --Dash-Fill-Primary-Active: var(--st-ghost-active-dark);
+    --Dash-Fill-Disabled: var(--st-field-disabled-bg);
+    --Dash-Stroke-Strong: var(--st-field-border);
+    --Dash-Stroke-Weak: var(--st-border-hairline);
+    --Dash-Text-Strong: var(--st-field-fg);
+    --Dash-Text-Primary: var(--st-field-fg);
+    --Dash-Text-Weak: var(--st-text-soft);
+    --Dash-Text-Disabled: var(--st-text-dim);
+}
+
+/* These were resolved on body, so a theme that changes the field tokens inside a
+   dialog has to restate them there. */
+.modal {
+    --Dash-Fill-Inverse-Strong: var(--st-field-bg);
+    --Dash-Stroke-Strong: var(--st-field-border);
+}
+
+/* color-scheme gives the browser's own parts dark drawing: number spinners, the
+   date picker's icon, a resize grip. */
+.form-control,
+.form-control:focus,
+.form-select {
+    color: var(--st-field-fg);
+    background-color: var(--st-field-bg);
+    border-color: var(--st-field-border);
+    color-scheme: dark;
+}
+
+.form-control::placeholder {
+    color: var(--st-text-placeholder);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+    color: var(--st-text-dim);
+    background-color: var(--st-field-disabled-bg);
+}
+
+/* DARKLY's chevron is a data URI with its dark stroke written in. */
+.form-select {
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+.dash-dropdown {
+    color: var(--st-field-fg);
+}
+
+/* A menu's own checkboxes are bare inputs, which the browser draws white. */
+input[type="checkbox"]:not(.form-check-input):not(.btn-check) {
+    appearance: none;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--st-text-dim);
+    border-radius: 3px;
+    background: var(--st-field-bg) center / 12px no-repeat;
+}
+input[type="checkbox"]:not(.form-check-input):not(.btn-check):checked {
+    border-color: var(--st-accent-fill);
+    background-color: var(--st-accent-fill);
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='m6 10 3 3 6-6'/%3e%3c/svg%3e");
+}
+
+/* Checkboxes and switches. Radios are drawn in theme.css. */
+.form-check-input {
+    background-color: var(--st-field-bg);
+    border-color: var(--st-control-fill);
+}
+.form-check-input:checked {
+    background-color: var(--st-accent-fill);
+    border-color: var(--st-accent-fill);
+}
+.form-switch .form-check-input:not(:checked) {
+    background-color: var(--st-control-rail);
+    border-color: transparent;
+}
+.form-switch .form-check-input,
+.form-switch .form-check-input:focus {
+    --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23999999'/%3e%3c/svg%3e");
+}
+.form-switch .form-check-input:checked {
+    --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
+}
+
+/* DARKLY compiles its orange into the button. */
+.btn-warning {
+    --bs-btn-bg: var(--st-warning-fill);
+    --bs-btn-border-color: var(--st-warning-fill);
+    --bs-btn-hover-bg: var(--st-warning-fill-hover);
+    --bs-btn-hover-border-color: var(--st-warning-fill-hover);
+    --bs-btn-active-bg: var(--st-warning-fill-hover);
+    --bs-btn-active-border-color: var(--st-warning-fill-hover);
+    --bs-btn-color: #fff;
+    --bs-btn-hover-color: #fff;
+    --bs-btn-active-color: #fff;
+}

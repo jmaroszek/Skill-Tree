@@ -266,18 +266,19 @@ def test_details_suggestion_without_context_keeps_an_empty_second_line():
 
 def test_priority_rank_badges_share_the_orange_rank_color():
     """Regression: the Details rank badge once borrowed the Goal yellow."""
+    from skilltree.ui.styles import BADGE_PALETTE
     from skilltree.features.details.layout import build_suggestion_row
     from skilltree.features.goals.layout import build_goal_card
 
     row = build_suggestion_row(_suggestion_node(), priority_rank=2)
     badge = row.children[-1]
     assert badge.children == "2"
-    assert badge.style["backgroundColor"] == "#f39c12"
+    assert badge.style["backgroundColor"] == BADGE_PALETTE["PriorityRank"][0]
     assert getattr(row, "aria-label") == "View Sleep. Priority 2, Health"
 
     card = build_goal_card("Sleep", "Open", {"total": 0}, 0, priority_rank=2)
     rank_trigger = card.children[0].children[1].children[0]
-    assert rank_trigger.children.style["backgroundColor"] == "#f39c12"
+    assert rank_trigger.children.style["backgroundColor"] == BADGE_PALETTE["PriorityRank"][0]
 
 
 def test_explore_suggestion_shows_the_goal_score_like_the_sidebar_card():

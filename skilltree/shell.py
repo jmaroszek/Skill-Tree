@@ -159,6 +159,11 @@ _INDEX_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
+def with_theme(index_html, theme):
+    """The page, with the theme on its root element, so the first paint has it."""
+    return index_html.replace("<html>", f'<html data-theme="{theme}">', 1)
+
+
 def build_index_string():
     """The page template, with the startup cover drawn like every other cover.
 

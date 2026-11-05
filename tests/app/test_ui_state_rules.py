@@ -45,7 +45,7 @@ MESSAGE_TEST = re.compile(
     r"""start(?:s|S)[Ww]ith\(\s*\(?\s*["'](?:Error|Settings saved|Updated node|Added node)""")
 
 # Stores that exist to be written: a browser callback needed an Output.
-SINKS = {'settings-close-sink', 'data-reload-sink', 'about-update-sink', 'welcome-reload-sink'}
+SINKS = {'theme-preview-sink', 'theme-reload-sink', 'settings-close-sink', 'data-reload-sink', 'about-update-sink', 'welcome-reload-sink'}
 
 
 def _sources():

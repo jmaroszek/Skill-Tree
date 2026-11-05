@@ -2,13 +2,14 @@
 Callback definitions for the Settings tab.
 """
 
+from skilltree.domain.themes import THEMES
 import time
 import logging
 from typing import Any, Tuple
 
 import dash
 import dash_bootstrap_components as dbc
-from dash import ALL, MATCH, Input, Output, State, ctx, html
+from dash import ALL, ClientsideFunction, MATCH, Input, Output, State, ctx, html
 
 from skilltree.domain import contexts as context_rules
 from skilltree.domain.contexts import (
@@ -195,6 +196,7 @@ def register_settings_callbacks(app, services):
         Output('setting-context-sort-mode', 'value'),
         Output('setting-time-calibration-enabled', 'value'),
         Output('setting-now-node-cap', 'value'),
+        Output('setting-theme', 'value'),
         Output('setting-show-hour-equivalents', 'value'),
         Output('settings-save-error', 'children', allow_duplicate=True),
     ]
@@ -252,6 +254,7 @@ def register_settings_callbacks(app, services):
             context_sort_mode,
             ["enabled"] if settings.TIME_CALIBRATION_ENABLED.get() else [],
             settings.NOW_NODE_CAP.get(),
+            settings.THEME.get(),
             ["enabled"] if ts['show_hour_equivalents'] else [],
             '',
         )
@@ -303,6 +306,7 @@ def register_settings_callbacks(app, services):
         *SECTION_FORM_STATES,
         State('setting-backup-extra-dir', 'value'),
         State('setting-show-hour-equivalents', 'value'),
+        State('setting-theme', 'value'),
         prevent_initial_call=True,
     )
     def save_settings(n_clicks,
@@ -318,7 +322,8 @@ def register_settings_callbacks(app, services):
                        section_store=None, section_names=None, section_name_ids=None,
                        section_roots=None, section_root_ids=None,
                        section_use_roots=None, section_use_root_ids=None,
-                       backup_extra_dir=None, show_hour_equivalents_val=None):
+                       backup_extra_dir=None, show_hour_equivalents_val=None,
+                       theme_val=None):
         if not n_clicks:
             return (dash.no_update,) * 6
 
@@ -419,7 +424,9 @@ def register_settings_callbacks(app, services):
                 }
                 new_name_formatting['enabled'] = new_name_formatting['mode'] != NAME_FORMAT_NONE
 
+                theme = theme_val if theme_val in THEMES else settings.THEME.get()
                 draft = {
+                        'theme': theme,
                         'hp_profile': profile_name,
                         'ts': new_ts,
                         'resource_sections': sections,
@@ -429,7 +436,7 @@ def register_settings_callbacks(app, services):
                         'shapes': {**settings.NODE_SHAPES.get(), **{
                             sid['index']: value for sid, value in
                             zip(shape_ids or [], shape_values or []) if value}},
-                        'colors': {**settings.NODE_COLORS.get(), **{
+                        'colors': {**settings.NODE_COLORS.for_theme(theme), **{
                             cid['index']: value for cid, value in
                             zip(color_ids or [], color_values or []) if value}},
                         'name_formatting': new_name_formatting,
@@ -487,27 +494,57 @@ def register_settings_callbacks(app, services):
             return dash.no_update
         return _build_shape_rows(_display_types(), DEFAULT_NODE_SHAPES)
 
+    # --- Settings: Choosing a theme previews it, and shows its colors ---
+    app.clientside_callback(
+        ClientsideFunction('skilltree_theme', 'preview'),
+        Output('theme-preview-sink', 'data'),
+        Input('setting-theme', 'value'),
+        prevent_initial_call=True,
+    )
+    app.clientside_callback(
+        ClientsideFunction('skilltree_theme', 'reloadIfSaved'),
+        Output('theme-reload-sink', 'data'),
+        Input('settings-version-store', 'data'),
+        State('setting-theme', 'value'),
+        prevent_initial_call=True,
+    )
+
+    @app.callback(
+        Output('setting-node-status-colors-container', 'children', allow_duplicate=True),
+        Output('setting-node-type-colors-container', 'children', allow_duplicate=True),
+        Input('setting-theme', 'value'),
+        prevent_initial_call=True,
+    )
+    def show_theme_colors(theme):
+        if theme not in THEMES:
+            return dash.no_update, dash.no_update
+        colors = settings.NODE_COLORS.for_theme(theme)
+        return (_build_status_color_rows(colors),
+                _build_type_color_rows(_display_types(), colors))
+
     # --- Settings: Restore Default Status Colors ---
     @app.callback(
         Output('setting-node-status-colors-container', 'children', allow_duplicate=True),
         Input('btn-restore-status-colors', 'n_clicks'),
+        State('setting-theme', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_status_colors(n_clicks):
+    def restore_default_status_colors(n_clicks, theme):
         if not n_clicks:
             return dash.no_update
-        return _build_status_color_rows(DEFAULT_NODE_COLORS)
+        return _build_status_color_rows(settings.default_node_colors(theme))
 
     # --- Settings: Restore Default Type Colors ---
     @app.callback(
         Output('setting-node-type-colors-container', 'children', allow_duplicate=True),
         Input('btn-restore-type-colors', 'n_clicks'),
+        State('setting-theme', 'value'),
         prevent_initial_call=True,
     )
-    def restore_default_type_colors(n_clicks):
+    def restore_default_type_colors(n_clicks, theme):
         if not n_clicks:
             return dash.no_update
-        return _build_type_color_rows(_display_types(), DEFAULT_NODE_COLORS)
+        return _build_type_color_rows(_display_types(), settings.default_node_colors(theme))
 
     register_context_editor_callbacks(app, services)
     register_resource_settings_callbacks(app, services)

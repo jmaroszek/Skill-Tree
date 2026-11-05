@@ -20,7 +20,7 @@ from dash import html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from skilltree.store import settings
-from skilltree.ui.styles import badge_style, BADGE_PALETTE
+from skilltree.ui.styles import badge_style, badge_palette
 from skilltree.ui.styles import stylesheet
 from skilltree.domain.models import STATUS_OPEN
 from skilltree.ui.components.duration import format_time_friendly
@@ -60,7 +60,7 @@ def build_details_tab_content():
             placeholder="Select a node...",
             clearable=True,
             style={"minWidth": "100px"},
-        ), className="text-dark", style={"flex": "1", "minWidth": "0"}),
+        ), style={"flex": "1", "minWidth": "0"}),
     ], className="d-flex align-items-center py-2",
        style={"borderBottom": f"1px solid {tokens.BORDER_PANEL}", "flexShrink": "0",
               "paddingBottom": "8px", "paddingLeft": "18px", "paddingRight": "18px"})
@@ -221,7 +221,7 @@ def build_details_tab_content():
                 },
                 style={'width': '100%', 'height': '100%', 'backgroundColor': tokens.BG_CANVAS,
                        'borderRadius': '0'},
-                stylesheet=stylesheet,
+                stylesheet=stylesheet(),
                 userZoomingEnabled=False,
                 userPanningEnabled=False,
                 boxSelectionEnabled=True,
@@ -390,7 +390,7 @@ def build_details_tab_content():
             dcc.Loading(
                 id="details-sim-loading",
                 type="circle",
-                color="#1e90ff",  # literal: dbc.Spinner prop, not CSS
+                color="var(--st-spinner)",
                 # No spinner flash on fast machines; only shows once a sim
                 # takes longer than half a second.
                 delay_show=500,
@@ -423,7 +423,7 @@ def build_details_tab_content():
 
     explain_legend_items = []
     for label in ('Self', 'Hard', 'Soft', 'Synergy'):
-        color = BADGE_PALETTE[f'Edge{label}'][0]
+        color = badge_palette()[f'Edge{label}'][0]
         explain_legend_items.append(html.Span([
             html.Span("\u25A0 ", style={"color": color}),
             html.Span(label, style={"color": tokens.TEXT_SOFT}),
@@ -662,7 +662,7 @@ def _build_link_node_modal():
             html.Div(dcc.Dropdown(
                 id="details-add-existing-dropdown",
                 placeholder="Search for a node...",
-            ), className="text-dark mb-3"),
+            ), className="mb-3"),
             dbc.Label("Relationship"),
             dbc.Select(
                 id="details-add-link-edge-type",
