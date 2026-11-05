@@ -117,19 +117,14 @@ def _build_reflect_tab():
             html.Section([
                 html.Div([
                     html.Div([
-                        html.Div(id="hub-pending-count",
-                                 className="reflect-queue-count", children="0"),
-                        html.Div(id="hub-pending-label",
-                                 className="reflect-queue-label",
-                                 children="completed nodes waiting"),
-                    ]),
+                        html.Span(id="hub-pending-count",
+                                  className="reflect-queue-count", children="0"),
+                        html.Span(id="hub-pending-label",
+                                  className="reflect-queue-label",
+                                  children="completed nodes waiting"),
+                    ], className="reflect-queue-tally"),
                     primary_action("Start Reflection", "btn-hub-pending-launch"),
                 ], className="reflect-queue-head"),
-                html.P(
-                    "Walk through completed nodes that haven't been "
-                    "reflected on yet.",
-                    className="reflect-caption mb-0",
-                ),
                 html.Ul(id="hub-pending-list", className="reflect-node-list"),
             ], id="hub-pending-summary", className="reflect-queue-card"),
             html.Section([

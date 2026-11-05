@@ -83,14 +83,13 @@ def _reflect_sections(modal):
 def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     modal = build_review_hub_modal()
     queue, empty, excluded = _reflect_sections(modal)
-    head, description, preview = queue.children
+    head, preview = queue.children
 
     assert modal.dialog_class_name == "review-hub-dialog"
     assert modal.children[1].class_name == "review-hub-body"
     css = THEME_CSS.read_text(encoding="utf-8")
     assert ".review-hub-dialog {\n    max-width: 980px;" in css
     assert ".review-hub-dialog .modal-content {\n    height:" in css
-    assert description.children == "Walk through completed nodes that haven't been reflected on yet."
     assert empty.children[0].className == "bi bi-check-circle reflect-empty-icon"
     assert empty.children[1].children == "All caught up"
     # The History list fades while more rows sit below; its pager is outside it.
@@ -102,7 +101,10 @@ def test_reflection_modal_has_the_short_queue_copy_and_stable_narrow_width():
     assert queue.id == "hub-pending-summary"
     assert queue.className == "reflect-queue-card"
     count_block, launch = head.children
+    # The count and its label share one line, the count first.
+    assert count_block.className == "reflect-queue-tally"
     assert count_block.children[0].id == "hub-pending-count"
+    assert count_block.children[1].id == "hub-pending-label"
     assert launch.id == "btn-hub-pending-launch"
     assert preview.id == "hub-pending-list"
     # Excluded is one divider line at the bottom of the frame, its list folded
