@@ -261,6 +261,8 @@ def build_details_tab_content():
     ], id="details-dep-graph-container", style={
         "flex": "1",
         "minWidth": "300px",
+        # The canvas holds still while the page slides under this edge.
+        "overflow": "hidden",
         "display": "flex",
         "flexDirection": "column",
     })

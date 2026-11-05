@@ -2728,19 +2728,17 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 #sidebar-editor-container { min-width: var(--st-sidebar-width); z-index: 1000; }
 #details-goal-sidebar, #events-sidebar-container { display: flex; flex-direction: column; }
 
-/* The Events tab glides aside with its sidebar, because the list and the panel
-   are two halves of one task. */
+/* The tab content makes room for an open sidebar. assets/sidebars/content_room.js
+   decides when, and writes the two attributes on the stage. */
+.stage-pane { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+#tab-stage[data-room-left="all"] > .stage-pane,
+#tab-stage[data-room-left="events"] > #events-tab-content { left: var(--st-sidebar-width); }
+#tab-stage[data-room-right] > .stage-pane { right: var(--st-sidebar-width); }
 .events-tab-inner {
     display: flex;
     flex-direction: row;
     height: 100%;
     width: 100%;
-    margin-left: 0;
-    transition: margin-left 0.3s ease, width 0.3s ease;
-}
-.events-tab-inner.is-beside-sidebar {
-    width: calc(100% - var(--st-sidebar-width));
-    margin-left: var(--st-sidebar-width);
 }
 
 /* The Ratings Reference floats, and can be dragged and resized. A drag writes

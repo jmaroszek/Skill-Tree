@@ -600,9 +600,11 @@ All sidebars slide with `transform`, set by `.left-sidebar`, `.right-sidebar` an
 The left panels translate left when closed; Filters stays anchored at `right: 0`
 and translates right by its own width. The browser can run the slide off the
 main thread while the page is busy. Rebuilding a sidebar's list waits until the
-slide finishes. On the Events tab, the content glides aside with the sidebar.
-Its class comes back in the same callback return as the sidebar's, so both
-animations start on the same frame.
+slide finishes.
+
+The tab content makes room for an open sidebar instead of sitting under it, on
+every tab. `assets/sidebars/content_room.js` owns this, and writes
+`data-room-left` and `data-room-right` on `#tab-stage`.
 
 Now nodes wear a solid ring in the configured Now color, drawn as a Cytoscape
 `outline`. A 3px border in the canvas color parts the ring from the fill, so the
@@ -612,9 +614,13 @@ layers, so labels and selection remain clear. The pulse follows pan, zoom and
 node movement without redrawing the whole graph while idle. It pauses on hidden
 tabs, yields to Locate, and stays static for reduced-motion preferences.
 
-Only the Events tab does this. Everywhere else a sidebar slides over the content and covers it. Events earns the exception because its sidebar and its panel are two halves of one task: you pick an event from the list and read its detail beside it. The other sidebars are transient tools over a workspace, and pushing that workspace aside costs more than it gives. It animates `width`, which is main-thread layout on every frame, and it moves the content: on the Nodes canvas the pan does not change, so the whole graph shifts right by the sidebar's width and loses its right edge — possibly including the node the editor just opened. Covering a predictable left strip is less disorienting, and the canvas can pan out from under it. Before adding a tab to the glide, be sure its content is cheap to reflow and that seeing it beside the panel is worth the shift.
+The content slides with a transform, on the compositor like the sidebar, and its box changes once: at the end of an opening, and at the start of a closing. Animating `left` or `width` instead is layout on every frame, on the main thread, and it reads as choppy. A transform stays only for the slide, because a resting one misplaces every `position: fixed` dropdown inside it, as `container-type` does.
 
-Content that draws into a fixed-size surface does not follow a glide on its own. The Events graph is resized on `#events-tab-inner`'s `transitionend` rather than every frame, since a per-frame Cytoscape redraw is exactly the main-thread work the transform-based slide avoids. The canvas is clipped mid-glide and settles at the end.
+A graph never moves on screen. On Details and Events its canvas slides the other way inside its clipped container, so the two cancel, and the pan cancels the box change. Nodes has nothing else in its pane, so it doesn't slide. A graph can end up off centre, which draws less attention than a jump. Don't recentre it.
+
+A chart redraws with the box change, through `Plotly.relayout`. `Plots.resize` and a responsive `dcc.Graph` wait 100 ms and more, which shows as a second jump. Keep any new chart's width automatic, so this finds it. Anything new that draws into a fixed-size surface needs the same treatment in `content_room.js`.
+
+Below 1250px wide the sidebars cover, as there is no room to give, except the Events list, which is half of its tab. Below 1600px a left panel still pushes, and Filters covers beside it. A layout must read at the window width minus 350px from 1250 up, and minus 700px from 1600 up.
 
 A panel that loads on first view shows the shared loading cover: `dbc.Spinner(spinner_style=LOADING_SPINNER_STYLE)` over a `canvas-cover-label` caption, inside a `loading-cover` div. Analyze and the Goals sidebar use it.
 

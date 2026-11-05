@@ -36,7 +36,7 @@ NAME_MAX_WIDTH = 340
 RANK_TRACK_WIDTH = 44
 
 
-BAR_MIN_WIDTH = 240
+BAR_MIN_WIDTH = 100
 
 
 # Space between the row's columns, then between the time, the V/I/E chart and the
