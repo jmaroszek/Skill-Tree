@@ -7,7 +7,7 @@ then sections, each with its own title and description, divided by hairlines.
 live under `.settings-body` in theme.css.
 """
 
-from skilltree.domain.themes import DEFAULT_THEME, THEME_MINIMAL, THEME_STEEL
+from skilltree.domain.themes import DEFAULT_THEME, THEME_ZEN, THEME_STEEL
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from skilltree.ui.kit import hint
@@ -216,7 +216,7 @@ def _build_editing_tab():
 
 # The themes, with what each looks like. Choosing one previews it at once.
 _THEMES = [
-    (THEME_MINIMAL, "Minimal",
+    (THEME_ZEN, "Zen",
      "Neutral greys and a muted blue accent, with softer node colors. Easy on "
      "the eyes over a long session."),
     (THEME_STEEL, "Steel",

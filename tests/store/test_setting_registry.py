@@ -18,7 +18,7 @@ SAMPLES = {
     'SUBCONTEXT_SORT_MODE': 'length',
     'CONTEXT_WEIGHTS': {'Work': 2.0},
     'NODE_COLORS': {**settings.STEEL_NODE_COLORS, 'Goal': '#123456'},
-    'NODE_COLORS_MINIMAL': {**settings.DEFAULT_NODE_COLORS, 'Goal': '#123456'},
+    'NODE_COLORS_ZEN': {**settings.DEFAULT_NODE_COLORS, 'Goal': '#123456'},
     'THEME': 'steel',
     'NODE_SHAPES': {'Learn': 'star', 'Goal': 'star'},
     'GRAPH_LAYOUT_DEFAULTS': {'edge_length': 80, 'gravity': 1, 'repulsion': 900},

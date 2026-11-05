@@ -126,7 +126,8 @@
     z-index: 10;
 }
 /* A two-way switch laid over a canvas (Details' Needs | Supports). The chosen
-   side fills with the accent, as the weekday pills do. */
+   side fills a lighter grey, not the accent: the switch is chrome and shouldn't
+   compete with the canvas. */
 .canvas-segmented-overlay {
     position: absolute;
     top: 12px;
@@ -162,8 +163,8 @@
 .canvas-segmented .btn:hover { color: var(--st-text-primary); }
 .canvas-segmented .btn-check:checked + .btn,
 .canvas-segmented .btn.active {
-    background: var(--st-accent-fill);
-    color: #fff;
+    background: var(--st-segment-active);
+    color: var(--st-text-strong);
 }
 /* Section rules in the editor and Filters sidebars: fainter than Bootstrap's
    default, since a long form has many of them. The rule above the editor's

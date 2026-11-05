@@ -68,7 +68,7 @@
     --st-border-hairline-strong: rgba(255, 255, 255, 0.14);
 
     /* ---- Surfaces: the form layer ----------------------------------------
-       Minimal's own form field: bg1 on a ui1 border. It's the page's color, so
+       Zen's own form field: bg1 on a ui1 border. It's the page's color, so
        a field is a quiet step up in a sidebar and only an outline on the page.
        fields.css applies these over DARKLY's white .form-control and Dash's own
        controls. */
@@ -80,7 +80,7 @@
     --st-field-focus-border: var(--st-accent);
     --st-field-focus-ring: 0 0 0 3px var(--st-accent), 0 0 0 5px var(--st-accent-ring);
 
-    /* A menu sits below the page, not above it: Minimal's bg2, with a border
+    /* A menu sits below the page, not above it: Zen's bg2, with a border
        and a shadow to lift it. */
     --st-menu-bg: #212121;
     --st-menu-fg: #d1d1d1;
@@ -118,7 +118,8 @@
                                      ones write this value in */
 
     /* ---- Accents --------------------------------------------------------- */
-    /* Minimal's accent: hsl(201, 17%, 60%), and 68% for the soft one. */
+    /* Zen's accent: hsl(201, 17%, 60%), and 68% for the soft one. */
+    --st-segment-active: #4a4a4a;  /* the chosen side of a switch laid over a canvas */
     --st-accent: #889eaa;
     --st-accent-ring: rgba(136, 158, 170, 0.28);
     --st-accent-wash: rgba(136, 158, 170, 0.10);  /* a chosen card's fill */

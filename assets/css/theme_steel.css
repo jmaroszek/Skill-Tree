@@ -1,5 +1,5 @@
 /* The Steel theme: cool blue-grey surfaces and a bright blue accent. tokens.css
-   holds the default theme, Minimal, and this replaces what differs. The server
+   holds the default theme, Zen, and this replaces what differs. The server
    puts data-theme on <html> before first paint (skilltree/shell.py).
 
    Colors that can't read a CSS variable have their Steel values in
@@ -76,7 +76,7 @@
 
 /* A dialog is lighter than the page, so the page's field color would read as a
    dark hole in it. There a field is the dialog's own color with an outline, as
-   in Minimal. */
+   in Zen. */
 :root[data-theme="steel"] .modal {
     --st-field-bg: var(--st-bg-modal);
     --st-field-border: #495057;

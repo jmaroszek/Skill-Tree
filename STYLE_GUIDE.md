@@ -42,8 +42,8 @@ Bootstrap DARKLY (Bootswatch 5.3.6) via `dash-bootstrap-components`.
 
 ### Themes
 
-Settings > Appearance picks a theme, Minimal or Steel. The server writes it as
-`data-theme` on `<html>`, so the first paint has it. `tokens.css` holds Minimal,
+Settings > Appearance picks a theme, Zen or Steel. The server writes it as
+`data-theme` on `<html>`, so the first paint has it. `tokens.css` holds Zen,
 and `theme_steel.css` overrides what differs. Add a color as a token whenever
 CSS or an inline style can take it, and give Steel a value if it should differ.
 
@@ -57,7 +57,7 @@ reloads the page, because some colors come from the server:
 
 Nodes on a canvas use Steel's colors, softened slightly in OKLCH. More than that
 reads as washed out on neutral grey. Bars and badges use the same node colors.
-In Minimal, a simulation's bars and a progress bar share one muted accent
+In Zen, a simulation's bars and a progress bar share one muted accent
 (`--st-accent-progress`), and a progress bar turns the Done green at 100%.
 
 A Plotly chart has no surface of its own, and its rules are translucent, so one
@@ -79,7 +79,7 @@ out lighter than the real colours.
 | Selected and raised | `--st-bg-raised` | `#323232` |
 
 A menu sits below the page, not above it, and a border and shadow lift it. The
-accent is Minimal's muted blue, `--st-accent` (`#889eaa`). A chosen pill or switch
+accent is Zen's muted blue, `--st-accent` (`#889eaa`). A chosen pill or switch
 fills with the darker `--st-accent-fill`, which holds white text.
 
 ### App icon
@@ -126,7 +126,7 @@ change the text on those two, not the rule for the rest.
 
 Colors with no node color behind them are in `styles.BADGE_PALETTE`. **This file
 is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
-documentation here in sync.** The table lists Minimal's values. Steel's are in
+documentation here in sync.** The table lists Zen's values. Steel's are in
 `styles.py`.
 
 The words a search found in a card's description use `.search-match`: a faint

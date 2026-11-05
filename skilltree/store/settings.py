@@ -16,7 +16,7 @@ from skilltree.store.database import get_connection
 from skilltree.store.graph.state import revisions
 from skilltree.domain.models import STATUS_OPEN, STATUS_BLOCKED, STATUS_DONE
 from skilltree.domain.synergy import synergy_parameters
-from skilltree.domain.themes import DEFAULT_THEME, THEME_MINIMAL, THEME_STEEL, THEMES
+from skilltree.domain.themes import DEFAULT_THEME, THEME_ZEN, THEME_STEEL, THEMES
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT, hours_per_unit
 from skilltree.domain.profiles import (
     DEFAULT_HYPERPARAMS, HYPERPARAMS_SCHEMA_VERSION, PROFILES,
@@ -51,7 +51,7 @@ DEFAULT_SUBCONTEXTS = {
 }
 
 
-# Minimal's canvas colors, picked by hand on its greys. Bars and badges use them too, through
+# Zen's canvas colors, picked by hand on its greys. Bars and badges use them too, through
 # styles.palette_color(). default_node_colors() is the current theme's. Now
 # is Goal's yellow, a shade apart: a Now node is the goal you are working on right now.
 DEFAULT_NODE_COLORS = {
@@ -454,7 +454,7 @@ class _ColorsPerTheme:
 
 
 NODE_COLORS = _ColorsPerTheme({
-    THEME_MINIMAL: Setting("NODE_COLORS_MINIMAL", DEFAULT_NODE_COLORS,
+    THEME_ZEN: Setting("NODE_COLORS_ZEN", DEFAULT_NODE_COLORS,
                            merge_defaults=True, refreshes_graph=True),
     THEME_STEEL: Setting("NODE_COLORS", STEEL_NODE_COLORS,
                          merge_defaults=True, refreshes_graph=True),

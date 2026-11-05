@@ -134,7 +134,7 @@ _MODES = {"time_mode": ("manual", "inherited", "habit"),
 # break the screens that read it.
 _JSON_SETTINGS = {
     "NODE_TYPES": list, "CONTEXT_WEIGHTS": dict, "CONTEXTS": list,
-    "NODE_COLORS": dict, "NODE_COLORS_MINIMAL": dict, "NODE_SHAPES": dict, "HYPERPARAMS": dict,
+    "NODE_COLORS": dict, "NODE_COLORS_ZEN": dict, "NODE_SHAPES": dict, "HYPERPARAMS": dict,
     "GRAPH_LAYOUT_DEFAULTS": dict, "DETAILS_GRAPH_LAYOUT_DEFAULTS": dict,
     "EVENTS_GRAPH_LAYOUT_DEFAULTS": dict, "ANALYZE_LIMITS": dict,
     "RATINGS_DEFINITIONS": list, "REFLECTION_RATINGS_DEFINITIONS": list,

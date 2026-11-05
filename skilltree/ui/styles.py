@@ -4,7 +4,7 @@ Shared Cytoscape stylesheet definitions for Cytoscape graph components.
 from skilltree.domain.models import STATUS_BLOCKED
 from skilltree.domain.models import STATUS_DONE
 from skilltree.domain.models import STATUS_OPEN
-from skilltree.domain.themes import THEME_MINIMAL, THEME_STEEL
+from skilltree.domain.themes import THEME_ZEN, THEME_STEEL
 from skilltree.store import settings
 
 # Badge for nodes whose completion triggers an event: a gold lightning bolt in
@@ -14,7 +14,7 @@ _TRIGGER_BADGE_SVG = "/assets/trigger_badge.svg"
 # --- Main Cytoscape Stylesheet ---
 # Cytoscape can't read a CSS variable, so what a theme changes is listed here.
 _CANVAS_COLORS = {
-    THEME_MINIMAL: {'accent': '#889eaa', 'canvas': '#212121', 'edge': '#6a6a6a', 'dormant': '#999999',
+    THEME_ZEN: {'accent': '#889eaa', 'canvas': '#212121', 'edge': '#6a6a6a', 'dormant': '#999999',
                     'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#dabd27',
                     'chart': '#6d90aa'},
     THEME_STEEL: {'accent': '#5b86b3', 'canvas': '#1a1d21', 'edge': '#6c757d', 'dormant': '#adb5bd',
@@ -195,7 +195,7 @@ def mini_stylesheet():
 
 # The paths a focus view draws. Bright on purpose, against the dimmed graph.
 _FOCUS_PATH_COLORS = {
-    THEME_MINIMAL: {1: '#f63f54', 2: '#41dfb3', 3: '#cc46f2', 4: '#f67b20', 5: '#ef3d70'},
+    THEME_ZEN: {1: '#f63f54', 2: '#41dfb3', 3: '#cc46f2', 4: '#f67b20', 5: '#ef3d70'},
     THEME_STEEL: {1: '#ff1744', 2: '#1de9b6', 3: '#d500f9', 4: '#ff6d00', 5: '#f50057'},
 }
 
@@ -265,7 +265,7 @@ _STEEL_BADGE_PALETTE = {
 }
 
 
-_BADGE_PALETTES = {THEME_MINIMAL: BADGE_PALETTE, THEME_STEEL: _STEEL_BADGE_PALETTE}
+_BADGE_PALETTES = {THEME_ZEN: BADGE_PALETTE, THEME_STEEL: _STEEL_BADGE_PALETTE}
 
 
 def badge_palette():
