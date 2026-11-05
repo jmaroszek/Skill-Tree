@@ -663,10 +663,12 @@
 .gp-swatch.dot { width: 10px; border-radius: 50%; }
 /* A legend entry that shows or hides its trace (assets/analyze/rating_dist.js). */
 .gp-legend-item:hover { color: var(--st-text-primary); }
+/* A double-click isolates an entry; it shouldn't select the text too. */
+.gp-legend-item { user-select: none; }
 .gp-legend-item[aria-pressed="false"] { opacity: 0.45; }
 
 /* --- Analyze: History -------------------------------------------------------
-   Rating Drift and Throughput are HTML like the Plan charts: the same type,
+   Rating Accuracy and Throughput are HTML like the Plan charts: the same type,
    tracks, row hover and tooltip (assets/analyze/rating_dist.js). The scatter and box
    plot stay Plotly, which hovers through that tooltip too. */
 .drift-chart, .throughput-chart {
@@ -682,35 +684,51 @@
 .hist-fit > * { flex: none; }
 .hist-fit > :last-child { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
 
-/* Rating Drift: a name, then three diverging tracks on one shared scale.
-   A bar left of the centre line is red (overrated going in), right is blue. */
-.drift-chart {
-    --dr-under: #be473f;
-    --dr-over: #3989ca;
+/* Rating Accuracy: three fixed rows (Value, Interest, Effort), each a
+   diverging track. A context is a dot at its average change, over a gray
+   histogram of every reflection in the row. The rows share the card's height, so the chart
+   fills its cell however many contexts there are. */
+.hist-fit > .drift-card { flex: 1 1 0; display: flex; flex-direction: column; }
+.drift-chart { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.dr-row {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: stretch;
 }
-.dr-row { grid-template-columns: minmax(7rem, 0.9fr) repeat(3, minmax(4rem, 1fr)); }
-.dr-head:hover, .dr-foot:hover { background-color: transparent; }
-.dr-title { text-align: center; color: var(--st-text-soft); }
-.dr-n { flex: none; color: var(--st-text-soft); }
-.dr-cell { padding-block: 4px; }
-.dr-track {
-    position: relative;
-    height: 10px;
-    border-radius: 3px;
-    background-color: var(--st-bg-raised);
-}
-.dr-bar { position: absolute; top: 0; bottom: 0; opacity: 0.9; }
-.dr-bar.under { right: 50%; background-color: var(--dr-under); border-radius: 3px 0 0 3px; }
-.dr-bar.over { left: 50%; background-color: var(--dr-over); border-radius: 0 3px 3px 0; }
+.dr-row:not(.dr-head):not(.dr-foot) { flex: 1 1 0; min-height: 56px; padding-block: 4px; }
+.dr-label { align-self: center; font-size: var(--st-fs-base); color: var(--st-text-primary); }
+/* The bars stand on a thin baseline, which also divides the rows. */
+.dr-plot { position: relative; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
 .dr-zero {
     position: absolute;
-    left: 50%;
-    top: -2px;
-    bottom: -2px;
+    top: 0;
+    bottom: 0;
     width: 1px;
-    background-color: var(--st-text-dim);
+    z-index: 1;
+    background: repeating-linear-gradient(to bottom, var(--st-text-dim) 0 3px, transparent 3px 6px);
 }
-.dr-axis { position: relative; height: 1.1em; color: var(--st-text-soft); }
+/* Every reflection in the row, gray, so color stays on the averages. */
+.dr-bin { background-color: rgba(255, 255, 255, 0.09); }
+.dr-bin { position: absolute; bottom: 0; border-radius: 2px 2px 0 0; }
+.dr-bin:hover { background-color: rgba(255, 255, 255, 0.18); }
+.dr-mean {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    width: 13px;
+    height: 13px;
+    z-index: 2;
+    box-shadow: 0 0 0 2px var(--st-bg-canvas);
+}
+.dr-mean:hover { z-index: 3; box-shadow: 0 0 0 2px var(--st-text-primary); }
+.dr-ends {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 6px 4px;
+    color: var(--st-text-soft);
+}
+.dr-axis { position: relative; height: 1.4em; margin-top: 4px; color: var(--st-text-soft); }
 .dr-axis > span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 
 /* Throughput: stacked columns, one equal slot per bucket. */

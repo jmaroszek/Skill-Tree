@@ -2,6 +2,7 @@
 
 Plotly reads computed values and can't resolve a CSS variable, so the chart
 colours here are literals; test_style_tokens pins them to their tokens."""
+import json
 import math
 import statistics
 from collections import defaultdict
@@ -339,6 +340,10 @@ def render_goal_progress(rows):
     return _card([html.Div([html.Div(body), legend], className="goal-progress")])
 
 
+# The hover hint on a legend that shows and hides what it names.
+_LEGEND_HINT = "Click to hide or show. Double-click to show only this."
+
+
 def render_estimation_accuracy(rows):
     """Scatter of estimated vs. actual time for completed nodes, with a y=x
     reference line. Points above the line overran the estimate."""
@@ -398,7 +403,7 @@ def render_estimation_accuracy(rows):
         html.Span([html.I(className="gp-swatch dot",
                           style={'backgroundColor': colors.get(t, '#0d6efd')}), t],
                   className="gp-legend-item", role="button", tabIndex=0,
-                  **{'data-trace': t, 'aria-pressed': 'true'})
+                  **ui_kit.hint(_LEGEND_HINT), **{'data-trace': t, 'aria-pressed': 'true'})
         for t in sorted(by_type)], className="gp-legend")
     return _card([_graph(fig, zoom=True), legend], fill=True)
 
@@ -541,88 +546,173 @@ def render_context_accuracy_boxplot(rows):
     return _card(_graph(fig, zoom=True), fill=True)
 
 
-_DRIFT_UNDER = '#be473f'  # overrated going in: the reflection came in lower
+def context_colors(ranked):
+    """Each context's color, in the order ``rank_contexts`` gives: the
+    biggest gets the first palette color, and No Context its gray. Throughput
+    and Rating Accuracy share it, so a context is one color in both."""
+    colors, i = {}, 0
+    for c in ranked:
+        if c == 'No Context':
+            colors[c] = _NO_SUBCONTEXT_COLOR
+        else:
+            colors[c] = _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)]
+            i += 1
+    return colors
 
 
-_DRIFT_OVER = '#3989ca'   # underrated going in
+_DRIFT_METRICS = (('d_value', 'Value'), ('d_interest', 'Interest'),
+                  ('d_difficulty', 'Effort'))
 
 
-def render_reflection_drift_chart(rows):
-    """Per-context mean drift (``reflect_X - X``) for V/I/D as three
-    diverging bar panels on one shared scale. A bar left of zero (red) means
-    the user overrated the work going in; right of zero (blue), underrated.
-    Length carries the size, which a colour cell near zero could not.
-    Only contexts with at least ``REFLECTION_MIN_N`` reflected nodes get a
-    row, most-reflected first, with the count after the name.
+def _signed(v, places=0):
+    text = f"{v:+.{places}f}" if v else f"{0:.{places}f}"
+    return text.replace('-', '−')
 
-    HTML rather than Plotly, like Goals: each context's name sits on its
-    bars' line and the tooltip is the one the Plan charts use."""
+
+def _mean_lanes(xs, gap):
+    """A vertical lane per average dot: 0 on the centre line, then 1, -1, 2,
+    -2, so dots closer than ``gap`` (in track percent) stack instead of
+    covering each other."""
+    lanes, placed = {}, []
+    for i in sorted(range(len(xs)), key=lambda i: xs[i]):
+        for lane in (0, 1, -1, 2, -2, 3, -3):
+            if all(abs(xs[i] - x) >= gap for x, ln in placed if ln == lane):
+                break
+        lanes[i] = lane
+        placed.append((xs[i], lane))
+    return [lanes[i] for i in range(len(xs))]
+
+
+def _drift_range(rows):
+    """The chart's half-width in rating points: wide enough for every
+    average and for 98% of single reflections, and never under 2. A rare
+    larger change is counted in the end bar rather than stretching the scale
+    for everything else."""
+    means = [abs(r[k]) for r in rows for k, _ in _DRIFT_METRICS if r[k] is not None]
+    singles = sorted(abs(a - b) for r in rows for k, _ in _DRIFT_METRICS
+                     for _, b, a in r['reflections'][k])
+    bulk = singles[max(0, math.ceil(0.98 * len(singles)) - 1)] if singles else 0
+    return max(2, math.ceil(max(means, default=0)), math.ceil(bulk))
+
+
+def render_reflection_drift_chart(rows, colors=None):
+    """How ratings change on reflection (``reflect_X - X``), as three rows:
+    Value, Interest and Effort, each a diverging track on one shared scale.
+    Every context is a dot in its Throughput color at its average change.
+    Behind the dots, a gray histogram of every reflection in the row shows
+    the spread. Left of zero, the work was overrated going in; right,
+    underrated.
+
+    The rows are fixed, so the chart fills its cell however many contexts
+    qualify, and the histogram reads the same at five reflections or five
+    hundred. Only contexts with at least ``REFLECTION_MIN_N`` reflected
+    nodes take part.
+
+    HTML rather than Plotly, like Throughput beside it, with the tooltip the
+    Plan charts use."""
     if not rows:
         return _card([html.P(
             f"Not enough reflected nodes per context yet — a context "
             f"needs at least {REFLECTION_MIN_N} re-rated nodes.",
             className="text-muted small")])
+    if colors is None:
+        colors = context_colors(r['context'] for r in rows)
 
-    metric_keys = [('d_value', 'Value'), ('d_interest', 'Interest'),
-                   ('d_difficulty', 'Effort')]
+    rng = _drift_range(rows)
+    ticks = range(-rng, rng + 1)
+    # Each row's reflections per whole-point change, the ends taking anything
+    # past them. One height scale for all three rows, so they compare. Each
+    # context's own counts go to the page too, so assets/analyze/drift_legend.js
+    # can redraw the bars for just the contexts left shown.
+    by_ctx = {label: {r['context']: [0] * len(ticks) for r in rows}
+              for _, label in _DRIFT_METRICS}
+    bins = {k: {t: 0 for t in ticks} for k, _ in _DRIFT_METRICS}
+    for k, label in _DRIFT_METRICS:
+        for r in rows:
+            for _, b, a in r['reflections'][k]:
+                t = max(-rng, min(rng, round(a - b)))
+                bins[k][t] += 1
+                by_ctx[label][r['context']][t + rng] += 1
+    tallest = max(n for counts in bins.values() for n in counts.values()) or 1
+    # Each whole point owns an equal slot, the ends included, so the end bars
+    # fit inside the track.
+    slot = 100 / (2 * rng + 1)
+    bar_w = 0.7 * slot
 
-    drift_vals = [r[a] for r in rows for a, _ in metric_keys if r[a] is not None]
-    rng = max(1, math.ceil(max((abs(v) for v in drift_vals), default=1)))
-    # Each track runs a little past +-rng, so the longest bar stops short of
-    # the end. ``unit`` is a rating point as a percent of the track.
-    unit = 100 / (2.3 * rng)
-    tick_at = 50 - rng * unit
+    def _left(v):
+        return slot * (v + rng + 0.5)
 
-    def _cell(r, attr, label):
-        v = r[attr]
-        n = r['count']
-        if v is None:
-            tip = f"{r['context']}\n{label}: no data"
-            bar = []
-        else:
-            sign = '+' if v > 0 else ''
-            tip = (f"{r['context']}\n{label} drift: {sign}{v}\n"
-                   f"{n} reflected node{'s' if n != 1 else ''}")
-            bar = [html.Div(className="dr-bar " + ("under" if v < 0 else "over"),
-                            style={'width': f"{abs(v) * unit:.2f}%"})] if v else []
-        return html.Div(html.Div(bar + [html.Div(className="dr-zero")],
-                                 className="dr-track"),
-                        className="dr-cell", **{'data-tip': tip})
+    def _bin_name(label, t):
+        # The middle bar is no change at all, not a change of zero points.
+        if t == 0:
+            return f"{label} unchanged"
+        edge = " or more" if t == rng else " or less" if t == -rng else ""
+        return f"{label} {_signed(t)}{edge}"
 
-    def _axis():
-        return html.Div([
-            html.Span(text, style={'left': f"{left:.2f}%"})
-            for text, left in ((f"−{rng}", tick_at), ("0", 50), (f"+{rng}", 100 - tick_at))
-        ], className="dr-axis")
+    def _row(key, label):
+        # Only the zero line: the axis numbers line the bars up on their own.
+        marks = [html.Div(className="dr-zero", style={'left': f"{_left(0):.2f}%"})]
+        total = sum(bins[key].values())
+        for t, n in bins[key].items():
+            # Every slot gets a bar, an empty one hidden, so showing a context
+            # again never needs a bar that isn't there.
+            tip = ({'data-tip': f"{_bin_name(label, t)}\n"
+                                f"{n} reflection{'s' if n != 1 else ''} "
+                                f"({n / total:.0%} of the row)"} if n else {})
+            marks.append(html.Div(className="dr-bin", style={
+                'left': f"{_left(t) - bar_w / 2:.2f}%",
+                'width': f"{bar_w:.2f}%",
+                'height': f"{88 * n / tallest:.1f}%",
+                **({} if n else {'display': 'none'}),
+            }, **{'data-row': label, 'data-t': t}, **tip))
+        means = [r for r in rows if r[key] is not None]
+        xs = [_left(r[key]) for r in means]
+        for r, x, lane in zip(means, xs, _mean_lanes(xs, 2.2)):
+            n = len(r['reflections'][key])
+            marks.append(html.Span(className="dr-mean", style={
+                'left': f"{x:.2f}%",
+                'top': f"calc(50% + {lane * 11}px)",
+                'backgroundColor': colors.get(r['context'], _NO_SUBCONTEXT_COLOR),
+            }, **{'data-context': r['context'],
+                  'data-tip': f"{r['context']}\n"
+                              f"{label}: {_signed(r[key], 1)} on average\n"
+                              f"{n} reflected node{'s' if n != 1 else ''}"}))
+        return html.Div([html.Div(label, className="dr-label"),
+                         html.Div(marks, className="dr-plot")], className="dr-row")
 
-    body = [html.Div([html.Div()] + [html.Div(label, className="dr-title")
-                                     for _, label in metric_keys],
-                     className="gp-row dr-row dr-head")]
-    for r in rows:
-        body.append(html.Div([
-            html.Div([html.Span(r['context'], className="gp-name-text overflow-hint"),
-                      html.Span(f"({r['count']})", className="dr-n")],
-                     className="gp-name"),
-            *[_cell(r, attr, label) for attr, label in metric_keys],
-        ], className="gp-row dr-row"))
-    body.append(html.Div([html.Div()] + [_axis() for _ in metric_keys],
-                         className="gp-row dr-row dr-foot"))
+    ends = html.Div([html.Div(), html.Div([
+        html.Span("← Overrated going in"), html.Span("Underrated going in →"),
+    ], className="dr-ends")], className="dr-row dr-head")
+    axis = html.Div([html.Div(), html.Div([
+        html.Span(_signed(t), style={'left': f"{_left(t):.2f}%"})
+        for t in ticks], className="dr-axis")],
+        className="dr-row dr-foot")
+    body = [ends, *[_row(k, label) for k, label in _DRIFT_METRICS], axis]
+    # A click on a context shows or hides it, as on the scatter's legend.
     legend = html.Div([
-        html.Span([html.I(className="gp-swatch", style={'backgroundColor': c}), text])
-        for c, text in ((_DRIFT_UNDER, "Overrated going in"),
-                        (_DRIFT_OVER, "Underrated going in"))
-    ], className="gp-legend")
-    # In a .hist-fit wrapper: it scrolls, with a fade, once taller than Throughput.
-    return _card([html.Div(body, className="drift-chart hist-chart"), legend],
-                 class_name="scroll-fade-bottom")
+        html.Span([html.I(className="gp-swatch dot",
+                          style={'backgroundColor': colors.get(r['context'],
+                                                               _NO_SUBCONTEXT_COLOR)}),
+                   f"{r['context']}: {r['count']}"],
+                  className="gp-legend-item dr-toggle", role="button", tabIndex=0,
+                  **ui_kit.hint(_LEGEND_HINT),
+                  **{'data-context': r['context'], 'aria-pressed': 'true'})
+        for r in rows], className="gp-legend")
+    data = json.dumps({'rng': rng, 'rows': by_ctx}, separators=(',', ':'))
+    # In a .hist-fit wrapper: as tall as Throughput beside it.
+    return _card([html.Div(body, className="drift-chart hist-chart",
+                           **{'data-bins': data}), legend],
+                 class_name="drift-card")
 
 
 def render_throughput_chart(quarter_rows,
                              granularity=DEFAULT_ANALYZE_LIMITS['throughput_granularity'],
-                             by=DEFAULT_ANALYZE_LIMITS['throughput_color']):
+                             by=DEFAULT_ANALYZE_LIMITS['throughput_color'],
+                             colors=None):
     """Stacked vertical bars of hours completed per calendar bucket
     (month/quarter/year), segmented by context or by node type, with a legend
-    in stacking order. Node types take their badge colors. Hovering a segment
+    in stacking order. Node types take their badge colors; contexts take
+    ``colors`` when given (see ``context_colors``). Hovering a segment
     names it and lists its top completed nodes, with hours.
 
     HTML rather than Plotly, like the Plan charts, with the same tooltip.
@@ -647,15 +737,13 @@ def render_throughput_chart(quarter_rows,
                                                     if t in TYPE_ORDER else 99))
         color = {t: palette_color(t, _NO_SUBCONTEXT_COLOR) for t in keys}
     else:
-        # Stable per-context colour, ordered by total throughput so the
-        # largest context gets the first palette colour and the stacking
-        # order is consistent across bars.
+        # Stacked biggest first in every bar. Colors come from ``colors``,
+        # the all-time ranking Rating Accuracy shares, so a date range doesn't
+        # recolor a context; without it, from this window's own order.
         keys = sorted(total_per_key, key=lambda c: total_per_key[c], reverse=True)
-        color = {
-            c: (_NO_SUBCONTEXT_COLOR if c == 'No Context'
-                else _SUBCONTEXT_PALETTE[i % len(_SUBCONTEXT_PALETTE)])
-            for i, c in enumerate(keys)
-        }
+        color = context_colors(keys)
+        if colors:
+            color.update({c: colors[c] for c in keys if c in colors})
 
     def _against_capacity(r):
         cap = r['capacity']

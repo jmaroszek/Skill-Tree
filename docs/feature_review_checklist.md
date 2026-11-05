@@ -689,8 +689,8 @@ Check on Nodes, Details and Events unless an item names one.
 - [ ] AN-13. Throughput shows hours per bucket, stacked by context or type, with a dashed capacity line.
 - [ ] AN-14. Its gear sets Granularity, Color by, Start and End. All persist.
 - [ ] AN-15. Empty buckets show. The current one counts days so far. At most 24 bars, and it says so.
-- [ ] AN-16. Rating Accuracy shows a row per context with four or more reflections, red left and blue right, on one scale.
-- [ ] AN-17. Time Estimates by Node shows dots around y = x, colored by type. Hover names them.
+- [ ] AN-16. Rating Accuracy shows a Value, an Interest and an Effort row on one scale. Each context with four or more reflections is a dot in its Throughput color, over a gray histogram of every reflection in the row. The chart is as tall as Throughput. Clicking a legend entry hides that context, and the gray bars recount from the contexts left. Double-clicking one shows only it, and double-clicking it again shows all.
+- [ ] AN-17. Time Estimates by Node shows dots around y = x, colored by type. Hover names them. A legend click hides a type, and a double-click shows only it.
 - [ ] AN-18. By Context shows boxes around 1×.
 - [ ] AN-19. With no history, each chart says so instead of drawing empty axes.
 - [ ] AN-20. A reflection edit updates History's charts.

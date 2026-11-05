@@ -4,6 +4,9 @@ Tests for the Analyze tab compute functions.
 Uses a temporary database for isolation — does not touch the production skilltree.db.
 """
 
+import json
+import shutil
+import subprocess
 from datetime import date
 import pytest
 from skilltree.store import database
@@ -18,6 +21,7 @@ from skilltree.features.analyze.charts import _trunc
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.store import schema
 from support.graphs import make_node
+from support.paths import asset_file
 
 
 def _throughput_node_names(rows):
@@ -967,32 +971,174 @@ class TestTimeAxes:
 
 
 class TestReflectionDriftChart:
-    """Rating Drift is HTML: one bar per context and rating, left of the
-    centre line when the work was overrated going in."""
+    """Rating Accuracy is HTML: three fixed rows, Value, Interest and Effort,
+    with a dot per context at its average change and a faint dot per
+    reflection. Left of zero, the work was overrated going in."""
 
     @staticmethod
-    def _chart(reflect):
-        from skilltree.features.analyze.charts import (
-            render_reflection_drift_chart as _render_reflection_drift_chart,
-        )
-        nodes = [make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
-                 for n, v in zip("ABCD", reflect)]
-        return list(_walk(_render_reflection_drift_chart(compute_reflection_drift(nodes))))
+    def _parts(nodes, colors=None):
+        from skilltree.features.analyze.charts import render_reflection_drift_chart
+        return list(_walk(render_reflection_drift_chart(
+            compute_reflection_drift(nodes), colors)))
 
-    def test_a_rise_in_rating_draws_a_blue_bar_right_of_centre(self):
+    @staticmethod
+    def _mind(reflect):
+        return [make_node(n, status="Done", context="Mind", value=5, reflect_value=v)
+                for n, v in zip("ABCD", reflect)]
+
+    @staticmethod
+    def _of(parts, cls):
+        return [p for p in parts if getattr(p, 'className', None) == cls]
+
+    @classmethod
+    def _bars(cls, parts):
+        """The bars that hold a reflection; an empty slot's bar is hidden."""
+        return [b for b in cls._of(parts, 'dr-bin') if hasattr(b, 'data-tip')]
+
+    @staticmethod
+    def _left(mark):
+        return float(mark.style['left'].rstrip('%'))
+
+    def test_the_rows_are_the_three_ratings_whatever_the_contexts(self):
         from dash import dcc
-        parts = self._chart((8, 7, 6, 7))
-        assert not any(isinstance(p, dcc.Graph) for p in parts)
-        bars = [p for p in parts if str(getattr(p, 'className', '')).startswith('dr-bar')]
-        assert [b.className for b in bars] == ['dr-bar over']   # Interest, Effort: no data
-        cell = next(p for p in parts if getattr(p, 'className', None) == 'dr-cell')
-        assert getattr(cell, 'data-tip').splitlines() == [
-            "Mind", "Value drift: +2.0", "4 reflected nodes"]
+        one = self._parts(self._mind((8, 7, 6, 7)))
+        assert not any(isinstance(p, dcc.Graph) for p in one)
+        labels = [p.children for p in self._of(one, 'dr-label')]
+        assert labels == ['Value', 'Interest', 'Effort']
+        body = [make_node(n, status="Done", context="Body", value=5, reflect_value=4)
+                for n in "EFGH"]
+        two = self._parts(self._mind((8, 7, 6, 7)) + body)
+        assert [p.children for p in self._of(two, 'dr-label')] == labels
 
-    def test_a_fall_in_rating_draws_a_red_bar_left_of_centre(self):
-        parts = self._chart((3, 4, 4, 3))
-        bars = [p for p in parts if str(getattr(p, 'className', '')).startswith('dr-bar')]
-        assert [b.className for b in bars] == ['dr-bar under']
+    def test_a_rise_sits_right_of_zero_and_a_fall_left(self):
+        rise = self._of(self._parts(self._mind((8, 7, 6, 7))), 'dr-mean')
+        fall = self._of(self._parts(self._mind((3, 4, 4, 3))), 'dr-mean')
+        # Only Value has reflections, so each chart has one average dot.
+        assert len(rise) == len(fall) == 1
+        assert self._left(rise[0]) > 50 > self._left(fall[0])
+        assert getattr(rise[0], 'data-tip').splitlines() == [
+            "Mind", "Value: +2.0 on average", "4 reflected nodes"]
+
+    def test_every_reflection_lands_in_the_rows_gray_histogram(self):
+        parts = self._parts(self._mind((8, 7, 6, 7)))
+        assert not self._of(parts, 'dr-dot')
+        tips = [getattr(b, 'data-tip').splitlines() for b in self._bars(parts)]
+        # Value only: +3 once, +2 twice, +1 once.
+        assert tips == [["Value +1", "1 reflection (25% of the row)"],
+                        ["Value +2", "2 reflections (50% of the row)"],
+                        ["Value +3 or more", "1 reflection (25% of the row)"]]
+
+    def test_a_context_takes_the_color_it_is_given(self):
+        parts = self._parts(self._mind((8, 7, 6, 7)), {'Mind': '#123456'})
+        assert {m.style['backgroundColor'] for m in self._of(parts, 'dr-mean')} == {'#123456'}
+
+    def test_the_scale_reaches_the_largest_single_change(self):
+        parts = self._parts(self._mind((10, 5, 5, 5)))   # one +5 reflection
+        ticks = [s.children for p in self._of(parts, 'dr-axis') for s in p.children]
+        assert ticks[0] == '−5' and ticks[-1] == '+5'
+
+    def test_the_middle_bar_is_no_change_not_a_change_of_zero(self):
+        bins = self._bars(self._parts(self._mind((5, 5, 6, 7))))
+        assert getattr(bins[0], 'data-tip').splitlines() == [
+            "Value unchanged", "2 reflections (50% of the row)"]
+
+    def test_a_rare_large_change_goes_in_the_end_bar(self):
+        """One +6 among a hundred reflections doesn't stretch the scale."""
+        nodes = [make_node(f"N{i}", status="Done", context="Mind", value=5,
+                           reflect_value=11 if i == 0 else 5 + i % 3 - 1)
+                 for i in range(100)]
+        parts = self._parts(nodes)
+        ticks = [s.children for p in self._of(parts, 'dr-axis') for s in p.children]
+        assert ticks[-1] == '+2'
+        end = self._bars(parts)[-1]
+        assert getattr(end, 'data-tip').startswith("Value +2 or more\n")
+
+    def test_close_averages_stack_instead_of_covering_each_other(self):
+        from skilltree.features.analyze.charts import _mean_lanes
+        assert _mean_lanes([50, 50.5, 80], 2.2) == [0, 1, 0]
+
+
+    def test_the_legend_toggles_each_context_and_carries_its_counts(self):
+        body = [make_node(n, status="Done", context="Body", value=5, reflect_value=4)
+                for n in "EFGH"]
+        parts = self._parts(self._mind((8, 7, 6, 7)) + body)
+        toggles = self._of(parts, 'gp-legend-item dr-toggle')
+        assert [getattr(t, 'data-context') for t in toggles] == ['Mind', 'Body']
+        assert all(getattr(t, 'aria-pressed') == 'true' for t in toggles)
+        assert {getattr(m, 'data-context') for m in self._of(parts, 'dr-mean')} == {
+            'Mind', 'Body'}
+        chart = next(p for p in parts
+                     if getattr(p, 'className', None) == 'drift-chart hist-chart')
+        data = json.loads(getattr(chart, 'data-bins'))
+        # The scale is +-3 here, so seven slots: Body's four fall to -1.
+        assert data['rng'] == 3
+        assert data['rows']['Value']['Body'] == [0, 0, 4, 0, 0, 0, 0]
+        assert data['rows']['Value']['Mind'] == [0, 0, 0, 0, 1, 2, 1]
+        assert data['rows']['Effort']['Mind'] == [0] * 7
+        # Every slot has a bar, so the script can show it again.
+        assert len(self._of(parts, 'dr-bin')) == 3 * 7
+
+
+_DRIFT_DRIVER = r"""
+const fs = require('fs');
+global.window = {};
+global.document = {addEventListener() {}};
+(0, eval)(fs.readFileSync(process.argv[2], 'utf8'));
+const {binTip, sumBins} = window.SkillTree.driftLegend;
+const data = {rng: 2, rows: {Value: {A: [0, 1, 2, 0, 1], B: [0, 0, 5, 0, 0]},
+                             Effort: {A: [1, 0, 0, 0, 0], B: [0, 0, 0, 0, 3]}}};
+console.log(JSON.stringify({
+    both: sumBins(data, {A: true, B: true}),
+    onlyA: sumBins(data, {A: true, B: false}),
+    none: sumBins(data, {}),
+    tips: [binTip('Value', 0, 2, 2, 4), binTip('Value', 2, 2, 1, 4),
+           binTip('Effort', -1, 2, 1, 3)],
+    isolate: [window.SkillTree.isolateLegend('A', {A: true, B: true, C: false}),
+              window.SkillTree.isolateLegend('C', {A: true, B: true, C: false}),
+              window.SkillTree.isolateLegend('A', {A: true, B: false, C: false})],
+}));
+"""
+
+
+def test_the_legend_script_redraws_bars_from_the_shown_contexts(tmp_path):
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node isn't installed")
+    driver = tmp_path / "driver.js"
+    driver.write_text(_DRIFT_DRIVER, encoding="utf-8")
+    done = subprocess.run([node, str(driver), str(asset_file("drift_legend.js"))],
+                          capture_output=True, text=True, encoding="utf-8", timeout=30)
+    assert done.returncode == 0, done.stderr
+    out = json.loads(done.stdout)
+    assert out['both'] == {'rows': {'Value': [0, 1, 7, 0, 1], 'Effort': [1, 0, 0, 0, 3]},
+                           'tallest': 7}
+    assert out['onlyA'] == {'rows': {'Value': [0, 1, 2, 0, 1], 'Effort': [1, 0, 0, 0, 0]},
+                            'tallest': 2}
+    assert out['none']['tallest'] == 0
+    # The same text the server gives a bar.
+    assert out['tips'] == ["Value unchanged\n2 reflections (50% of the row)",
+                           "Value +2 or more\n1 reflection (25% of the row)",
+                           "Effort −1\n1 reflection (33% of the row)"]
+    # A double-click shows only its entry, even a hidden one; on an entry
+    # already alone, it shows them all again.
+    assert out['isolate'] == [{'A': True, 'B': False, 'C': False},
+                              {'A': False, 'B': False, 'C': True},
+                              {'A': True, 'B': True, 'C': True}]
+
+
+class TestContextColors:
+    """Throughput and Rating Accuracy color a context the same way, from its
+    all-time completed hours, so a date range can't recolor it."""
+
+    def test_the_biggest_context_takes_the_first_color(self):
+        from skilltree.features.analyze.charts import _SUBCONTEXT_PALETTE, context_colors
+        from skilltree.features.analyze.data import rank_contexts
+        nodes = [make_node("A", status="Done", context="Small", time_m=2),
+                 make_node("B", status="Done", context="Big", time_o=10, time_m=20, time_p=40),
+                 make_node("C", status="Open", context="Bigger", time_o=50, time_m=99, time_p=200)]
+        ranked = rank_contexts(nodes)
+        assert ranked == ["Big", "Small"]          # open work doesn't count
+        assert context_colors(ranked)["Big"] == _SUBCONTEXT_PALETTE[0]
 
 
 class TestReflectionDriftStatusGate:

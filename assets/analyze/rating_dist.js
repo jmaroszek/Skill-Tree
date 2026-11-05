@@ -159,9 +159,39 @@
         window.Plotly.restyle(gd, {visible: shown ? 'legendonly' : true}, idx);
         item.setAttribute('aria-pressed', String(!shown));
     }
+    // A double-click shows only that trace, or every trace when it already
+    // stands alone, as on Rating Accuracy's legend (drift_legend.js). Its own
+    // two clicks have toggled the entry twice, back to where it was.
+    function isolateTrace(item) {
+        var legend = item.closest('.gp-legend');
+        var gd = legend.parentElement.querySelector('.js-plotly-plot');
+        var isolate = (window.SkillTree || {}).isolateLegend;
+        if (!gd || !window.Plotly || !gd.data || !isolate) return;
+        var items = legend.querySelectorAll('.gp-legend-item[data-trace]');
+        var shown = {};
+        items.forEach(function (i) {
+            shown[i.getAttribute('data-trace')] = i.getAttribute('aria-pressed') !== 'false';
+        });
+        var next = isolate(item.getAttribute('data-trace'), shown);
+        var idx = [], visible = [];
+        gd.data.forEach(function (t, i) {
+            if (!(t.name in next)) return;
+            idx.push(i);
+            visible.push(next[t.name] ? true : 'legendonly');
+        });
+        if (!idx.length) return;
+        window.Plotly.restyle(gd, {visible: visible}, idx);
+        items.forEach(function (i) {
+            i.setAttribute('aria-pressed', String(next[i.getAttribute('data-trace')]));
+        });
+    }
     document.addEventListener('click', function (e) {
         var item = e.target.closest && e.target.closest('.gp-legend-item[data-trace]');
         if (item) toggleTrace(item);
+    });
+    document.addEventListener('dblclick', function (e) {
+        var item = e.target.closest && e.target.closest('.gp-legend-item[data-trace]');
+        if (item) isolateTrace(item);
     });
     document.addEventListener('keydown', function (e) {
         if (e.key !== 'Enter' && e.key !== ' ') return;
