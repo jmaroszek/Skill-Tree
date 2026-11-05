@@ -15,7 +15,7 @@ _TRIGGER_BADGE_SVG = "/assets/trigger_badge.svg"
 # Cytoscape can't read a CSS variable, so what a theme changes is listed here.
 _CANVAS_COLORS = {
     THEME_ZEN: {'accent': '#889eaa', 'canvas': '#212121', 'edge': '#6a6a6a', 'dormant': '#999999',
-                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#dabd27',
+                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#d6b64c',
                     'chart': '#6d90aa'},
     THEME_STEEL: {'accent': '#5b86b3', 'canvas': '#1a1d21', 'edge': '#6c757d', 'dormant': '#adb5bd',
                   'synergy': '#5b86b3', 'focus': '#a8bdd3', 'locate': '#cba92b',

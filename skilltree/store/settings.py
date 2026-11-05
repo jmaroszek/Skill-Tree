@@ -51,10 +51,28 @@ DEFAULT_SUBCONTEXTS = {
 }
 
 
-# Zen's canvas colors, picked by hand on its greys. Bars and badges use them too, through
-# styles.palette_color(). default_node_colors() is the current theme's. Now
-# is Goal's yellow, a shade apart: a Now node is the goal you are working on right now.
+# Zen's canvas colors: Kyoto, after Japanese plant dyes (madder, persimmon,
+# yamabuki gold, moss, verdigris, indigo, wisteria). They're less saturated than
+# screen hues. They stay apart because each role sits at its own lightness:
+# deep Blocked and Learn, bright Goal. White text holds on every one. Bars and
+# badges use them too, through styles.palette_color(). default_node_colors() is
+# the current theme's. Now is Goal's gold, a shade brighter: a Now node is the
+# goal you are working on right now.
 DEFAULT_NODE_COLORS = {
+    STATUS_BLOCKED: '#a33a48',
+    STATUS_OPEN: '#40709a',
+    STATUS_DONE: '#4f7230',
+    'Goal': '#c9ab52',
+    'Action': '#c86a3a',
+    'Learn': '#3a6385',
+    'Resource': '#9a78b4',
+    'Milestone': '#4a9e8f',
+    'Now': '#d6b64c',
+}
+
+# Zen's previous, saturated palette. Kept while Kyoto is on trial, so going
+# back is one swap. Nothing reads it.
+ZEN_VIVID_NODE_COLORS = {
     STATUS_BLOCKED: '#bd413f',
     STATUS_OPEN: '#326fba',
     STATUS_DONE: '#1c8c54',
