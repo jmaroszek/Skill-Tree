@@ -12,7 +12,7 @@ Status columns beside it. The names are real now:
 |-------|-------|---------------|
 | CSS | [`assets/css/tokens.css`](assets/css/tokens.css) | every colour, size, radius, shadow and motion value, as `--st-*` custom properties on `:root` |
 | Python | [`skilltree/ui/tokens.py`](skilltree/ui/tokens.py) | `var(--st-*)` **references**, never copies, plus shared composites like `CELL_MUTED` and `TABLE_STYLE` |
-| Badges | [`skilltree/ui/styles.py`](skilltree/ui/styles.py) `BADGE_PALETTE` | node type, status, edge and event tiles — user-adjacent, reached through `badge_style()` |
+| Badges | [`skilltree/ui/styles.py`](skilltree/ui/styles.py) `BADGE_PALETTE` | relationship, edge and event tiles, reached through `badge_style()`. Type and status tiles use the node colors in Settings |
 | Components | [`skilltree/ui/kit.py`](skilltree/ui/kit.py) | close, add, info, restore, edit, nav, step, and the semantic action buttons |
 
 Read `assets/css/tokens.css` for the values. It is commented, and it is the only
@@ -51,13 +51,12 @@ Choosing a theme previews it through those tokens. Closing Settings saves it and
 reloads the page, because some colors come from the server:
 
 - Canvas colors, in `styles.py`'s `_CANVAS_COLORS`.
-- Bars and badges, in `styles.badge_palette()`.
+- Badges with no node color, in `styles.badge_palette()`.
 - Node colors. `settings.NODE_COLORS` reads the current theme's, so each theme
   keeps its own picks.
 
 Nodes on a canvas use Steel's colors, softened slightly in OKLCH. More than that
-reads as washed out on neutral grey. Bars use the badge palette at 70% over their
-track, and badges use it solid. A simulation's bars take the theme's accent. A
+reads as washed out on neutral grey. Bars and badges use the same node colors. A simulation's bars take the theme's accent. A
 progress bar does too, with the Done green at 100%.
 
 A Plotly chart has no surface of its own, and its rules are translucent, so one
@@ -109,22 +108,22 @@ holds them together.
 body text — rest-state icon strokes, captions, disabled affordances. It is not
 a synonym for muted body text.
 
-### Node-info badge palette (muted)
+### Node-info badges
 
-The Next-tab priority bars, Node Editor priority strip, Details info
-pane, and Milestone tiles all share a single palette
-(`styles.BADGE_PALETTE`, accessed via `styles.badge_style(name)` for
-badges and `styles.palette_color(name)` for bar fills). The canvas needs
-vivid hues to keep the network readable; the bars/badges need the same hue
-identity at a quieter register, so these are **curated by hand, not derived
-from Settings → Type Colors**. A color left at its default is exactly the
-value below. A color changed in Settings gets the treatment its default got,
-in OKLCH (`ui.color.muted_like`): the same lightness shift, chroma ratio and
-hue shift, capped so white text stays legible. Badge text never changes to
-suit the color, because a mix of dark and white text looks bad. **This file
+Canvas nodes, Next-tab priority bars, the Node Editor priority strip, the Details
+info pane and Milestone tiles all use one color for each node type and status: its
+node color in Settings, through `styles.badge_style(name)` for badges and
+`styles.palette_color(name)` for bar fills. Each theme has its own defaults,
+`DEFAULT_NODE_COLORS` and `STEEL_NODE_COLORS` in `store/settings.py`. `Priority`
+shares Goal's color, and `EventTriggered` shares Done's.
+
+Text on a node color is always white, because a mix of dark and white text looks
+bad. So a default node color has to be dark enough to hold white text.
+
+Colors with no node color behind them are in `styles.BADGE_PALETTE`. **This file
 is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
-documentation here in sync.** The tables list Minimal's values. Steel's are in
-`styles.py`, unchanged from before themes.
+documentation here in sync.** The table lists Minimal's values. Steel's are in
+`styles.py`.
 
 The words a search found in a card's description use `.search-match`: a faint
 amber wash over the text's own color.
@@ -132,25 +131,9 @@ amber wash over the text's own color.
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
 | Unblocking   | `#b734a0` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| Goal         | `#beae2c` | `#ffffff` | Type tile. Canvas Goal color with −5 sat (intentional exception to the default −20 muting — yellow goes olive when pushed further). Suppressed when a `Priority N` tile is shown. |
-| Priority     | `#beae2c` | `#ffffff` | `Priority N` for priority Goals. Same hue as Goal.        |
 | PriorityRank | `#dc9428` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. Darkly's warning orange, deliberately warmer than the Goal yellow. |
-| Action       | `#b4692c` | `#ffffff` | Type tile. More desaturated than the default — orange holds saturation visually. |
-| Learn        | `#2962b3` | `#ffffff` | Type tile.                                                |
-| Resource     | `#7f529e` | `#ffffff` | Type tile. Less desaturated than the default — purple turns muddy if pushed too far. |
-| Milestone    | `#348d97` | `#ffffff` | Type tile.                                                |
-| Open         | `#41649b` | `#ffffff` | Status tile — solid blue.                                 |
-| Done         | `#298965` | `#ffffff` | Status tile.                                              |
-| Blocked      | `#9d3f3f` | `#ffffff` | Status tile.                                              |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
-
-The type-color values were originally derived by HSL-desaturating the
-saturated canvas palette by per-hue amounts (Learn −25 sat / −10 light,
-Action −30/−10, Resource −10/−4, Goal/Milestone/Unblocking −20/−7), then
-frozen here. To re-derive after a major canvas-palette swap, dig those
-deltas out of the git history for this file or `styles.BADGE_PALETTE`.
-Otherwise, just edit the literals to taste.
 
 **Next-tab priority bar.** The bar carries two cues: length is the priority and
 colour is the node type. The fill is the type colour at 60% over the track
@@ -218,7 +201,7 @@ Date, Completion) **all share a single neutral pewter tile** —
 they are peer categories and the text inside the badge already carries
 the type, so adding hue would only introduce false hierarchy or echo
 node-type colors. The `EventTriggered` tile deliberately matches the
-`Done` status badge (`#148a68`) so "fired / complete" reads as one
+`Done` status badge so "fired / complete" reads as one
 consistent meaning across the app.
 
 The date label reads `Date`, not `Scheduled`. All three name the *mechanism*
@@ -665,7 +648,7 @@ Plotly charts on Analyze show no hover box of their own. Their traces use `hover
 
 A chart whose rows need to line up with HTML labels, such as the Contexts table, the Goals rows, Rating Drift and Throughput, is built in HTML rather than Plotly. Its tooltip is the floating `.rd-tip` box moved by `assets/analyze/rating_dist.js`, with the text in a `data-tip` attribute: the area in bold on the first line, then data. Only a rating cell's or mean tick's third line, a definition or comparison, is set soft. A History chart's marks sit inside a `hist-chart` wrapper, which is how the script finds them. The two true scatter charts stay Plotly, since a log-log scatter and a jittered box plot are not worth hand-building.
 
-When a bar is split by node type, the segments take the type's `BADGE_PALETTE` colour and stack in one order: Learn, Resource, Action. The Contexts table's Work left bar and Throughput coloured by node type both follow it, so the same colour means the same type on every Analyze chart.
+When a bar is split by node type, the segments take the type's node colour and stack in one order: Learn, Resource, Action. The Contexts table's Work left bar and Throughput coloured by node type both follow it, so the same colour means the same type on every Analyze chart.
 
 ## Borders & Dividers
 
@@ -1148,7 +1131,7 @@ modal width is shared across its tabs.
 ## Badges
 
 Use `styles.badge_style(name)` rather than `dbc.Badge(color=...)` so badges
-pick up the centralized BADGE_PALETTE instead of stock Bootstrap colors.
+pick up the app's colors instead of stock Bootstrap colors.
 The helper returns an inline-style dict with background, foreground, and
 font size pre-set.
 

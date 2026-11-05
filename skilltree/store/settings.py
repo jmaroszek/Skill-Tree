@@ -52,8 +52,8 @@ DEFAULT_SUBCONTEXTS = {
 
 
 # Minimal's canvas colors: Steel's, softened slightly in OKLCH. More than this
-# reads as washed out on neutral grey. Bars and badges have their own palette,
-# styles.badge_palette(). default_node_colors() is the current theme's.
+# reads as washed out on neutral grey. Bars and badges use them too, through
+# styles.palette_color(). default_node_colors() is the current theme's.
 DEFAULT_NODE_COLORS = {
     STATUS_BLOCKED: '#d84750',
     STATUS_OPEN: '#277cf3',

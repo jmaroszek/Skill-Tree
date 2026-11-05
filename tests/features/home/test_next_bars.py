@@ -5,7 +5,7 @@ from skilltree.features.home.table import (
     BAR_FILL_PERCENT, BAR_MIN_WIDTH, BAR_ROW_GAP, META_GAP, NAME_MAX_WIDTH,
     NAME_MIN_WIDTH, RANK_TRACK_WIDTH, format_suggestions_table,
 )
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.styles import palette_color
 from skilltree.domain.models import Node
 
 
@@ -32,7 +32,7 @@ def test_a_bar_is_tinted_with_a_solid_edge_in_its_type_colour(mgr):
     learn, action = _rows(mgr, ("Study", "Learn", 10), ("Practise", "Action", 8))
 
     for row, type_ in ((learn, "Learn"), (action, "Action")):
-        color = BADGE_PALETTE[type_][0]
+        color = palette_color(type_)
         style = _bar_fill(row).style
         assert style["background"] == f"color-mix(in srgb, {color} {BAR_FILL_PERCENT}%, transparent)"
         assert style["boxShadow"] == f"inset -3px 0 0 {color}"

@@ -208,10 +208,6 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     normalized_scores = [normalize(getattr(s, 'priority_score', 0)) for s in suggs]
     max_priority = max(normalized_scores) if normalized_scores else 0
 
-    # Bar colors come from palette_color, NOT the canvas Type Colors as they
-    # stand. See the BADGE_PALETTE comment for
-    # the rationale — short version: canvas needs vivid hues, bars need a
-    # quieter register, and the two are decoupled by design.
     pinned_steps = pinned_steps or {}
     step_color = badge_palette()['Unblocking'][0]
     # One target per blocked Now node, repeated across its steps — resolve each

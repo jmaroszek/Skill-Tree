@@ -745,7 +745,7 @@ Check on Nodes, Details and Events unless an item names one.
 
 - [ ] SE-27. Shapes and colors per type, plus Done, Blocked and Now colors, apply on every canvas at close.
 - [ ] SE-28. Hex shows beside each color. ↺ restores each group.
-- [ ] SE-29. At default colors Home's bars and badges are your curated palette. Change a type color: they follow it, muted the same way its default was, and badge text stays white.
+- [ ] SE-29. Home's bars and badges are the same colors as the canvas. Change a type color: all of them follow it, and badge text stays white.
 
 ## App
 
@@ -938,7 +938,7 @@ You went through these on 2026-11-01. Items marked Fix were then changed, with t
 | EV-43 | Fix | A loop of events that wake each other's triggers is refused, at any length. Loops already saved stay, and Trigger Now still works on them. |
 | RF-6 | Fix | Marking a Goal or a container Done opens a short form rather than the full one. |
 | SE-19 | Fix | A node can't keep a context that no longer exists. The migration dialog loses Skip and Keep existing, and a node already on one has to pick a real one before it saves. |
-| SE-29 | Fix | Home's bars and badges keep your curated palette at the default colors. A changed type color gets a muted version with the same perceptual treatment. Badge text is always white. |
+| SE-29 | Fix | Home's bars and badges use the canvas colors, so the separate palette and its muting are gone. Badge text is always white. |
 | SE-40 | At release | Add Settings > About for the first release. The update check and the bug form already exist, and `skilltree/features/settings/about.py` stays for it. |
 | DK-10 | Fix | DevTools is off in packaged builds. Sandbox and development runs keep it. |
 | HD-37 | Closed | `ERR_NO_BUFFER_SPACE` has only appeared under automated testing, never in real use. Treat it as a bug if "the server did not respond" ever shows up by hand. |

@@ -200,7 +200,7 @@ def _log_time_ticks(min_val: float, max_val: float) -> tuple[list, list]:
 
 
 def render_overview(metrics):
-    # Tile colors come from BADGE_PALETTE so an Analyze headline and the badge
+    # Tile colors come from palette_color so an Analyze headline and the badge
     # for the same concept elsewhere in the app are the same color. These were
     # stock Bootstrap hues, which made Done and Blocked here visibly different
     # from Done and Blocked on every node.
@@ -720,9 +720,8 @@ def render_throughput_chart(quarter_rows,
     return _card([html.Div(plot, className="throughput-chart hist-chart"), legend])
 
 
-# Categorical palette for the Throughput chart's context segments. Tuned to
-# the muted, deeper register of styles.BADGE_PALETTE (see STYLE_GUIDE.md) so
-# it sits with the DARKLY theme rather than reading as bright/pastel. Distinct
+# Categorical palette for the Throughput chart's context segments. Muted and
+# deep, so it sits with the dark theme rather than reading as bright/pastel. Distinct
 # hues, ordered to alternate warm/cool so adjacent stacked segments stay
 # legible.
 _SUBCONTEXT_PALETTE = [

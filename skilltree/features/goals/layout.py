@@ -44,7 +44,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
     else:
         effective_status = STATUS_OPEN
 
-    # status badge uses centralized BADGE_PALETTE (constructed inline below)
+    # status badge uses styles.badge_style (constructed inline below)
 
     # Drag handle (visible only for non-priority, manual-sort goals)
     drag_handle = html.Span(

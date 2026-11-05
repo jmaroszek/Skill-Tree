@@ -15,8 +15,8 @@
    2. Python reads these through style_tokens.py, which exports `var(--...)`
       reference strings — never copies of the values. Dash passes `var()`
       through to the DOM unchanged.
-   3. Badge/tile colors are NOT here. They live in config.BADGE_PALETTE, which
-      is user-adjacent (Settings can recolor the canvas) and already correct.
+   3. Badge/tile colors are NOT here. Types and statuses use the node colors in
+      Settings, and the rest live in styles.BADGE_PALETTE.
 
    Custom properties declared on :root resolve regardless of stylesheet order,
    so this file's position in Dash's alphabetical assets load does not matter. */

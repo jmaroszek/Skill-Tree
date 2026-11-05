@@ -10,7 +10,7 @@ from skilltree.features.events.layout import (
     dormant_delete_confirmation_body,
 )
 from skilltree.domain.models import Node
-from skilltree.ui.styles import BADGE_PALETTE
+from skilltree.ui.styles import palette_color
 from skilltree.domain.models import STATUS_DONE
 from support.paths import asset_file
 
@@ -239,11 +239,10 @@ def test_an_awake_row_takes_the_badge():
     badge = table.children[1].children[0].children[3].children
     assert badge.children == "Awake"
     # Was color="success" (stock Bootstrap #198754), which read as a different
-    # green from the Done badge one table over. The palette's EventTriggered
-    # is the shared "this fired" value.
+    # green from the Done badge one table over.
     assert badge.className == "badge"
-    assert badge.style["backgroundColor"] == BADGE_PALETTE['EventTriggered'][0]
-    assert badge.style["backgroundColor"] == BADGE_PALETTE[STATUS_DONE][0]
+    assert badge.style["backgroundColor"] == palette_color('EventTriggered')
+    assert badge.style["backgroundColor"] == palette_color(STATUS_DONE)
 
 
 def test_an_awake_row_reads_awake():

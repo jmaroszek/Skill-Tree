@@ -59,10 +59,10 @@ def test_a_draft_saves_its_colors_under_the_theme_it_chose():
 
 
 @pytest.mark.parametrize("theme", THEMES)
-def test_bars_and_badges_are_exactly_the_themes_palette(theme):
+def test_bars_and_badges_are_the_themes_node_colors(theme):
     settings.THEME.set(theme)
     for name in ("Goal", "Learn", "Action", "Resource", "Milestone"):
-        assert styles.palette_color(name) == styles.badge_palette()[name][0]
+        assert styles.palette_color(name) == settings.default_node_colors(theme)[name]
 
 
 def test_every_theme_has_the_same_badges():

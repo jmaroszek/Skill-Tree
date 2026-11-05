@@ -9,9 +9,9 @@ use. That is the whole point: a color can no longer be "almost" right.
 Do not add literal hex or rem values to this module. If a new value is needed,
 declare it in ``assets/css/tokens.css`` and export the reference here.
 
-Badge and tile colors are deliberately NOT here — they live in
-``styles.BADGE_PALETTE`` and are reached through ``styles.badge_style()``.
-That palette is user-adjacent (Settings recolors the canvas) and already
+Badge and tile colors are deliberately NOT here — they are reached through
+``styles.badge_style()``, from the node colors in Settings and
+``styles.BADGE_PALETTE``. That palette already
 served as the app's one working token system; this module is its counterpart
 for structural color and typography.
 """
