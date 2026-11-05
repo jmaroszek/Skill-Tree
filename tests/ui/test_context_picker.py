@@ -75,7 +75,7 @@ def test_every_ordinary_context_selection_surface_uses_the_shared_picker():
         "filter-context-picker",
         "hub-history-context-picker",
     }
-    found = {getattr(item, "id", None) for item in _walk(layout)}
+    found = {item.id for item in _walk(layout) if isinstance(getattr(item, "id", None), str)}
 
     assert picker_ids <= found
     assert "context-taxonomy-store" in found

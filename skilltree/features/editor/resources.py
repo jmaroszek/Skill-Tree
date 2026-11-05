@@ -16,7 +16,6 @@ from skilltree.ui.notices import error
 from skilltree.ui.kit import hint
 from skilltree.features.editor.form import resource_link_values
 from skilltree.runtime.file_picker import spawn_local_file_picker
-from skilltree.ui.prerender import prerendered
 from skilltree.store.resources import get_sections, store_path
 from skilltree.runtime.opener import NeedsConfirmation, open_resource
 from dash import html
@@ -31,30 +30,26 @@ def register_resource_link_callbacks(app, services):
     are read and saved through resource_links, not the graph managers."""
     # --- Resources ---
     # One set of pattern-matched callbacks serves every section. A row's id
-    # index is "<section id>:<row>", so a trigger names both.
-    @app.callback(
-        Output('editor-resources', 'children'),
-        Input('resource-links-store', 'data'),
-        prevent_initial_call=True,
-    )
-    @prerendered
-    def render_resources(links):
-        return render_resource_sections(links)
+    # index is "<section id>:<row>", so a trigger names both. Each change draws
+    # the rows it leaves, as a node load does (view.editor_view). They used to be
+    # drawn from a store by a callback of their own, a pass later, so a load
+    # showed its links after the rest of the form.
+    _ROWS = Output('editor-resources', 'children', allow_duplicate=True)
 
     # A Settings save can add, rename or remove sections. Redraw them around
     # what the user has typed, not the links last loaded.
     @app.callback(
-        Output('resource-links-store', 'data', allow_duplicate=True),
+        _ROWS,
         Input('settings-version-store', 'data'),
         State({'type': 'resource-link', 'index': ALL}, 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'id'),
         prevent_initial_call=True,
     )
     def keep_typed_links_across_settings_save(_version, values, ids):
-        return resource_link_values(values, ids)
+        return _with_rows(resource_link_values(values, ids))
 
     @app.callback(
-        Output('resource-links-store', 'data', allow_duplicate=True),
+        _ROWS,
         Input({'type': 'resource-add', 'index': ALL}, 'n_clicks'),
         Input({'type': 'resource-remove', 'index': ALL}, 'n_clicks'),
         Input({'type': 'resource-browse', 'index': ALL}, 'n_clicks'),
@@ -63,6 +58,9 @@ def register_resource_link_callbacks(app, services):
         prevent_initial_call=True,
     )
     def modify_resource_links(_adds, _removes, _browses, values, ids):
+        return _with_rows(_modified_links(values, ids))
+
+    def _modified_links(values, ids):
         trigger = ctx.triggered_id
         # A re-render mounts fresh buttons that match these ALL inputs; only a
         # real click carries n_clicks.
@@ -152,7 +150,7 @@ def register_resource_link_callbacks(app, services):
     # The desktop window's native picker (assets/editor/resource_picker.js) reports
     # its choice here; the browser fallback runs in modify_resource_links.
     @app.callback(
-        Output('resource-links-store', 'data', allow_duplicate=True),
+        _ROWS,
         Input('electron-file-picked-input', 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'value'),
         State({'type': 'resource-link', 'index': ALL}, 'id'),
@@ -166,9 +164,16 @@ def register_resource_link_callbacks(app, services):
             links = resource_link_values(values, ids)
             links[section_id][int(index_text)] = store_path(selected['path'],
                                                             section['root_path'])
-            return links
+            return _with_rows(links)
         except (KeyError, ValueError, TypeError, IndexError, AttributeError, StopIteration):
-            return dash.no_update
+            return _with_rows(dash.no_update)
+
+
+def _with_rows(links):
+    """The rows that show ``links``."""
+    if links is dash.no_update:
+        return dash.no_update
+    return render_resource_sections(links)
 
 
 def render_resource_sections(links):
@@ -191,9 +196,15 @@ def render_resource_sections(links):
                         html.Button(html.I(className='bi bi-folder2-open'),
                                    id={'type': 'resource-browse', 'index': key},
                                    type='button', className='btn btn-primary editor-icon-btn', **hint('Browse', label=True)),
+                        # An empty row has nothing to open. It's drawn hidden, in
+                        # the same paint as the row: link_open_visibility.js only
+                        # follows typing, a frame later.
                         html.Button(html.I(className='bi bi-box-arrow-up-right'),
                                    id={'type': 'resource-open', 'index': key},
-                                   type='button', className='btn btn-primary editor-icon-btn', **hint('Open', label=True))]
+                                   type='button',
+                                   className='btn btn-primary editor-icon-btn'
+                                   + ('' if (value or '').strip() else ' d-none'),
+                                   **hint('Open', label=True))]
             if len(values) > 1:
                 children.append(html.Button(html.I(className='bi bi-x-lg'),
                            id={'type': 'resource-remove', 'index': key},

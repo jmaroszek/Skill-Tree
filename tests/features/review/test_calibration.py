@@ -496,16 +496,3 @@ def test_the_reflection_icon_follows_a_settings_save_at_once():
     assert fn(None, 1) == {"display": "none"}
     settings.TIME_CALIBRATION_ENABLED.set(True)
     assert fn(None, 2) == {"display": "inline-block"}
-
-
-def test_the_excluded_badge_points_at_where_it_can_be_undone(services):
-    services.graph.add_node(Node(name="Skipped", type="Learn", description="", value=5,
-                                 time_o=1.0, time_m=2.0, time_p=4.0, interest=5, difficulty=5,
-                                 status="Done", context="Mind", calibration_dismissed=1))
-    app = dash.Dash(__name__)
-    app.config.suppress_callback_exceptions = True
-    register_calibration_callbacks(app, services)
-    fn = next(unwrapped(spec["callback"]) for spec in app.callback_map.values()
-              if unwrapped(spec["callback"]).__name__ == "_calibration_editor_badge")
-
-    assert "restore in Reflection" in fn("Skipped")[0]

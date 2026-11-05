@@ -30,10 +30,12 @@ from skilltree.features.editor.form import (
     is_form_dirty_vs_snapshot,
     snapshot_from_form_state,
 )
+from skilltree.features.editor.layout import alias_rows_label, render_alias_rows
 from skilltree.features.editor.merge import register_merge_callbacks
 from skilltree.features.editor.navigation import ASK, CLOSE, KEEP, next_step
 from skilltree.features.editor.ratings import register_ratings_callbacks
 from skilltree.features.editor.resources import register_resource_link_callbacks
+from skilltree.features.editor.view import VIEW_FILL, editor_view
 from skilltree.store.commands import bridge_form, plan_bridge
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.canvas.view import node_options
@@ -44,7 +46,8 @@ from skilltree.ui.left_panel import close_editor
 # populate_editor's outputs. An output that shows a form field takes the key of
 # the snapshot value it shows (form.build_editor_snapshot, NEW_NODE_SNAPSHOT):
 # the form is filled from the snapshot that becomes its pristine copy, so the
-# two always agree.
+# two always agree. The view keys are everything the form shows around those
+# values (view.py), sent with them so a load draws at once.
 EDITOR_FILL = dict(
     name=Output('node-name', 'value', allow_duplicate=True),
     n_type=Output('node-type', 'value'),
@@ -70,7 +73,8 @@ EDITOR_FILL = dict(
     e_supp_h_options=Output('edge-supports-hard', 'options'),
     e_supp_s_options=Output('edge-supports-soft', 'options'),
     e_helps_options=Output('edge-helps', 'options'),
-    resource_links=Output('resource-links-store', 'data'),
+    # The links show as rows (view.editor_view draws them).
+    resource_links=Output('editor-resources', 'children', allow_duplicate=True),
     time_unit=Output('node-time-unit', 'value'),
     time_unit_prev=Output('node-time-unit-prev', 'data', allow_duplicate=True),
     original_name=Output('node-original-name', 'data', allow_duplicate=True),
@@ -99,6 +103,7 @@ EDITOR_FILL = dict(
     **{key: Output(component, 'value') for key, component in DORMANT_WIDGETS.items()},
     dormant_event_options=Output('node-dormant-event', 'options'),
     dormant_preset=Output('editor-dormant-preset', 'data', allow_duplicate=True),
+    **VIEW_FILL,
 )
 
 
@@ -111,8 +116,8 @@ def _untouched(**changes):
     return {**dict.fromkeys(EDITOR_FILL, no_update), **changes}
 
 
-def _filled(snapshot, options, *, status, original_name, search=no_update, bridge=None,
-            event_options=no_update, preset=no_update):
+def _filled(snapshot, options, *, status, original_name, node=None, search=no_update,
+            bridge=None, event_options=no_update, preset=no_update):
     """populate_editor's outputs for a form that shows ``snapshot``.
 
     A load closes the unsaved-changes dialog and forgets where it was going.
@@ -120,6 +125,7 @@ def _filled(snapshot, options, *, status, original_name, search=no_update, bridg
     triggering core_engine again. The relationship options only go out with a
     form: at about 230 KB, nothing else that happens here should pay for them.
     ``preset`` is what the Events tab's "+" left waiting, once a form has used it.
+    ``node`` is the stored node the form shows, or None for a new one.
     """
     out = {key: snapshot[key] for key in EDITOR_FILL if key in snapshot}
     out.update(_relationship_options(options))
@@ -129,6 +135,7 @@ def _filled(snapshot, options, *, status, original_name, search=no_update, bridg
                original_name=original_name, search=search, pending_nav=None,
                unsaved_open=False, close_request=no_update, snapshot=snapshot, bridge=bridge,
                aliases_open=any((a or '').strip() for a in snapshot.get('aliases') or []))
+    out.update(editor_view(snapshot, node))
     return out
 
 
@@ -232,7 +239,7 @@ def register_editor_callbacks(app, services):
         def _load(node, search):
             snapshot = build_editor_snapshot(manager, services.events, node.name)
             return _filled(snapshot, _options(exclude=node.name), status=node.status,
-                           original_name=node.name, search=search,
+                           original_name=node.name, node=node, search=search,
                            event_options=dormant_event_options(
                                services.events, snapshot['dormancy']['event']))
 
@@ -422,6 +429,8 @@ def register_editor_callbacks(app, services):
         [Output('node-original-name', 'data', allow_duplicate=True),
          Output('node-name', 'value', allow_duplicate=True),
          Output('aliases-store', 'data', allow_duplicate=True),
+         Output('aliases-container', 'children', allow_duplicate=True),
+         Output('aliases-label', 'children', allow_duplicate=True),
          Output('editor-pristine-snapshot', 'data', allow_duplicate=True),
          Output('node-now', 'value', allow_duplicate=True)],
         Input('editor-save-result-store', 'data'),
@@ -439,10 +448,10 @@ def register_editor_callbacks(app, services):
         # and populate_editor handles that.
         if (not isinstance(save_result, dict)
                 or save_result.get('via') != 'btn-save'):
-            return (dash.no_update,) * 5
+            return (dash.no_update,) * 7
         linted = save_result.get('name')
         if not linted or manager.get_node(linted) is None:
-            return (dash.no_update,) * 5
+            return (dash.no_update,) * 7
         # Build the post-save snapshot from the form as it was saved, which
         # core_engine hands over, not from a DB round-trip. Not from the form
         # as it is now either: this runs after the save's whole response, and
@@ -477,7 +486,8 @@ def register_editor_callbacks(app, services):
         # and on a save that failed that reload would throw away what the
         # user had just entered, such as a Dormant switch the save refused.
         original_out = linted if linted != cur_original_name else dash.no_update
-        return original_out, linted, linted_aliases, snapshot, now
+        return (original_out, linted, linted_aliases, render_alias_rows(linted_aliases),
+                alias_rows_label(linted_aliases), snapshot, now)
 
     register_merge_callbacks(app, services)
     register_field_callbacks(app, services)

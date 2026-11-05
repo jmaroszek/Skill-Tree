@@ -9,6 +9,7 @@ import dash
 
 from skilltree.domain.models import STATUS_OPEN, Node
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT, RELATIONSHIP_FIELDS
+from skilltree.features.editor.resources import render_resource_sections
 from skilltree.engine.callbacks import register_engine_callbacks
 from support.editor_forms import call
 from skilltree.store.graph.manager import GraphManager
@@ -54,9 +55,12 @@ def test_a_loaded_form_shows_its_snapshot(monkeypatch):
     GraphManager().add_node(_node("Loaded", type="Goal", description="notes",
                                   habit_intensity_unit="hr_per_week"))
     result = _call_with_trigger(monkeypatch, "search-node", search_val="Loaded")
-    shown = set(NEW_NODE_SNAPSHOT) - {"dormancy"}
+    # The links show as rows, drawn from the snapshot's links (view.editor_view).
+    shown = set(NEW_NODE_SNAPSHOT) - {"dormancy", "resource_links"}
     assert {key: result[key] for key in shown} == {
         key: result["snapshot"][key] for key in shown}
+    assert repr(result["resource_links"]) == repr(
+        render_resource_sections(result["snapshot"]["resource_links"]))
     assert result["time_unit_prev"] == result["time_unit"]
 
 

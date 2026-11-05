@@ -338,18 +338,3 @@ def register_calibration_callbacks(app, services):
             return {"display": "inline-block"}
         return {"display": "none"}
 
-    # --- Calibration: editor read-only "excluded" badge ---
-    # Keyed off node-original-name (set when a node loads into the editor) so
-    # it stays decoupled from the large populate_editor callback.
-    @app.callback(
-        Output('node-calibration-dismissed-badge', 'children'),
-        Output('node-calibration-dismissed-badge', 'style'),
-        Input('node-original-name', 'data'),
-        prevent_initial_call=True,
-    )
-    def _calibration_editor_badge(original_name):
-        node = manager.get_node(original_name) if original_name else None
-        if node is not None and node.calibration_dismissed:
-            return ("Excluded from calibration review — restore in Reflection.",
-                    {"display": "block"})
-        return "", {"display": "none"}

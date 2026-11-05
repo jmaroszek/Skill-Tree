@@ -90,12 +90,15 @@ def test_the_editor_adopts_only_a_name_that_was_saved(manager):
 
     # No committed save (the refused duplicate): the editor stays a new node,
     # even though a node called "Sleep" exists.
-    assert run(None) == (dash.no_update,) * 5
+    assert run(None) == (dash.no_update,) * 7
     # The unsaved dialog's save moves on to another node instead.
-    assert run({"name": "Sleep", "via": "btn-unsaved-save", "ts": 1}) == (dash.no_update,) * 5
+    assert run({"name": "Sleep", "via": "btn-unsaved-save", "ts": 1}) == (dash.no_update,) * 7
 
-    original, name, _aliases, snapshot, _now = run({"name": "Sleep", "via": "btn-save", "ts": 2})
+    original, name, aliases, rows, label, snapshot, _now = run(
+        {"name": "Sleep", "via": "btn-save", "ts": 2})
     assert original == "Sleep" and name == "Sleep" and snapshot
+    # The linted aliases' rows come with them, not a pass later.
+    assert len(rows) == len(aliases) and label == "Alias"
 
 
 def test_the_new_baseline_is_the_form_that_was_saved(manager):

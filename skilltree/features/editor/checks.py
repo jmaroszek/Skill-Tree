@@ -19,6 +19,45 @@ from skilltree.ui import tokens
 from skilltree.ui.prerender import prerendered
 
 
+def time_estimate_checks(time_o, time_m, time_p, time_mode_val, habit_mode_val,
+                         habit_duration, habit_o, habit_m, habit_p, habit_days):
+    """Disable Save while the time estimate can't be saved, and say why.
+
+    Returns the time warning and its style, the habit warning and its style,
+    whether Save is off, and Save's tooltip. validate_time_estimates answers
+    with it as the user types, and a node load sends it with the form
+    (view.editor_view).
+
+    A bracket takes one of the supported (l, m, u) patterns, in order
+    (mirroring `expected_time_estimate` in models.py):
+      - Expected only          {m}
+      - Lower + Upper          {o, p}
+      - All three              {o, m, p}
+
+    Inherited time has nothing to check. Habit mode checks its own fields:
+    the duration, the minutes bracket and the days. A habit with no days
+    yet is prompted by the preview line, so its warning stays empty.
+    """
+    hidden = tokens.ERROR_TEXT_HIDDEN
+    visible = tokens.ERROR_TEXT_VISIBLE
+    ok = ("", hidden, "", hidden, False, SAVE_HINT)
+
+    if time_mode_val and 'inherited' in time_mode_val:
+        return ok
+    if habit_mode_val and 'habit' in habit_mode_val:
+        msg = habit_estimate_problem(habit_duration, habit_o, habit_m, habit_p,
+                                     habit_days)
+        if not msg:
+            return ok
+        shown = "" if msg == HABIT_NO_DAYS else msg
+        return "", hidden, shown, visible if shown else hidden, True, msg
+
+    msg = time_estimate_problem(time_o, time_m, time_p)
+    if msg:
+        return msg, visible, "", hidden, True, msg
+    return ok
+
+
 def register_check_callbacks(app, services):
     manager = services.graph
 
@@ -55,36 +94,8 @@ def register_check_callbacks(app, services):
     @prerendered
     def validate_time_estimates(time_o, time_m, time_p, time_mode_val, habit_mode_val,
                                 habit_duration, habit_o, habit_m, habit_p, habit_days):
-        """Disable Save while the time estimate can't be saved, and say why.
-
-        A bracket takes one of the supported (l, m, u) patterns, in order
-        (mirroring `expected_time_estimate` in models.py):
-          - Expected only          {m}
-          - Lower + Upper          {o, p}
-          - All three              {o, m, p}
-
-        Inherited time has nothing to check. Habit mode checks its own fields:
-        the duration, the minutes bracket and the days. A habit with no days
-        yet is prompted by the preview line, so its warning stays empty.
-        """
-        hidden = tokens.ERROR_TEXT_HIDDEN
-        visible = tokens.ERROR_TEXT_VISIBLE
-        ok = ("", hidden, "", hidden, False, SAVE_HINT)
-
-        if time_mode_val and 'inherited' in time_mode_val:
-            return ok
-        if habit_mode_val and 'habit' in habit_mode_val:
-            msg = habit_estimate_problem(habit_duration, habit_o, habit_m, habit_p,
-                                         habit_days)
-            if not msg:
-                return ok
-            shown = "" if msg == HABIT_NO_DAYS else msg
-            return "", hidden, shown, visible if shown else hidden, True, msg
-
-        msg = time_estimate_problem(time_o, time_m, time_p)
-        if msg:
-            return msg, visible, "", hidden, True, msg
-        return ok
+        return time_estimate_checks(time_o, time_m, time_p, time_mode_val, habit_mode_val,
+                                    habit_duration, habit_o, habit_m, habit_p, habit_days)
 
     # --- Duplicate Node Detection (fires on blur, no auto-fill) ---
     @app.callback(

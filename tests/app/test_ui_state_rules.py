@@ -10,6 +10,7 @@ A limit here may only fall. When a change lowers a count, lower its limit.
 import re
 
 from skilltree.engine.handlers import HANDLERS
+from skilltree.features.editor.view import VIEW_OUTPUTS
 from support.callback_graph import built_app, read_ids, writer_counts
 from support.callbacks import unwrapped
 from support.layout import walk
@@ -19,6 +20,14 @@ from support.paths import ROOT
 # 8 widgets became form fields like any other, which a load fills and the merge
 # follows, and that took 6 writers off the baseline.
 MOST_SHARED_OUTPUTS = 129
+
+# What a node load sends with the editor's values, which a callback also keeps
+# in step with the user's edits (features/editor/view.py). Both writers answer
+# from one rule, and tests/features/editor/test_editor_view.py checks the
+# browser's copy against the Python twin, so they can't disagree the way two
+# owners of a store can. They're counted apart, with a limit of their own.
+LOAD_TWINS = {f'{component}.{prop}' for component, prop in VIEW_OUTPUTS.values()}
+MOST_LOAD_TWINS = 33
 
 # Callbacks allowed to write each output.
 MOST_WRITERS = {
@@ -57,8 +66,15 @@ def _sources():
 
 
 def test_outputs_with_several_writers_only_fall():
-    shared = sorted(output for output, count in writer_counts(built_app()).items() if count > 1)
-    assert len(shared) <= MOST_SHARED_OUTPUTS, shared
+    shared = sorted(output for output, count in writer_counts(built_app()).items()
+                    if count > 1 and output not in LOAD_TWINS)
+    assert len(shared) <= MOST_SHARED_OUTPUTS, (len(shared), shared)
+
+
+def test_load_twins_only_fall():
+    twins = sorted(output for output, count in writer_counts(built_app()).items()
+                   if count > 1 and output in LOAD_TWINS)
+    assert len(twins) <= MOST_LOAD_TWINS, (len(twins), twins)
 
 
 def test_owned_outputs_have_no_new_writers():

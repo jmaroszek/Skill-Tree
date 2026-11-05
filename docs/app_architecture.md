@@ -148,6 +148,9 @@ There is one node editor, and every way of opening it runs `populate_editor`.
 - The dialog's Save moves on only after its own save commits. `sync_original_name_after_save` adopts a saved name only after Save.
 - `bridge-pending-store` holds the link a bridge replaces. Every load of the editor rewrites it, and the save removes the link only for a new node that really sits between the two ends.
 - Dormant is a field of the editor, saved with Save. `populate_editor` fills the section, and `features/editor/dormancy.py` collects it into `node-dormancy-form`. A refusal rolls back the whole save.
+- A load draws in one paint. `editor_view` (`features/editor/view.py`) works out everything the form shows around its values: which sections show, the alias and link rows, whether Save is on, the hour hints, the badge. `populate_editor` sends it with the values. The callbacks that follow the values still answer the user's edits. After a load they only repeat what the form already shows.
+- Some of those rules run in the browser, for the user's clicks. `view.py` has a Python twin of each, and `tests/features/editor/test_editor_view.py` runs the JavaScript to check they agree.
+- The alias and link rows have no store-driven renderer. Whatever changes them draws them in the same answer.
 
 ### What changed outside the editor
 

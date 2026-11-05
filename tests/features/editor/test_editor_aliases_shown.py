@@ -27,10 +27,13 @@ REMOVE = '{"index":0,"type":"btn-alias-remove"}.n_clicks'
 def test_a_rebuilt_row_isnt_a_click_on_its_remove_button():
     modify = registered(register_editor_callbacks)["modify_aliases"]
     fire(REMOVE, value=None)
-    assert modify(None, [None], ["Shuteye"], ["Shuteye"], True) == (no_update, no_update)
+    assert modify(None, [None], ["Shuteye"], ["Shuteye"], True) == (no_update,) * 4
 
 
 def test_a_real_click_removes_the_row():
     modify = registered(register_editor_callbacks)["modify_aliases"]
     fire(REMOVE, value=1)
-    assert modify(None, [1], ["Shuteye"], ["Shuteye"], True) == ([], False)
+    aliases, is_open, rows, label = modify(None, [1], ["Shuteye"], ["Shuteye"], True)
+    assert (aliases, is_open) == ([], False)
+    # The rows are drawn in the same answer: one empty row, ready for the next "+".
+    assert len(rows) == 1 and label == "Alias"

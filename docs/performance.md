@@ -635,3 +635,38 @@ and could go the same way.
 
 So rows no callback touches should mount as one component. A hidden tab's
 components slow every click on every other tab.
+
+## A node load in one paint (2026-11-05)
+
+Loading a node into the editor drew the form in pieces. The values came first.
+Then about ten callbacks that follow them ran, each another pass through the
+browser. They set which sections the type shows, the alias and link rows, the
+Save button, the hour hints and the calibration badge.
+
+The server answered every one in about 30 ms. The time went to the browser.
+Each wave of answers took it 100 to 200 ms, and it painted between waves.
+Callbacks that run in the browser were no faster. They still waited their turn
+behind the server's answers.
+
+This is headless Chrome at 1600 x 1000, on a copy of the sandbox, loading six
+nodes in turn. A frame counts when anything in the editor changed: a value, an
+element shown or hidden, a button turned on or off.
+
+| Load | Frames that changed, before | Last change, before | After | Last change, after |
+| --- | ---: | ---: | ---: | ---: |
+| Learn, from a blank form | 6 | 1,976 ms | 1 | 283 ms |
+| Goal, from a Learn | 6 | 809 ms | 2 | 131 ms, then the alias section closes |
+| Resource, from a Goal | 8 | 920 ms | 1 | 135 ms |
+| Excluded Learn, from a Resource | 7 | 754 ms | 2 | 146 ms, then the alias section closes |
+| Habit Action | 5 | 621 ms | 1 | 123 ms |
+| Learn, from the Action | 6 | 792 ms | 2 | 222 ms |
+
+`populate_editor` now sends all of it with the values (`features/editor/view.py`).
+The followers still run, but they repeat what the form shows, so nothing moves.
+
+Two late changes are left. When the next node has no aliases, their section
+slides shut, a 350 ms animation. The description's box sometimes takes its
+value a frame after the rest, inside the component.
+
+So whatever a load changes should come in the load's own answer. A follower
+costs a whole pass, even when it runs in the browser.

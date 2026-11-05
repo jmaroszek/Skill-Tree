@@ -62,7 +62,8 @@ def _component_ids(canvas):
 
 def test_every_registered_component_exists_in_the_layout():
     layout_ids = {getattr(item, 'id', None)
-                  for item in _walk(build_app_layout(GraphManager(), env='sandbox'))}
+                  for item in _walk(build_app_layout(GraphManager(), env='sandbox'))
+                  if isinstance(getattr(item, 'id', None), str)}
     for canvas in CANVASES:
         for component_id in _component_ids(canvas):
             assert component_id in layout_ids, (canvas.key, component_id)

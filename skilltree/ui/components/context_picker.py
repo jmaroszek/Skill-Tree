@@ -57,7 +57,11 @@ def build_context_picker_support() -> list[Any]:
     ]
 
 
-def _initial_state(mode: str, context_value: Any, subcontext_value: Any) -> str:
+def picker_state(mode: str, context_value: Any, subcontext_value: Any) -> str:
+    """The picker's state element text, as the browser's mirror writes it.
+
+    Compact and unescaped, as JSON.stringify writes it, so a fill that sends it
+    (the node editor's load) and the mirror that follows agree to the letter."""
     if mode == "multi":
         context_value = list(context_value or [])
         subcontext_value = list(subcontext_value or [])
@@ -69,7 +73,7 @@ def _initial_state(mode: str, context_value: Any, subcontext_value: Any) -> str:
         "taxonomy": build_context_taxonomy(),
         "context": context_value,
         "subcontext": subcontext_value,
-    })
+    }, separators=(",", ":"), ensure_ascii=False)
 
 
 def _picker_shell(
@@ -129,7 +133,7 @@ def _picker_shell(
             className="context-picker-action",
         ),
         html.Div(
-            _initial_state(mode, context_value, subcontext_value),
+            picker_state(mode, context_value, subcontext_value),
             id=f"{picker_id}-state",
             className="context-picker-state",
         ),

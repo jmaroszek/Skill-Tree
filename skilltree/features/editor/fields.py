@@ -7,6 +7,7 @@ from dash import ClientsideFunction, Input, Output, State
 from skilltree.domain.contexts import sort_subcontexts
 from skilltree.features.editor.form import habit_preview_text
 from skilltree.features.editor.values import reexpressed_estimate
+from skilltree.features.editor.view import type_section_styles
 from skilltree.store import settings
 from skilltree.ui.components.duration import work_time_tooltip
 from skilltree.ui.prerender import prerendered
@@ -24,20 +25,10 @@ def register_field_callbacks(app, services):
     )
     @prerendered
     def toggle_type_fields(node_type):
-        show = {}
-        hide = {'display': 'none'}
-        # section-priority-rank stays hidden for every type now: rank is the
-        # Goals sidebar's job. The Output is kept so the hidden select the
-        # other callbacks read as State still has a container.
-        if node_type == 'Goal':
-            # Habit toggle hidden — containers must inherit.
-            return show, show, hide, hide
-        if node_type == 'Milestone':
-            return show, show, hide, hide
-        # Learn, Action, Resource: full set, habit toggle visible.
-        return show, show, hide, show
+        return type_section_styles(node_type)
 
     # --- Toggle O/M/P / Habit / unit-dropdown visibility based on mode ---
+    # A load sends these styles with the form (view.time_mode_styles, its twin).
     app.clientside_callback(
         """
         function(time_mode_val, habit_mode_val) {
@@ -153,6 +144,7 @@ def register_field_callbacks(app, services):
         return habit_preview_text(duration, dur_unit, int_o, int_m, int_p, days)
 
     # --- Toggle Value/Interest sliders based on value_mode ---
+    # A load sends this with the form (view.ratings_style, its twin).
     app.clientside_callback(
         """
         function(value_mode_val) {
@@ -191,6 +183,7 @@ def register_field_callbacks(app, services):
     # rank_goals counts only the effort of the tasks beneath it. The caption
     # tells the user why the input is absent so the UI stops asking for a
     # value the system ignores. Inheriting ratings alone keeps the slider.
+    # A load sends these with the form (view.effort_styles, its twin).
     app.clientside_callback(
         """
         function(node_type, time_mode_val) {

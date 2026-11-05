@@ -17,6 +17,7 @@ from dash import dcc
 from skilltree.domain.contexts import sort_contexts
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
+from skilltree.features.editor.resources import render_resource_sections
 from skilltree.store.settings import SUPPORTED_NODE_TYPES
 from skilltree.ui.components.context_picker import build_single_context_picker
 from skilltree.ui.components.duration import NEW_NODE_TIME_UNIT
@@ -342,9 +343,9 @@ def build_node_editor_content():
                          style={"display": "none"}, className="mt-1"),
                 dbc.Collapse(
                     html.Div([
-                        dbc.Label("Alias", id="aliases-label",
+                        dbc.Label(alias_rows_label(['']), id="aliases-label",
                                   className="mt-1 mb-1"),
-                        html.Div(id='aliases-container'),
+                        html.Div(render_alias_rows(['']), id='aliases-container'),
                     ]),
                     id="collapse-aliases",
                     is_open=False,
@@ -657,12 +658,11 @@ def build_node_editor_content():
                 hover_label("Resources", "node-resources-heading", _EDITOR_HINTS["resources"],
                             component=html.H5, placement="right", className="mt-2 mb-1"),
 
-                # The loaded node's links by section id. The rows below are
-                # rendered from it and read back through their pattern ids.
-                dcc.Store(id='resource-links-store', data={}),
+                # The loaded node's links, as rows by section id. Save reads them
+                # back through their pattern ids.
                 dcc.Input(id='electron-file-picked-input', value='', type='text',
                           style={'display': 'none'}),
-                html.Div(id='editor-resources'),
+                html.Div(render_resource_sections({}), id='editor-resources'),
 
                 # The three actions stay pinned to the bottom of the panel while the
                 # fields above them scroll. `position: sticky` keeps them in normal

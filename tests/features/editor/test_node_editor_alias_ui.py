@@ -47,10 +47,11 @@ def _row_children(row):
 
 
 def _ids(component):
+    """The layout's plain ids. The alias rows' pattern ids are dicts."""
     return {
         getattr(child, "id", None)
         for child, _parent in _walk(component)
-        if getattr(child, "id", None) is not None
+        if isinstance(getattr(child, "id", None), str)
     }
 
 

@@ -2,10 +2,9 @@
  * Hide the "open link" icon button whenever its paired input is empty.
  *
  * Applies to the node editor's Resources rows, rendered by
- * `render_resource_sections`. The Python store only updates on
- * add / remove / browse, so this JS watches live typing via the
- * `input` event and sweeps the DOM on mutations for initial render
- * and store-driven re-renders.
+ * `render_resource_sections`, which draws an empty row's button hidden.
+ * The rows are only redrawn on add / remove / browse, so this JS watches
+ * live typing via the `input` event and sweeps the DOM on mutations.
  */
 (function () {
     var LINK_TYPES = ['resource-link'];
