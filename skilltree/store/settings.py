@@ -51,27 +51,28 @@ DEFAULT_SUBCONTEXTS = {
 }
 
 
-# Zen's canvas colors: Kyoto, after Japanese plant dyes (madder, persimmon,
-# yamabuki gold, moss, verdigris, indigo, wisteria). They're less saturated than
-# screen hues. They stay apart because each role sits at its own lightness:
-# deep Blocked and Learn, bright Goal. White text holds on every one. Bars and
+# Zen's canvas colors: Kyoto lifted, after Japanese plant dyes (madder,
+# persimmon, yamabuki gold, young leaf, verdigris, sky, wisteria). Their
+# saturation sits between screen hues and the dyes themselves. Every bar color
+# has about the same saturation and lightness, so none recedes; only Goal is
+# brighter. Dark, muted colors read as decay, so these stay light. Bars and
 # badges use them too, through styles.palette_color(). default_node_colors() is
 # the current theme's. Now is Goal's gold, a shade brighter: a Now node is the
 # goal you are working on right now.
 DEFAULT_NODE_COLORS = {
-    STATUS_BLOCKED: '#a33a48',
-    STATUS_OPEN: '#40709a',
-    STATUS_DONE: '#4f7230',
-    'Goal': '#c9ab52',
-    'Action': '#c86a3a',
-    'Learn': '#3a6385',
-    'Resource': '#9a78b4',
-    'Milestone': '#4a9e8f',
-    'Now': '#d6b64c',
+    STATUS_BLOCKED: '#c45660',
+    STATUS_OPEN: '#1d7db8',
+    STATUS_DONE: '#3e915a',
+    'Goal': '#dbbb5b',
+    'Action': '#d0844c',
+    'Learn': '#1e8dd0',
+    'Resource': '#9870bc',
+    'Milestone': '#38a8a7',
+    'Now': '#e8c65d',
 }
 
-# Zen's previous, saturated palette. Kept while Kyoto is on trial, so going
-# back is one swap. Nothing reads it.
+# Zen's previous, saturated palette. Kept while Kyoto lifted is on trial, so
+# going back is one swap (with styles.ZEN_VIVID_BADGE_COLORS). Nothing reads it.
 ZEN_VIVID_NODE_COLORS = {
     STATUS_BLOCKED: '#bd413f',
     STATUS_OPEN: '#326fba',

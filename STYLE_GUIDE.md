@@ -118,6 +118,11 @@ node color in Settings, through `styles.badge_style(name)` for badges and
 `DEFAULT_NODE_COLORS` and `STEEL_NODE_COLORS` in `store/settings.py`. `Priority`
 shares Goal's color, and `EventTriggered` shares Done's.
 
+Zen's palette is Kyoto lifted, after Japanese plant dyes. Two rules keep it
+looking alive rather than faded. Every bar color has about the same saturation
+and lightness, so no type recedes next to another; only Goal is brighter. And
+the colors stay light: dark, muted colors read as decay.
+
 Text on a node color is always white, because a mix of dark and white text looks
 bad. The yellow Goal color is the weak spot: it reads as yellow only at a
 lightness where white text is faint. Now shares Goal's yellow, since a Now node
@@ -134,9 +139,9 @@ amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Unblocking   | `#985984` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| PriorityRank | `#b98332` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. An amber, deliberately warmer than the Goal yellow. |
-| PriorityScore | `#3467a9` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. Its own blue, so it does not follow the Open color. |
+| Unblocking   | `#ad5c89` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
+| PriorityRank | `#c08c46` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold. |
+| PriorityScore | `#1872ac` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. Its own blue, so it does not follow the Open color. |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 
