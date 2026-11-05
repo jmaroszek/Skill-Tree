@@ -242,8 +242,8 @@ BADGE_PALETTE = {
 _STEEL_BADGE_PALETTE = {
     # The bare rank number on Goals-sidebar cards and Details suggestions.
     # Darkly's warning orange, deliberately warmer than the Goal yellow.
-    'PriorityRank': ('#d79b53', '#ffffff'),
-    'PriorityScore': ('#2e68ca', '#ffffff'),
+    'PriorityRank': ('#ca872d', '#ffffff'),
+    'PriorityScore': ('#2961bf', '#ffffff'),
     'Unblocking': ('#a73e8e', '#ffffff'),  # steps pinned toward a blocked Now node
     # Relationship-priority badges.
     'HardRelPri': ('#2a4d6e', '#d6e0ee'),

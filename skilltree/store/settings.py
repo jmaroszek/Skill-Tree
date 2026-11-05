@@ -68,12 +68,12 @@ DEFAULT_NODE_COLORS = {
 
 # Steel's: its original Bootstrap hues, tuned by hand. Now shares Goal's yellow.
 STEEL_NODE_COLORS = {
-    STATUS_BLOCKED: '#b84448',
+    STATUS_BLOCKED: '#b8373f',
     STATUS_OPEN: '#2e68ca',
-    STATUS_DONE: '#0f8451',
+    STATUS_DONE: '#028550',
     'Goal': '#cba92b',
     'Action': '#c1631f',
-    'Learn': '#2266d5',
+    'Learn': '#1b65da',
     'Resource': '#8844ad',
     'Milestone': '#04a8bf',
     'Now': '#cba92b',
