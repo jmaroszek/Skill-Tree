@@ -47,6 +47,17 @@ def test_colors_stored_before_themes_existed_belong_to_steel():
         settings.DEFAULT_NODE_COLORS["Milestone"])
 
 
+@pytest.mark.parametrize("theme", THEMES)
+def test_colors_saved_before_chip_colors_get_the_themes_chips(theme):
+    stored = {k: v for k, v in settings.default_node_colors(theme).items()
+              if k not in ("PriorityRank", "PriorityScore", "Unblocking")}
+    settings.NODE_COLORS.by_theme[theme].set({**stored, "Goal": "#123456"})
+    colors = settings.NODE_COLORS.for_theme(theme)
+    assert colors["Goal"] == "#123456"
+    for chip in ("PriorityRank", "PriorityScore", "Unblocking"):
+        assert colors[chip] == settings.default_node_colors(theme)[chip]
+
+
 def test_a_draft_saves_its_colors_under_the_theme_it_chose():
     apply_settings({
         "theme": THEME_STEEL,

@@ -273,6 +273,14 @@ def _build_appearance_tab():
             title_extra=restore_button("btn-restore-status-colors",
                                        "Restore default colors"),
         ),
+        _section(
+            "Chip Colors",
+            "The rank and score chips on Goals cards and Details suggestions, "
+            "and the bar of a step toward a blocked Now node. Their text is white.",
+            html.Div(id="setting-chip-colors-container"),
+            title_extra=restore_button("btn-restore-chip-colors",
+                                       "Restore default colors"),
+        ),
     ])
 
 

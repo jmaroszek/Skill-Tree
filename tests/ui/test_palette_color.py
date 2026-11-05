@@ -6,13 +6,14 @@ from skilltree.ui.styles import BADGE_PALETTE, badge_style, palette_color
 
 TYPES = ("Goal", "Action", "Learn", "Resource", "Milestone")
 STATUSES = ("Open", "Done", "Blocked")
+CHIPS = ("PriorityRank", "PriorityScore", "Unblocking")
 
 
 def _set(name, color):
     settings.NODE_COLORS.set({**settings.NODE_COLORS.get(), name: color})
 
 
-@pytest.mark.parametrize("name", [*TYPES, *STATUSES, "Now"])
+@pytest.mark.parametrize("name", [*TYPES, *STATUSES, "Now", *CHIPS])
 def test_a_bar_and_a_badge_are_the_node_color(name):
     assert palette_color(name) == settings.default_node_colors()[name]
     _set(name, "#2e8b57")
@@ -20,7 +21,8 @@ def test_a_bar_and_a_badge_are_the_node_color(name):
     assert badge_style(name)["backgroundColor"] == "#2e8b57"
 
 
-@pytest.mark.parametrize("name", [*TYPES, *STATUSES, "Now", "Priority", "EventTriggered"])
+@pytest.mark.parametrize("name", [*TYPES, *STATUSES, "Now", *CHIPS, "Priority",
+                                  "EventTriggered"])
 def test_badge_text_on_a_node_color_is_white(name):
     assert badge_style(name)["color"] == "#ffffff"
 
@@ -40,3 +42,9 @@ def test_what_has_no_node_color_stays_in_the_palette():
     assert badge_style("EdgeHard")["color"] == BADGE_PALETTE["EdgeHard"][1]
     assert palette_color("Nothing", "#6c757d") == "#6c757d"
     assert badge_style("Nothing")["backgroundColor"] == "#444"
+
+
+@pytest.mark.parametrize("name", CHIPS)
+def test_chip_colors_are_set_in_appearance_not_the_palette(name):
+    # Appearance sets them, so a fixed palette entry would never be read.
+    assert name not in BADGE_PALETTE

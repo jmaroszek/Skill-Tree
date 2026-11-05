@@ -9,7 +9,7 @@ from skilltree.domain.scoring import explain_score
 from skilltree.store import database
 from skilltree.store.resources import get_sections
 from skilltree.store import settings
-from skilltree.ui.styles import badge_palette, palette_color
+from skilltree.ui.styles import palette_color
 from skilltree.ui import tokens
 from skilltree.ui.components.menus import node_menu_attributes
 from skilltree.ui.components.duration import format_time_friendly
@@ -209,7 +209,7 @@ def format_suggestions_table(suggs, manager, selected_node_id=None, pinned_steps
     max_priority = max(normalized_scores) if normalized_scores else 0
 
     pinned_steps = pinned_steps or {}
-    step_color = badge_palette()['Unblocking'][0]
+    step_color = palette_color('Unblocking')
     # One target per blocked Now node, repeated across its steps — resolve each
     # once so the context trimming below can compare against it.
     step_targets = {name: manager.get_node(name)

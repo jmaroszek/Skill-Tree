@@ -118,6 +118,10 @@ node color in Settings, through `styles.badge_style(name)` for badges and
 `DEFAULT_NODE_COLORS` and `STEEL_NODE_COLORS` in `store/settings.py`. `Priority`
 shares Goal's color, and `EventTriggered` shares Done's.
 
+The rank and score chips and the Unblocking bar are not node colors. They are
+stored with them anyway, so they are per theme and set in Settings → Appearance
+under Chip Colors. Their text is white too.
+
 Zen's palette is Kyoto lifted, after Japanese plant dyes. Two rules keep it
 looking alive rather than faded. Every bar color has about the same saturation
 and lightness, so no type recedes next to another; only Goal is brighter. And
@@ -129,7 +133,8 @@ lightness where white text is faint. Now shares Goal's yellow, since a Now node
 is the goal you are working on right now. If that text proves too hard to read,
 change the text on those two, not the rule for the rest.
 
-Colors with no node color behind them are in `styles.BADGE_PALETTE`. **This file
+Colors with no node color behind them are in `styles.BADGE_PALETTE`. The first
+three rows below are the exception: they are the chip colors Appearance sets. **This file
 is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
 documentation here in sync.** The table lists Zen's values. Steel's are in
 `styles.py`.
@@ -139,9 +144,9 @@ amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Unblocking   | `#b6558c` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| PriorityRank | `#c48e43` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold, and a little more saturated than the score chip because it marks a priority. |
-| PriorityScore | `#769db5` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. A calm slate blue at the rank chip's lightness, kept apart from the Learn and Open blues. |
+| Unblocking   | `#b6558c` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. A default: Appearance sets it, and it lives in `DEFAULT_NODE_COLORS`. |
+| PriorityRank | `#c48e43` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold, and a little more saturated than the score chip because it marks a priority. A default, like Unblocking. |
+| PriorityScore | `#769db5` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. A calm slate blue at the rank chip's lightness, kept apart from the Learn and Open blues. A default, like Unblocking. |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 

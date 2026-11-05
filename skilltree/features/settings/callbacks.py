@@ -120,6 +120,18 @@ def _build_status_color_rows(colors):
     ]
 
 
+# The chips, with the label each row shows.
+_CHIP_COLORS = [
+    ("Rank", "PriorityRank"),
+    ("Score", "PriorityScore"),
+    ("Unblocking", "Unblocking"),
+]
+
+
+def _build_chip_color_rows(colors):
+    return [_build_color_row(label, key, colors) for label, key in _CHIP_COLORS]
+
+
 def _build_type_color_rows(display_types, colors):
     # No label: these sit beside the shape rows, which name each type.
     return [
@@ -545,6 +557,23 @@ def register_settings_callbacks(app, services):
         if not n_clicks:
             return dash.no_update
         return _build_type_color_rows(_display_types(), settings.default_node_colors(theme))
+
+    # --- Settings: Chip colors, as stored, for the chosen theme, or its defaults ---
+    # One writer: opening Settings, choosing a theme and restoring all land here.
+    @app.callback(
+        Output('setting-chip-colors-container', 'children'),
+        Input('settings-modal', 'is_open'),
+        Input('setting-theme', 'value'),
+        Input('btn-restore-chip-colors', 'n_clicks'),
+        prevent_initial_call=True,
+    )
+    def show_chip_colors(is_open, theme, _restore_clicks):
+        if not is_open:
+            return dash.no_update
+        theme = theme if theme in THEMES else settings.THEME.get()
+        if ctx.triggered_id == 'btn-restore-chip-colors':
+            return _build_chip_color_rows(settings.default_node_colors(theme))
+        return _build_chip_color_rows(settings.NODE_COLORS.for_theme(theme))
 
     register_context_editor_callbacks(app, services)
     register_resource_settings_callbacks(app, services)

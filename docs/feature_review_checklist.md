@@ -743,7 +743,7 @@ Check on Nodes, Details and Events unless an item names one.
 
 ## Appearance
 
-- [ ] SE-27. Shapes and colors per type, plus Done, Blocked and Now colors, apply on every canvas at close.
+- [ ] SE-27. Shapes and colors per type, plus Done, Blocked and Now colors, apply on every canvas at close. Chip Colors recolor the rank and score chips on Goals cards and Details suggestions, and a pinned step's bar on Home.
 - [ ] SE-28. Hex shows beside each color. ↺ restores each group.
 - [ ] SE-29. Home's bars and badges are the same colors as the canvas. Change a type color: all of them follow it, and badge text stays white.
 

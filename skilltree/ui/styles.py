@@ -219,20 +219,15 @@ def focus_path_colors():
 LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "var(--st-spinner)"}
 
 
-# Colors with no node color behind them: rank numbers, relationships, edges and
-# event triggers. Each entry is (background, foreground), and each theme has its
-# own. Types and statuses aren't here: bars and badges use the node colors
-# (_SETTING_FOR_COLOR), so a color means one thing everywhere.
+# Colors with no node color behind them: relationships, edges and event
+# triggers. Each entry is (background, foreground), and each theme has its
+# own. Types, statuses and the rank, score and Unblocking chips aren't here:
+# they use the node colors (_SETTING_FOR_COLOR), which Appearance sets, so a
+# color means one thing everywhere.
 #
 # STYLE_GUIDE.md is the human-readable source of truth. Keep it in sync when
 # changing values here.
 BADGE_PALETTE = {
-    # Kyoto lifted's honey, slate and plum. Score is a calm slate blue, apart
-    # from the Learn and Open blues. Rank is the same lightness but a little
-    # more saturated, because it marks a priority.
-    'PriorityRank': ('#c48e43', '#ffffff'),
-    'PriorityScore': ('#769db5', '#ffffff'),
-    'Unblocking': ('#b6558c', '#ffffff'),
     'HardRelPri': ('#305170', '#d8e0e8'),
     'SoftRelPri': ('#44515b', '#d4d8da'),
     'EventTrigger':   ('#4d4d4d', '#d1d1d1'),
@@ -242,20 +237,7 @@ BADGE_PALETTE = {
     'EdgeSelf':    ('#685f53', '#e4ddd4'),
 }
 
-# Zen's chips before Kyoto lifted, kept with settings.ZEN_VIVID_NODE_COLORS
-# while it's on trial. Nothing reads them.
-ZEN_VIVID_BADGE_COLORS = {
-    'PriorityRank': ('#b98332', '#ffffff'),
-    'PriorityScore': ('#3467a9', '#ffffff'),
-    'Unblocking': ('#985984', '#ffffff'),
-}
-
 _STEEL_BADGE_PALETTE = {
-    # The bare rank number on Goals-sidebar cards and Details suggestions.
-    # Darkly's warning orange, deliberately warmer than the Goal yellow.
-    'PriorityRank': ('#ca872d', '#ffffff'),
-    'PriorityScore': ('#2961bf', '#ffffff'),
-    'Unblocking': ('#a73e8e', '#ffffff'),  # steps pinned toward a blocked Now node
     # Relationship-priority badges.
     'HardRelPri': ('#2a4d6e', '#d6e0ee'),
     'SoftRelPri': ('#414f5c', '#d0d6dc'),
@@ -288,7 +270,8 @@ def badge_palette():
 # type, so it shares Goal's. A fired event speaks the same vocabulary as Done.
 _SETTING_FOR_COLOR = {
     **{name: name for name in ('Goal', 'Action', 'Learn', 'Resource', 'Milestone', 'Now',
-                               STATUS_OPEN, STATUS_DONE, STATUS_BLOCKED)},
+                               STATUS_OPEN, STATUS_DONE, STATUS_BLOCKED,
+                               'PriorityRank', 'PriorityScore', 'Unblocking')},
     'Priority': 'Goal',
     'EventTriggered': STATUS_DONE,
 }

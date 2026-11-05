@@ -59,6 +59,11 @@ DEFAULT_SUBCONTEXTS = {
 # lightness. Bars and badges use them too, through styles.palette_color().
 # default_node_colors() is the current theme's. Now is Goal's gold, a shade
 # lighter: a Now node is the goal you are working on right now.
+#
+# The last three are chips, not nodes, kept here so they are per theme and set
+# in Appearance like the rest. Rank and score are the corner chips on Goals
+# cards and Details suggestions; Unblocking colors the bar of a step pinned
+# toward a blocked Now node. Each holds white text.
 DEFAULT_NODE_COLORS = {
     STATUS_BLOCKED: '#d45652',
     STATUS_OPEN: '#3b78c4',
@@ -69,10 +74,16 @@ DEFAULT_NODE_COLORS = {
     'Resource': '#9c6acb',
     'Milestone': '#0da7a5',
     'Now': '#ebc646',
+    # Kyoto lifted's honey, slate and plum. Score is a calm slate blue, apart
+    # from the Learn and Open blues. Rank is the same lightness but a little
+    # more saturated, because it marks a priority.
+    'PriorityRank': '#c48e43',
+    'PriorityScore': '#769db5',
+    'Unblocking': '#b6558c',
 }
 
 # Zen's previous, saturated palette. Kept while Kyoto lifted is on trial, so
-# going back is one swap (with styles.ZEN_VIVID_BADGE_COLORS). Nothing reads it.
+# going back is one swap. Nothing reads it.
 ZEN_VIVID_NODE_COLORS = {
     STATUS_BLOCKED: '#bd413f',
     STATUS_OPEN: '#326fba',
@@ -83,6 +94,9 @@ ZEN_VIVID_NODE_COLORS = {
     'Resource': '#8e51c8',
     'Milestone': '#25aab1',
     'Now': '#dabd27',
+    'PriorityRank': '#b98332',
+    'PriorityScore': '#3467a9',
+    'Unblocking': '#985984',
 }
 
 # Steel's: its original Bootstrap hues, tuned by hand. Now shares Goal's yellow.
@@ -96,6 +110,10 @@ STEEL_NODE_COLORS = {
     'Resource': '#8844ad',
     'Milestone': '#04a8bf',
     'Now': '#cba92b',
+    # Darkly's warning orange, deliberately warmer than the Goal yellow.
+    'PriorityRank': '#ca872d',
+    'PriorityScore': '#2961bf',
+    'Unblocking': '#a73e8e',
 }
 
 # Default soft cap on simultaneously-Now nodes, overridable via the Recommendations

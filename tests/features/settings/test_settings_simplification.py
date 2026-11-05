@@ -222,6 +222,26 @@ def test_type_and_status_colors_show_their_hex():
     assert DEFAULT_NODE_COLORS["Now"] in status_text
 
 
+def test_appearance_sets_the_chip_colors():
+    from skilltree.features.settings.callbacks import _build_chip_color_rows
+    from skilltree.store.settings import DEFAULT_NODE_COLORS
+
+    assert "setting-chip-colors-container" in _by_id(build_settings_modal())
+    assert "btn-restore-chip-colors" in _by_id(build_settings_modal())
+    rows = _build_chip_color_rows({"PriorityScore": "#123456"})
+    pickers = {component.id["index"]: component.value for component in _walk(rows)
+               if getattr(component, "type", None) == "color"}
+    # Saving reads every setting-color picker, so these keys are what is stored.
+    assert pickers == {
+        "PriorityRank": DEFAULT_NODE_COLORS["PriorityRank"],
+        "PriorityScore": "#123456",
+        "Unblocking": DEFAULT_NODE_COLORS["Unblocking"],
+    }
+    text = _text(rows)
+    for label in ("Rank", "Score", "Unblocking"):
+        assert label in text
+
+
 def test_technical_and_maintenance_controls_are_not_user_facing():
     components = _by_id(build_settings_modal())
     removed = {
@@ -269,3 +289,28 @@ def test_tabs_group_settings_by_what_they_adjust():
     appearance = _tab_ids(tabs["tab-appearance"])
     assert "setting-node-shapes-container" in appearance
     assert "setting-name-format-mode" not in appearance
+
+
+def _picked(rows):
+    return {component.id["index"]: component.value for component in _walk(rows)
+            if getattr(component, "type", None) == "color"}
+
+
+def test_chip_colors_follow_the_theme_and_restore_its_defaults(temp_database):
+    from skilltree.domain.themes import THEME_STEEL, THEME_ZEN
+    from skilltree.features.settings.callbacks import register_settings_callbacks
+    from skilltree.store import settings
+    from support.callbacks import registered
+    from support.triggers import fire
+
+    show = registered(register_settings_callbacks)["show_chip_colors"]
+    settings.NODE_COLORS.set({**settings.NODE_COLORS.get(), "PriorityScore": "#123456"})
+
+    fire("settings-modal.is_open")
+    assert _picked(show(True, THEME_ZEN, None))["PriorityScore"] == "#123456"
+    fire("setting-theme.value")
+    assert _picked(show(True, THEME_STEEL, None))["PriorityScore"] == (
+        settings.STEEL_NODE_COLORS["PriorityScore"])
+    fire("btn-restore-chip-colors")
+    assert _picked(show(True, THEME_ZEN, 1))["PriorityScore"] == (
+        settings.DEFAULT_NODE_COLORS["PriorityScore"])
