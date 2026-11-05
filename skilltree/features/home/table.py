@@ -19,7 +19,7 @@ from skilltree.ui.components.duration import format_time_friendly
 # The Next priority bar: a tinted fill with a solid edge at its end. The edge
 # marks the exact value; the tint keeps the type colours from outweighing the
 # length (solid orange read as more urgent than solid blue at the same score).
-BAR_FILL_PERCENT = 70
+BAR_FILL_PERCENT = 60
 
 
 # The name column is as wide as the longest visible name, within these bounds.

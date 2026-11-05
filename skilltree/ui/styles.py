@@ -227,9 +227,11 @@ LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "var(--st-s
 # STYLE_GUIDE.md is the human-readable source of truth. Keep it in sync when
 # changing values here.
 BADGE_PALETTE = {
-    # Kyoto lifted's honey, deep sky and plum, at its saturation.
-    'PriorityRank': ('#c58a35', '#ffffff'),
-    'PriorityScore': ('#0d72b3', '#ffffff'),
+    # Kyoto lifted's honey, slate and plum. Score is a calm slate blue, apart
+    # from the Learn and Open blues. Rank is the same lightness but a little
+    # more saturated, because it marks a priority.
+    'PriorityRank': ('#c48e43', '#ffffff'),
+    'PriorityScore': ('#769db5', '#ffffff'),
     'Unblocking': ('#b6558c', '#ffffff'),
     'HardRelPri': ('#305170', '#d8e0e8'),
     'SoftRelPri': ('#44515b', '#d4d8da'),

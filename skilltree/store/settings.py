@@ -52,25 +52,22 @@ DEFAULT_SUBCONTEXTS = {
 
 
 # Zen's canvas colors: Kyoto lifted, after Japanese plant dyes (madder,
-# persimmon, yamabuki gold, young leaf, verdigris, sky, wisteria). Their
-# saturation sits between screen hues and the dyes themselves. Every bar color
-# has about the same saturation and lightness, so none recedes; only Goal is
-# brighter. Dark, muted colors read as decay, so these stay light. sRGB can't
-# make the sky blues as saturated as the rest, so Learn sits a little lighter to
-# carry the same weight. The blues and teal stop short of the screen's limit,
-# where they would look electric. Bars and badges use them too, through
-# styles.palette_color(). default_node_colors() is the current theme's. Now is
-# Goal's gold, a shade brighter: a Now node is the goal you are working on
-# right now.
+# persimmon, yamabuki gold, young leaf, verdigris, sky, wisteria), tuned by hand
+# in the Palette Lab. Their saturation sits between screen hues and the dyes
+# themselves, and the bar colors carry about the same weight, so none recedes.
+# Dark, muted colors read as decay, so these stay light. Done shares Blocked's
+# lightness. Bars and badges use them too, through styles.palette_color().
+# default_node_colors() is the current theme's. Now is Goal's gold, a shade
+# lighter: a Now node is the goal you are working on right now.
 DEFAULT_NODE_COLORS = {
-    STATUS_BLOCKED: '#cf4c5c',
-    STATUS_OPEN: '#2981c5',
-    STATUS_DONE: '#289353',
-    'Goal': '#debb46',
-    'Action': '#d8803d',
-    'Learn': '#2694e4',
-    'Resource': '#9b6cc7',
-    'Milestone': '#20a6a4',
+    STATUS_BLOCKED: '#d45652',
+    STATUS_OPEN: '#3b78c4',
+    STATUS_DONE: '#3a9b5d',
+    'Goal': '#d2b619',
+    'Action': '#d97f3a',
+    'Learn': '#2479c4',
+    'Resource': '#9c6acb',
+    'Milestone': '#0da7a5',
     'Now': '#ebc646',
 }
 
