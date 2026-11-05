@@ -184,7 +184,7 @@
                 'aria-label',
                 instance.state.context
                     ? 'Context: ' + value.textContent
-                    : instance.emptyLabel
+                    : (instance.emptyLabel || 'Select context')
             );
             return;
         }
@@ -862,7 +862,9 @@
         var instance = {
             root: root,
             mode: root.dataset.contextPickerMode,
-            emptyLabel: root.dataset.emptyLabel || 'Select context',
+            // An empty label is deliberate (the editor's picker has a title above
+            // it), so only a missing one falls back.
+            emptyLabel: 'emptyLabel' in root.dataset ? root.dataset.emptyLabel : 'Select context',
             trigger: root.querySelector('.context-picker-trigger'),
             clearButton: root.querySelector('.context-picker-clear'),
             action: root.querySelector('.context-picker-action input'),

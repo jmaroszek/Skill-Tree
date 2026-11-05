@@ -187,7 +187,7 @@ def render_resource_sections(links):
         for index, value in enumerate(values):
             key = f"{section_id}:{index}"
             children = [dbc.Input(id={'type': 'resource-link', 'index': key},
-                                  value=value, type='text', placeholder='Enter path or URL...'),
+                                  value=value, type='text', placeholder='Path or URL...'),
                         html.Button(html.I(className='bi bi-folder2-open'),
                                    id={'type': 'resource-browse', 'index': key},
                                    type='button', className='btn btn-primary editor-icon-btn', **hint('Browse', label=True)),

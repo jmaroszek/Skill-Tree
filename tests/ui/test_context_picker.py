@@ -234,3 +234,9 @@ def test_history_filter_keeps_whole_contexts_beside_partial_ones():
     )
 
     assert [n.name for n in kept] == ["a", "b", "d"]
+
+
+def test_a_picker_can_have_an_empty_label():
+    picker = build_single_context_picker("p", "c", "s", empty_label="")
+
+    assert _by_id(picker, "p-trigger").children.children == ""

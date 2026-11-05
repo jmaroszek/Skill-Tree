@@ -41,7 +41,7 @@ def build_filters_content():
                                className_extra="float-end")
         ], className="d-flex justify-content-between align-items-center mb-1 mt-2"),
 
-        html.H5("Search", className="mt-3", style={"marginBottom": "0.75rem"}),
+        html.H5("Names", className="mt-3", style={"marginBottom": "0.75rem"}),
         # The query applies on Enter or when the field loses focus, not per
         # keystroke: each change to a filter lays the canvas out again, and on
         # a large graph a layout per letter is the sluggishness to avoid. The

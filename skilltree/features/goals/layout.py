@@ -63,7 +63,7 @@ def build_goal_card(name: str, status: str, completion: dict, subtask_count: int
             style={**badge_style(STATUS_DONE, font_size=tokens.FS_XS),
                    "width": "62px", "textAlign": "center", "display": "inline-block"})
     elif corner_text and priority_rank is None:
-        corner_badge = goal_corner_badge(corner_text, STATUS_OPEN, _badge_cls)
+        corner_badge = goal_corner_badge(corner_text, "PriorityScore", _badge_cls)
     else:
         corner_badge = None
 

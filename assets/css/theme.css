@@ -132,6 +132,9 @@
     top: 12px;
     left: 16px;
     z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 .canvas-segmented {
     display: flex;
@@ -143,6 +146,10 @@
 .canvas-segmented .form-check {
     padding-left: 0;
     margin: 0;
+    /* Bootstrap's 1.5rem floor and baseline alignment leave the label
+       sitting low in its row; a flex box shrinks to the label. */
+    min-height: 0;
+    display: flex;
 }
 .canvas-segmented .btn {
     padding: 2px 12px;
@@ -158,8 +165,13 @@
     background: var(--st-accent-fill);
     color: #fff;
 }
-/* The "Filtered" chip steps right of the switch when both show. */
-.filter-chip-after-segmented { left: 190px; }
+/* Section rules in the editor and Filters sidebars: fainter than Bootstrap's
+   default, since a long form has many of them. The rule above the editor's
+   pinned buttons keeps full strength, because it marks where scrolling ends. */
+#sidebar-editor-container hr:not(.editor-footer-rule),
+#sidebar-filters-container hr {
+    opacity: 0.185;
+}
 /* The top bar's funnel while any filter is on: solid white. */
 .filters-icon-active { color: #fff; }
 
@@ -986,8 +998,8 @@
 
 /* --- Settings: choice cards (Scoring Profile) --- */
 /* A radio list whose every option says what it does, so choosing needs no
-   reference. The whole card is the click target; the checked card takes the
-   accent border and a faint accent wash. */
+   reference. The whole card is the click target; the radio's fill alone marks
+   the chosen one, so the card keeps its outline. */
 .settings-choice-list {
     display: flex;
     flex-direction: column;
@@ -1003,10 +1015,6 @@
 }
 .settings-choice-list .form-check:hover {
     background-color: var(--st-ghost-hover-dark);
-}
-.settings-choice-list .form-check:has(.form-check-input:checked) {
-    border-color: var(--st-accent);
-    background-color: var(--st-accent-wash);
 }
 .settings-choice-list .form-check-input {
     position: absolute;
@@ -1620,7 +1628,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 
 .ctx-menu-caret {
-    color: var(--st-text-soft);
+    color: var(--st-chevron);
     font-size: var(--st-fs-cap);
     margin-left: 12px;
     line-height: 1;
@@ -2425,7 +2433,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 /* The Explain modal uses the glyph on a dark panel, so this variant repaints
    it in muted panel text. Geometry and rotation are unchanged. */
 .editor-chevron.on-dark {
-    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23adb5bd' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
 
 /* --- Text actions (ui/kit.py *_action) ---------------------------------- */
@@ -2842,7 +2850,7 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
 }
 .progress {
     --bs-progress-bg: var(--st-bg-sunken);
-    --bs-progress-bar-bg: var(--st-accent);
+    --bs-progress-bar-bg: var(--st-accent-progress);
 }
 /* This one carries white words. */
 #calibration-review-progress {

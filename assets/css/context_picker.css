@@ -27,6 +27,28 @@
     text-align: left;
 }
 
+/* The chevron is drawn here, not by Bootstrap's background, so it turns over
+   while the menu is open (aria-expanded), as the native selects' chevrons and
+   the Dash dropdowns' do. Same glyph and place as fields.css's form-select. */
+.context-picker-trigger.form-select {
+    position: relative;
+    background-image: none;
+}
+.context-picker-trigger.form-select::after {
+    content: "";
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    width: 16px;
+    height: 12px;
+    margin-top: -6px;
+    background: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23999999' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") center / 16px 12px no-repeat;
+    transition: transform 0.2s ease;
+}
+.context-picker-trigger.form-select[aria-expanded="true"]::after {
+    transform: rotate(180deg);
+}
+
 .context-picker-multi .context-picker-trigger.form-select {
     padding-right: 4.75rem;
 }
@@ -36,6 +58,11 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* An empty trigger keeps one line's height, so it matches the fields around it. */
+.context-picker-value:empty {
+    min-height: 1.5em;
 }
 
 /* Same gray as every other field's placeholder. */
@@ -135,9 +162,10 @@ html.keyboard-mode .context-picker-search.form-control:focus {
     flex: 0 0 auto;
     width: 9px;
     height: 9px;
-    border-right: 2px solid var(--st-text-dim);
-    border-bottom: 2px solid var(--st-text-dim);
+    border-right: 2px solid var(--st-chevron);
+    border-bottom: 2px solid var(--st-chevron);
     transform: rotate(-45deg);
+    transition: transform 0.15s ease;
 }
 
 .context-picker-submenu-heading {

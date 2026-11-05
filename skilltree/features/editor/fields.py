@@ -41,13 +41,13 @@ def register_field_callbacks(app, services):
     app.clientside_callback(
         """
         function(time_mode_val, habit_mode_val) {
-            var hidden_w = {display: 'none', width: '100px'};
-            var visible_w = {width: '100px'};
+            // The unit select's width comes from custom.css (time-unit-select),
+            // so this sets only its visibility.
             var inherit_on = !!(time_mode_val && time_mode_val.indexOf('inherited') >= 0);
             var habit_on = !!(habit_mode_val && habit_mode_val.indexOf('habit') >= 0);
-            if (inherit_on) return [{display: 'none'}, {display: 'none'}, hidden_w];
-            if (habit_on) return [{display: 'none'}, {}, hidden_w];
-            return [{}, {display: 'none'}, visible_w];
+            if (inherit_on) return [{display: 'none'}, {display: 'none'}, {display: 'none'}];
+            if (habit_on) return [{display: 'none'}, {}, {display: 'none'}];
+            return [{}, {display: 'none'}, {}];
         }
         """,
         Output('section-time-omp', 'style'),

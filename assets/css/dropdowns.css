@@ -51,7 +51,7 @@ select.form-select:has(> option[value=""][hidden]:checked) {
 .dash-dropdown-trigger-icon path {
     d: path("M2 5l6 6 6-6") !important;
     fill: none !important;
-    stroke: currentColor !important;
+    stroke: var(--st-chevron) !important;
     stroke-width: 2 !important;
     stroke-linecap: round !important;
     stroke-linejoin: round !important;
@@ -60,6 +60,18 @@ select.form-select:has(> option[value=""][hidden]:checked) {
 /* Do NOT add a blanket colour rule for `.dash-dropdown-value` here: it also
    catches the placeholder, which would turn the "Hard..." / "Soft..." hints
    the same colour as a value, not the grey every other field uses. */
+
+/* Dash's clear "x" turns the accent on hover and outlines it in the accent on
+   focus. A control that only brightens should stay in its own hue. */
+body .dash-dropdown-clear {
+    color: var(--st-text-soft);
+}
+body .dash-dropdown-clear:hover {
+    color: var(--st-field-fg);
+}
+body .dash-dropdown-clear:focus-visible {
+    outline: 2px solid var(--st-text-dim);
+}
 
 /* The Details selector puts its clear action beside the chevron. Keep the
    visible x at native size but grow its hit target into the dead space on its
@@ -235,6 +247,13 @@ span.dash-dropdown-option {
 
 /* --- 2b. Native <select> (dbc.Select) -------------------------------- */
 
+/* Registered, so the value is an angle CSS can transition. */
+@property --select-chevron-turn {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+}
+
 @supports (appearance: base-select) {
     /* Opting in also hands us the trigger's internals, which means restating
        two things DARKLY assumed it owned:
@@ -243,13 +262,8 @@ span.dash-dropdown-option {
          <selectedcontent> and ::picker-icon as real boxes; left in block flow
          they stack, and the control grows from 38px to 62px.
        - The chevron. base-select adds its own ::picker-icon, a filled
-         triangle, which is NOT the thin stroked V that Bootstrap draws as a
-         background image and that the context picker and dcc.Dropdown both
-         match. Keeping Bootstrap's and hiding base-select's is what keeps a
-         Type select and the Context picker beside it identical when closed --
-         which they always were, and which is the whole point. Removing
-         Bootstrap's instead leaves one control with a different glyph from
-         every other control in the app.
+         triangle, which is NOT the thin stroked V that the context picker and
+         dcc.Dropdown use. It is hidden, and the rule below draws the V.
 
        Everything else about the closed control stays exactly as DARKLY drew
        it — only the open state changes. */
@@ -274,8 +288,26 @@ span.dash-dropdown-option {
         min-height: var(--st-control-height);
     }
 
+    /* The chevron turns over while the list is open, as the context picker's
+       and the Dash dropdowns' do. A select has no box to rotate: ::picker-icon
+       and ::after paint nothing in Electron's Chromium, and a background image
+       can't turn. So assets/components/select_chevron.js draws it, and the
+       transition runs on the angle it reads. Where paint() is missing, the V
+       from fields.css stays, without the turn. */
     select.form-select::picker-icon {
         display: none;
+    }
+    @supports (background-image: paint(select-chevron)) {
+        select.form-select {
+            background-image: paint(select-chevron);
+            background-size: 16px 12px;
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            transition: --select-chevron-turn 0.2s ease;
+        }
+        select.form-select:open {
+            --select-chevron-turn: 180deg;
+        }
     }
 
     select::picker(select) {

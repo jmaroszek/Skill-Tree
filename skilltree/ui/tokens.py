@@ -50,6 +50,8 @@ TEXT_ON_FIELD = "var(--st-text-on-field)"
 # --- Accents ----------------------------------------------------------------
 ACCENT = "var(--st-accent)"
 ACCENT_SOFT = "var(--st-accent-soft)"
+ACCENT_CHART = "var(--st-accent-chart)"
+ACCENT_PROGRESS = "var(--st-accent-progress)"
 DANGER = "var(--st-danger)"
 DANGER_TEXT = "var(--st-danger-text)"
 

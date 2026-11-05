@@ -22,7 +22,6 @@ import dash_cytoscape as cyto
 from skilltree.store import settings
 from skilltree.ui.styles import badge_style, badge_palette
 from skilltree.ui.styles import stylesheet
-from skilltree.domain.models import STATUS_OPEN
 from skilltree.ui.components.duration import format_time_friendly
 from skilltree.ui.canvas.settings_panel import (
     freeze_indicator, build_graph_settings_panel,
@@ -106,11 +105,6 @@ def build_details_tab_content():
         # Spacing: the name and badges read as one header. The description,
         # Goal progress and stats grid are separate blocks, so the gaps between
         # them are wider than the gaps inside them.
-
-        # Badges row: type, status, priority
-        html.Div(id="details-node-badges",
-                 className="d-flex gap-1 flex-wrap",
-                 style={"marginBottom": tokens.SPACE_BLOCK}),
 
         # Description
         html.Div(id="details-node-description",
@@ -259,6 +253,8 @@ def build_details_tab_content():
                 Tooltip("Needs shows what leads into this node. Supports shows "
                         "what it leads to.",
                         target="details-direction", placement="bottom"),
+                # The filter chip shares the switch's row, so their middles line up.
+                filter_chip("details-filter-chip"),
             ], className="canvas-segmented-overlay"),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",
@@ -272,8 +268,6 @@ def build_details_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Full screen", target="btn-details-graph-fullscreen", placement="left"),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
-            filter_chip("details-filter-chip",
-                        "filter-chip-overlay filter-chip-after-segmented"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",
@@ -613,7 +607,7 @@ def build_suggestion_row(node, priority_rank=None, priority=None):
                                     "badge details-suggestion-badge")
     elif priority is not None:
         label_bits = [f"Priority score {priority}"]
-        corner = goal_corner_badge(str(priority), STATUS_OPEN,
+        corner = goal_corner_badge(str(priority), "PriorityScore",
                                     "badge details-suggestion-badge")
     else:
         label_bits, corner = [], None

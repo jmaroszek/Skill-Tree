@@ -5,9 +5,8 @@ Callback definitions for the Details tab.
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.store import database
 import json
-from dash import html, Input, Output, State, ALL, ctx, no_update, ClientsideFunction
+from dash import Input, Output, State, ALL, ctx, no_update, ClientsideFunction
 from skilltree.store import settings
-from skilltree.ui.styles import badge_style
 from skilltree.domain.models import EDGE_NEEDS_HARD, EDGE_NEEDS_SOFT, EDGE_HELPS, STATUS_DONE
 from skilltree.features.details.layout import (build_suggestion_row, build_details_suggestions)
 from skilltree.ui.prerender import prerendered
@@ -117,7 +116,6 @@ def register_details_callbacks(app, services):
         Output("details-selected-node-store", "data"),
         # Node attributes
         Output("details-node-name", "children"),
-        Output("details-node-badges", "children"),
         Output("details-node-description", "children"),
         Output("details-attr-type", "children"),
         Output("details-attr-status", "children"),
@@ -179,7 +177,7 @@ def register_details_callbacks(app, services):
                 {"display": "block"},
                 {"display": "none"},
                 _selection_output(None),
-                "", [], "", "", "", "", "", "", "", "",
+                "", "", "", "", "", "", "", "", "",
                 {"display": "none"}, 0, "",
                 {"display": "none"}, "",
                 {"display": "none"}, {}, [],
@@ -189,52 +187,11 @@ def register_details_callbacks(app, services):
 
         node = graph_manager.get_node(node_name)
         if not node:
-            return (no_update,) * 25
+            return (no_update,) * 24
 
         include_soft = bool(include_soft_val and "include" in include_soft_val)
         include_synergies = bool(include_synergies_val and "include" in include_synergies_val)
         max_depth = normalize_max_depth(max_depth_val)
-
-        # Build badges. Order: Status → Priority → Type → RelPriority.
-        # Goal type tile is suppressed when a Priority N tile is shown
-        # (the Priority tile already implies "this is a Goal").
-        badges = []
-        priority_goals = settings.PRIORITY_GOALS.get()
-        is_priority_goal = node_name in priority_goals
-
-        # 1. Status (always)
-        badges.append(html.Span(node.status, className="badge",
-                                style=badge_style(node.status)))
-
-        # 2b. Now (if currently being worked on). Uses the same
-        # configurable color as the canvas border encoding.
-        if node.now:
-            badges.append(html.Span("Now", className="badge",
-                                    style=badge_style('Now')))
-
-        # 2. Priority (Priority N for priority Goals)
-        if is_priority_goal:
-            rank = priority_goals.index(node_name) + 1
-            badges.append(html.Span(f"Priority {rank}", className="badge",
-                                    style=badge_style('Priority')))
-
-        # 3. Type (skip Goal when Priority N already rendered above)
-        if node.type and not is_priority_goal:
-            badges.append(html.Span(node.type, className="badge",
-                                    style=badge_style(node.type)))
-
-        # 4. Relationship Priority (Hard/Soft N for non-priority nodes in a priority Goal's subtree)
-        if not is_priority_goal:
-            for rank_idx, goal_name in enumerate(priority_goals[:3]):
-                subtree = graph_manager.get_goal_subtree(goal_name)
-                if node_name in subtree:
-                    hard_subtree = graph_manager.get_goal_subtree(goal_name, edge_types=(EDGE_NEEDS_HARD,))
-                    rel_type = "Hard" if node_name in hard_subtree else "Soft"
-                    palette_name = "HardRelPri" if rel_type == "Hard" else "SoftRelPri"
-                    badges.append(html.Span(f"{rel_type} {rank_idx+1}",
-                                            className="badge",
-                                            style=badge_style(palette_name)))
-                    break
 
         ctx_str = node.context or "—"
         if node.subcontext:
@@ -317,7 +274,6 @@ def register_details_callbacks(app, services):
             DETAILS_CONTENT_SHOWN,
             _selection_output(node_name),
             node.name,
-            badges,
             node.description or "No description.",
             node.type or "—",
             node.status or "—",

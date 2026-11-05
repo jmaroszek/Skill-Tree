@@ -56,8 +56,9 @@ reloads the page, because some colors come from the server:
   keeps its own picks.
 
 Nodes on a canvas use Steel's colors, softened slightly in OKLCH. More than that
-reads as washed out on neutral grey. Bars and badges use the same node colors. A simulation's bars take the theme's accent. A
-progress bar does too, with the Done green at 100%.
+reads as washed out on neutral grey. Bars and badges use the same node colors.
+In Minimal, a simulation's bars and a progress bar share one muted accent
+(`--st-accent-progress`), and a progress bar turns the Done green at 100%.
 
 A Plotly chart has no surface of its own, and its rules are translucent, so one
 set of chart colors holds on every theme.
@@ -118,7 +119,10 @@ node color in Settings, through `styles.badge_style(name)` for badges and
 shares Goal's color, and `EventTriggered` shares Done's.
 
 Text on a node color is always white, because a mix of dark and white text looks
-bad. So a default node color has to be dark enough to hold white text.
+bad. The yellow Goal color is the weak spot: it reads as yellow only at a
+lightness where white text is faint. Now shares Goal's yellow, since a Now node
+is the goal you are working on right now. If that text proves too hard to read,
+change the text on those two, not the rule for the rest.
 
 Colors with no node color behind them are in `styles.BADGE_PALETTE`. **This file
 is the human-readable source of truth — keep `styles.BADGE_PALETTE` and the
@@ -130,8 +134,9 @@ amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Unblocking   | `#b734a0` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| PriorityRank | `#dc9428` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. Darkly's warning orange, deliberately warmer than the Goal yellow. |
+| Unblocking   | `#985984` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
+| PriorityRank | `#b98332` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. An amber, deliberately warmer than the Goal yellow. |
+| PriorityScore | `#3467a9` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. Its own blue, so it does not follow the Open color. |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 
@@ -810,9 +815,12 @@ than by reading the spec:
   `select::picker(select) option` is dropped silently by the parser, so rows
   have to be addressed as plain `option`.
 - The trigger needs `display: flex`, or base-select stacks its parts and the
-  control grows from 38px to 62px. Keep Bootstrap's established chevron and
-  hide the added `::picker-icon`, so native selects continue to match the
-  context picker and `dcc.Dropdown` when closed.
+  control grows from 38px to 62px. Hide the added `::picker-icon`, since
+  Electron's Chromium paints nothing for it. A paint worklet
+  (`assets/components/select_chevron.js`) draws the chevron and turns it, so
+  native selects match the context picker and `dcc.Dropdown` open and closed.
+- Every chevron is one gray in every theme, `--st-chevron`. The data URI ones
+  can't read a variable, so they write its value, `#999999`.
 - Set `position-try-order: normal` on the picker. Chromium's UA default prefers
   whichever side has more vertical room, which can open a short menu upward
   even when it fits below. `normal` tries below first and retains the UA's
@@ -1151,7 +1159,7 @@ html.Span(rel, className="badge",
           style=badge_style('HardRelPri', font_size="0.7rem"))
 ```
 
-Valid names: `Goal`, `Priority`, `PriorityRank`, `Action`, `Learn`,
+Valid names: `Goal`, `Priority`, `PriorityRank`, `PriorityScore`, `Action`, `Learn`,
 `Resource`, `Milestone`, `Open`, `Done`, `Blocked`, `HardRelPri`, `SoftRelPri`,
 `EventTrigger`, `EventTriggered`. Unknown names fall back to a neutral gray.
 

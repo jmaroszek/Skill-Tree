@@ -51,31 +51,32 @@ DEFAULT_SUBCONTEXTS = {
 }
 
 
-# Minimal's canvas colors: Steel's, softened slightly in OKLCH. More than this
-# reads as washed out on neutral grey. Bars and badges use them too, through
-# styles.palette_color(). default_node_colors() is the current theme's.
+# Minimal's canvas colors, picked by hand on its greys. Bars and badges use them too, through
+# styles.palette_color(). default_node_colors() is the current theme's. Now
+# is Goal's yellow, a shade apart: a Now node is the goal you are working on right now.
 DEFAULT_NODE_COLORS = {
-    STATUS_BLOCKED: '#d84750',
-    STATUS_OPEN: '#277cf3',
-    STATUS_DONE: '#358f5c',
-    'Goal': '#d2c134',
-    'Action': '#f1822d',
-    'Learn': '#277cf3',
-    'Resource': '#9558bd',
-    'Milestone': '#30a6b5',
-    'Now': '#f8ca28',
+    STATUS_BLOCKED: '#bd413f',
+    STATUS_OPEN: '#326fba',
+    STATUS_DONE: '#1c8c54',
+    'Goal': '#dec33b',
+    'Action': '#cf7617',
+    'Learn': '#2278c3',
+    'Resource': '#8e51c8',
+    'Milestone': '#25aab1',
+    'Now': '#dabd27',
 }
 
+# Steel's: its original Bootstrap hues, tuned by hand. Now shares Goal's yellow.
 STEEL_NODE_COLORS = {
-    STATUS_BLOCKED: '#dc3545',
-    STATUS_OPEN: '#0d6efd',
-    STATUS_DONE: '#198754',
-    'Goal': '#d3c41d',
-    'Action': '#fd7e14',
-    'Learn': '#0d6efd',
-    'Resource': '#9047b8',
-    'Milestone': '#17a2b8',
-    'Now': '#ffd000',
+    STATUS_BLOCKED: '#b84448',
+    STATUS_OPEN: '#2e68ca',
+    STATUS_DONE: '#0f8451',
+    'Goal': '#cba92b',
+    'Action': '#c1631f',
+    'Learn': '#2266d5',
+    'Resource': '#8844ad',
+    'Milestone': '#04a8bf',
+    'Now': '#cba92b',
 }
 
 # Default soft cap on simultaneously-Now nodes, overridable via the Recommendations

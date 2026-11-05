@@ -1,6 +1,6 @@
 """Shared estimate guidance, the Time Simulation forecast chart, and worked hours
 in the user's units."""
-from skilltree.ui.styles import accent_color
+from skilltree.ui.styles import chart_accent_color
 import math
 
 import dash_bootstrap_components as dbc
@@ -259,7 +259,7 @@ def simulation_figure(summary, time_settings=None, requested_trials=None):
 
     fig = go.Figure(go.Bar(
         x=centers, y=counts, width=width,
-        marker_color=accent_color(),
+        marker_color=chart_accent_color(),
         customdata=hover,
         hovertemplate="%{customdata}<extra></extra>",
     ))

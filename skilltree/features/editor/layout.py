@@ -45,7 +45,7 @@ def render_alias_rows(aliases, input_type="alias-input", remove_type="btn-alias-
     for i, val in enumerate(alias_list):
         rows.append(html.Div([
             dbc.Input(id={'type': input_type, 'index': i}, type='text',
-                      value=val or '', placeholder='Enter alias...'),
+                      value=val or ''),
             html.Button(html.I(className='bi bi-x-lg'),
                        id={'type': remove_type, 'index': i},
                        type='button', className='btn btn-primary editor-icon-btn editor-icon-btn-danger',
@@ -301,7 +301,7 @@ def build_node_editor_content():
                     id="search-node",
                     options=[],  # Populated dynamically by core_engine callback
                     value=None,
-                    placeholder="Search by names and aliases...",
+                    placeholder="",
                     searchable=True,
                     clearable=True,
                 )),
@@ -337,7 +337,7 @@ def build_node_editor_content():
                     dbc.Label("Name", className="mb-0"),
                     add_button("btn-alias-add", "Add alias"),
                 ], className="d-flex align-items-center mt-2 mb-1"),
-                dbc.Input(id="node-name", type="text", placeholder="Name node..."),
+                dbc.Input(id="node-name", type="text"),
                 html.Div(id="node-name-duplicate-warning", children="",
                          style={"display": "none"}, className="mt-1"),
                 dbc.Collapse(
@@ -362,11 +362,10 @@ def build_node_editor_content():
 
                 hover_label("Type", "node-type-label", _EDITOR_HINTS["type"],
                              className="mt-2"),
-                dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in SUPPORTED_NODE_TYPES],
-                           placeholder="Choose node type..."),
+                dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in SUPPORTED_NODE_TYPES]),
 
                 dbc.Label("Description", className="mt-2"),
-                dbc.Textarea(id="node-desc", placeholder="Describe your project...",
+                dbc.Textarea(id="node-desc",
                              style={"height": "120px", "resize": "vertical"}),
 
                 hover_label("Context", "node-context-label", _EDITOR_HINTS["context"],
@@ -377,6 +376,7 @@ def build_node_editor_content():
                     "node-subcontext",
                     context_options=[{"label": c, "value": c} for c in CONTEXTS],
                     context_value="",
+                    empty_label="",  # the label above says what it is
                 ),
 
                 # A Goal's priority rank is set in the Goals sidebar, which is
@@ -562,8 +562,10 @@ def build_node_editor_content():
                                 target="node-time-habit-mode", placement="left",
                             ),
                         ], id="section-time-habit-toggle", className="ms-3 flex-grow-1"),
+                        # The width comes from custom.css, so the unit sits over
+                        # the Upper field. style={} stops compact's fixed 100px.
                         unit_select("node-time-unit", value=NEW_NODE_TIME_UNIT,
-                                    compact=True),
+                                    compact=True, className="time-unit-select", style={}),
                     ], className="d-flex align-items-center mb-2"),
                     html.Div(id="time-mode-warning",
                              style=tokens.ERROR_TEXT_HIDDEN,
@@ -669,7 +671,7 @@ def build_node_editor_content():
                 # what stops scrolling fields showing through; it matches the
                 # sidebar's own bg-sidebar (see STYLE_GUIDE.md).
                 html.Div([
-                    html.Hr(className="my-2"),
+                    html.Hr(className="my-2 editor-footer-rule"),
                     html.Div([
                         danger_action("Delete", "btn-delete"),
                         html.Div(className="flex-grow-1"),

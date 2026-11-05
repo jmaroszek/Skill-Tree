@@ -350,7 +350,7 @@ def test_done_work_outside_the_view_isnt_hidden_work(services):
         details_simulation._run_simulation(services.graph, 'Goal', ['include'], [], max_depth=1)
 
 
-def test_the_bars_take_the_themes_accent():
+def test_the_bars_take_the_themes_chart_accent():
     from skilltree.domain.themes import THEME_STEEL
     from skilltree.store import settings
 
@@ -358,6 +358,6 @@ def test_the_bars_take_the_themes_accent():
         return simulation_figure(
             _summary([5, 5], [10.0, 14.0], 4.0, 9.0, 12.0, 15.0), SHORT_DAYS).data[0].marker.color
 
-    assert bar_color() == "#889eaa"
+    assert bar_color() == "#6d90aa"
     settings.THEME.set(THEME_STEEL)
-    assert bar_color() == "#0d6efd"
+    assert bar_color() == "#4a82c2"

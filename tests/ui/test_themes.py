@@ -94,9 +94,29 @@ def test_switching_theme_does_not_store_its_defaults_as_picks():
     assert not read_stored("NODE_COLORS_MINIMAL")
 
 
-@pytest.mark.parametrize("theme, accent", [(THEME_MINIMAL, "#889eaa"), (THEME_STEEL, "#0d6efd")])
+@pytest.mark.parametrize("theme, accent", [(THEME_MINIMAL, "#889eaa"), (THEME_STEEL, "#5b86b3")])
 def test_the_accent_matches_the_themes_token(theme, accent):
     settings.THEME.set(theme)
     assert styles.accent_color() == accent
     sheet = "tokens.css" if theme == THEME_MINIMAL else "theme_steel.css"
     assert f"--st-accent: {accent};" in asset_file(sheet).read_text(encoding="utf-8")
+
+
+def test_the_bar_accent_matches_the_themes_token():
+    settings.THEME.set(THEME_MINIMAL)
+    css = asset_file("tokens.css").read_text(encoding="utf-8")
+    # Minimal's simulation bars share the progress bar's token, so the Plotly
+    # color (a literal, since Plotly can't read a CSS variable) is that token's value.
+    assert "--st-accent-chart: var(--st-accent-progress);" in css
+    assert f"--st-accent-progress: {styles.chart_accent_color()};" in css
+
+
+def test_steel_bar_accent_matches_the_themes_token():
+    settings.THEME.set(THEME_STEEL)
+    css = asset_file("theme_steel.css").read_text(encoding="utf-8")
+    assert f"--st-accent-chart: {styles.chart_accent_color()};" in css
+
+
+def test_the_progress_bar_has_its_own_accent_in_both_themes():
+    for sheet in ("tokens.css", "theme_steel.css"):
+        assert "--st-accent-progress:" in asset_file(sheet).read_text(encoding="utf-8")

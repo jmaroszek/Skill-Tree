@@ -27,7 +27,7 @@ def freeze_indicator(indicator_id: str):
             "right": "19px",
             "fontSize": tokens.FS_HEADING,
             "color": tokens.ACCENT_SOFT,
-            "textShadow": "0 0 6px rgba(126, 200, 227, 0.5)",
+            "textShadow": "0 0 6px color-mix(in srgb, var(--st-accent-soft) 50%, transparent)",
             "pointerEvents": "none",
             "zIndex": 10,
         },

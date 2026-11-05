@@ -15,9 +15,11 @@ _TRIGGER_BADGE_SVG = "/assets/trigger_badge.svg"
 # Cytoscape can't read a CSS variable, so what a theme changes is listed here.
 _CANVAS_COLORS = {
     THEME_MINIMAL: {'accent': '#889eaa', 'canvas': '#212121', 'edge': '#6a6a6a', 'dormant': '#999999',
-                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#f8ca28'},
-    THEME_STEEL: {'accent': '#0d6efd', 'canvas': '#1a1d21', 'edge': '#6c757d', 'dormant': '#adb5bd',
-                  'synergy': '#0d6efd', 'focus': '#0dcaf0', 'locate': '#ffd000'},
+                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#dabd27',
+                    'chart': '#6d90aa'},
+    THEME_STEEL: {'accent': '#5b86b3', 'canvas': '#1a1d21', 'edge': '#6c757d', 'dormant': '#adb5bd',
+                  'synergy': '#5b86b3', 'focus': '#a8bdd3', 'locate': '#cba92b',
+                  'chart': '#4a82c2'},
 }
 
 
@@ -203,6 +205,11 @@ def accent_color():
     return _CANVAS_COLORS[settings.THEME.get()]['accent']
 
 
+def chart_accent_color():
+    """The second accent as a real color: the simulation histogram's bars."""
+    return _CANVAS_COLORS[settings.THEME.get()]['chart']
+
+
 def focus_path_colors():
     return _FOCUS_PATH_COLORS[settings.THEME.get()]
 
@@ -220,8 +227,9 @@ LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "var(--st-s
 # STYLE_GUIDE.md is the human-readable source of truth. Keep it in sync when
 # changing values here.
 BADGE_PALETTE = {
-    'PriorityRank': ('#dc9428', '#ffffff'),
-    'Unblocking': ('#b734a0', '#ffffff'),
+    'PriorityRank': ('#b98332', '#ffffff'),
+    'PriorityScore': ('#3467a9', '#ffffff'),
+    'Unblocking': ('#985984', '#ffffff'),
     'HardRelPri': ('#305170', '#d8e0e8'),
     'SoftRelPri': ('#44515b', '#d4d8da'),
     'EventTrigger':   ('#4d4d4d', '#d1d1d1'),
@@ -234,8 +242,9 @@ BADGE_PALETTE = {
 _STEEL_BADGE_PALETTE = {
     # The bare rank number on Goals-sidebar cards and Details suggestions.
     # Darkly's warning orange, deliberately warmer than the Goal yellow.
-    'PriorityRank': ('#f39c12', '#ffffff'),
-    'Unblocking': ('#c516a5', '#ffffff'),  # steps pinned toward a blocked Now node
+    'PriorityRank': ('#d79b53', '#ffffff'),
+    'PriorityScore': ('#2e68ca', '#ffffff'),
+    'Unblocking': ('#a73e8e', '#ffffff'),  # steps pinned toward a blocked Now node
     # Relationship-priority badges.
     'HardRelPri': ('#2a4d6e', '#d6e0ee'),
     'SoftRelPri': ('#414f5c', '#d0d6dc'),

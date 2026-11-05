@@ -63,7 +63,7 @@ def test_a_loaded_form_shows_its_snapshot(monkeypatch):
 def test_a_new_node_form_is_blank(monkeypatch):
     result = _call_with_trigger(monkeypatch, "btn-editor-new", editor_new_clicks=1)
     assert result["snapshot"] == NEW_NODE_SNAPSHOT
-    assert result["n_type"] == ""  # the "Choose node type..." placeholder
+    assert result["n_type"] == ""  # no type chosen yet
     assert result["status_text"] == STATUS_OPEN
     assert (result["original_name"], result["search"], result["bridge"]) == (None, None, None)
 

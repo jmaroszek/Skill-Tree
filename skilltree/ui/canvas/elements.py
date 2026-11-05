@@ -104,7 +104,7 @@ def build_node_element(node, styles, *, selected=None, dormant=None, extra_data=
         classes.append('dormant')
     if node.now:
         classes.append('now')
-        data['now_color'] = styles.colors.get('Now', '#ffd000')  # literal: Cytoscape element data
+        data['now_color'] = styles.colors.get('Now', '#cba92b')  # literal: Cytoscape element data
 
     element = {'data': data}
     if selected is not None:

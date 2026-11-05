@@ -423,7 +423,7 @@ def register_canvas_callbacks(app, services):
                 var baseStyle = {
                     position: "absolute", top: "12px", right: "19px",
                     fontSize: "1.6rem", color: "var(--st-accent-soft)",
-                    textShadow: "0 0 6px rgba(126, 200, 227, 0.5)",
+                    textShadow: "0 0 6px color-mix(in srgb, var(--st-accent-soft) 50%, transparent)",
                     pointerEvents: "none", zIndex: 10,
                 };
                 var classes = (currentClass || "").split(/\\s+/).filter(function(c) {

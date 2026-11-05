@@ -44,6 +44,16 @@
     width: 8rem;
 }
 
+/* The Time Estimates unit sits in the toggles row, over the Upper field below
+   it. Each bracket column is a third of the row, less the 1.5rem gutter, so the
+   field is a third less 16px: the unit takes the same width and the right edge
+   lines up. The padding is trimmed from the chevron's 36px so "Months" fits. */
+select.form-select.time-unit-select {
+    flex: 0 0 auto;
+    width: calc(100% / 3 - 16px);
+    padding-right: 26px;
+}
+
 /* Remove spinner arrows from number inputs */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 

@@ -413,12 +413,12 @@ def node_type_color(node_type):
 
 
 def progress_bar_color(pct):
-    """Fill for a completion bar: the Done green at 100%, the accent below.
+    """Fill for a completion bar: the Done green at 100%, the progress accent below.
 
     Both the Home tab and the Details goal-progress bar computed this with
     their own literals.
     """
-    return palette_color(STATUS_DONE) if pct == 100 else tokens.ACCENT
+    return palette_color(STATUS_DONE) if pct == 100 else tokens.ACCENT_PROGRESS
 
 
 def goal_corner_badge(text, palette_name, class_name="badge"):

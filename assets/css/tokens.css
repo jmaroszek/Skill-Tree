@@ -114,6 +114,8 @@
     --st-text-faint: #595959;     /* disabled */
     --st-text-placeholder: #7a7a7a;  /* every field's placeholder */
     --st-text-on-field: #d1d1d1;  /* text inside a field */
+    --st-chevron: #999999;        /* every chevron, in every theme; the data URI
+                                     ones write this value in */
 
     /* ---- Accents --------------------------------------------------------- */
     /* Minimal's accent: hsl(201, 17%, 60%), and 68% for the soft one. */
@@ -123,7 +125,11 @@
     --st-accent-soft: #a0b3bd;    /* Details empty-state heading, a menu's chosen row */
     /* A chosen pill's fill: dark enough to hold its white text. */
     --st-accent-fill: #59717d;
-    --st-spinner: var(--st-accent);
+    /* Accents for bars that must command attention, one per job: the simulation
+       histogram, and a goal's progress bar. The first accent suits small marks. */
+    --st-accent-progress: #6d90aa;
+    --st-accent-chart: var(--st-accent-progress);
+    --st-spinner: #6492b2;  /* pinned: the spinner keeps the blue the chart had */
     --st-frozen-ring: rgba(136, 158, 170, 0.6);   /* a frozen canvas's outline */
     --st-search-match: rgba(205, 185, 92, 0.22);  /* words a search found */
     --st-danger: #c55150;         /* tamed red; see custom.css */
