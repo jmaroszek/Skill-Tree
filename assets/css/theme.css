@@ -1189,8 +1189,13 @@
     color: var(--st-text-strong);
     font-variant-numeric: tabular-nums;
 }
+.reflect-queue-tally {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+}
 .reflect-queue-label {
-    margin-top: 0.35rem;
     color: var(--st-text-secondary);
 }
 /* Captions sit a step below body text, so headings and numbers lead. */
