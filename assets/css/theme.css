@@ -1280,6 +1280,12 @@
 
 /* --- Slider dark-mode fixes (Dash Radix UI sliders) --- */
 
+/* Dash fills the track and rings the focused thumb with its own purple. Scoped to
+   sliders: the same variable also colors Dash's dropdowns and date pickers. */
+.dash-slider-root {
+    --Dash-Fill-Interactive-Strong: var(--st-accent-soft);
+}
+
 /* Value input box next to slider */
 .dash-range-slider-input,
 .dash-input-container input[type="number"] {
