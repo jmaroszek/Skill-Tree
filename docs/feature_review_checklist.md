@@ -85,7 +85,7 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] SH-1. The tabs read Home, Nodes, Details, Events, Analyze. Each opens quickly and keeps its state when you return.
 - [ ] SH-2. The left icons open the Node Editor, Goals and Events. They share one slot: opening one closes the other two.
 - [ ] SH-3. Clicking an open sidebar's icon closes it. Its X does too.
-- [ ] SH-4. Filters opens on the right and can stay open beside any left sidebar.
+- [ ] SH-4. Filters opens on the right and can stay open beside any left sidebar. Below 1600px wide it covers the content when a left sidebar is open.
 - [ ] SH-5. The funnel icon fills in while a filter is narrowing the app. Show Done and Show Dormant don't fill it.
 - [ ] SH-6. The journal icon opens Reflection. It disappears when Reflection is turned off in Settings.
 - [ ] SH-7. Clear Focus appears only while a focus view is on.
@@ -115,7 +115,7 @@ Try these on copies of a database in a throwaway data folder. Each should leave 
 - [ ] SH-22. On your 4K screen, nothing looks stranded or tiny.
 - [ ] SH-23. Descriptions can be selected and copied. Buttons and rows don't select as you click.
 - [ ] SH-24. Every icon-only button has a tooltip that names it.
-- [ ] SH-25. The left sidebars sit on top of Home rather than moving it, so they can hide the first Now card and the names in Next. Set aside for its own pass.
+- [ ] SH-25. The sidebars push the content aside on every tab, so nothing is hidden under them from 1250px wide. A graph doesn't move, and a chart redraws once.
 
 ---
 
@@ -924,7 +924,7 @@ You went through these on 2026-11-01. Items marked Fix were then changed, with t
 | ED-104 | Keep | Opening Goals or Events slides the editor away with your unsaved edits, without asking. Nothing marks a waiting draft yet. See whether you miss one in your manual pass. |
 | HM-19 | Fix | Next's row count survives a restart, can be typed, and its buttons stay gray after a click. |
 | HM-25, FL-24 | Fix | Community and Orphans narrow Next, Details and Events too, and show in their chips. |
-| SH-25 | Later | Left sidebars still cover Home. This gets its own pass. It was tried once and dropped, so start by reading the sidebar commits. |
+| SH-25 | Done | Sidebars push on every tab. The content slides and its box changes once. See Making room for a sidebar in `docs/performance.md`. |
 | MN-11 | Fix | Add to Event is hidden for nodes that can't join one, and counts only those that can. |
 | EX-14 | Fix | Focus zooms toward the route, but keeps enough of the graph around it for context. |
 | EX-17 | Fix | Focus Top n clears filters, as Details' Focus does. |

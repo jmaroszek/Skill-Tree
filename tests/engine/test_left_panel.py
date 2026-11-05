@@ -24,19 +24,17 @@ const advance = (current, id, value, state = {}) => {
     return panel.advance(null, null, current, state.selectedEvent, state.emptyStyle,
                          state.selectedNode, 7, 2, 'q', 'manual', null);
 };
-const opened = (current, id, value, state) => advance(current, id, value, state)[4];
-const UNCHANGED = ['NO', 'NO', 'NO', 'NO', 'NO', 'NO'];
+const opened = (current, id, value, state) => advance(current, id, value, state)[3];
+const UNCHANGED = ['NO', 'NO', 'NO', 'NO', 'NO'];
 
 // One open at a time. Only what changes is written, because each output costs
 // time before the slide's first frame.
 assert.deepEqual(advance(null, 'btn-goals-toggle', 1),
-                 ['NO', 'left-sidebar is-open', 'NO', 'NO', 'goals', 'NO']);
-// The tab content glides aside in the same return, so it starts with the slide.
+                 ['NO', 'left-sidebar is-open', 'NO', 'goals', 'NO']);
 assert.deepEqual(advance('goals', 'btn-events-sidebar-toggle', 1),
-                 ['NO', 'left-sidebar', 'left-sidebar is-open',
-                  'events-tab-inner is-beside-sidebar', 'events', 'NO']);
+                 ['NO', 'left-sidebar', 'left-sidebar is-open', 'events', 'NO']);
 assert.deepEqual(advance('events', 'btn-events-sidebar-toggle', 2),
-                 ['NO', 'NO', 'left-sidebar', 'events-tab-inner', null, 'NO']);
+                 ['NO', 'NO', 'left-sidebar', null, 'NO']);
 assert.equal(opened('editor', 'btn-goals-toggle', 1), 'goals');
 assert.equal(opened('editor', 'btn-events-sidebar-toggle', 1), 'events');
 
@@ -58,10 +56,10 @@ assert.deepEqual(advance('editor', 'btn-details-goals-close', 1), UNCHANGED);
 // The toolbar icon opens the editor here. On an open editor it's a close, which
 // only this script can tell, so it asks the server and changes nothing yet.
 assert.equal(opened('goals', 'btn-add', 1), 'editor');
-assert.equal(advance('goals', 'btn-add', 1)[5], 'NO');
+assert.equal(advance('goals', 'btn-add', 1)[4], 'NO');
 const asked = advance('editor', 'btn-add', 2);
-assert.deepEqual(asked.slice(0, 5), ['NO', 'NO', 'NO', 'NO', 'NO']);
-assert.equal(typeof asked[5], 'number');
+assert.deepEqual(asked.slice(0, 4), ['NO', 'NO', 'NO', 'NO']);
+assert.equal(typeof asked[4], 'number');
 
 // Whatever edits a node, or starts one, opens the editor.
 ['edit-trigger-input', 'details-edit-trigger-input'].forEach(id => {

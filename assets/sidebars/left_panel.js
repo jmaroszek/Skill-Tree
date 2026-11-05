@@ -67,15 +67,11 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
     }
 
     // Only what changes: every output Dash writes costs a few store updates too.
-    function classIfChanged(current, panel, name, open, closed) {
+    function sidebarClass(current, panel, name) {
         if ((current === name) === (panel === name)) {
             return window.dash_clientside.no_update;
         }
-        return panel === name ? open : closed;
-    }
-
-    function sidebarClass(current, panel, name) {
-        return classIfChanged(current, panel, name, 'left-sidebar is-open', 'left-sidebar');
+        return panel === name ? 'left-sidebar is-open' : 'left-sidebar';
     }
 
     window.dash_clientside.left_panel.next = next;
@@ -98,7 +94,7 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
             if (id === 'btn-add' && fired.value && panel === 'editor') closeAsk = Date.now();
             panel = next(panel, id, fired.value, state);
         });
-        if (panel === current) return [NO, NO, NO, NO, NO, closeAsk];
+        if (panel === current) return [NO, NO, NO, NO, closeAsk];
         // Plain calls, not callbacks on the store: each callback costs about a
         // dozen store updates, all before the browser paints the slide's first
         // frame.
@@ -107,8 +103,6 @@ window.dash_clientside.left_panel = window.dash_clientside.left_panel || {};
         return [sidebarClass(current, panel, 'editor'),
                 sidebarClass(current, panel, 'goals'),
                 sidebarClass(current, panel, 'events'),
-                classIfChanged(current, panel, 'events',
-                               'events-tab-inner is-beside-sidebar', 'events-tab-inner'),
                 panel,
                 closeAsk];
     };

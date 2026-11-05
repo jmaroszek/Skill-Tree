@@ -20,7 +20,7 @@ def register_tab_callbacks(app, services):
     )
     @prerendered
     def toggle_tab_content(active_tab):
-        base = {"width": "100%", "height": "100%", "overflow": "hidden", "position": "absolute", "top": "0", "left": "0"}
+        base = {"overflow": "hidden"}
         next_style = {**base,
                       "display": "flex" if active_tab == "tab-next" else "none",
                       "flexDirection": "column",

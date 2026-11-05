@@ -51,11 +51,9 @@ def test_toggle_tab_content_preserves_position_keys(active_tab):
     fn = _toggle_fn()
     styles = fn(active_tab)
     for style in styles:
-        assert style.get("position") == "absolute"
-        assert style.get("width") == "100%"
-        assert style.get("height") == "100%"
-        assert style.get("top") == "0"
-        assert style.get("left") == "0"
+        assert "overflow" in style
+        # Where the box sits is the stylesheet's, because a sidebar moves it.
+        assert not {"position", "width", "height", "top", "left"} & set(style)
 
 
 def test_toggle_tab_content_returns_five_styles():

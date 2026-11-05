@@ -18,7 +18,6 @@ def _panel_callback(app, *inputs, allow_duplicate=False):
         Output('sidebar-editor-container', 'className', allow_duplicate=allow_duplicate),
         Output('details-goal-sidebar', 'className', allow_duplicate=allow_duplicate),
         Output('events-sidebar-container', 'className', allow_duplicate=allow_duplicate),
-        Output('events-tab-inner', 'className', allow_duplicate=allow_duplicate),
         Output('left-panel-store', 'data', allow_duplicate=allow_duplicate),
         Output('editor-close-ask', 'data', allow_duplicate=allow_duplicate),
         *inputs,

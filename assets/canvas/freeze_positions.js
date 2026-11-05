@@ -274,6 +274,29 @@
         }
     };
 
+    // A change the graph didn't ask for, such as the canvas changing size. It
+    // goes through a frozen canvas, which then holds the new viewport.
+    window.SkillTree.adjustCanvasViewport = function (cytoscapeElementId, adjust) {
+        var state = null;
+        Object.keys(registry).some(function (canvasId) {
+            if (registry[canvasId].cytoscapeElementId !== cytoscapeElementId) return false;
+            state = registry[canvasId];
+            return true;
+        });
+        var cy = state ? getCy(state) : null;
+        if (!cy) return;
+        if (!state.frozen) {
+            adjust(cy);
+            return;
+        }
+        bindGuards(state, cy);
+        var previousBypass = state.bypassFreeze;
+        state.bypassFreeze = true;
+        withProgrammatic(state, function () { adjust(cy); });
+        state.bypassFreeze = previousBypass;
+        captureViewport(state, cy);
+    };
+
     window.SkillTree.allowOneLayout = function (canvasId) {
         var state = registry[canvasId];
         if (state && state.frozen) state.allowNextLayout = true;

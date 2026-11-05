@@ -14,7 +14,7 @@ import dash_bootstrap_components as dbc
 NEXT_TABLE_MAX_WIDTH = 1500
 
 
-NEXT_TABLE_BASIS = 780
+NEXT_TABLE_BASIS = 630
 MAX_NEXT_ROWS = 999
 
 
@@ -63,7 +63,7 @@ def build_next_view():
                 html.Div("Click a card or row to see its description", id="next-description-text", className="selectable",
                          style={"color": tokens.TEXT_DIM, "whiteSpace": "pre-wrap", "fontSize": tokens.FS_LG}),
                 html.Div(id="next-relations"),
-            ], style={"flex": "0 1 420px", "minWidth": "280px",
+            ], style={"flex": "1 1 240px", "minWidth": "220px", "maxWidth": "420px",
                       "paddingRight": "2.5rem", "boxSizing": "content-box"}),
         # Wraps under the table when the window is too narrow for both.
         ], style={"display": "flex", "flexWrap": "wrap", "alignItems": "flex-start",

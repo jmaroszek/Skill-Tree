@@ -488,6 +488,35 @@ drawing each new node's body and label into its texture cache. Later opens of
 the same graph reuse those textures and showed no stall. The 3- and 17-node
 views showed none on their first open with the fix on.
 
+## Making room for a sidebar (2026-11-04)
+
+The content used to sit under a sidebar. Two earlier tries at pushing it were
+dropped, the second as choppy. That session's lag came from a chained callback,
+which `65d099c` removed, and the choppiness had never been measured.
+
+This is the extra main-thread rendering per frame over covering, in headless
+Chrome at 2194 x 1234, DPR 1.75, on 240 Hz pacing, where a frame is 4.2 ms. It
+was measured with a prototype injected in the page.
+
+| Tab | Animate left and width | Slide, then change the box once |
+| --- | ---: | ---: |
+| Home | 1.0–1.3 ms | under 0.1 ms |
+| Events, editor | 1.0–1.2 ms | about 0.1 ms |
+| Analyze History | 1.3–1.7 ms | about 0.2 ms |
+| Analyze Plan | 2.6–3.7 ms | 0.1–0.2 ms |
+| Details | 3.2–3.9 ms | about 0.3 ms |
+
+The worst single frame gap was the same within noise. Those numbers don't show
+what decided it. Both were built, and by eye animating the box is choppy and the
+slide is smooth, because a main-thread stall can't reach a compositor animation.
+Presented frames and raster were not measured: headless reports no pipeline states.
+
+Details needed one more fix. Its simulation changed twice per slide: its box at
+the commit, and its drawing about 185 ms later, because `Plots.resize` waits on a
+100 ms timer. It now redraws in the same task. Four charts on Analyze History
+take about 60 to 100 ms together, so at the start of a closing several charts wait
+for the frame after, when the slide is on the compositor.
+
 ## Sliding a sidebar (2026-11-01)
 
 The left sidebars moved from three style dicts with up to eight writers each to

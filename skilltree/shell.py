@@ -369,16 +369,16 @@ def build_app_layout(graph, env="production"):
             ),
 
         ],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
-               "position": "absolute", "top": "0", "left": "0"}
+        className="stage-pane",
+        style={"display": "none", "overflow": "hidden"}
     )
 
     # --- Events Tab Content (hidden by default) ---
     events_tab_content = html.Div(
         id="events-tab-content",
         children=[build_events_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "hidden",
-               "position": "absolute", "top": "0", "left": "0"}
+        className="stage-pane",
+        style={"display": "none", "overflow": "hidden"}
     )
 
     # --- Home Tab Content (hidden by default) ---
@@ -399,8 +399,8 @@ def build_app_layout(graph, env="production"):
             html.Div(perf_stats_text(graph), id="next-perf-stats",
                      className="next-perf-overlay"),
         ],
-        style={"display": "flex", "width": "100%", "height": "100%", "overflow": "hidden",
-               "position": "absolute", "top": "0", "left": "0", "flexDirection": "column",
+        className="stage-pane",
+        style={"display": "flex", "overflow": "hidden", "flexDirection": "column",
                "visibility": "visible"}
     )
 
@@ -408,16 +408,16 @@ def build_app_layout(graph, env="production"):
     details_tab_content = html.Div(
         id="details-tab-content",
         children=[build_details_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%",
-               "position": "absolute", "top": "0", "left": "0"}
+        className="stage-pane",
+        style={"display": "none"}
     )
 
     # --- Analyze Tab Content (hidden by default) ---
     analyze_tab_content = html.Div(
         id="analyze-tab-content",
         children=[build_analyze_tab_content()],
-        style={"display": "none", "width": "100%", "height": "100%", "overflow": "auto",
-               "position": "absolute", "top": "0", "left": "0"}
+        className="stage-pane",
+        style={"display": "none", "overflow": "auto"}
     )
 
     return html.Div([
@@ -612,7 +612,7 @@ def build_app_layout(graph, env="production"):
             analyze_tab_content,
             # --- Cross-tab sidebar overlays (editor / goals / events / filters) ---
             *sidebars
-        ], style={"flex": "1", "overflow": "hidden", "position": "relative"}),
+        ], id="tab-stage", style={"flex": "1", "overflow": "hidden", "position": "relative"}),
     ], style={"width": "100vw", "height": "100vh", "overflow": "hidden",
               "display": "flex", "flexDirection": "column"})
 

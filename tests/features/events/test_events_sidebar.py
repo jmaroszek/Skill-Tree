@@ -11,24 +11,6 @@ from support.paths import asset_file
 ASSET = asset_file("events_sidebar.js")
 
 
-def test_events_canvas_settles_after_the_glide_rather_than_during_it():
-    """The graph panel changes width, so Cytoscape needs a nudge.
-
-    The nudge lands on transitionend: resizing per frame would put a full
-    graph redraw inside the glide, which is what the transform-based slide
-    exists to avoid. It is delegated to the document because Dash renders its
-    layout after DOMContentLoaded, so #events-tab-inner does not exist when
-    this asset loads.
-    """
-    source = ASSET.read_text(encoding="utf-8")
-
-    assert 'document.addEventListener("transitionend"' in source
-    assert '"events-tab-inner"' in source
-    assert "cy.resize()" in source
-    assert "window.SkillTree.canvases" in source, "the canvas is not named by hand"
-    assert "requestAnimationFrame" not in source
-
-
 def _run_browser_contract():
     node = shutil.which("node")
     if node is None:

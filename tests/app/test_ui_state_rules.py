@@ -27,7 +27,6 @@ MOST_WRITERS = {
     'sidebar-editor-container.className': 1,
     'details-goal-sidebar.className': 1,
     'events-sidebar-container.className': 1,
-    'events-tab-inner.className': 1,
     'sidebar-filters-container.className': 1,
     'editor-pristine-snapshot.data': 3,
     # Everything else writes a notice, and notices.js shows it.
@@ -76,7 +75,9 @@ def test_a_sidebars_style_belongs_to_no_callback():
 
 
 def test_how_a_sidebar_slides_is_only_in_css():
-    assert [path for path, text in _sources() if 'translateX' in text] == []
+    # content_room.js slides the tab content, not a sidebar.
+    assert [path for path, text in _sources() if 'translateX' in text
+            and path != 'assets/sidebars/content_room.js'] == []
 
 
 def test_the_unsaved_check_has_two_callers():
