@@ -40,7 +40,6 @@ def build_graph_settings_panel(
     include_animate: bool = True,
     defaults_getter=settings.GRAPH_LAYOUT_DEFAULTS.get,
     max_depth_id: str = None,
-    direction_id: str = None,
     outside_nodes_id: str = None,
 ):
     """Build a graph-layout panel. Single source of truth for all three canvases
@@ -59,10 +58,6 @@ def build_graph_settings_panel(
     inherited ratings and Time Simulation, so it keeps the tab-scoped
     ``details-max-depth`` name instead of a panel-scoped one. It sits above a
     divider, separated from the physics sliders below it.
-
-    ``direction_id`` adds a Direction choice just above Max Depth, for the
-    same tab and the same reason: Needs walks to what leads into the node,
-    Supports to what it leads to.
 
     ``outside_nodes_id`` is the Events canvas's counterpart: a switch that
     shows or hides nodes outside the event that link to its nodes. It is
@@ -121,21 +116,6 @@ def build_graph_settings_panel(
                 style={"fontSize": tokens.FS_BASE},
             ),
             html.Hr(style={"borderColor": tokens.BORDER_PANEL, "margin": "12px 0"}),
-        ]
-
-    if direction_id:
-        children += [
-            html.Div("Direction", className="settings-label"),
-            dbc.RadioItems(
-                id=direction_id,
-                options=[{"label": "Needs", "value": "needs"},
-                         {"label": "Supports", "value": "supports"}],
-                value="needs",
-                inline=True,
-                style={"fontSize": tokens.FS_BASE},
-            ),
-            Tooltip("Needs shows what leads into this node. Supports shows "
-                    "what it leads to.", target=direction_id, placement="left"),
         ]
 
     if max_depth_id:

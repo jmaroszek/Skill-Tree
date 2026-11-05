@@ -242,8 +242,24 @@ def build_details_tab_content():
                 "details-graph-settings",
                 defaults_getter=settings.DETAILS_GRAPH_LAYOUT_DEFAULTS.get,
                 max_depth_id="details-max-depth",
-                direction_id="details-direction",
             ),
+            # Direction decides which nodes this tab is about, so it sits on
+            # the canvas it changes instead of in the layout panel.
+            html.Div([
+                dbc.RadioItems(
+                    id="details-direction",
+                    options=[{"label": "Needs", "value": "needs"},
+                             {"label": "Supports", "value": "supports"}],
+                    value="needs",
+                    className="canvas-segmented",
+                    inputClassName="btn-check",
+                    labelClassName="btn btn-sm",
+                    labelCheckedClassName="active",
+                ),
+                Tooltip("Needs shows what leads into this node. Supports shows "
+                        "what it leads to.",
+                        target="details-direction", placement="bottom"),
+            ], className="canvas-segmented-overlay"),
             dbc.Button(html.I(className="bi bi-search"),
                        id="btn-details-focus",
                        color="secondary", size="sm",
@@ -256,7 +272,8 @@ def build_details_tab_content():
                        className="btn-canvas-overlay btn-canvas-bottom-right-mid"),
             Tooltip("Full screen", target="btn-details-graph-fullscreen", placement="left"),
             html.Div(id="details-canvas-node-count", className="canvas-stats-overlay"),
-            filter_chip("details-filter-chip", "filter-chip-overlay"),
+            filter_chip("details-filter-chip",
+                        "filter-chip-overlay filter-chip-after-segmented"),
         ], style={"position": "relative", "flex": "1", "minHeight": "0"}),
     ], id="details-dep-graph-container", style={
         "flex": "1",

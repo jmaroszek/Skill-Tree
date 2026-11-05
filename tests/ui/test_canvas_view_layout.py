@@ -289,15 +289,16 @@ def test_events_tab_content_graph_settings_include_smooth_toggle():
     assert "events-graph-settings-animate" in ids
 
 
-def test_direction_sits_above_max_depth_in_the_details_panel():
+def test_direction_is_a_canvas_overlay_not_a_layout_setting():
     content = build_details_tab_content()
     ids = _ids(content)
     direction = _by_id(content, "details-direction")
+    panel = _by_id(content, "details-graph-settings-panel")
 
     assert direction.value == "needs"
     assert [o["value"] for o in direction.options] == ["needs", "supports"]
     assert [o["label"] for o in direction.options] == ["Needs", "Supports"]
     assert ids.count("details-direction") == 1
-    assert ids.index("details-direction") < ids.index("details-max-depth")
-    # Only Details looks out from one node, so the other panels have none.
-    assert "Direction" not in _text(build_graph_settings_panel("p-layout"))
+    # It decides which nodes the tab shows, so the layout panel doesn't hold it.
+    assert "details-direction" not in _ids(panel)
+    assert "Direction" not in _text(panel)

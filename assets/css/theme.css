@@ -125,6 +125,41 @@
     left: 16px;
     z-index: 10;
 }
+/* A two-way switch laid over a canvas (Details' Needs | Supports). The chosen
+   side fills with the accent, as the weekday pills do. */
+.canvas-segmented-overlay {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    z-index: 10;
+}
+.canvas-segmented {
+    display: flex;
+    padding: 2px;
+    border: 1px solid var(--st-border-panel);
+    border-radius: 999px;
+    background: var(--st-bg-raised);
+}
+.canvas-segmented .form-check {
+    padding-left: 0;
+    margin: 0;
+}
+.canvas-segmented .btn {
+    padding: 2px 12px;
+    border: 0;
+    border-radius: 999px;
+    color: var(--st-text-dim);
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+.canvas-segmented .btn:hover { color: var(--st-text-primary); }
+.canvas-segmented .btn-check:checked + .btn,
+.canvas-segmented .btn.active {
+    background: var(--st-accent-fill);
+    color: #fff;
+}
+/* The "Filtered" chip steps right of the switch when both show. */
+.filter-chip-after-segmented { left: 190px; }
 /* The top bar's funnel while any filter is on: solid white. */
 .filters-icon-active { color: #fff; }
 
