@@ -139,9 +139,9 @@ amber wash over the text's own color.
 
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
-| Unblocking   | `#ad5c89` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
-| PriorityRank | `#c08c46` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold. |
-| PriorityScore | `#1872ac` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. Its own blue, so it does not follow the Open color. |
+| Unblocking   | `#b6558c` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. |
+| PriorityRank | `#c58a35` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold. |
+| PriorityScore | `#0d72b3` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. Its own blue, so it does not follow the Open color. |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 

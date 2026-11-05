@@ -15,7 +15,7 @@ _TRIGGER_BADGE_SVG = "/assets/trigger_badge.svg"
 # Cytoscape can't read a CSS variable, so what a theme changes is listed here.
 _CANVAS_COLORS = {
     THEME_ZEN: {'accent': '#889eaa', 'canvas': '#212121', 'edge': '#6a6a6a', 'dormant': '#999999',
-                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#e8c65d',
+                    'synergy': '#889eaa', 'focus': '#889eaa', 'locate': '#ebc646',
                     'chart': '#6d90aa'},
     THEME_STEEL: {'accent': '#5b86b3', 'canvas': '#1a1d21', 'edge': '#6c757d', 'dormant': '#adb5bd',
                   'synergy': '#5b86b3', 'focus': '#a8bdd3', 'locate': '#cba92b',
@@ -228,9 +228,9 @@ LOADING_SPINNER_STYLE = {"width": "2rem", "height": "2rem", "color": "var(--st-s
 # changing values here.
 BADGE_PALETTE = {
     # Kyoto lifted's honey, deep sky and plum, at its saturation.
-    'PriorityRank': ('#c08c46', '#ffffff'),
-    'PriorityScore': ('#1872ac', '#ffffff'),
-    'Unblocking': ('#ad5c89', '#ffffff'),
+    'PriorityRank': ('#c58a35', '#ffffff'),
+    'PriorityScore': ('#0d72b3', '#ffffff'),
+    'Unblocking': ('#b6558c', '#ffffff'),
     'HardRelPri': ('#305170', '#d8e0e8'),
     'SoftRelPri': ('#44515b', '#d4d8da'),
     'EventTrigger':   ('#4d4d4d', '#d1d1d1'),
