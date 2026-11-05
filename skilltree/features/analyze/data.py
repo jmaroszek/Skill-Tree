@@ -139,7 +139,11 @@ def compute_reflection_drift(nodes):
     gate a reverted node would keep skewing the drift chart. Milestones and
     nodes in inherited ratings mode are left out, as in
     compute_rating_distribution: their stored ratings are placeholders, so a
-    reflection has nothing real to drift from."""
+    reflection has nothing real to drift from.
+
+    Each row also carries ``reflections``: for each of the three means' keys,
+    the ``(name, rating, reflected rating)`` behind it, for the chart's
+    per-node dots."""
     by_ctx = defaultdict(lambda: {'dv': [], 'di': [], 'dd': [], 'count': 0})
     for n in nodes:
         if (n.status != STATUS_DONE or n.type == 'Milestone'
@@ -152,15 +156,14 @@ def compute_reflection_drift(nodes):
         ctx = n.context or 'No Context'
         d = by_ctx[ctx]
         d['count'] += 1
-        if n.reflect_value is not None:
-            d['dv'].append(n.reflect_value - n.value)
-        if n.reflect_interest is not None:
-            d['di'].append(n.reflect_interest - n.interest)
-        if n.reflect_difficulty is not None:
-            d['dd'].append(n.reflect_difficulty - n.difficulty)
+        for key, before, after in (('dv', n.value, n.reflect_value),
+                                   ('di', n.interest, n.reflect_interest),
+                                   ('dd', n.difficulty, n.reflect_difficulty)):
+            if after is not None:
+                d[key].append((n.name, before, after))
 
     def _mean(xs):
-        return round(sum(xs) / len(xs), 2) if xs else None
+        return round(sum(a - b for _, b, a in xs) / len(xs), 2) if xs else None
 
     results = []
     for ctx, d in by_ctx.items():
@@ -171,6 +174,8 @@ def compute_reflection_drift(nodes):
             'd_value': _mean(d['dv']),
             'd_interest': _mean(d['di']),
             'd_difficulty': _mean(d['dd']),
+            'reflections': {'d_value': d['dv'], 'd_interest': d['di'],
+                            'd_difficulty': d['dd']},
         })
     results.sort(key=lambda r: r['count'], reverse=True)
     return results
@@ -316,6 +321,17 @@ def compute_throughput(nodes, granularity=DEFAULT_ANALYZE_LIMITS['throughput_gra
             'capacity': per_week * days / 7,
         })
     return rows
+
+
+def rank_contexts(nodes):
+    """Every context with a Done node, most completed hours first, so a
+    context keeps one color in every History chart however the Throughput
+    dates are set. Nodes without one count as 'No Context'."""
+    totals = defaultdict(float)
+    for n in nodes:
+        if n.status == STATUS_DONE:
+            totals[n.context or 'No Context'] += _completed_hours(n) or 0
+    return sorted(totals, key=lambda c: (-totals[c], c))
 
 
 def _completed_hours(n):

@@ -976,7 +976,7 @@ This section and the two after it live on the History subtab.
 
 When you mark a node Done and complete a [reflection](#reflection), the actual time gets captured alongside your original estimate. These two charts compare them.
 
-**By Node** is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected, and each point below the line was completed faster than expected. Colors are node types, so you can spot whether one type drifts more than others.
+**By Node** is a scatter plot with a dashed *y = x* reference line. Each dot is one completed node. Points above the line took longer than expected, and each point below the line was completed faster than expected. Colors are node types, so you can spot whether one type drifts more than others. Its legend works the same way as Rating Accuracy's: click a type to hide it, or double-click to show only that type.
 
 **By Context** rolls those same ratios up into one box plot per context. A box to the right of the 1× line means that context's tasks routinely take longer than you expect; a box to the left means they don't take as long.
 
@@ -988,14 +988,14 @@ When you mark a node Done and complete a [reflection](#reflection), the actual t
 
 ## Rating Accuracy
 
-This chart does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one panel for each of the three. Each bar shows the average change between your original rating and your reflection. A red bar left of zero means you overrated the work going in. A blue bar right of zero means you underrated it. All three panels share one scale, so bar lengths compare directly.
+This chart does for your ratings what the charts above do for time. When you reflect on a finished node, you can re-rate its Value, Interest, and Effort. The chart has one row for each of the three. Each context is a dot, in the same color it has in Throughput. The dot sits at the average change between your original ratings and your reflections. Left of zero means you overrated the work going in. Right of zero means you underrated it. The gray bars behind the dots count every reflection in the row at each whole-point change, so you can see the spread as well as the averages. A rare change beyond the scale is counted in the bar at its end. Click a context in the legend to hide it, or click it again to bring it back. Double-click a context to show only that one, and double-click it again to show them all. The gray bars count only the contexts shown, so you can single one out or compare a few. All three rows share one scale, so positions compare directly.
 
-A context needs at least four reflected nodes to get a row. Averages over fewer nodes are mostly noise. The number beside each context is how many reflected nodes it has. Milestones and nodes that inherit their ratings are left out. Their ratings don't count toward a score, so there is nothing to drift from.
+A context needs at least four reflected nodes to get a dot. Averages over fewer nodes are mostly noise. The number beside each context in the legend is how many reflected nodes it has. Milestones and nodes that inherit their ratings are left out. Their ratings don't count toward a score, so there is nothing to drift from.
 
 <p align="center">
   <img src="images/analyze-reflection-drift.png" width=600>
   <br>
-  <em> Rating Drift by Context </em>
+  <em> Rating Accuracy </em>
 </p>
 
 ## Throughput

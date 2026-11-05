@@ -9,6 +9,7 @@ from skilltree.features.analyze.data import (
     compute_bottlenecks,
     compute_estimation_accuracy,
     compute_reflection_drift,
+    rank_contexts,
     compute_throughput,
     compute_goal_progress,
     compute_rating_distribution,
@@ -23,6 +24,7 @@ import dash_bootstrap_components as dbc
 from skilltree.store import database
 from skilltree.store import settings
 from skilltree.features.analyze.charts import (
+    context_colors,
     render_bottleneck_chart as _render_bottleneck_chart,
     render_context_accuracy_boxplot as _render_context_accuracy_boxplot,
     render_estimation_accuracy as _render_estimation_accuracy,
@@ -268,6 +270,7 @@ def _build_analyze_sections(graph, al):
     est_accuracy = compute_estimation_accuracy(nodes)
     rating_dist = compute_rating_distribution(nodes)
     drift_rows = compute_reflection_drift(nodes)
+    ctx_colors = context_colors(rank_contexts(nodes))
     color_by = al['throughput_color']
     throughput_rows = compute_throughput(
         nodes,
@@ -328,7 +331,7 @@ def _build_analyze_sections(graph, al):
     drift_content = [
         html.P("How your ratings change when you reflect on completed work.",
                className="text-muted small"),
-        _render_reflection_drift_chart(drift_rows),
+        _render_reflection_drift_chart(drift_rows, ctx_colors),
     ]
 
     gran = al['throughput_granularity']
@@ -344,7 +347,8 @@ def _build_analyze_sections(graph, al):
                if wider else "Narrow the dates to see earlier ones."))
     throughput_content = [
         html.P(throughput_note, className="text-muted small"),
-        _render_throughput_chart(throughput_rows, granularity=gran, by=color_by),
+        _render_throughput_chart(throughput_rows, granularity=gran, by=color_by,
+                                 colors=ctx_colors),
     ]
 
     return (overview_content, goals_content, contexts_content, time_content,
