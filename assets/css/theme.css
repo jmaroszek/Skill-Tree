@@ -1183,7 +1183,7 @@
     margin-bottom: 0.75rem;
 }
 .reflect-queue-count {
-    font-size: var(--st-fs-display);
+    font-size: 2.2rem;
     font-weight: 600;
     line-height: 1;
     color: var(--st-text-strong);
@@ -1196,6 +1196,7 @@
     min-width: 0;
 }
 .reflect-queue-label {
+    font-size: 1rem;
     color: var(--st-text-secondary);
 }
 /* Captions sit a step below body text, so headings and numbers lead. */
