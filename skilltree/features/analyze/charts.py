@@ -12,6 +12,7 @@ from dash import dcc, html
 from skilltree.domain.models import STATUS_BLOCKED, STATUS_DONE, STATUS_OPEN
 from skilltree.domain.time import DAYS_PER_WEEK, HOURS_PER_YEAR_MULT
 from skilltree.features.analyze.data import RECENT_DAYS, REFLECTION_MIN_N, TYPE_ORDER
+from skilltree.features.analyze.inert import inert_rows
 from skilltree.store import settings
 from skilltree.store.settings import DEFAULT_ANALYZE_LIMITS
 from skilltree.ui import kit as ui_kit
@@ -897,6 +898,21 @@ def render_rating_distribution(dist):
         return _card([html.P("No open rated nodes.",
                              className="text-muted small mb-0")])
 
+    # assets/analyze/rating_dist.js handles all three buttons in the browser; the
+    # guide toggle remembers its state per viewer. No callbacks. The toggle
+    # goes last: it is used less than the pair that folds the rows.
+    head = html.Div([
+        ui_kit.disclosure_all_button("rating-dist-expand-all", True),
+        ui_kit.disclosure_all_button("rating-dist-collapse-all", False),
+        ui_kit.guide_toggle_button("rating-dist-guide-toggle"),
+    ], className="rd-tools d-flex gap-1")
+    return _card([html.Div([head, inert_rows(rating_dist_rows(dist), "rd-rows")],
+                           className="rating-dist")])
+
+
+def rating_dist_rows(dist):
+    """The grid's heading and rows. About 2,600 components on the sandbox's
+    graph, and no callback touches any of them, so they mount as one."""
     defs = {d['rating']: d for d in settings.RATINGS_DEFINITIONS.get()}
     header = [html.Div()]
     for i, (_, name) in enumerate(_RATING_METRICS):
@@ -927,12 +943,4 @@ def render_rating_distribution(dist):
                 ctx_row, ctx_row['context'], "rd-ctx rd-leaf", defs,
                 chevron=True, guide=dist['all'], work_scale=scale),
                 className="rd-group"))
-    # assets/analyze/rating_dist.js handles all three buttons in the browser; the
-    # guide toggle remembers its state per viewer. No callbacks. The toggle
-    # goes last: it is used less than the pair that folds the rows.
-    head = html.Div([
-        ui_kit.disclosure_all_button("rating-dist-expand-all", True),
-        ui_kit.disclosure_all_button("rating-dist-collapse-all", False),
-        ui_kit.guide_toggle_button("rating-dist-guide-toggle"),
-    ], className="rd-tools d-flex gap-1")
-    return _card([html.Div([head, *body], className="rating-dist")])
+    return body

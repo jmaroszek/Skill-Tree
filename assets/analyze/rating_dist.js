@@ -12,6 +12,10 @@
  * rating, and the rating's definition. A mean tick, the work-left cell and
  * a Goal's bar use the same first-line-bold layout.
  *
+ * The cells aren't Dash components: the rows arrive as one component's
+ * data-tree, and fillInert builds them. Everything here reaches them by
+ * delegation, so it works the same on them.
+ *
  * The guide toggle is a class on <html>, so it applies before the grid
  * renders and survives every re-render. It starts off on every load and
  * is not remembered: the guide is for a quick comparison, not a standing
@@ -167,6 +171,35 @@
         toggleTrace(item);
     });
 
+    // Rows sent as one component (features/analyze/inert.py): a string is text,
+    // and [tag, attributes, children] is an element. Dash redraws them when the
+    // graph changes, and a context the user opened stays open.
+    function buildInert(node) {
+        if (typeof node === 'string') return document.createTextNode(node);
+        var el = document.createElement(node[0]);
+        Object.keys(node[1]).forEach(function (name) {
+            el.setAttribute(name, node[1][name]);
+        });
+        node[2].forEach(function (child) { el.appendChild(buildInert(child)); });
+        return el;
+    }
+
+    function fillInert(pane) {
+        pane.querySelectorAll('[data-tree]').forEach(function (holder) {
+            var tree = holder.getAttribute('data-tree');
+            if (holder._stTree === tree) return;
+            holder._stTree = tree;
+            var open = {};
+            holder.querySelectorAll('details[open] > summary .rd-name').forEach(function (name) {
+                open[name.textContent] = true;
+            });
+            holder.replaceChildren.apply(holder, JSON.parse(tree).map(buildInert));
+            holder.querySelectorAll('details > summary .rd-name').forEach(function (name) {
+                if (open[name.textContent]) name.closest('details').open = true;
+            });
+        });
+    }
+
     // Dash draws a graph after this script runs and can replace it, so each
     // new one is found by watching the Analyze tab. A plot is bound once.
     var bindQueued = false;
@@ -180,10 +213,15 @@
     }
     function watchAnalyze(pane) {
         new MutationObserver(function () {
+            // A microtask after Dash's commit, so the rows are in the first
+            // paint rather than one frame behind their card.
+            fillInert(pane);
             if (bindQueued) return;
             bindQueued = true;
             requestAnimationFrame(bindPlots);
-        }).observe(pane, {childList: true, subtree: true});
+        }).observe(pane, {childList: true, subtree: true, attributes: true,
+                          attributeFilter: ['data-tree']});
+        fillInert(pane);
         bindPlots();
     }
     function waitForAnalyze() {

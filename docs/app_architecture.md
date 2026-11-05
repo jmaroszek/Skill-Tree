@@ -305,6 +305,7 @@ Hidden canvases and drawing:
 
 - Heavy callbacks don't subscribe to `main-tabs`. Analyze and Events listen to small arrival stores that fire only when their tab opens.
 - Analyze starts rendering when the pointer or focus reaches its tab (`assets/analyze/analyze_prewarm.js`), and records a signature so an unchanged visit recomputes nothing.
+- Rows no callback touches mount as one component holding their description (`features/analyze/inert.py`). Every mounted component makes every store update dearer, on every tab, even while hidden.
 - The Details selection callback doesn't render the subtasks table. `assets/details/details_deferred_subtasks.js` releases it, and the simulation, once the newest layout settles.
 - Navigation history, graph taps and suggestion clicks on Details are clientside, so no callback lands inside the opening layout.
 - The Explain modal's inputs are written only while it is open.

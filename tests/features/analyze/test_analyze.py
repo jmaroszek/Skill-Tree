@@ -690,12 +690,10 @@ class TestComputeRatingDistribution:
 class TestRenderRatingDistribution:
     def test_contexts_fold_and_cells_carry_definitions(self, mgr):
         from dash import html
-        from skilltree.features.analyze.charts import (
-            render_rating_distribution as _render_rating_distribution,
-        )
+        from skilltree.features.analyze.charts import rating_dist_rows
         nodes = [make_node("A", context="Mind", subcontext="Logic", value=4),
                  make_node("B", context="Mind", subcontext="Memory", value=6)]
-        card = _render_rating_distribution(compute_rating_distribution(nodes))
+        card = html.Div(rating_dist_rows(compute_rating_distribution(nodes)))
 
         def walk(c):
             yield c
@@ -716,10 +714,9 @@ class TestRenderRatingDistribution:
 
     @staticmethod
     def _parts(nodes):
-        from skilltree.features.analyze.charts import (
-            render_rating_distribution as _render_rating_distribution,
-        )
-        card = _render_rating_distribution(compute_rating_distribution(nodes))
+        from dash import html
+        from skilltree.features.analyze.charts import rating_dist_rows
+        card = html.Div(rating_dist_rows(compute_rating_distribution(nodes)))
 
         def walk(c):
             yield c
