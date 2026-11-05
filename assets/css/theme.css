@@ -435,6 +435,7 @@
     align-items: center;
     padding-block: 2px;
 }
+.rd-rows { display: contents; }
 .rd-head { align-items: end; padding-bottom: 4px; }
 /* Expand, collapse and the guide toggle sit in the top-right corner, over
    the header row's empty space above "Work left". */

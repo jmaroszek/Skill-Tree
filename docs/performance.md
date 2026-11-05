@@ -571,3 +571,67 @@ slide could start late:
   opening waited for that response, and a click on any sidebar would have waited
   for a render already running. That Input and `main-tabs` now come through a
   second registration of the same function, and clicks through the first.
+
+## What a rendered tab costs a sidebar (2026-11-04)
+
+The table above was measured with Home showing and Analyze not yet rendered, so
+it was the best case. Once Analyze had rendered, hidden, opening the editor from
+Home gained a long task of about 70 ms, and its first movement came about 100 ms
+later. Nodes, by contrast, added nothing.
+
+No new work caused it. The click ran the same three callbacks and the same 46
+store updates either way: the reducer, `btn-editor-new.title` and the editor's
+form. Each update just cost more, because each one re-checks every mounted
+component, shown or not. Analyze took the layout from 2,366 components to 5,476,
+and the updates in the first 150 ms from about 70 ms to about 200 ms.
+
+The Contexts grid was 2,639 of the 3,110 it added. Its cells are inert: no
+callback reads or writes one, and their hover, folding and buttons all work by
+delegated listeners and native `<details>`. So the grid's rows now mount as one
+component holding a JSON description of them (`features/analyze/inert.py`), and
+`assets/analyze/rating_dist.js` builds the elements from it. It isn't HTML because
+a name must never be read as markup, and no page script writes HTML. That leaves
+2,860 components. The DOM is the same, and screenshots of the grid collapsed, expanded
+and with guides on match pixel for pixel.
+
+These are medians of 12 runs, click to first movement, from Home after visiting
+Analyze. The two versions alternated on a throwaway copy of the sandbox, in
+headless Chrome at 2194x1234, DPR 1.75. "Not visited" is the new code before any
+visit. The old code matches it within 6 ms on every row, as it should, since
+nothing here runs until Analyze has mounted.
+
+| Sidebar | Before | After | Not visited |
+| --- | ---: | ---: | ---: |
+| Editor, opening | 160 ms | 77 ms | 61 ms |
+| Editor, closing | 234 ms | 121 ms | 95 ms |
+| Goals, opening | 199 ms | 82 ms | 62 ms |
+| Goals, closing | 106 ms | 59 ms | 49 ms |
+| Filters, opening | 84 ms | 44 ms | 36 ms |
+| Filters, closing | 81 ms | 44 ms | 40 ms |
+
+Long tasks in the same runs, as a median, and how many of the 12 had one:
+
+| Sidebar | Before | After |
+| --- | ---: | ---: |
+| Editor, opening | 72 ms, 12 of 12 | none |
+| Editor, closing | 128 ms, 12 of 12 | none |
+| Goals, opening | 134 ms, 12 of 12 | none |
+| Goals, closing | 60 ms, 12 of 12 | none |
+| Filters, opening | 0, 4 of 12 | none |
+| Filters, closing | 0, 4 of 12 | none |
+
+"None" means under the browser's 50 ms line, not that the work is gone. The
+largest task sits close enough below it that a busy machine tips some over: in
+two earlier rounds, with another session running, a few runs of the new code
+showed 50 to 80 ms, with or without an Analyze visit.
+
+Analyze's first visit got cheaper too, in medians of 5: 352 ms to 312 ms from the
+click to the grid drawn, long tasks 231 ms to 185 ms, and its answer 610 KB to
+457 KB.
+
+The last 10 to 25 ms is the 494 components still mounted: the other Analyze rows,
+such as Goals and Bottlenecks, and the section shells. Those rows are inert too,
+and could go the same way.
+
+So rows no callback touches should mount as one component. A hidden tab's
+components slow every click on every other tab.
