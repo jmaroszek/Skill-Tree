@@ -91,8 +91,8 @@ def test_name_formatting_offers_only_the_three_supported_modes():
 
     assert components["setting-name-format-mode"].options == [
         {"label": "Keep as entered", "value": "none"},
-        {"label": "Title Case", "value": "title"},
         {"label": "Sentence case", "value": "sentence"},
+        {"label": "Title Case", "value": "title"},
     ]
     assert "setting-titlecase-options" in components
     assert "setting-linter-enabled" not in components

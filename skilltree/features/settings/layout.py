@@ -131,7 +131,8 @@ def _build_recommendations_tab():
             dbc.Label("Maximum Now Nodes", html_for="setting-now-node-cap",
                       className="visually-hidden"),
             dbc.Input(id="setting-now-node-cap", type="number",
-                      min=1, max=50, step=1, className="settings-input-num"),
+                      min=1, max=50, step=1,
+                      className="settings-input-num settings-input-short"),
         ),
     ])
 
@@ -147,8 +148,8 @@ def _build_editing_tab():
                 id="setting-name-format-mode",
                 options=[
                     {"label": "Keep as entered", "value": NAME_FORMAT_NONE},
-                    {"label": "Title Case", "value": NAME_FORMAT_TITLE},
                     {"label": "Sentence case", "value": NAME_FORMAT_SENTENCE},
+                    {"label": "Title Case", "value": NAME_FORMAT_TITLE},
                 ],
                 value=DEFAULT_TITLECASE_LINTER['mode'],
                 inline=True,
@@ -395,7 +396,7 @@ def _build_data_tab():
                 html.Div(dcc.Dropdown(id="restore-backup-select", options=[],
                                       clearable=False, placeholder="Choose a backup"),
                          className="text-dark", style={"minWidth": "340px"}),
-                danger_action("Restore…", "btn-restore-backup", standalone=True, size="sm",
+                danger_action("Restore…", "btn-restore-backup", size="sm",
                               className="ms-2"),
             ], className="d-flex align-items-center"),
             dbc.Collapse(html.Div([

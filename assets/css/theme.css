@@ -891,6 +891,10 @@
 .form-select.settings-input-num {
     width: 128px;
 }
+/* A two-digit count. */
+.form-control.settings-input-num.settings-input-short {
+    width: 72px;
+}
 /* A folder path: room for a long one without spanning the page. */
 .form-control.settings-input-path {
     max-width: 440px;
