@@ -760,7 +760,10 @@ Scrollbars) shows that more cards sit below.
   dark: Bootstrap's over DARKLY's white, and Dash's through its `--Dash-*`
   variables. Don't wrap a control in `.text-dark`: its `!important` leaves dark
   text in a dark field.
-- Textarea: `dbc.Textarea(style={"height": "120px", "resize": "vertical"})`
+- Textarea: `text_area(id, "120px")` from `ui/components/text_area.py`, a
+  `dcc.Textarea` with `form-control`. It draws a filled value in the same frame
+  as the rest of the form, where `dbc.Textarea` copies it in a frame late.
+  `fields.css` undoes Dash's own textarea look.
 - Placeholders end in `...` (three dots, not the single ellipsis character) and
   describe the action: `Name node...`, `Choose node type...`. Every light
   control renders them in `--st-text-placeholder`. The filter sidebar draws its

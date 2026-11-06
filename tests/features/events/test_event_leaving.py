@@ -5,6 +5,7 @@ import pytest
 from skilltree.domain.models import Event
 from skilltree.features.events.callbacks import register_events_callbacks
 from skilltree.features.events.layout import event_form_is_dirty
+from skilltree.features.events.view import VIEW_OUTPUTS
 from skilltree.store.events import EventManager
 from skilltree.store.graph.manager import GraphManager
 from support.callbacks import app_with, registered
@@ -12,7 +13,7 @@ from support.graphs import make_node
 from support.triggers import fire
 
 CARD = '{"index":"%s","type":"event-card"}.n_clicks'
-OUTPUTS = 14  # _DETAIL_OUTPUTS
+OUTPUTS = 14 + len(VIEW_OUTPUTS)  # _DETAIL_OUTPUTS: the fields, then the view
 
 
 def _form(**fields):

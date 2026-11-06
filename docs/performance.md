@@ -664,9 +664,36 @@ element shown or hidden, a button turned on or off.
 `populate_editor` now sends all of it with the values (`features/editor/view.py`).
 The followers still run, but they repeat what the form shows, so nothing moves.
 
+The description's box still took its value a frame after the rest about half
+the time. dbc.Textarea keeps its own copy of the value and copies a new one in
+from an effect, after React has drawn it. The browser can paint in between. The
+editor and the event panel now use dcc.Textarea, which draws the value it is
+given (`ui/components/text_area.py`). It looks the same: computed styles and
+screenshots match the old box in both themes.
+
 Two late changes are left. When the next node has no aliases, their section
-slides shut, a 350 ms animation. The description's box sometimes takes its
-value a frame after the rest, inside the component.
+slides shut, a 350 ms animation. Dash 4's dropdown copies its value the same
+way the old box did, so the edge lists' labels and counts sometimes come a
+frame late. Fixing that would mean patching or replacing Dash's dropdown.
 
 So whatever a load changes should come in the load's own answer. A follower
 costs a whole pass, even when it runs in the browser.
+
+Opening an event had the same shape, in two paints. The fields came first. Then
+four followers set the trigger section, the trigger hint, the Trigger and Add
+buttons, and a fired event's locked trigger fields. Until they answered, a fired
+event's trigger fields could be edited, and the last event's section stayed up.
+`open_event_detail` now sends them with the fields (`features/events/view.py`).
+Same setup, six events in turn:
+
+| Event | Frames that changed, before | Last change, before | After | Last change, after |
+| --- | ---: | ---: | ---: | ---: |
+| Dated, pending | 2 | 276 ms | 1 | 167 ms |
+| Node completion, pending | 2 | 261 ms | 1 | 129 ms |
+| Dated, fired | 2 | 212 ms | 1 | 103 ms |
+| Manual, pending | 2 | 236 ms | 1 | 105 ms |
+| Node completion, fired | 2 | 217 ms | 1 | 104 ms |
+| Dated, pending | 2 | 232 ms | 1 | 114 ms |
+
+That is with the new description box. With dbc.Textarea, two of the six took a
+second frame for the description alone.

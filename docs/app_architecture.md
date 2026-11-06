@@ -83,6 +83,8 @@ The function is registered twice, because of how Dash treats a callback that fir
 
 The Events form's `open_event_detail` has two doors for the same reason. The dialog's Save goes on once it has committed, and that save rebuilds the event list, whose new cards fire the callback again.
 
+`open_event_detail` also sends what the panel shows around the fields, so an event opens in one paint: the trigger section, the hint, the Trigger and Add buttons, a fired event's locks. `event_view` (`features/events/view.py`) holds those rules. The callbacks that answer later changes call the same ones.
+
 Two quick clicks on Save are the same problem from one door. The second sends the same form from the same baseline, and the first answer is thrown away. So `handlers.save` remembers the last commit, and a repeat gets that answer without writing again. Saves run one at a time, so a repeat always sees what the first did.
 
 The editor's save transaction is `save_editor_form` in `features/editor/save.py`. It doesn't touch Dash, and it raises `ReopensDoneNodes`, `ValueError` or `TypeError` for the handler to report.

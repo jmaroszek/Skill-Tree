@@ -14,6 +14,7 @@ from skilltree.ui.kit import panel_close_button
 from skilltree.ui.components.duration import DURATION_UNITS
 from skilltree.ui.components.duration import unit_select
 from dash import dcc
+from skilltree.ui.components.text_area import text_area
 from skilltree.domain.contexts import sort_contexts
 from skilltree.domain.models import STATUS_DONE
 from skilltree.features.editor.form import NEW_NODE_SNAPSHOT
@@ -366,8 +367,7 @@ def build_node_editor_content():
                 dbc.Select(id="node-type", options=[{"label": t, "value": t} for t in SUPPORTED_NODE_TYPES]),
 
                 dbc.Label("Description", className="mt-2"),
-                dbc.Textarea(id="node-desc",
-                             style={"height": "120px", "resize": "vertical"}),
+                text_area("node-desc", "120px"),
 
                 hover_label("Context", "node-context-label", _EDITOR_HINTS["context"],
                              className="mt-2"),

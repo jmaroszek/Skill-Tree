@@ -16,57 +16,26 @@ from skilltree.features.events.graph import register_event_graph_callbacks
 from skilltree.features.events.layout import (
     EVENT_FORM,
     event_form_is_dirty,
-    trigger_mode_options,
-    trigger_type_options,
     event_trigger_type,
     build_dormant_nodes_table,
     build_event_card,
     build_triggered_divider,
     trigger_confirmation_body,
 )
+from skilltree.features.events.view import (
+    BUTTON_SHOWN,
+    VIEW_FILL,
+    event_state,
+    event_view,
+    normalize_trigger_nodes,
+    trigger_mode_hint,
+    trigger_section_styles,
+)
 from skilltree.store import settings
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.list_toolbar import merge_manual_order
 from skilltree.ui.prerender import prerendered
-
-
-_DELETE_SHOWN = {"display": "flex", "alignItems": "center"}
-
-
-def _normalize_trigger_nodes(value):
-    """Coerces a trigger-node dropdown value into a de-duplicated list.
-
-    A multi Dropdown yields a list, but the same component can hand back a
-    bare string (single leftover selection) or None (cleared), so all three
-    shapes are flattened here rather than at each call site.
-    """
-    if not value:
-        return []
-    if isinstance(value, str):
-        value = [value]
-    out = []
-    for name in value:
-        if name and name not in out:
-            out.append(name)
-    return out
-
-
-def _trigger_mode_hint(trigger_mode, trigger_nodes):
-    """Help text under a node-completion trigger, describing the live selection.
-
-    At one node the any/all distinction is meaningless, so the text collapses
-    to the plain single-node wording rather than naming a mode the user can't
-    meaningfully act on.
-    """
-    names = _normalize_trigger_nodes(trigger_nodes)
-    if not names:
-        return "Auto-triggers when the selected node is marked complete."
-    if len(names) == 1:
-        return f"Auto-triggers when {names[0]} is marked complete."
-    if trigger_mode == "all":
-        return f"Auto-triggers once all {len(names)} selected nodes are marked complete."
-    return "Auto-triggers as soon as any one of the selected nodes is marked complete."
 
 
 def register_events_callbacks(app, services):
@@ -313,7 +282,7 @@ def register_events_callbacks(app, services):
     )
     @prerendered
     def describe_trigger_mode(trigger_mode, trigger_nodes):
-        return _trigger_mode_hint(trigger_mode, trigger_nodes)
+        return trigger_mode_hint(trigger_mode, trigger_nodes)
 
     # --- Trigger Type Section Visibility ---
     @app.callback(
@@ -324,12 +293,12 @@ def register_events_callbacks(app, services):
     )
     @prerendered
     def toggle_trigger_sections(trigger_type):
-        date_style = {"display": "block"} if trigger_type == "date" else {"display": "none"}
-        node_style = {"display": "block"} if trigger_type == "node" else {"display": "none"}
-        return date_style, node_style
+        return trigger_section_styles(trigger_type)
 
-    # Last output is `main-tabs.active_tab` so that selecting/creating an event
-    # also switches to the Events tab (works from any tab).
+    # `main-tabs.active_tab` is there so that selecting/creating an event also
+    # switches to the Events tab (works from any tab). VIEW_FILL is what the
+    # panel shows around the fields (view.event_view), so an event opens in one
+    # paint. The callbacks above and show_event_state answer later changes.
     _DETAIL_OUTPUTS = [
         Output("selected-event-store", "data", allow_duplicate=True),
         Output("events-refresh-trigger", "data", allow_duplicate=True),
@@ -345,8 +314,10 @@ def register_events_callbacks(app, services):
         Output("event-trigger-node", "value", allow_duplicate=True),
         Output("event-trigger-mode", "value", allow_duplicate=True),
         Output("main-tabs", "active_tab", allow_duplicate=True),
+        *VIEW_FILL,
     ]
     _N_DETAIL = len(_DETAIL_OUTPUTS)
+    _BLANK_VIEW = event_view(None, "manual", [], "any")
 
     def _new_detail(active_tab):
         return (
@@ -367,6 +338,7 @@ def register_events_callbacks(app, services):
             [],                     # trigger nodes
             "any",                  # trigger mode
             "tab-events" if active_tab != "tab-events" else no_update,
+            *_BLANK_VIEW,
         )
 
     def _closed_detail():
@@ -385,9 +357,13 @@ def register_events_callbacks(app, services):
             [],
             "any",
             no_update,
+            *_BLANK_VIEW,
         )
 
     def _event_detail(event, active_tab):
+        trigger_type = event_trigger_type(event)
+        trigger_nodes = list(event.trigger_nodes)
+        trigger_mode = event.trigger_mode or "any"
         return (
             event.name,
             no_update,  # Selection does not invalidate event data or dropdowns.
@@ -396,13 +372,14 @@ def register_events_callbacks(app, services):
             event.name,
             event.description,
             build_dormant_nodes_table(event_manager.get_event_nodes(event.name), event),
-            _DELETE_SHOWN,
+            BUTTON_SHOWN,
             "",
             event.trigger_date or "",
-            event_trigger_type(event),
-            list(event.trigger_nodes),
-            event.trigger_mode or "any",
+            trigger_type,
+            trigger_nodes,
+            trigger_mode,
             "tab-events" if active_tab != "tab-events" else no_update,
+            *event_view(event, trigger_type, trigger_nodes, trigger_mode),
         )
 
     def _leave_target(trigger, card_clicks, ctx_action):
@@ -512,9 +489,8 @@ def register_events_callbacks(app, services):
     def keep_editing_event(_n_clicks):
         return False, None
 
-    # What a saved event's panel offers. Trigger is for an event that hasn't
-    # fired, and a fired event's trigger fields have nothing left to do. Its
-    # name and description stay editable, to correct or annotate the record.
+    # What a saved event's panel offers (view.event_state), after a save, a
+    # trigger or a change to the graph. Opening an event sends it with the fields.
     @app.callback(
         Output("event-trigger-btn-wrapper", "style"),
         Output("event-trigger-type", "options"),
@@ -527,11 +503,7 @@ def register_events_callbacks(app, services):
         prevent_initial_call=True,
     )
     def show_event_state(selected_event, _refresh, _version):
-        event = event_manager.get_event(selected_event) if selected_event else None
-        fired = event is not None and event.status == "Triggered"
-        return (_DELETE_SHOWN if event is not None and not fired else {"display": "none"},
-                trigger_type_options(disabled=fired), fired, fired,
-                trigger_mode_options(disabled=fired))
+        return event_state(event_manager.get_event(selected_event) if selected_event else None)
 
     # --- Save Event ---
     @app.callback(
@@ -571,7 +543,7 @@ def register_events_callbacks(app, services):
 
         # Resolve trigger fields based on type
         resolved_date = trigger_date if trigger_type == "date" else None
-        resolved_nodes = _normalize_trigger_nodes(trigger_nodes) if trigger_type == "node" else []
+        resolved_nodes = normalize_trigger_nodes(trigger_nodes) if trigger_type == "node" else []
         resolved_mode = trigger_mode if trigger_mode in ("any", "all") else "any"
 
         if trigger_type == "node" and not resolved_nodes:
@@ -620,7 +592,7 @@ def register_events_callbacks(app, services):
         # Only the dialog leaves something pending, and it blocks the plain Save.
         # Its Save goes on to where the click was going, now it's saved.
         going_on = {**pending, "saved": time.time()} if pending else no_update
-        return name, f"save-{name}", message, _DELETE_SHOWN, False, None, going_on
+        return name, f"save-{name}", message, BUTTON_SHOWN, False, None, going_on
 
     # --- Auto-dismiss save status ---
     register_toast_timer(app, "event-save-status", TOAST_CLEAR_INTERVAL_MS)

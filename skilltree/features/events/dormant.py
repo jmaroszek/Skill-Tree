@@ -13,6 +13,7 @@ from skilltree.store import database
 from skilltree.ui import payloads as bridge_payloads
 from skilltree.ui.canvas.view import node_options
 from skilltree.ui.components.duration import duration_to_days, format_duration_days
+from skilltree.features.events.view import add_dormant_style
 from skilltree.ui.prerender import prerendered
 
 
@@ -20,9 +21,8 @@ def register_dormant_callbacks(app, services):
     event_manager = services.events
     graph_manager = services.graph
 
-    # Nodes join a saved, untriggered event. A Triggered event will not fire
-    # again, so it stops accepting nodes; an unsaved one has no name for them
-    # to join yet (its table says to save first).
+    # Whether the open event takes new nodes (view.add_dormant_style), after a
+    # save or a trigger. Opening an event sends it with the fields.
     @app.callback(
         Output("dormant-add-btn-wrapper", "style"),
         Input("selected-event-store", "data"),
@@ -31,10 +31,7 @@ def register_dormant_callbacks(app, services):
     )
     @prerendered
     def toggle_add_dormant_button(selected_event, _refresh):
-        if not selected_event:
-            return {"display": "none"}
-        event = event_manager.get_event(selected_event)
-        return {"display": "none"} if event and event.status == "Triggered" else {}
+        return add_dormant_style(event_manager.get_event(selected_event) if selected_event else None)
 
     # The node editor and the Add to Event modal change an event's roster
     # from outside the Events tab's own callbacks, which write the table

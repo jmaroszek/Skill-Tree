@@ -6,6 +6,7 @@ from skilltree.ui.components.card_search import card_description
 from skilltree.ui.kit import hint
 from skilltree.ui import tokens
 from skilltree.ui.components.duration import DURATION_UNITS, unit_select, format_duration_days
+from skilltree.ui.components.text_area import text_area
 from dash import State, html, dcc
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -103,8 +104,7 @@ def build_events_tab_content():
 
                 # --- Description ---
                 dbc.Label("Description", className="mt-3 mb-1"),
-                dbc.Textarea(id="event-description", rows=3,
-                             style={"height": "90px", "resize": "vertical"}),
+                text_area("event-description", "90px", rows=3),
 
                 # --- Trigger Type ---
                 # Section rhythm: every label in this pane carries mt-3 and
