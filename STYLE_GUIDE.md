@@ -145,8 +145,8 @@ amber wash over the text's own color.
 | Tile         | Background | Text      | Notes                                                     |
 |--------------|-----------|-----------|-----------------------------------------------------------|
 | Unblocking   | `#b6558c` | `#ffffff` | A step pinned toward a blocked Now node. Bar color only — it has no badge tile. A default: Appearance sets it, and it lives in `DEFAULT_NODE_COLORS`. |
-| PriorityRank | `#c48e43` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold, and a little more saturated than the score chip because it marks a priority. A default, like Unblocking. |
-| PriorityScore | `#769db5` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. A calm slate blue at the rank chip's lightness, kept apart from the Learn and Open blues. A default, like Unblocking. |
+| PriorityRank | `#c18a3e` | `#ffffff` | The bare rank number on Goals-sidebar cards and Details suggestions. A honey amber, deliberately warmer than the Goal gold, and a little more saturated than the score chip because it marks a priority. A default, like Unblocking. |
+| PriorityScore | `#6c9dbc` | `#ffffff` | The 0-100 priority on Goals-sidebar cards and Details suggestions. A calm blue, kept apart from the Learn and Open blues. A default, like Unblocking. |
 | HardRelPri   | `#305170` | `#d8e0e8` | `Hard N` for non-Goal nodes in a priority Goal subtree. Darker rugged blue — matches `EdgeHard`. |
 | SoftRelPri   | `#44515b` | `#d4d8da` | `Soft #N`. A darker slate than the `EdgeSoft` tile, despite what this row used to claim. |
 

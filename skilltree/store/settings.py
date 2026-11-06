@@ -65,7 +65,7 @@ DEFAULT_SUBCONTEXTS = {
 # cards and Details suggestions; Unblocking colors the bar of a step pinned
 # toward a blocked Now node. Each holds white text.
 DEFAULT_NODE_COLORS = {
-    STATUS_BLOCKED: '#d45652',
+    STATUS_BLOCKED: '#ca4d49',
     STATUS_OPEN: '#3b78c4',
     STATUS_DONE: '#3a9b5d',
     'Goal': '#d2b619',
@@ -74,11 +74,11 @@ DEFAULT_NODE_COLORS = {
     'Resource': '#9c6acb',
     'Milestone': '#0da7a5',
     'Now': '#ebc646',
-    # Kyoto lifted's honey, slate and plum. Score is a calm slate blue, apart
-    # from the Learn and Open blues. Rank is the same lightness but a little
-    # more saturated, because it marks a priority.
-    'PriorityRank': '#c48e43',
-    'PriorityScore': '#769db5',
+    # Kyoto lifted's honey, slate and plum. Score is a calm blue, apart from the
+    # Learn and Open blues. Rank is a warm amber, a little more saturated,
+    # because it marks a priority.
+    'PriorityRank': '#c18a3e',
+    'PriorityScore': '#6c9dbc',
     'Unblocking': '#b6558c',
 }
 
