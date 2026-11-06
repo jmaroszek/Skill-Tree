@@ -2338,6 +2338,24 @@ body:has(.keyboard-graph:focus-visible, .now-card:focus-visible,
     background-color: var(--st-field-bg);
     overflow: hidden;
 }
+/* The alias rows open and close at once, and assets/editor/alias_fold.js
+   plays the slide with transforms. Bootstrap's height tween ran on the main
+   thread, which a node load keeps busy. flow-root keeps the label's top margin
+   inside the box in every state, so its height doesn't step by the margin when
+   the collapse settles. */
+#collapse-aliases.collapsing { transition: none; }
+#collapse-aliases.show,
+#collapse-aliases.collapsing { display: flow-root; }
+/* Where the rows' copy slides shut. It takes no room. */
+#aliases-fold-ghost { position: relative; height: 0; }
+.alias-fold-ghost {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flow-root;
+    pointer-events: none;
+}
 .editor-field-group .form-control {
     border: none;
     box-shadow: none;

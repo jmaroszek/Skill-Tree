@@ -351,6 +351,10 @@ def build_node_editor_content():
                     id="collapse-aliases",
                     is_open=False,
                 ),
+                # assets/editor/alias_fold.js slides a copy of the rows shut
+                # here, as they looked before a clear reset them. Nothing in
+                # Dash writes its children.
+                html.Div(id='aliases-fold-ghost'),
                 dcc.Store(id='aliases-store', data=['']),
                 # A fresh page's form is a blank new node. Without this baseline,
                 # what was typed into it counted as nothing to lose.
